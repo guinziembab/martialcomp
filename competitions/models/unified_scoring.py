@@ -1,0 +1,677 @@
+from django.db import models
+from django.db.models import Avg, Max, Min
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+from decimal import Decimal
+
+from .competitions import CompetitionCategory, Competition
+from .practitioners import Practitioner
+from .users import User
+from .categories import AgeCategory, WeightCategory, GradeCategory
+from .federations import Federation
+from .club import Club
+
+
+class ScoringSystem(models.Model):
+    """
+    Defines a scoring system for competitions (standard, point, direct elimination, custom).
+    """
+    STANDARD = 'standard'
+    POINT = 'point'
+    DIRECT_ELIMINATION = 'direct'
+    CUSTOM = 'custom'
+    
+    SYSTEM_TYPES = [
+        (STANDARD, _('Standard (Weighted Average)')),
+        (POINT, _('Point System')),
+        (DIRECT_ELIMINATION, _('Direct Elimination')),
+        (CUSTOM, _('Custom')),
+    ]
+    
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    system_type = models.CharField(max_length=20, choices=SYSTEM_TYPES, default=STANDARD)
+    min_score = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
+    max_score = models.DecimalField(max_digits=5, decimal_places=2, default=10.0)
+    score_step = models.DecimalField(max_digits=5, decimal_places=2, default=0.1)
+    exclude_extreme_scores = models.BooleanField(default=False)
+    allow_ties = models.BooleanField(default=True)
+    real_time_results = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_system_type_display()})"
+
+
+class ScoringCriterion(models.Model):
+    """
+    Defines criteria for evaluating performances (e.g., Technique, Power, Balance).
+    """
+    scoring_system = models.ForeignKey(
+        ScoringSystem, 
+        on_delete=models.CASCADE, 
+        related_name='criteria'
+    )
+    category = models.ForeignKey(
+        CompetitionCategory, 
+        on_delete=models.CASCADE, 
+        related_name='scoring_criteria',
+        null=True,
+        blank=True
+    )
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    weight = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        default=1.0,
+        validators=[MinValueValidator(0.01)]
+    )
+    min_score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    max_score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    step = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['order', 'name']
+        unique_together = [
+            ('category', 'name'),
+            ('scoring_system', 'name'),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} (weight: {self.weight})"
+    
+    def save(self, *args, **kwargs):
+        # Use system defaults if specific values aren't provided
+        if self.min_score is None and self.scoring_system:
+            self.min_score = self.scoring_system.min_score
+        if self.max_score is None and self.scoring_system:
+            self.max_score = self.scoring_system.max_score
+        if self.step is None and self.scoring_system:
+            self.step = self.scoring_system.score_step
+        
+        super().save(*args, **kwargs)
+
+
+class CategoryScoringConfig(models.Model):
+    """
+    Links a scoring system to a competition category with optional overrides.
+    """
+    category = models.OneToOneField(
+        CompetitionCategory, 
+        on_delete=models.CASCADE,
+        related_name='scoring_config'
+    )
+    scoring_system = models.ForeignKey(
+        ScoringSystem, 
+        on_delete=models.CASCADE, 
+        related_name='category_configs'
+    )
+    override_min_score = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        null=True, 
+        blank=True
+    )
+    override_max_score = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        null=True, 
+        blank=True
+    )
+    override_score_step = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        null=True, 
+        blank=True
+    )
+    exclude_extreme_scores = models.BooleanField(null=True, blank=True)
+    allow_ties = models.BooleanField(null=True, blank=True)
+    real_time_results = models.BooleanField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Scoring Config for {self.category}"
+    
+    def get_effective_min_score(self):
+        return self.override_min_score if self.override_min_score is not None else self.scoring_system.min_score
+    
+    def get_effective_max_score(self):
+        return self.override_max_score if self.override_max_score is not None else self.scoring_system.max_score
+    
+    def get_effective_score_step(self):
+        return self.override_score_step if self.override_score_step is not None else self.scoring_system.score_step
+    
+    def get_effective_exclude_extreme_scores(self):
+        return self.exclude_extreme_scores if self.exclude_extreme_scores is not None else self.scoring_system.exclude_extreme_scores
+    
+    def get_effective_allow_ties(self):
+        return self.allow_ties if self.allow_ties is not None else self.scoring_system.allow_ties
+    
+    def get_effective_real_time_results(self):
+        return self.real_time_results if self.real_time_results is not None else self.scoring_system.real_time_results
+    
+    def set_default_criteria(self):
+        """
+        Create default scoring criteria based on the category's discipline
+        """
+        discipline = self.category.discipline
+        if not discipline:
+            return
+        
+        # Clear existing criteria specific to this category
+        ScoringCriterion.objects.filter(category=self.category).delete()
+        
+        # Common criteria for all disciplines
+        default_criteria = [
+            {'name': _('Technique'), 'weight': 1.0, 'order': 1},
+            {'name': _('Power'), 'weight': 0.8, 'order': 2},
+            {'name': _('Balance'), 'weight': 0.7, 'order': 3},
+            {'name': _('Overall Impression'), 'weight': 1.2, 'order': 4},
+        ]
+        
+        # Add discipline-specific criteria
+        if discipline.name.lower() in ['karate', 'taekwondo']:
+            default_criteria.extend([
+                {'name': _('Speed'), 'weight': 0.9, 'order': 5},
+                {'name': _('Kiai'), 'weight': 0.5, 'order': 6},
+            ])
+        elif discipline.name.lower() in ['qwan ki do', 'kung fu', 'wushu']:
+            default_criteria.extend([
+                {'name': _('Fluidity'), 'weight': 0.9, 'order': 5},
+                {'name': _('Stance'), 'weight': 0.8, 'order': 6},
+                {'name': _('Spirit'), 'weight': 0.7, 'order': 7},
+            ])
+        
+        # Create criteria objects
+        for criteria_data in default_criteria:
+            ScoringCriterion.objects.create(
+                category=self.category,
+                scoring_system=self.scoring_system,
+                name=criteria_data['name'],
+                weight=criteria_data['weight'],
+                order=criteria_data['order'],
+                min_score=self.get_effective_min_score(),
+                max_score=self.get_effective_max_score(),
+                step=self.get_effective_score_step()
+            )
+
+
+class Performance(models.Model):
+    """
+    Represents a participant's performance to be scored.
+    """
+    PENDING = 'pending'
+    IN_PROGRESS = 'in_progress'
+    COMPLETED = 'completed'
+    DISQUALIFIED = 'disqualified'
+    CANCELLED = 'cancelled'
+    
+    STATUS_CHOICES = [
+        (PENDING, _('Pending')),
+        (IN_PROGRESS, _('In Progress')),
+        (COMPLETED, _('Completed')),
+        (DISQUALIFIED, _('Disqualified')),
+        (CANCELLED, _('Cancelled')),
+    ]
+    
+    PRELIMINARY = 'preliminary'
+    SEMIFINAL = 'semifinal'
+    FINAL = 'final'
+    EXHIBITION = 'exhibition'
+    
+    ROUND_TYPES = [
+        (PRELIMINARY, _('Preliminary')),
+        (SEMIFINAL, _('Semifinal')),
+        (FINAL, _('Final')),
+        (EXHIBITION, _('Exhibition')),
+    ]
+    
+    competition = models.ForeignKey(
+        Competition, 
+        on_delete=models.CASCADE, 
+        related_name='performances'
+    )
+    category = models.ForeignKey(
+        CompetitionCategory, 
+        on_delete=models.CASCADE, 
+        related_name='performances'
+    )
+    practitioner = models.ForeignKey(
+        Practitioner, 
+        on_delete=models.CASCADE, 
+        related_name='performances'
+    )
+    round_type = models.CharField(
+        max_length=20, 
+        choices=ROUND_TYPES, 
+        default=PRELIMINARY
+    )
+    round_number = models.PositiveIntegerField(default=1)
+    performance_order = models.PositiveIntegerField(default=0)
+    status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default=PENDING
+    )
+    start_time = models.DateTimeField(null=True, blank=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+    duration = models.DurationField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    disqualification_reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['round_type', 'round_number', 'performance_order']
+        unique_together = [
+            ('category', 'practitioner', 'round_type', 'round_number'),
+            ('category', 'round_type', 'round_number', 'performance_order'),
+        ]
+    
+    def __str__(self):
+        return f"{self.practitioner} - {self.get_round_type_display()} Round {self.round_number}"
+    
+    def start_performance(self):
+        if self.status == self.PENDING:
+            self.status = self.IN_PROGRESS
+            self.start_time = timezone.now()
+            self.save()
+            return True
+        return False
+    
+    def end_performance(self):
+        if self.status == self.IN_PROGRESS:
+            now = timezone.now()
+            self.end_time = now
+            self.duration = now - self.start_time
+            self.status = self.COMPLETED
+            self.save()
+            return True
+        return False
+    
+    def disqualify(self, reason=''):
+        if self.status not in [self.COMPLETED, self.DISQUALIFIED, self.CANCELLED]:
+            self.status = self.DISQUALIFIED
+            self.disqualification_reason = reason
+            if self.start_time and not self.end_time:
+                self.end_time = timezone.now()
+                self.duration = self.end_time - self.start_time
+            self.save()
+            return True
+        return False
+    
+    def cancel(self, reason=''):
+        if self.status != self.COMPLETED:
+            self.status = self.CANCELLED
+            self.notes = (self.notes + '\n' + reason).strip()
+            self.save()
+            return True
+        return False
+    
+    def calculate_final_score(self):
+        """
+        Calculate the final score based on the category's scoring configuration.
+        """
+        from competitions.utils.scoring import ScoreCalculator
+        calculator = ScoreCalculator(self)
+        return calculator.calculate_final_score()
+    
+    def get_judges_scores(self):
+        """
+        Get all scores submitted by judges for this performance.
+        """
+        return self.scores.filter(is_training_score=False)
+
+
+class Score(models.Model):
+    """
+    Individual scores from judges for a performance.
+    """
+    performance = models.ForeignKey(
+        Performance, 
+        on_delete=models.CASCADE, 
+        related_name='scores'
+    )
+    judge = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='given_scores'
+    )
+    criterion = models.ForeignKey(
+        ScoringCriterion, 
+        on_delete=models.CASCADE, 
+        related_name='scores'
+    )
+    value = models.DecimalField(max_digits=5, decimal_places=2)
+    original_value = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        null=True, 
+        blank=True
+    )
+    is_locked = models.BooleanField(default=False)
+    is_training_score = models.BooleanField(default=False)
+    modified_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='modified_scores'
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = [
+            ('performance', 'judge', 'criterion'),
+        ]
+    
+    def __str__(self):
+        return f"{self.judge} scored {self.value} for {self.criterion.name} - {self.performance}"
+    
+    def save(self, *args, **kwargs):
+        # Store original value if this is the first save
+        if not self.id and not self.original_value:
+            self.original_value = self.value
+        
+        # Validate score range
+        min_score = self.criterion.min_score
+        max_score = self.criterion.max_score
+        if min_score is not None and self.value < min_score:
+            self.value = min_score
+        if max_score is not None and self.value > max_score:
+            self.value = max_score
+        
+        super().save(*args, **kwargs)
+    
+    def lock(self):
+        self.is_locked = True
+        self.save()
+        return True
+
+
+class JudgeSubmission(models.Model):
+    """
+    Tracks whether a judge has submitted all scores for a performance.
+    """
+    performance = models.ForeignKey(
+        Performance, 
+        on_delete=models.CASCADE, 
+        related_name='judge_submissions'
+    )
+    judge = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='performance_submissions'
+    )
+    is_submitted = models.BooleanField(default=False)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        unique_together = [
+            ('performance', 'judge'),
+        ]
+    
+    def __str__(self):
+        status = "Submitted" if self.is_submitted else "Not Submitted"
+        return f"{self.judge} - {self.performance} - {status}"
+    
+    def submit(self):
+        if not self.is_submitted:
+            self.is_submitted = True
+            self.submitted_at = timezone.now()
+            self.save()
+            
+            # Lock all scores
+            for score in Score.objects.filter(performance=self.performance, judge=self.judge):
+                score.lock()
+            
+            return True
+        return False
+
+
+class JudgeSettings(models.Model):
+    """
+    Stores judge UI preferences.
+    """
+    COMPACT = 'compact'
+    DETAILED = 'detailed'
+    
+    DISPLAY_MODES = [
+        (COMPACT, _('Compact')),
+        (DETAILED, _('Detailed')),
+    ]
+    
+    LIGHT = 'light'
+    DARK = 'dark'
+    
+    THEME_CHOICES = [
+        (LIGHT, _('Light')),
+        (DARK, _('Dark')),
+    ]
+    
+    user = models.OneToOneField(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='judge_settings'
+    )
+    display_mode = models.CharField(
+        max_length=20, 
+        choices=DISPLAY_MODES, 
+        default=DETAILED
+    )
+    notification_sounds = models.BooleanField(default=True)
+    auto_submit = models.BooleanField(default=False)
+    theme = models.CharField(
+        max_length=20, 
+        choices=THEME_CHOICES, 
+        default=LIGHT
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Settings for {self.user}"
+
+
+class CompetitionRanking(models.Model):
+    """
+    Final ranking of competitors in a category.
+    """
+    GOLD = 'gold'
+    SILVER = 'silver'
+    BRONZE = 'bronze'
+    NONE = 'none'
+    
+    MEDAL_CHOICES = [
+        (GOLD, _('Gold')),
+        (SILVER, _('Silver')),
+        (BRONZE, _('Bronze')),
+        (NONE, _('None')),
+    ]
+    
+    competition = models.ForeignKey(
+        Competition, 
+        on_delete=models.CASCADE, 
+        related_name='rankings'
+    )
+    category = models.ForeignKey(
+        CompetitionCategory, 
+        on_delete=models.CASCADE, 
+        related_name='rankings'
+    )
+    practitioner = models.ForeignKey(
+        Practitioner, 
+        on_delete=models.CASCADE, 
+        related_name='rankings'
+    )
+    performance = models.ForeignKey(
+        Performance, 
+        on_delete=models.CASCADE, 
+        related_name='rankings',
+        null=True,
+        blank=True
+    )
+    rank = models.PositiveIntegerField()
+    final_score = models.DecimalField(max_digits=7, decimal_places=3)
+    is_tie = models.BooleanField(default=False)
+    medal = models.CharField(
+        max_length=10, 
+        choices=MEDAL_CHOICES, 
+        default=NONE
+    )
+    is_published = models.BooleanField(default=False)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['category', 'rank']
+        unique_together = [
+            ('category', 'practitioner'),
+            ('category', 'rank', 'is_tie'),
+        ]
+    
+    def __str__(self):
+        return f"{self.practitioner} - Rank {self.rank} ({self.final_score})"
+    
+    def save(self, *args, **kwargs):
+        # Auto-assign medals based on rank if not explicitly set
+        if not self.pk and self.medal == self.NONE:
+            if self.rank == 1:
+                self.medal = self.GOLD
+            elif self.rank == 2:
+                self.medal = self.SILVER
+            elif self.rank == 3:
+                self.medal = self.BRONZE
+        
+        super().save(*args, **kwargs)
+
+
+class CategoryRankingSnapshot(models.Model):
+    """
+    Represents a complete snapshot of rankings for a category at a point in time.
+    Used for publishing official results and historical record keeping.
+    """
+    category = models.ForeignKey(
+        CompetitionCategory, 
+        on_delete=models.CASCADE, 
+        related_name='ranking_snapshots'
+    )
+    competition = models.ForeignKey(
+        Competition, 
+        on_delete=models.CASCADE, 
+        related_name='ranking_snapshots'
+    )
+    created_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name='created_ranking_snapshots'
+    )
+    is_published = models.BooleanField(default=False)
+    is_final = models.BooleanField(default=False)
+    name = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        status = "Final" if self.is_final else "Draft"
+        return f"{self.category} Rankings - {status} ({self.created_at.strftime('%Y-%m-%d %H:%M')})"
+    
+    def publish(self):
+        if not self.is_published:
+            self.is_published = True
+            self.save()
+            return True
+        return False
+    
+    def finalize(self):
+        if self.is_published and not self.is_final:
+            self.is_final = True
+            self.save()
+            return True
+        return False
+    
+    @classmethod
+    def create_from_current_rankings(cls, category, user=None, name='', notes=''):
+        """
+        Creates a snapshot from the current rankings in a category.
+        """
+        snapshot = cls.objects.create(
+            category=category,
+            competition=category.competition,
+            created_by=user,
+            name=name or f"Rankings {timezone.now().strftime('%Y-%m-%d %H:%M')}",
+            notes=notes
+        )
+        
+        # Get current rankings
+        rankings = CompetitionRanking.objects.filter(
+            category=category
+        ).order_by('rank')
+        
+        # Create snapshot entries
+        for ranking in rankings:
+            RankingSnapshotEntry.objects.create(
+                snapshot=snapshot,
+                practitioner=ranking.practitioner,
+                rank=ranking.rank,
+                final_score=ranking.final_score,
+                is_tie=ranking.is_tie,
+                medal=ranking.medal
+            )
+        
+        return snapshot
+
+
+class RankingSnapshotEntry(models.Model):
+    """
+    Individual entries in a ranking snapshot.
+    """
+    GOLD = 'gold'
+    SILVER = 'silver'
+    BRONZE = 'bronze'
+    NONE = 'none'
+    
+    MEDAL_CHOICES = [
+        (GOLD, _('Gold')),
+        (SILVER, _('Silver')),
+        (BRONZE, _('Bronze')),
+        (NONE, _('None')),
+    ]
+    
+    snapshot = models.ForeignKey(
+        CategoryRankingSnapshot, 
+        on_delete=models.CASCADE, 
+        related_name='entries'
+    )
+    practitioner = models.ForeignKey(
+        Practitioner, 
+        on_delete=models.CASCADE, 
+        related_name='ranking_entries'
+    )
+    rank = models.PositiveIntegerField()
+    final_score = models.DecimalField(max_digits=7, decimal_places=3)
+    is_tie = models.BooleanField(default=False)
+    medal = models.CharField(
+        max_length=10, 
+        choices=MEDAL_CHOICES, 
+        default=NONE
+    )
+    
+    class Meta:
+        ordering = ['snapshot', 'rank']
+    
+    def __str__(self):
+        return f"{self.practitioner} - Rank {self.rank} ({self.final_score})"

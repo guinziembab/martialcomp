@@ -1,0 +1,3 @@
+@echo off
+echo Démarrage du serveur Django avec configuration minimale...
+python manage.py runserver --settings=config.settings_minimal

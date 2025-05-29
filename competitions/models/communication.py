@@ -1,0 +1,309 @@
+from django.db import models
+from django.contrib.auth.models import User
+from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
+from django.db.models import Q
+import uuid
+
+
+class Conversation(models.Model):
+    """Conversation entre utilisateurs."""
+    
+    TYPE_CHOICES = [
+        ('direct', _('Message direct')),
+        ('group', _('Groupe')),
+        ('announcement', _('Annonce')),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(_("Titre"), max_length=200, blank=True)
+    conversation_type = models.CharField(_("Type"), max_length=20, choices=TYPE_CHOICES, default='direct')
+    
+    # Participants
+    participants = models.ManyToManyField(
+        User,
+        through='ConversationParticipant',
+        related_name='conversations',
+        verbose_name=_("Participants")
+    )
+    
+    # Pour les conversations d'organisation
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='conversations',
+        verbose_name=_("Organisation")
+    )
+    
+    # Pour les annonces
+    is_announcement = models.BooleanField(_("Est une annonce"), default=False)
+    announcement_audience = models.CharField(
+        _("Audience"),
+        max_length=50,
+        choices=[
+            ('all', _('Tous les membres')),
+            ('practitioners', _('Pratiquants')),
+            ('judges', _('Juges')),
+            ('staff', _('Staff')),
+        ],
+        blank=True
+    )
+    
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_conversations',
+        verbose_name=_("Créé par")
+    )
+    
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("Conversation")
+        verbose_name_plural = _("Conversations")
+        ordering = ['-updated_at']
+    
+    def __str__(self):
+        if self.title:
+            return self.title
+        elif self.conversation_type == 'direct' and self.participants.count() == 2:
+            return f"Conversation entre {', '.join([p.get_full_name() for p in self.participants.all()])}"
+        return f"Conversation {self.id}"
+    
+    def get_other_participant(self, user):
+        """Récupère l'autre participant dans une conversation directe."""
+        if self.conversation_type == 'direct':
+            return self.participants.exclude(id=user.id).first()
+        return None
+    
+    def mark_as_read(self, user):
+        """Marque tous les messages comme lus pour un utilisateur."""
+        self.messages.filter(read_by__user=user, read_by__is_read=False).update(is_read=True)
+        ConversationParticipant.objects.filter(
+            conversation=self,
+            user=user
+        ).update(
+            last_read=timezone.now(),
+            unread_count=0
+        )
+
+
+class ConversationParticipant(models.Model):
+    """Participant à une conversation."""
+    
+    conversation = models.ForeignKey(
+        Conversation,
+        on_delete=models.CASCADE,
+        verbose_name=_("Conversation")
+    )
+    
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name=_("Utilisateur")
+    )
+    
+    # Permissions
+    can_send_messages = models.BooleanField(_("Peut envoyer des messages"), default=True)
+    is_admin = models.BooleanField(_("Est administrateur"), default=False)
+    
+    # Statut
+    joined_at = models.DateTimeField(_("Rejoint le"), auto_now_add=True)
+    left_at = models.DateTimeField(_("Quitté le"), null=True, blank=True)
+    is_active = models.BooleanField(_("Actif"), default=True)
+    
+    # Lecture
+    last_read = models.DateTimeField(_("Dernière lecture"), null=True, blank=True)
+    unread_count = models.PositiveIntegerField(_("Messages non lus"), default=0)
+    
+    # Notifications
+    notifications_enabled = models.BooleanField(_("Notifications activées"), default=True)
+    
+    class Meta:
+        verbose_name = _("Participant")
+        verbose_name_plural = _("Participants")
+        unique_together = [['conversation', 'user']]
+    
+    def __str__(self):
+        return f"{self.user.get_full_name()} - {self.conversation}"
+
+
+class Message(models.Model):
+    """Message dans une conversation."""
+    
+    TYPE_CHOICES = [
+        ('text', _('Texte')),
+        ('image', _('Image')),
+        ('file', _('Fichier')),
+        ('system', _('Système')),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    conversation = models.ForeignKey(
+        Conversation,
+        on_delete=models.CASCADE,
+        related_name='messages',
+        verbose_name=_("Conversation")
+    )
+    
+    sender = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='sent_messages',
+        verbose_name=_("Expéditeur")
+    )
+    
+    message_type = models.CharField(_("Type"), max_length=20, choices=TYPE_CHOICES, default='text')
+    content = models.TextField(_("Contenu"))
+    
+    # Pièces jointes
+    attachment = models.FileField(_("Pièce jointe"), upload_to='messages/', null=True, blank=True)
+    attachment_name = models.CharField(_("Nom du fichier"), max_length=255, blank=True)
+    attachment_size = models.PositiveIntegerField(_("Taille (octets)"), null=True, blank=True)
+    
+    # Réponse à un message
+    reply_to = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='replies',
+        verbose_name=_("Réponse à")
+    )
+    
+    # Métadonnées
+    is_edited = models.BooleanField(_("Édité"), default=False)
+    edited_at = models.DateTimeField(_("Édité le"), null=True, blank=True)
+    is_deleted = models.BooleanField(_("Supprimé"), default=False)
+    deleted_at = models.DateTimeField(_("Supprimé le"), null=True, blank=True)
+    
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _("Message")
+        verbose_name_plural = _("Messages")
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f"{self.sender.get_full_name() if self.sender else 'Système'} - {self.created_at}"
+    
+    def mark_as_read_by(self, user):
+        """Marque le message comme lu par un utilisateur."""
+        MessageRead.objects.get_or_create(
+            message=self,
+            user=user,
+            defaults={'read_at': timezone.now()}
+        )
+
+
+class MessageRead(models.Model):
+    """Statut de lecture d'un message."""
+    
+    message = models.ForeignKey(
+        Message,
+        on_delete=models.CASCADE,
+        related_name='read_by',
+        verbose_name=_("Message")
+    )
+    
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name=_("Utilisateur")
+    )
+    
+    read_at = models.DateTimeField(_("Lu le"), auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _("Lecture de message")
+        verbose_name_plural = _("Lectures de messages")
+        unique_together = [['message', 'user']]
+
+
+class MessageReaction(models.Model):
+    """Réaction à un message."""
+    
+    message = models.ForeignKey(
+        Message,
+        on_delete=models.CASCADE,
+        related_name='reactions',
+        verbose_name=_("Message")
+    )
+    
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name=_("Utilisateur")
+    )
+    
+    emoji = models.CharField(_("Emoji"), max_length=10)
+    
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _("Réaction")
+        verbose_name_plural = _("Réactions")
+        unique_together = [['message', 'user', 'emoji']]
+
+
+class MessageTemplate(models.Model):
+    """Modèles de messages prédéfinis."""
+    
+    CATEGORY_CHOICES = [
+        ('welcome', _('Bienvenue')),
+        ('reminder', _('Rappel')),
+        ('announcement', _('Annonce')),
+        ('notification', _('Notification')),
+        ('other', _('Autre')),
+    ]
+    
+    name = models.CharField(_("Nom"), max_length=100)
+    category = models.CharField(_("Catégorie"), max_length=20, choices=CATEGORY_CHOICES)
+    
+    subject = models.CharField(_("Sujet"), max_length=200)
+    content = models.TextField(_("Contenu"))
+    
+    # Variables disponibles
+    variables = models.JSONField(_("Variables"), default=list, blank=True)
+    
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='message_templates',
+        verbose_name=_("Organisation")
+    )
+    
+    is_active = models.BooleanField(_("Actif"), default=True)
+    
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_message_templates',
+        verbose_name=_("Créé par")
+    )
+    
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("Modèle de message")
+        verbose_name_plural = _("Modèles de messages")
+        ordering = ['category', 'name']
+    
+    def __str__(self):
+        return f"{self.name} ({self.get_category_display()})"
+    
+    def render(self, context=None):
+        """Remplace les variables dans le contenu."""
+        content = self.content
+        if context:
+            for key, value in context.items():
+                content = content.replace(f"{{{{{key}}}}}", str(value))
+        return content

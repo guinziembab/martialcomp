@@ -1,0 +1,3 @@
+@echo off
+echo Demarrage du serveur Django avec configuration PostgreSQL...
+python manage.py runserver --settings=config.settings_postgres

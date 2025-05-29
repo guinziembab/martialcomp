@@ -1,0 +1,107 @@
+from django.conf import settings
+from django.db import migrations, models
+import django.db.models.deletion
+import uuid
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+        ('multitenant', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='RefreshToken',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('token', models.CharField(max_length=255, unique=True, verbose_name='Token')),
+                ('expires_at', models.DateTimeField(verbose_name="Date d'expiration")),
+                ('issued_at', models.DateTimeField(auto_now_add=True, verbose_name="Date d'émission")),
+                ('revoked', models.BooleanField(default=False, verbose_name='Révoqué')),
+                ('device_id', models.CharField(blank=True, max_length=255, null=True, verbose_name="ID de l'appareil")),
+                ('user_agent', models.TextField(blank=True, null=True, verbose_name='User Agent')),
+                ('ip_address', models.GenericIPAddressField(blank=True, null=True, verbose_name='Adresse IP')),
+                ('code_challenge', models.CharField(blank=True, max_length=128, null=True, verbose_name='Code Challenge')),
+                ('code_challenge_method', models.CharField(blank=True, max_length=10, null=True, verbose_name='Méthode Code Challenge')),
+                ('tenant', models.ForeignKey(blank=True, help_text='Le tenant auquel ce token est associé', null=True, on_delete=django.db.models.deletion.CASCADE, to='multitenant.tenant', verbose_name='Tenant')),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='refresh_tokens', to=settings.AUTH_USER_MODEL, verbose_name='Utilisateur')),
+            ],
+            options={
+                'verbose_name': 'Token de rafraîchissement',
+                'verbose_name_plural': 'Tokens de rafraîchissement',
+                'ordering': ['-issued_at'],
+            },
+        ),
+        migrations.CreateModel(
+            name='PKCESession',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('code_challenge', models.CharField(max_length=128, verbose_name='Code Challenge')),
+                ('code_challenge_method', models.CharField(default='S256', max_length=10, verbose_name='Méthode Code Challenge')),
+                ('code_verifier', models.CharField(blank=True, max_length=128, null=True, verbose_name='Code Verifier')),
+                ('auth_code', models.CharField(blank=True, max_length=128, null=True, unique=True, verbose_name="Code d'autorisation")),
+                ('state', models.CharField(blank=True, max_length=128, null=True, verbose_name='État')),
+                ('redirect_uri', models.URLField(blank=True, null=True, verbose_name='URI de redirection')),
+                ('scope', models.CharField(blank=True, max_length=255, null=True, verbose_name='Portée')),
+                ('client_id', models.CharField(max_length=255, verbose_name='Client ID')),
+                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='Date de création')),
+                ('expires_at', models.DateTimeField(verbose_name="Date d'expiration")),
+                ('used', models.BooleanField(default=False, verbose_name='Utilisé')),
+                ('tenant', models.ForeignKey(blank=True, help_text='Le tenant auquel cette session est associée', null=True, on_delete=django.db.models.deletion.CASCADE, to='multitenant.tenant', verbose_name='Tenant')),
+                ('user', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='pkce_sessions', to=settings.AUTH_USER_MODEL, verbose_name='Utilisateur')),
+            ],
+            options={
+                'verbose_name': 'Session PKCE',
+                'verbose_name_plural': 'Sessions PKCE',
+                'ordering': ['-created_at'],
+            },
+        ),
+        migrations.CreateModel(
+            name='DeviceRegistration',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('device_id', models.CharField(max_length=255, verbose_name="ID de l'appareil")),
+                ('device_name', models.CharField(blank=True, max_length=255, null=True, verbose_name="Nom de l'appareil")),
+                ('device_model', models.CharField(blank=True, max_length=255, null=True, verbose_name="Modèle de l'appareil")),
+                ('os_version', models.CharField(blank=True, max_length=50, null=True, verbose_name='Version OS')),
+                ('app_version', models.CharField(blank=True, max_length=50, null=True, verbose_name="Version de l'app")),
+                ('push_token', models.CharField(blank=True, max_length=255, null=True, verbose_name='Token de notification')),
+                ('is_active', models.BooleanField(default=True, verbose_name='Actif')),
+                ('registered_at', models.DateTimeField(auto_now_add=True, verbose_name="Date d'enregistrement")),
+                ('last_used_at', models.DateTimeField(auto_now=True, verbose_name='Dernière utilisation')),
+                ('tenant', models.ForeignKey(blank=True, help_text='Le tenant auquel cet appareil est associé', null=True, on_delete=django.db.models.deletion.CASCADE, to='multitenant.tenant', verbose_name='Tenant')),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='registered_devices', to=settings.AUTH_USER_MODEL, verbose_name='Utilisateur')),
+            ],
+            options={
+                'verbose_name': 'Appareil enregistré',
+                'verbose_name_plural': 'Appareils enregistrés',
+                'ordering': ['-last_used_at'],
+                'unique_together': {('user', 'device_id')},
+            },
+        ),
+        migrations.CreateModel(
+            name='AccessTokenLog',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('issued_at', models.DateTimeField(auto_now_add=True, verbose_name="Date d'émission")),
+                ('expires_at', models.DateTimeField(verbose_name="Date d'expiration")),
+                ('jti', models.CharField(max_length=255, unique=True, verbose_name='JWT ID')),
+                ('device_id', models.CharField(blank=True, max_length=255, null=True, verbose_name="ID de l'appareil")),
+                ('user_agent', models.TextField(blank=True, null=True, verbose_name='User Agent')),
+                ('ip_address', models.GenericIPAddressField(blank=True, null=True, verbose_name='Adresse IP')),
+                ('revoked', models.BooleanField(default=False, verbose_name='Révoqué')),
+                ('revoked_at', models.DateTimeField(blank=True, null=True, verbose_name='Date de révocation')),
+                ('tenant', models.ForeignKey(blank=True, help_text='Le tenant auquel ce token est associé', null=True, on_delete=django.db.models.deletion.CASCADE, to='multitenant.tenant', verbose_name='Tenant')),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='access_token_logs', to=settings.AUTH_USER_MODEL, verbose_name='Utilisateur')),
+            ],
+            options={
+                'verbose_name': "Journal de token d'accès",
+                'verbose_name_plural': 'Journal des tokens d\'accès',
+                'ordering': ['-issued_at'],
+            },
+        ),
+    ]

@@ -1,0 +1,129 @@
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.models import User
+
+from organizations.models import Organization, OrganizationMember, OrganizationRole
+
+
+class PractitionerQualification(models.Model):
+    """Qualifications et certifications des pratiquants."""
+    
+    QUALIFICATION_TYPES = [
+        ('technical_judge', _('Juge Technique')),
+        ('combat_referee', _('Arbitre Combat')),
+        ('coach', _('Coach')),
+        ('instructor', _('Instructeur')),
+        ('examiner', _('Examinateur')),
+        ('other', _('Autre')),
+    ]
+    
+    QUALIFICATION_LEVELS = [
+        ('novice', _('Novice')),
+        ('regional', _('Régional')),
+        ('national', _('National')),
+        ('international', _('International')),
+    ]
+    
+    practitioner = models.ForeignKey(
+        'competitions.Practitioner',
+        on_delete=models.CASCADE,
+        related_name='practitioner_qualifications'
+    )
+    qualification_type = models.CharField(
+        _("Type de qualification"),
+        max_length=20,
+        choices=QUALIFICATION_TYPES
+    )
+    level = models.CharField(
+        _("Niveau"),
+        max_length=20,
+        choices=QUALIFICATION_LEVELS
+    )
+    discipline = models.ForeignKey(
+        'competitions.Discipline',
+        on_delete=models.CASCADE,
+        related_name='qualifications',
+        verbose_name=_("Discipline")
+    )
+    certified_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='certified_qualifications',
+        verbose_name=_("Certifié par")
+    )
+    certification_date = models.DateField(_("Date de certification"), null=True, blank=True)
+    expiration_date = models.DateField(_("Date d'expiration"), null=True, blank=True)
+    certificate_number = models.CharField(_("Numéro de certificat"), max_length=50, blank=True)
+    is_active = models.BooleanField(_("Actif"), default=True)
+    notes = models.TextField(_("Notes"), blank=True)
+    
+    class Meta:
+        verbose_name = _("Qualification de pratiquant")
+        verbose_name_plural = _("Qualifications de pratiquants")
+        unique_together = ['practitioner', 'qualification_type', 'discipline']
+        ordering = ['practitioner', 'qualification_type']
+    
+    def __str__(self):
+        return f"{self.practitioner.full_name} - {self.get_qualification_type_display()} ({self.get_level_display()})"
+
+
+class PractitionerDiscipline(models.Model):
+    """Relation entre pratiquant et disciplines avec suivi des grades."""
+    practitioner = models.ForeignKey(
+        'competitions.Practitioner',
+        on_delete=models.CASCADE,
+        related_name='practitioner_disciplines'
+    )
+    discipline = models.ForeignKey(
+        'competitions.Discipline',
+        on_delete=models.CASCADE,
+        related_name='discipline_practitioners'
+    )
+    # Supprimé current_grade car géré par PractitionerGrade dans l'application grades
+    start_date = models.DateField(_("Date de début"), auto_now_add=True)
+    reference_instructor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='students',
+        verbose_name=_("Instructeur référent")
+    )
+    years_experience = models.PositiveIntegerField(_("Années d'expérience"), default=0)
+    notes = models.TextField(_("Notes"), blank=True)
+    
+    class Meta:
+        unique_together = ['practitioner', 'discipline']
+        verbose_name = _('discipline du pratiquant')
+        verbose_name_plural = _('disciplines des pratiquants')
+    
+    def __str__(self):
+        return f"{self.practitioner.full_name} - {self.discipline}"
+    
+    @property
+    def current_grade(self):
+        """Récupère le grade actuel du pratiquant pour cette discipline."""
+        try:
+            from grades.models import PractitionerGrade
+            grade = PractitionerGrade.objects.filter(
+                practitioner=self.practitioner,
+                discipline=self.discipline,
+                is_current=True
+            ).select_related('grade').first()
+            return grade.grade if grade else None
+        except ImportError:
+            return None
+    
+    @property
+    def grade_history(self):
+        """Récupère l'historique des grades pour cette discipline."""
+        try:
+            from grades.models import PractitionerGrade
+            return PractitionerGrade.objects.filter(
+                practitioner=self.practitioner,
+                discipline=self.discipline
+            ).select_related('grade').order_by('-date_obtained')
+        except ImportError:
+            return []
