@@ -41,7 +41,7 @@ export ADMIN_EMAIL="${ADMIN_EMAIL:-bertrand.guinziemba@gmail.com}"
 
 if [ -z "$DB_PASSWORD" ]; then
     log_error "Variable DB_PASSWORD manquante"
-    echo "Utilisez: export DB_PASSWORD='AVNS_CVAFerporCOA7pDH9h0'"
+    echo "Utilisez: export DB_PASSWORD='YOUR_DB_PASSWORD'"
     exit 1
 else
     log_success "DB_PASSWORD définie"
@@ -287,7 +287,7 @@ echo "  ADMIN_EMAIL: $ADMIN_EMAIL"
 echo ""
 
 echo "✅ Le script de déploiement peut être exécuté:"
-echo "  export DB_PASSWORD='AVNS_CVAFerporCOA7pDH9h0'"
+echo "  export DB_PASSWORD='YOUR_DB_PASSWORD'"
 echo "  sudo ./deploy_complete_martialcomp.sh"
 echo ""
 echo "=============================================="

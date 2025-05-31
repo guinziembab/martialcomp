@@ -5,7 +5,7 @@
 # ============================================================================
 # Droplet: martialcomp-prod (165.232.94.248)
 # Database: Cluster DigitalOcean
-# Usage: export DB_PASSWORD="AVNS_CVAFerporCOA7pDH9h0" && ./deploy_complete_martialcomp.sh
+# Usage: export DB_PASSWORD="YOUR_DB_PASSWORD" && ./deploy_complete_martialcomp.sh
 # ============================================================================
 
 set -e  # Arrêter en cas d'erreur
@@ -47,7 +47,7 @@ if [ -z "$DB_PASSWORD" ]; then
     log_error "Variable DB_PASSWORD manquante"
     echo ""
     echo "Usage:"
-    echo "  export DB_PASSWORD='AVNS_CVAFerporCOA7pDH9h0'"
+    echo "  export DB_PASSWORD='YOUR_DB_PASSWORD'"
     echo "  ./deploy_complete_martialcomp.sh"
     echo ""
     exit 1
