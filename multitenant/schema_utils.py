@@ -10,9 +10,17 @@ logger = logging.getLogger(__name__)
 def set_schema(schema_name):
     """
     Configure le schéma PostgreSQL pour la connexion courante.
+    Ignore la commande pour SQLite qui ne supporte pas les schémas.
     """
     if not schema_name:
         schema_name = 'public'
+    
+    # Vérifier le type de base de données
+    if connection.vendor == 'sqlite':
+        # SQLite ne supporte pas les schémas - ignorer silencieusement
+        logger.debug(f"SQLite détecté - ignorer set_schema pour: {schema_name}")
+        connection.schema_name = schema_name
+        return
     
     with connection.cursor() as cursor:
         # Échapper le nom du schéma pour éviter les injections SQL
@@ -34,7 +42,12 @@ def get_current_schema():
 def create_schema(schema_name):
     """
     Crée un nouveau schéma PostgreSQL.
+    Ignore la commande pour SQLite qui ne supporte pas les schémas.
     """
+    if connection.vendor == 'sqlite':
+        logger.debug(f"SQLite détecté - ignorer create_schema pour: {schema_name}")
+        return
+        
     with connection.cursor() as cursor:
         schema_name = connection.ops.quote_name(schema_name)
         cursor.execute(f'CREATE SCHEMA IF NOT EXISTS {schema_name}')
@@ -44,7 +57,12 @@ def create_schema(schema_name):
 def drop_schema(schema_name):
     """
     Supprime un schéma PostgreSQL.
+    Ignore la commande pour SQLite qui ne supporte pas les schémas.
     """
+    if connection.vendor == 'sqlite':
+        logger.debug(f"SQLite détecté - ignorer drop_schema pour: {schema_name}")
+        return
+        
     with connection.cursor() as cursor:
         schema_name = connection.ops.quote_name(schema_name)
         cursor.execute(f'DROP SCHEMA IF EXISTS {schema_name} CASCADE')
@@ -54,7 +72,12 @@ def drop_schema(schema_name):
 def schema_exists(schema_name):
     """
     Vérifie si un schéma existe.
+    Pour SQLite, retourne toujours True car il n'y a pas de schémas séparés.
     """
+    if connection.vendor == 'sqlite':
+        # SQLite n'a pas de schémas - tous les objets sont dans le schéma principal
+        return True
+        
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT EXISTS(

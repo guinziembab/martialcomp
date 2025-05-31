@@ -270,8 +270,9 @@ def practitioner_grades(request, practitioner_id):
     # Récupérer le club de l'utilisateur
     club = request.club
     
-    # Récupérer le pratiquant
-    practitioner = get_object_or_404(Practitioner, pk=practitioner_id, club=club)
+    # Récupérer le pratiquant en utilisant l'organisation du club
+    organization = club.organization or club.as_organization
+    practitioner = get_object_or_404(Practitioner, pk=practitioner_id, organization=organization)
     
     # Récupérer tous les grades du pratiquant
     grades = PractitionerGrade.objects.filter(practitioner=practitioner).order_by('-date_obtained')
@@ -299,8 +300,9 @@ def add_practitioner_grade(request, practitioner_id):
     # Récupérer le club de l'utilisateur
     club = request.club
     
-    # Récupérer le pratiquant
-    practitioner = get_object_or_404(Practitioner, pk=practitioner_id, club=club)
+    # Récupérer le pratiquant en utilisant l'organisation du club
+    organization = club.organization or club.as_organization
+    practitioner = get_object_or_404(Practitioner, pk=practitioner_id, organization=organization)
     
     if request.method == 'POST':
         form = PractitionerGradeForm(request.POST, request.FILES, practitioner=practitioner)
@@ -352,8 +354,9 @@ def edit_practitioner_grade(request, grade_id):
     # Récupérer le club de l'utilisateur
     club = request.club
     
-    # Récupérer le grade
-    grade = get_object_or_404(PractitionerGrade, pk=grade_id, practitioner__club=club)
+    # Récupérer le grade en utilisant l'organisation du club
+    organization = club.organization or club.as_organization
+    grade = get_object_or_404(PractitionerGrade, pk=grade_id, practitioner__organization=organization)
     
     if request.method == 'POST':
         form = PractitionerGradeForm(request.POST, request.FILES, instance=grade, practitioner=grade.practitioner)
@@ -393,8 +396,9 @@ def delete_practitioner_grade(request, grade_id):
     # Récupérer le club de l'utilisateur
     club = request.club
     
-    # Récupérer le grade
-    grade = get_object_or_404(PractitionerGrade, pk=grade_id, practitioner__club=club)
+    # Récupérer le grade en utilisant l'organisation du club
+    organization = club.organization or club.as_organization
+    grade = get_object_or_404(PractitionerGrade, pk=grade_id, practitioner__organization=organization)
     practitioner = grade.practitioner
     
     # Supprimer le grade
@@ -496,7 +500,12 @@ def get_eligible_practitioners(request):
     
     try:
         grade = Grade.objects.get(id=grade_id)
-        practitioners = Practitioner.objects.filter(club_id=club_id)
+        # Récupérer le club puis son organisation
+        club = Club.objects.get(id=club_id)
+        organization = club.organization or club.as_organization
+        if not organization:
+            return JsonResponse({'error': 'Aucune organisation trouvée pour ce club'}, status=404)
+        practitioners = Practitioner.objects.filter(organization=organization)
         
         # Filtrer les pratiquants éligibles (âge minimum, etc.)
         today = timezone.now().date()
@@ -850,7 +859,7 @@ def cancel_exam_registration(request, registration_id):
     has_permission = (
         request.user.is_staff or
         hasattr(request.user, 'federation_admin_roles') or
-        (hasattr(request.user, 'club') and request.user.club == registration.practitioner.club)
+        (hasattr(request.user, 'club') and request.user.club == registration.practitioner.organization)
     )
     
     if not has_permission:

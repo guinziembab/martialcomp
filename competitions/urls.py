@@ -10,6 +10,7 @@ from competitions.views import (
     onboarding,
     practitioner_dashboard,  # Ajout des vues pratiquant
     practitioner_extra,  # Vues supplémentaires pratiquant
+    api,  # API views
 )
 
 app_name = 'competitions'
@@ -98,4 +99,6 @@ urlpatterns = [
         path('calendar/', practitioner_extra.practitioner_calendar, name='practitioner_calendar'),
         path('calendar/api/', practitioner_extra.practitioner_calendar_api, name='practitioner_calendar_api'),
     ])),
+    # API endpoints
+    path("api/grades/disciplines/", api.get_grades_for_disciplines, name="api_grades_for_disciplines"),
 ]

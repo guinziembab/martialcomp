@@ -10,6 +10,7 @@ from competitions.views.management.results import public_results
 from competitions.views.pages import translations_test, translation_debug
 from competitions.views.debug_csrf import debug_csrf, debug_csrf_template
 from competitions.views.test_csrf import test_csrf_login
+from competitions.views.api import get_grades_for_disciplines
 
 # Vue de debug pour la configuration des langues
 def language_debug(request):
@@ -41,6 +42,8 @@ urlpatterns = [
     
     # API REST
     path('api/', include('api.urls')),
+    # API pour les grades par disciplines
+    path('api/grades/disciplines/', get_grades_for_disciplines, name='api_grades_for_disciplines'),
 ]
 
 # URLs avec préfixe de langue
@@ -106,8 +109,8 @@ urlpatterns += i18n_patterns(
     # Module de gestion documentaire
     # path('documents/', include(('documents.urls', 'documents'), namespace='documents')),
     
-    # Inclure le préfixe de langue seulement si nécessaire (sans /)
-    prefix_default_language=False
+    # Module de gestion familiale
+    path('families/', include(('family_management.urls', 'family_management'), namespace='family_management')),
 )
 
 # Ajouter la gestion des fichiers statiques

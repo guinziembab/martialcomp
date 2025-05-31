@@ -24,8 +24,19 @@ def save_user_profile(sender, instance, **kwargs):
 def create_practitioner_qr_code(sender, instance, created, **kwargs):
     if created:
         from .models import PractitionerQRCode
-        # Utiliser get_or_create pour éviter les doublons
-        PractitionerQRCode.objects.get_or_create(practitioner=instance)
+        try:
+            # Vérifier si un QR code existe déjà
+            if not hasattr(instance, "qr_code"):
+                # Utiliser get_or_create pour éviter les doublons
+                qr_code, created_qr = PractitionerQRCode.objects.get_or_create(
+                    practitioner=instance,
+                    defaults={"is_active": True}
+                )
+        except Exception as e:
+            # Log l'erreur mais ne pas empêcher la création du pratiquant
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Erreur lors de la création du QR code pour {instance}: {e}")
 
 # Signal pour valider automatiquement les QR codes lorsqu'un club devient en règle
 @receiver(post_save, sender=Club)

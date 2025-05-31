@@ -89,11 +89,25 @@ class SecurityMiddleware(MiddlewareMixin):
         if not response.has_header('Referrer-Policy'):
             response['Referrer-Policy'] = 'same-origin'
         
-        # Content-Security-Policy en mode développement (peut être plus restrictif en production)
+        # Content-Security-Policy avec support des CDN Bootstrap et Font Awesome
         if settings.DEBUG:
-            csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+            csp = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+                "font-src 'self' data: https://cdnjs.cloudflare.com; "
+                "img-src 'self' data: https:; "
+                "connect-src 'self';"
+            )
         else:
-            csp = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:;"
+            csp = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+                "font-src 'self' data: https://cdnjs.cloudflare.com; "
+                "img-src 'self' data: https:; "
+                "connect-src 'self';"
+            )
         
         response['Content-Security-Policy'] = csp
         
@@ -238,6 +252,10 @@ class SecurityMiddleware(MiddlewareMixin):
             
         # Ignorer les admins et le staff qui ont des privilèges étendus
         if request.user.is_superuser or request.user.is_staff:
+            return None
+            
+        # Vérifier que resolver_match existe
+        if not hasattr(request, 'resolver_match') or request.resolver_match is None:
             return None
             
         # Si aucun objet n'est spécifié dans l'URL, on ne peut pas vérifier

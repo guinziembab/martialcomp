@@ -195,8 +195,8 @@ class Club(AdministratorMixin, models.Model):
         if hasattr(self, 'organization') and self.organization:
             # Vérifier les affiliations actives
             active_affiliations = self.organization.parent_affiliations.filter(
-                status='active',
-                parent_organization__organization_type='federation'
+                is_active=True,
+                parent_organization__organization_type='national_federation'
             )
             
             if not active_affiliations.exists():

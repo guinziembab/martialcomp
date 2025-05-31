@@ -11,7 +11,7 @@ import os
 
 from django.core.wsgi import get_wsgi_application
 
-# Utiliser settings_postgres.py pour avoir PostgreSQL tout en évitant les problèmes d'importation
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings_postgres')
+# Configuration standard pour développement
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 application = get_wsgi_application()

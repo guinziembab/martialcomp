@@ -107,12 +107,19 @@ class PractitionerGradeForm(forms.ModelForm):
         # Maintenant on peut appeler super().__init__ avec les kwargs nettoyés
         super().__init__(*args, **kwargs)
         
-        # Si une discipline est fournie, filtrer les grades par discipline
+        # Si une discipline est fournie, la définir comme valeur initiale
         if discipline:
             self.fields['discipline'].initial = discipline
             self.fields['discipline'].widget.attrs['readonly'] = True
+            
+        # Ne pas filtrer les grades ici - laisser le JavaScript s'en charger
+        # Mais s'assurer que tous les grades actifs sont disponibles
+        self.fields['grade'].queryset = Grade.objects.filter(is_active=True).order_by('discipline__name', 'level')
+        
+        # Si on édite un grade existant, filtrer par la discipline du grade
+        if self.instance.pk and self.instance.grade:
             self.fields['grade'].queryset = Grade.objects.filter(
-                discipline=discipline,
+                discipline=self.instance.grade.discipline,
                 is_active=True
             ).order_by('level')
     
@@ -248,7 +255,10 @@ class BulkGradeAssignmentForm(forms.Form):
         # Si un club est fourni, filtrer les pratiquants par club
         club = kwargs.pop('club', None) if 'club' not in kwargs else None
         if club:
-            self.fields['practitioners'].queryset = Practitioner.objects.filter(club=club)
+            # Récupérer l'organisation associée au club
+            organization = club.organization or club.as_organization
+            if organization:
+                self.fields['practitioners'].queryset = Practitioner.objects.filter(organization=organization)
 
 
 class GradeExamForm(forms.ModelForm):
@@ -344,7 +354,10 @@ class GradeExamRegistrationForm(forms.ModelForm):
             
             # Si un club est spécifié, filtrer les pratiquants par club
             if club:
-                self.fields['practitioner'].queryset = Practitioner.objects.filter(club=club)
+                # Récupérer l'organisation associée au club
+                organization = club.organization or club.as_organization
+                if organization:
+                    self.fields['practitioner'].queryset = Practitioner.objects.filter(organization=organization)
         else:
             self.fields['target_grade'].queryset = Grade.objects.none()
     

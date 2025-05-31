@@ -62,11 +62,12 @@ def handle_federation_creation(request):
                     
                     # Mise à jour du profil utilisateur
                     if hasattr(request.user, 'profile'):
-                        # Vérifier si le modèle de profil a un champ federation
-                        if hasattr(request.user.profile, 'federation'):
-                            request.user.profile.federation = federation
-                            request.user.profile.onboarding_step = 'final_setup'
-                            request.user.profile.save()
+                        # Les signaux post_save du modèle Federation gèrent automatiquement
+                        # l'association avec FederationAdministrator, pas besoin d'assigner federation
+                        request.user.profile.onboarding_step = 'final_setup'
+                        request.user.profile.save()
+                        
+                        logger.info(f"Associated federation {federation.id} with owner {request.user.username}")
                     
                     messages.success(request, _("Votre fédération a été créée avec succès !"))
                     

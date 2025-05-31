@@ -1,7 +1,13 @@
 import time
 import logging
 from collections import defaultdict
-from django.http import HttpResponseTooManyRequests
+try:
+    from django.http import HttpResponseTooManyRequests
+except ImportError:
+    # Fallback pour Django < 4.1
+    from django.http import HttpResponse
+    class HttpResponseTooManyRequests(HttpResponse):
+        status_code = 429
 from django.utils.deprecation import MiddlewareMixin
 from django.conf import settings
 

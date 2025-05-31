@@ -19,15 +19,53 @@ def club_dashboard(request):
     Tableau de bord pour les responsables de club.
     Affiche les statistiques et les informations relatives au club.
     """
-    # Récupérer le club associé à l'utilisateur
-    club = None
+    # Debug des informations utilisateur
+    logger.info(f"User: {request.user.username}, authenticated: {request.user.is_authenticated}")
+    if hasattr(request.user, 'profile'):
+        logger.info(f"User profile role: {request.user.profile.role}")
+    else:
+        logger.info("User n'a pas d'attribut 'profile'")
     
-    # Essayer de récupérer le club depuis différentes sources possibles
+    # Récupérer le club associé à l'utilisateur avec debug
+    club = None
+    club_found_via = "non trouvé"
+    
+    # Méthode 1: Via attribut direct
     if hasattr(request.user, 'club') and request.user.club:
         club = request.user.club
-    else:
-        # Sinon, chercher un club dont l'utilisateur est propriétaire
+        club_found_via = "attribut direct"
+    
+    # Méthode 2: Via relation de propriété
+    elif Club.objects.filter(owner=request.user).exists():
         club = Club.objects.filter(owner=request.user).first()
+        club_found_via = "propriété"
+    
+    # Méthode 3: Via profil utilisateur
+    elif hasattr(request.user, 'profile') and hasattr(request.user.profile, 'club'):
+        club = request.user.profile.club
+        club_found_via = "profil"
+    
+    # Méthode 4: Via appartenances aux clubs
+    elif hasattr(request.user, 'club_memberships') and request.user.club_memberships.exists():
+        club = request.user.club_memberships.first().club
+        club_found_via = "adhésion"
+    
+    logger.info(f"Club: {club}, trouvé via: {club_found_via}")
+    
+    # Diagnostic mode - Ajouter un paramètre pour activer le mode diagnostic
+    if request.GET.get('diagnostic') == '1':
+        context = {
+            'club': club,
+            'club_found_via': club_found_via,
+            'context_keys': ['club', 'club_found_via', 'stats', 'financial_stats'],
+            'stats': {
+                'total_practitioners': 0,
+                'club_competitions': 0,
+                'active_registrations': 0,
+                'judges_count': 0
+            }
+        }
+        return render(request, 'competitions/dashboard/club_diagnostic.html', context)
     
     # Si aucun club n'est trouvé, rediriger vers la création de club
     if not club:
@@ -68,7 +106,6 @@ def club_dashboard(request):
             
             # Si le modèle Competition a un champ manager, ajouter les compétitions où l'utilisateur est manager
             if hasattr(Competition, 'manager'):
-                from django.db.models import Q
                 competitions_to_manage = competitions_to_manage | Competition.objects.filter(
                     manager=request.user
                 ).distinct()
@@ -376,13 +413,169 @@ def club_dashboard(request):
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des tickets de support: {str(e)}")
 
+    # Récupérer les données financières
+    financial_stats = {
+        'balance': 0,
+        'income': 0,
+        'expense': 0,
+        'pending_invoices': 0
+    }
+    
+    try:
+        from finances.models import Transaction
+        from django.db.models import Sum
+        if club_organization:
+            # Solde total (revenus - dépenses)
+            transactions = Transaction.objects.filter(organization=club_organization)
+            income_total = transactions.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0
+            expense_total = transactions.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0
+            financial_stats['balance'] = income_total - expense_total
+            financial_stats['income'] = income_total
+            financial_stats['expense'] = expense_total
+            
+            # Factures en attente
+            financial_stats['pending_invoices'] = Invoice.objects.filter(
+                organization=club_organization,
+                status='pending'
+            ).count()
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des données financières: {str(e)}")
+
+    # Récupérer les événements et sondages
+    event_stats = {
+        'upcoming_count': 0,
+        'active_polls': 0,
+        'month_events': 0,
+        'attendance_rate': 75
+    }
+    
+    upcoming_events = []
+    active_polls = []
+    
+    try:
+        from ...models import Event, Poll
+        from datetime import timedelta
+        if club_organization:
+            # Événements à venir
+            upcoming_events = Event.objects.filter(
+                organization=club_organization,
+                start_date__gte=now
+            ).order_by('start_date')[:5]
+            
+            event_stats['upcoming_count'] = Event.objects.filter(
+                organization=club_organization,
+                start_date__gte=now
+            ).count()
+            
+            # Sondages actifs
+            active_polls = Poll.objects.filter(
+                organization=club_organization,
+                end_date__gte=now
+            ).order_by('end_date')[:5]
+            
+            event_stats['active_polls'] = active_polls.count()
+            
+            # Événements ce mois-ci
+            month_start = now.replace(day=1)
+            month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+            event_stats['month_events'] = Event.objects.filter(
+                organization=club_organization,
+                start_date__gte=month_start,
+                start_date__lte=month_end
+            ).count()
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des événements: {str(e)}")
+
+    # Récupérer les statistiques de combat
+    combat_stats = {
+        'total_combats': 0,
+        'upcoming_combats': 0,
+        'win_rate': 0
+    }
+    
+    try:
+        from ...models import Combat
+        if club_organization:
+            # Total des combats
+            combat_stats['total_combats'] = Combat.objects.filter(
+                Q(competitor1__organization=club_organization) | 
+                Q(competitor2__organization=club_organization)
+            ).count()
+            
+            # Combats à venir
+            combat_stats['upcoming_combats'] = Combat.objects.filter(
+                (Q(competitor1__organization=club_organization) | 
+                Q(competitor2__organization=club_organization)) &
+                Q(date__gte=now)
+            ).count()
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des combats: {str(e)}")
+
+    # Assurer un contexte minimal fonctionnel
+    base_context = {
+        'club': club,
+        'club_found_via': club_found_via,
+        'stats': {
+            'total_practitioners': 0,
+            'active_registrations': 0,
+            'club_competitions': 0,
+            'judges_count': 0
+        },
+        'financial_stats': {
+            'balance': 0,
+            'income': 0,
+            'expense': 0,
+            'pending_invoices': 0
+        },
+        'event_stats': {
+            'upcoming_count': 0,
+            'active_polls': 0,
+            'month_events': 0,
+            'attendance_rate': 75
+        },
+        'combat_stats': {
+            'total_combats': 0,
+            'upcoming_combats': 0,
+            'win_rate': 0
+        },
+        'upcoming_events': [],
+        'active_polls': [],
+        'upcoming_competitions': [],
+        'competitions_to_manage': [],
+        'competitions_to_manage_count': 0,
+        'recent_practitioners': [],
+        'recent_registrations': [],
+        'club_disciplines': [],
+        'judge_assignments': [],
+        'recent_payments': [],
+        'recent_sessions': [],
+        'attendance_stats': {},
+        'top_attendees': [],
+        'recent_orders': [],
+        'order_stats': {},
+        'recent_notifications': [],
+        'unread_count': 0,
+        'recent_tickets': [],
+        'ticket_stats': {},
+        'current_date': now,
+        'page_title': _("Tableau de bord du club"),
+        'section': 'dashboard'
+    }
+    
     # Préparer le contexte pour le template
     context = {
         'club': club,
+        'club_found_via': club_found_via,
         'stats': stats,
+        'financial_stats': financial_stats,  # AJOUT: Données financières
+        'event_stats': event_stats,  # AJOUT: Statistiques d'événements
+        'combat_stats': combat_stats,  # AJOUT: Statistiques de combats
+        'upcoming_events': upcoming_events,  # AJOUT: Événements à venir
+        'active_polls': active_polls,  # AJOUT: Sondages actifs
         'club_competitions': club_competitions,  # Les compétitions du club
         'upcoming_competitions': upcoming_competitions,  # Compétitions à venir
-        'competitions_to_manage': competitions_to_manage,  # Compétitions à gérer (NOUVEAU)
+        'competitions_to_manage': competitions_to_manage,  # Compétitions à gérer
+        'competitions_to_manage_count': competitions_to_manage.count() if competitions_to_manage else 0,  # AJOUT: Compteur sécurisé
         'recent_practitioners': recent_practitioners,
         'recent_registrations': recent_registrations,
         'club_disciplines': club_disciplines,
@@ -402,8 +595,16 @@ def club_dashboard(request):
         'section': 'dashboard'
     }
     
+    # Fusionner avec le contexte de base pour assurer qu'aucune variable ne soit None
+    for key, value in base_context.items():
+        if key not in context or context[key] is None:
+            context[key] = value
+    
     # Ajouter club_judges au contexte si disponible
     if 'club_judges' in locals():
         context['club_judges'] = club_judges
+    
+    # Ajouter les clés disponibles pour le diagnostic
+    context['context_keys'] = list(context.keys())
     
     return render(request, 'competitions/dashboard/club.html', context)

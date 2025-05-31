@@ -5,9 +5,18 @@ from django.views.decorators.http import require_http_methods, require_GET
 from django.contrib.admin.views.decorators import staff_member_required
 
 from ..models import (
-    Discipline, CompetitionType, Competition,
-    GradeSystem, Grade, GradeCategory
+    Discipline, CompetitionType, Competition
 )
+
+# Import des modèles de grades depuis l'application grades
+try:
+    from grades.models import Grade, GradeCategory, GradingSystem
+    GradeSystem = GradingSystem  # Alias pour compatibilité
+except ImportError:
+    Grade = None
+    GradeCategory = None
+    GradingSystem = None
+    GradeSystem = None
 
 
 
@@ -374,3 +383,57 @@ def grade_categories(request):
         categories = GradeCategory.objects.filter(system_id=system_id)
         return JsonResponse([{'id': category.id, 'name': category.name} for category in categories], safe=False)
     return JsonResponse([], safe=False)
+
+
+@login_required
+@require_GET
+def get_grades_for_disciplines(request):
+    """Récupère les grades de l'application grades pour les disciplines sélectionnées."""
+    try:
+        # Import conditionnel du module grades
+        try:
+            from grades.models import Grade as GradesGrade
+        except ImportError:
+            return JsonResponse({'error': 'Module grades non disponible'}, status=404)
+        
+        # Récupérer les IDs des disciplines depuis les paramètres GET
+        discipline_ids = request.GET.getlist('disciplines[]')
+        
+        if not discipline_ids:
+            return JsonResponse([], safe=False)
+        
+        # Récupérer les disciplines
+        disciplines = Discipline.objects.filter(id__in=discipline_ids, is_active=True)
+        
+        # Récupérer les grades pour ces disciplines
+        grades = GradesGrade.objects.filter(
+            discipline__in=disciplines,
+            is_active=True
+        ).select_related('discipline').order_by('discipline__name', 'level')
+        
+        # Sérialisation en JSON
+        data = [
+            {
+                'id': grade.id,
+                'name': grade.name,
+                'discipline_id': grade.discipline.id,
+                'discipline_name': grade.discipline.name,
+                'level': getattr(grade, 'level', 0),
+                'color': getattr(grade, 'color', ''),
+                'description': getattr(grade, 'requirements_text', '')
+            }
+            for grade in grades
+        ]
+        
+        return JsonResponse({'grades': data}, safe=False)
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erreur lors de la récupération des grades pour disciplines: {str(e)}")
+        
+        return JsonResponse({
+            'error': 'Une erreur est survenue lors de la récupération des grades',
+            'details': str(e)
+        }, status=500)
+

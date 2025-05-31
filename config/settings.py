@@ -26,11 +26,11 @@ SECRET_KEY = 'django-insecure-tv=2g@wtxxfu^6trqra-ewp9%j2gm^x3_&y)vhlo%jj+r_+0dq
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver', '*']
 # Configuration CSRF pour multi-tenant
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
+    'http://localhost:8001',
+    'http://127.0.0.1:8001',
     'https://*.martialcomp.com',
 ]
 
@@ -47,7 +47,7 @@ CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
 CSRF_USE_SESSIONS = False  # Utiliser les cookies au lieu des sessions
 CSRF_COOKIE_SAMESITE = 'Lax'  # Protection contre CSRF
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 7 * 52  # 1 an
-CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']  # Origines de confiance
+CSRF_TRUSTED_ORIGINS = ['http://localhost:8001', 'http://127.0.0.1:8001']  # Origines de confiance
     # False pour développement, True en production
 
 # Configuration du modèle de tarification
@@ -115,6 +115,7 @@ INSTALLED_APPS = [
     'multitenant',  # Module multi-tenant
     'api_auth',  # Application API pour l'authentification
     'security',  # Module de sécurité
+    'family_management.apps.FamilyManagementConfig',  # Gestion familiale
 ]
 
 MIDDLEWARE = [
@@ -179,6 +180,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# Configuration temporaire SQLite (en attendant de résoudre psycopg2)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -186,40 +188,63 @@ DATABASES = {
     }
 }
 
+# Configuration PostgreSQL (à réactiver une fois psycopg2 fixé)
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'martialcomp',
+#         'USER': 'postgres',
+#         'PASSWORD': 'zBx43V22',
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#     }
+# }
 
-# Cache configuration
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'PARSER_CLASS': 'redis.connection.HiredisParser',
-            'CONNECTION_POOL_CLASS': 'redis.ConnectionPool',
-            'CONNECTION_POOL_CLASS_KWARGS': {
-                'max_connections': 50,
-                'retry_on_timeout': True,
+
+# Cache configuration (fallback to locmem if Redis not available)
+try:
+    import django_redis
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': 'redis://127.0.0.1:6379/1',
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'PARSER_CLASS': 'redis.connection.HiredisParser',
+                'CONNECTION_POOL_CLASS': 'redis.ConnectionPool',
+                'CONNECTION_POOL_CLASS_KWARGS': {
+                    'max_connections': 50,
+                    'retry_on_timeout': True,
+                },
+                'MAX_CONNECTIONS': 1000,
+                'PICKLE_VERSION': -1,
             },
-            'MAX_CONNECTIONS': 1000,
-            'PICKLE_VERSION': -1,
+            'KEY_PREFIX': 'martialcomp',
+            'TIMEOUT': 300,  # Default timeout in seconds
         },
-        'KEY_PREFIX': 'martialcomp',
-        'TIMEOUT': 300,  # Default timeout in seconds
-    },
-    'session': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/2',
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        'session': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': 'redis://127.0.0.1:6379/2',
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            },
+            'KEY_PREFIX': 'session',
+            'TIMEOUT': 86400,  # 24 hours
         },
-        'KEY_PREFIX': 'session',
-        'TIMEOUT': 86400,  # 24 hours
-    },
-}
-
-# Session configuration with Redis
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'session'
+    }
+    # Session configuration with Redis
+    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+    SESSION_CACHE_ALIAS = 'session'
+except ImportError:
+    # Fallback to local memory cache if Redis is not available
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'unique-snowflake',
+        }
+    }
+    # Session configuration with database
+    SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 
 # Password validation
@@ -370,7 +395,7 @@ LOGGING = {
         },
         'competitions': {
             'handlers': ['console', 'file'],
-            'level': 'INFO',
+            'level': 'DEBUG',
             'propagate': True,
         },
         'grades': {
@@ -413,8 +438,13 @@ IMPORT_EXPORT_USE_TRANSACTIONS = True
 
 # Configuration spécifique à PostgreSQL
 if DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql':
-    # Activer la recherche en texte intégral et les opérations sur les tableaux
-    INSTALLED_APPS += ['django.contrib.postgres']
+    try:
+        # Test si psycopg2 est disponible avant d'ajouter postgres
+        import psycopg2
+        INSTALLED_APPS += ['django.contrib.postgres']
+        print("✅ PostgreSQL activé avec psycopg2")
+    except ImportError:
+        print("⚠️ PostgreSQL configuré mais psycopg2 non disponible")
     
 # Configuration du rate limiting
 RATE_LIMIT_WINDOW_SIZE = 60  # Fenêtre de 60 secondes (1 minute)
@@ -479,15 +509,15 @@ if not DEBUG:
 PUBLIC_DOMAINS = [
     'localhost',
     '127.0.0.1',
+    'testserver',
     'martialcomp.com',
     'www.martialcomp.com',
 ]
 
 # Configuration PostgreSQL pour le multi-tenant
 if 'default' in DATABASES:
-    # Ajouter les extensions nécessaires pour PostgreSQL
+    # Configuration PostgreSQL sans options conflictuelles
     DATABASES['default']['OPTIONS'] = DATABASES['default'].get('OPTIONS', {})
-    DATABASES['default']['OPTIONS']['options'] = '-c search_path=public'
 
 # Configuration du routeur de base de données
 DATABASE_ROUTERS = [

@@ -157,8 +157,8 @@ def handle_judge_profile(request):
             for grade in grades:
                 discipline_grades.append({
                     'id': grade.id,
-                    'name': grade.name,
-                    'category': grade.category.name if grade.category else _('Non catégorisé'),
+                    'name': str(grade.name),
+                    'category': str(grade.category.name) if grade.category else str(_('Non catégorisé')),
                     'level': grade.level
                 })
             
@@ -353,8 +353,8 @@ def edit_judge_profile(request):
                 for grade in grades:
                     discipline_grades.append({
                         'id': grade.id,
-                        'name': grade.name,
-                        'category': grade.category.name if grade.category else _('Non catégorisé'),
+                        'name': str(grade.name),
+                        'category': str(grade.category.name) if grade.category else str(_('Non catégorisé')),
                         'level': grade.level
                     })
                 

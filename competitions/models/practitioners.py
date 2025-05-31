@@ -162,6 +162,39 @@ class Practitioner(models.Model):
     created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
     updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
     
+    # Champs pour la gestion familiale
+    family = models.ForeignKey(
+        'family_management.Family',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='family_practitioners',
+        verbose_name=_("Famille"),
+        help_text=_("Famille à laquelle appartient ce pratiquant")
+    )
+    
+    family_role = models.CharField(
+        _("Rôle familial"),
+        max_length=20,
+        choices=[
+            ('parent', _('Parent')),
+            ('guardian', _('Tuteur légal')),
+            ('child', _('Enfant')),
+            ('spouse', _('Conjoint(e)')),
+            ('sibling', _('Frère/Sœur')),
+            ('other', _('Autre'))
+        ],
+        blank=True,
+        help_text=_("Rôle de ce pratiquant dans sa famille")
+    )
+    
+    family_emergency_contact = models.CharField(
+        _("Contact d'urgence familial"),
+        max_length=200,
+        blank=True,
+        help_text=_("Contact d'urgence si différent du responsable familial")
+    )
+    
     @property
     def age(self):
         """Calcule l'âge du pratiquant en années."""
@@ -354,6 +387,131 @@ class Practitioner(models.Model):
                 pass
         
         return categories
+    
+    # ===== MÉTHODES POUR LA GESTION FAMILIALE =====
+    
+    def get_family_members(self):
+        """Récupère tous les membres de la famille de ce pratiquant."""
+        if not self.family:
+            return []
+        
+        return self.family.get_all_members().exclude(practitioner=self)
+    
+    def get_family_practitioners(self):
+        """Récupère tous les autres pratiquants de la même famille."""
+        if not self.family:
+            return []
+        
+        return self.family.get_practitioners().exclude(id=self.id) if self.family else []
+    
+    def is_family_responsible(self):
+        """Vérifie si ce pratiquant est le responsable principal de sa famille."""
+        if not self.family or not self.user:
+            return False
+        
+        return self.family.primary_responsible == self.user
+    
+    def can_manage_family(self):
+        """Vérifie si ce pratiquant peut gérer sa famille."""
+        if not self.family or not self.user:
+            return False
+        
+        # Responsable principal
+        if self.is_family_responsible():
+            return True
+        
+        # Vérifier les permissions du membre
+        try:
+            from family_management.models import FamilyMember
+            member = FamilyMember.objects.filter(
+                family=self.family,
+                user=self.user,
+                is_active=True
+            ).first()
+            
+            return member and member.has_permission('manage_family')
+        except ImportError:
+            return False
+    
+    def get_family_upcoming_events(self, days=30):
+        """Récupère les événements à venir pour la famille."""
+        if not self.family:
+            return []
+        
+        try:
+            from family_management.models import FamilyEvent
+            from django.utils import timezone
+            from datetime import timedelta
+            
+            end_date = timezone.now() + timedelta(days=days)
+            
+            return FamilyEvent.objects.filter(
+                family=self.family,
+                start_date__gte=timezone.now(),
+                start_date__lte=end_date
+            ).order_by('start_date')
+        except ImportError:
+            return []
+    
+    def get_family_pending_payments(self):
+        """Récupère les paiements en attente pour la famille."""
+        if not self.family:
+            return []
+        
+        try:
+            from family_management.models import FamilyPaymentGroup
+            
+            return FamilyPaymentGroup.objects.filter(
+                family=self.family,
+                is_paid=False
+            ).order_by('-created_at')
+        except ImportError:
+            return []
+    
+    def create_or_join_family(self, family_name=None, role='child'):
+        """
+        Crée une nouvelle famille ou rejoint une famille existante.
+        
+        Args:
+            family_name: Nom de la famille (obligatoire pour création)
+            role: Rôle dans la famille
+            
+        Returns:
+            La famille créée ou rejointe
+        """
+        if self.family:
+            return self.family
+        
+        if not self.user:
+            raise ValueError("Le pratiquant doit avoir un compte utilisateur pour rejoindre une famille")
+        
+        try:
+            from family_management.models import Family, FamilyMember
+            
+            # Si pas de nom de famille fourni, essayer de créer à partir du nom du pratiquant
+            if not family_name:
+                family_name = f"Famille {self.last_name}"
+            
+            # Créer la famille avec ce pratiquant comme responsable si c'est un parent
+            if role in ['parent', 'guardian']:
+                family = Family.objects.create(
+                    family_name=family_name,
+                    primary_responsible=self.user,
+                    organization=self.organization
+                )
+            else:
+                # Chercher une famille existante ou demander à être ajouté
+                raise ValueError("Seuls les parents/tuteurs peuvent créer une famille")
+            
+            # Ajouter le pratiquant à la famille
+            self.family = family
+            self.family_role = role
+            self.save()
+            
+            return family
+            
+        except ImportError:
+            raise ValueError("Module family_management non disponible")
     
     class Meta:
         verbose_name = _("Pratiquant")

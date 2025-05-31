@@ -29,8 +29,14 @@ def bulk_grade_assignment_form(request):
         messages.error(request, _("Vous devez être responsable de club pour accéder à cette page."))
         return redirect('dashboard:index')
     
-    # Récupérer tous les pratiquants du club
-    practitioners = Practitioner.objects.filter(club=club).order_by('last_name', 'first_name')
+    # Récupérer l'organisation associée au club
+    organization = club.organization or club.as_organization
+    if not organization:
+        messages.error(request, _("Aucune organisation associée trouvée pour ce club."))
+        return redirect('dashboard:index')
+    
+    # Récupérer tous les pratiquants du club via l'organisation
+    practitioners = Practitioner.objects.filter(organization=organization).order_by('last_name', 'first_name')
     
     # Récupérer les disciplines disponibles
     disciplines = Discipline.objects.filter(is_active=True).order_by('name')
@@ -105,11 +111,17 @@ def batch_update_grades(request):
             except Discipline.DoesNotExist:
                 messages.warning(request, _("La discipline sélectionnée n'existe pas."))
         
+        # Récupérer l'organisation associée au club
+        organization = club.organization or club.as_organization
+        if not organization:
+            messages.error(request, _("Aucune organisation associée trouvée pour ce club."))
+            return redirect('grades:bulk_assignment')
+        
         with transaction.atomic():
             updated_count = 0
             for practitioner_id in practitioners_ids:
                 try:
-                    practitioner = get_object_or_404(Practitioner, id=practitioner_id, club=club)
+                    practitioner = get_object_or_404(Practitioner, id=practitioner_id, organization=organization)
                     
                     # Mettre à jour le grade principal
                     practitioner.grade = grade
@@ -182,11 +194,18 @@ def import_grades_from_excel(request):
             with transaction.atomic():
                 for index, row in df.iterrows():
                     try:
+                        # Récupérer l'organisation associée au club
+                        organization = club.organization or club.as_organization
+                        if not organization:
+                            logger.error(f"Aucune organisation associée trouvée pour le club {club}")
+                            error_count += 1
+                            continue
+                        
                         # Rechercher le pratiquant
                         practitioner = Practitioner.objects.get(
                             first_name__iexact=row['prenom'],
                             last_name__iexact=row['nom'],
-                            club=club
+                            organization=organization
                         )
                         
                         # Rechercher la discipline

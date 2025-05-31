@@ -36,8 +36,14 @@ def update_practitioner_grade(request, practitioner_id):
         messages.error(request, _("Vous devez être responsable de club pour accéder à cette page."))
         return redirect('dashboard:index')
     
+    # Récupérer l'organisation associée au club  
+    organization = club.organization or club.as_organization
+    if not organization:
+        messages.error(request, _("Aucune organisation associée trouvée pour ce club."))
+        return redirect('dashboard:index')
+    
     # Récupérer le pratiquant
-    practitioner = get_object_or_404(Practitioner, id=practitioner_id, club=club)
+    practitioner = get_object_or_404(Practitioner, id=practitioner_id, organization=organization)
     
     # Récupérer les disciplines du pratiquant
     practitioner_disciplines = practitioner.disciplines.all()
@@ -181,8 +187,14 @@ def promote_practitioner(request, practitioner_id):
         messages.error(request, _("Vous devez être responsable de club pour accéder à cette page."))
         return redirect('dashboard:index')
     
+    # Récupérer l'organisation associée au club  
+    organization = club.organization or club.as_organization
+    if not organization:
+        messages.error(request, _("Aucune organisation associée trouvée pour ce club."))
+        return redirect('dashboard:index')
+    
     # Récupérer le pratiquant
-    practitioner = get_object_or_404(Practitioner, id=practitioner_id, club=club)
+    practitioner = get_object_or_404(Practitioner, id=practitioner_id, organization=organization)
     
     if request.method == 'POST':
         discipline_id = request.POST.get('discipline')
@@ -260,8 +272,14 @@ def revoke_grade(request, grade_id):
     # Récupérer le club de l'utilisateur
     club = request.club
     
+    # Récupérer l'organisation associée au club
+    organization = club.organization or club.as_organization
+    if not organization:
+        messages.error(request, _("Aucune organisation associée trouvée pour ce club."))
+        return redirect('dashboard:index')
+    
     # Récupérer le grade
-    grade = get_object_or_404(PractitionerGrade, pk=grade_id, practitioner__club=club)
+    grade = get_object_or_404(PractitionerGrade, pk=grade_id, practitioner__organization=organization)
     practitioner = grade.practitioner
     discipline = grade.discipline
     
@@ -329,11 +347,17 @@ def club_management(request):
         messages.error(request, _("Vous devez être responsable de club pour accéder à cette page."))
         return redirect('dashboard:index')
     
+    # Récupérer l'organisation associée au club
+    organization = club.organization or club.as_organization
+    if not organization:
+        messages.error(request, _("Aucune organisation associée trouvée pour ce club."))
+        return redirect('dashboard:index')
+    
     # Récupérer les disciplines du club
     club_disciplines = club.disciplines.all()
     
-    # Récupérer tous les pratiquants du club
-    practitioners = Practitioner.objects.filter(club=club).order_by('last_name', 'first_name')
+    # Récupérer tous les pratiquants du club via l'organisation
+    practitioners = Practitioner.objects.filter(organization=organization).order_by('last_name', 'first_name')
     
     # Récupérer les catégories de grade pour les disciplines du club
     grade_categories = GradeCategory.objects.filter(discipline__in=club_disciplines).order_by('discipline', 'order')
@@ -343,7 +367,7 @@ def club_management(request):
     
     # Récupérer les attributions récentes de grades
     recent_awards = PractitionerGrade.objects.filter(
-        practitioner__club=club
+        practitioner__organization=organization
     ).select_related('practitioner', 'grade', 'discipline').order_by('-date_obtained')[:10]
     
     # Attacher directement les grades à chaque discipline
@@ -369,6 +393,7 @@ def club_management(request):
     
     context = {
         'club': club,
+        'organization': organization,
         'disciplines': club_disciplines,
         'practitioners': practitioners,
         'grade_categories': grade_categories,
@@ -391,8 +416,14 @@ def practitioner_history(request, practitioner_id):
         messages.error(request, _("Vous devez être responsable de club pour accéder à cette page."))
         return redirect('dashboard:index')
     
+    # Récupérer l'organisation associée au club  
+    organization = club.organization or club.as_organization
+    if not organization:
+        messages.error(request, _("Aucune organisation associée trouvée pour ce club."))
+        return redirect('dashboard:index')
+    
     # Récupérer le pratiquant
-    practitioner = get_object_or_404(Practitioner, id=practitioner_id, club=club)
+    practitioner = get_object_or_404(Practitioner, id=practitioner_id, organization=organization)
     
     # Récupérer l'historique des grades
     grade_history = PractitionerGrade.objects.filter(
@@ -437,8 +468,11 @@ def set_current_grade(request, grade_id):
         # Récupérer le grade
         grade = PractitionerGrade.objects.get(pk=grade_id)
         
-        # Vérifier que le pratiquant appartient bien au club de l'utilisateur
-        if grade.practitioner.club != club:
+        # Récupérer l'organisation associée au club
+        organization = club.organization or club.as_organization
+        
+        # Vérifier que le pratiquant appartient bien à l'organisation de l'utilisateur
+        if grade.practitioner.organization != organization:
             messages.error(request, _("Vous n'avez pas l'autorisation de gérer ce pratiquant."))
             return redirect('grades:dashboard')
         

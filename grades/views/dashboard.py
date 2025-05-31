@@ -25,8 +25,14 @@ def grades_dashboard(request):
         messages.error(request, _("Vous devez être responsable de club pour accéder à cette page."))
         return redirect('dashboard:index')
     
+    # Récupérer l'organisation associée au club
+    organization = club.organization or club.as_organization
+    if not organization:
+        messages.error(request, _("Aucune organisation associée trouvée pour ce club."))
+        return redirect('dashboard:index')
+    
     # Récupérer tous les pratiquants du club
-    practitioners = Practitioner.objects.filter(club=club)
+    practitioners = Practitioner.objects.filter(organization=organization)
     
     # Filtrer par discipline si demandé
     discipline_id = request.GET.get('discipline')

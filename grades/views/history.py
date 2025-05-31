@@ -22,8 +22,14 @@ def practitioner_grade_history(request, practitioner_id):
         messages.error(request, _("Vous devez être responsable de club pour accéder à cette page."))
         return redirect('dashboard:index')
     
+    # Récupérer l'organisation associée au club
+    organization = club.organization or club.as_organization
+    if not organization:
+        messages.error(request, _("Aucune organisation associée trouvée pour ce club."))
+        return redirect('dashboard:index')
+    
     # Récupérer le pratiquant
-    practitioner = get_object_or_404(Practitioner, id=practitioner_id, club=club)
+    practitioner = get_object_or_404(Practitioner, id=practitioner_id, organization=organization)
     
     # Récupérer l'historique des grades
     # Correction : 'obtained_date' -> 'date_obtained'
@@ -53,8 +59,14 @@ def export_grade_history(request, practitioner_id, format='pdf'):
         messages.error(request, _("Vous devez être responsable de club pour accéder à cette page."))
         return redirect('dashboard:index')
     
+    # Récupérer l'organisation associée au club
+    organization = club.organization or club.as_organization
+    if not organization:
+        messages.error(request, _("Aucune organisation associée trouvée pour ce club."))
+        return redirect('dashboard:index')
+    
     # Récupérer le pratiquant
-    practitioner = get_object_or_404(Practitioner, id=practitioner_id, club=club)
+    practitioner = get_object_or_404(Practitioner, id=practitioner_id, organization=organization)
     
     # Récupérer l'historique des grades
     # Correction : 'obtained_date' -> 'date_obtained'

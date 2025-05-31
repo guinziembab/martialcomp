@@ -30,13 +30,9 @@ from .competitions import Competition, CompetitionType, CompetitionRole
 
 # 4. Import des modèles de catégories
 from .categories import CategoryTemplate, CompetitionCategory
-try:
-    from grades.models import GradeCategory, Grade, GradingSystem, PractitionerGrade
-except ImportError:
-    GradeCategory = None
-    Grade = None
-    GradingSystem = None
-    PractitionerGrade = None
+
+# Import tardif pour éviter les imports circulaires
+# Les modèles grades seront importés quand nécessaire dans les vues/formulaires
 
 # 5. Les modèles de registration
 from .registrations import CompetitionRegistration, JudgeCompetitionAssignment
