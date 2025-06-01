@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Notation" %} - {{ practitioner.full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        background-color: #f8f9fa;
+    }
+    
+    .scoring-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .practitioner-info {
+        background-color: #fff;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        border-left: 5px solid #dc3545;
+    }
+    
+    .practitioner-name {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .competition-info {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .scoring-card {
+        background-color: #fff;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .scoring-card:hover {
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+        transform: translateY(-3px);
+    }
+    
+    .criterion-name {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+    }
+    
+    .criterion-description {
+        color: #6c757d;
+        margin-bottom: 1rem;
+        font-style: italic;
+    }
+    
+    .score-input-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+    }
+    
+    .score-display {
+        font-size: 2.5rem;
+        font-weight: 700;
+        text-align: center;
+        color: #495057;
+        min-width: 100px;
+    }
+    
+    .score-controls {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+    
+    .score-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: none;
+        background-color: #f8f9fa;
+        color: #495057;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .score-btn:hover {
+        background-color: #e9ecef;
+    }
+    
+    .score-btn.increment {
+        color: #28a745;
+    }
+    
+    .score-btn.decrement {
+        color: #dc3545;
+    }
+    
+    .score-input {
+        width: 100px;
+        text-align: center;
+        font-size: 1.5rem;
+        font-weight: 600;
+        border: 2px solid #dee2e6;
+        border-radius: 5px;
+        padding: 0.5rem;
+    }
+    
+    .score-input:focus {
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        outline: none;
+    }
+    
+    .submit-container {
+        text-align: center;
+        padding: 1.5rem;
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .submit-btn {
+        font-size: 1.1rem;
+        padding: 0.75rem 2rem;
+    }
+    
+    .min-max-label {
+        display: flex;
+        justify-content: space-between;
+        color: #6c757d;
+        font-size: 0.8rem;
+        margin-top: 0.5rem;
+    }
+    
+    .locked-score {
+        opacity: 0.7;
+        pointer-events: none;
+    }
+    
+    .locked-indicator {
+        color: #6c757d;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+    
+    .locked-indicator i {
+        color: #dc3545;
+    }
+    
+    @media (max-width: 768px) {
+        .scoring-card {
+            padding: 1rem;
+        }
+        
+        .criterion-name {
+            font-size: 1rem;
+        }
+        
+        .score-display {
+            font-size: 2rem;
+            min-width: 80px;
+        }
+        
+        .score-btn {
+            width: 36px;
+            height: 36px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="scoring-container">
+        <!-- En-tête avec infos du participant -->
+        <div class="practitioner-info">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h1 class="practitioner-name">{{ practitioner.full_name }}</h1>
+                    <div class="competition-info">
+                        <span class="me-3">{{ competition.title }}</span>
+                        <span class="me-3">{{ category.name }}</span>
+                        {% if practitioner.club %}
+                            <span>{{ practitioner.club.name }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <a href="{% url 'competitions:technical_scoring:judge_performance_list' category_id=category.id %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                </a>
+            </div>
+        </div>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <!-- Critères de notation -->
+            {% for criterion, form in forms %}
+                <div class="scoring-card {% if form.fields.value.widget.attrs.readonly %}locked-score{% endif %}">
+                    <div class="criterion-name">{{ criterion.name }}</div>
+                    
+                    {% if criterion.description %}
+                        <div class="criterion-description">{{ criterion.description }}</div>
+                    {% endif %}
+                    
+                    <div class="score-input-container">
+                        <div class="score-controls">
+                            <button type="button" class="score-btn decrement" data-step="{{ config.score_step }}" data-input="id_{{ form.prefix }}-value"
+                                    {% if form.fields.value.widget.attrs.readonly %}disabled{% endif %}>
+                                <i class="fas fa-minus"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="score-display">
+                            {{ form.value }}
+                        </div>
+                        
+                        <div class="score-controls">
+                            <button type="button" class="score-btn increment" data-step="{{ config.score_step }}" data-input="id_{{ form.prefix }}-value"
+                                    {% if form.fields.value.widget.attrs.readonly %}disabled{% endif %}>
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="min-max-label">
+                        <span>Min: {{ config.min_score }}</span>
+                        <span>Max: {{ config.max_score }}</span>
+                    </div>
+                    
+                    {% if form.fields.value.widget.attrs.readonly %}
+                        <div class="locked-indicator">
+                            <i class="fas fa-lock"></i>
+                            <span>{% trans "Note verrouillée" %}</span>
+                        </div>
+                    {% endif %}
+                    
+                    {% if form.errors %}
+                        <div class="alert alert-danger mt-2">
+                            {% for error in form.errors.values %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            
+            <!-- Soumission des notes -->
+            <div class="submit-container">
+                <button type="submit" name="submit_scores" class="btn btn-primary submit-btn">
+                    <i class="fas fa-paper-plane me-2"></i>{% trans "Soumettre les notes" %}
+                </button>
+                <div class="form-text mt-2">
+                    {% trans "Attention : une fois soumises, les notes ne pourront plus être modifiées !" %}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion des boutons d'incrément/décrément
+        const incrementBtns = document.querySelectorAll('.score-btn.increment');
+        const decrementBtns = document.querySelectorAll('.score-btn.decrement');
+        
+        // Fonction pour mettre à jour la valeur
+        function updateValue(input, increment) {
+            const step = parseFloat(input.dataset.step || 0.25);
+            const minValue = parseFloat(input.min || 0);
+            const maxValue = parseFloat(input.max || 10);
+            
+            let currentValue = parseFloat(input.value) || 0;
+            let newValue = increment ? currentValue + step : currentValue - step;
+            
+            // Arrondir à la précision du pas
+            newValue = Math.round(newValue / step) * step;
+            
+            // Limiter dans la plage autorisée
+            newValue = Math.max(minValue, Math.min(newValue, maxValue));
+            
+            // Formater avec deux décimales
+            input.value = newValue.toFixed(2);
+            
+            // Mettre à jour l'affichage
+            const displayElement = input.closest('.score-input-container').querySelector('.score-display');
+            if (displayElement) {
+                displayElement.textContent = newValue.toFixed(2);
+            }
+        }
+        
+        // Événements pour les boutons d'incrément
+        incrementBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const inputId = this.dataset.input;
+                const input = document.getElementById(inputId);
+                if (input) {
+                    updateValue(input, true);
+                }
+            });
+        });
+        
+        // Événements pour les boutons de décrément
+        decrementBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const inputId = this.dataset.input;
+                const input = document.getElementById(inputId);
+                if (input) {
+                    updateValue(input, false);
+                }
+            });
+        });
+        
+        // Mise à jour des affichages initiaux
+        document.querySelectorAll('.score-input').forEach(input => {
+            const displayElement = input.closest('.score-input-container').querySelector('.score-display');
+            if (displayElement) {
+                displayElement.textContent = parseFloat(input.value).toFixed(2);
+            }
+        });
+        
+        // Confirmation avant soumission
+        document.querySelector('form').addEventListener('submit', function(e) {
+            if (!confirm("{% trans 'Êtes-vous sûr de vouloir soumettre vos notes ? Cette action est irréversible.' %}")) {
+                e.preventDefault();
+            }
+        });
+    });
+</script>
+{% endblock %}

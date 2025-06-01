@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Gestion des utilisateurs" %} - {{ federation.name }} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .user-card {
+        transition: all 0.3s ease;
+        border-left: 3px solid transparent;
+    }
+    
+    .user-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .user-card.primary-admin {
+        border-left-color: var(--primary);
+    }
+    
+    .role-badge {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 30px;
+    }
+    
+    .search-form {
+        position: relative;
+    }
+    
+    .search-form .form-control {
+        padding-right: 40px;
+        border-radius: 50px;
+    }
+    
+    .search-form .btn {
+        position: absolute;
+        right: 5px;
+        top: 5px;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .search-results {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2 mb-0">{% trans "Gestion des utilisateurs" %} - {{ federation.name }}</h1>
+        
+        <a href="{% url 'competitions:federations:detail' federation.slug %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la fédération" %}
+        </a>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="row">
+        <!-- Liste des administrateurs actuels -->
+        <div class="col-lg-7 mb-4 mb-lg-0">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h5 mb-0">{% trans "Administrateurs de la fédération" %}</h2>
+                </div>
+                
+                <div class="card-body">
+                    {% if administrators %}
+                        <div class="mb-3">
+                            <p class="text-muted">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% trans "Voici la liste des utilisateurs ayant des droits d'administration sur cette fédération." %}
+                            </p>
+                        </div>
+                        
+                        {% for admin in administrators %}
+                            <div class="card mb-3 user-card {% if admin.is_primary %}primary-admin{% endif %}">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h3 class="h6 mb-1">
+                                                {% if admin.user.first_name or admin.user.last_name %}
+                                                    {{ admin.user.get_full_name }}
+                                                {% else %}
+                                                    {{ admin.user.username }}
+                                                {% endif %}
+                                                
+                                                {% if admin.is_primary %}
+                                                    <span class="badge bg-primary ms-2">{% trans "Principal" %}</span>
+                                                {% endif %}
+                                            </h3>
+                                            <p class="mb-1 small text-muted">
+                                                {{ admin.user.email }}
+                                            </p>
+                                            <span class="badge bg-secondary role-badge">
+                                                {{ admin.get_role_display }}
+                                            </span>
+                                        </div>
+                                        
+                                        <div class="d-flex gap-2">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                    data-bs-toggle="modal" data-bs-target="#editRoleModal" 
+                                                    data-admin-id="{{ admin.id }}"
+                                                    data-admin-name="{% if admin.user.first_name or admin.user.last_name %}{{ admin.user.get_full_name }}{% else %}{{ admin.user.username }}{% endif %}"
+                                                    data-admin-role="{{ admin.role }}"
+                                                    data-admin-primary="{{ admin.is_primary }}">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            
+                                            {% if not admin.is_primary or administrators.count > 1 %}
+                                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                        data-bs-toggle="modal" data-bs-target="#removeAdminModal"
+                                                        data-admin-id="{{ admin.id }}"
+                                                        data-admin-name="{% if admin.user.first_name or admin.user.last_name %}{{ admin.user.get_full_name }}{% else %}{{ admin.user.username }}{% endif %}">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {% trans "Aucun administrateur n'est associé à cette fédération." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Formulaire d'ajout d'administrateurs -->
+        <div class="col-lg-5">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h2 class="h5 mb-0">{% trans "Ajouter un administrateur" %}</h2>
+                </div>
+                
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Recherchez un utilisateur par nom ou email pour l'ajouter comme administrateur." %}
+                    </p>
+                    
+                    <form method="get" class="search-form mb-3">
+                        <div class="input-group">
+                            <input type="text" name="q" class="form-control" placeholder="{% trans 'Rechercher un utilisateur...' %}" 
+                                   value="{{ search_query|default:'' }}">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </form>
+                    
+                    {% if search_query %}
+                        <div class="search-results mb-3">
+                            {% if users %}
+                                <h3 class="h6 mb-3">{% trans "Résultats de recherche" %}</h3>
+                                
+                                {% for user in users %}
+                                    <div class="card mb-2 user-card">
+                                        <div class="card-body py-2">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <h4 class="h6 mb-1">
+                                                        {% if user.first_name or user.last_name %}
+                                                            {{ user.get_full_name }}
+                                                        {% else %}
+                                                            {{ user.username }}
+                                                        {% endif %}
+                                                    </h4>
+                                                    <p class="mb-0 small text-muted">{{ user.email }}</p>
+                                                </div>
+                                                
+                                                <button type="button" class="btn btn-sm btn-success" 
+                                                        data-bs-toggle="modal" data-bs-target="#addAdminModal"
+                                                        data-user-id="{{ user.id }}"
+                                                        data-user-name="{% if user.first_name or user.last_name %}{{ user.get_full_name }}{% else %}{{ user.username }}{% endif %}">
+                                                    <i class="fas fa-plus me-1"></i> {% trans "Ajouter" %}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    {% trans "Aucun utilisateur trouvé. Essayez avec un autre terme de recherche." %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour ajouter un administrateur -->
+<div class="modal fade" id="addAdminModal" tabindex="-1" aria-labelledby="addAdminModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addAdminModalLabel">{% trans "Ajouter un administrateur" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="add_admin" value="1">
+                <input type="hidden" name="user_id" id="addUserId">
+                
+                <div class="modal-body">
+                    <p>{% trans "Vous êtes sur le point d'ajouter" %} <strong id="addUserName"></strong> {% trans "comme administrateur de cette fédération." %}</p>
+                    
+                    <div class="mb-3">
+                        <label for="addUserRole" class="form-label">{% trans "Rôle" %}</label>
+                        <select class="form-select" id="addUserRole" name="role">
+                            {% for role_value, role_name in roles %}
+                                <option value="{{ role_value }}">{{ role_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="addUserPrimary" name="is_primary">
+                        <label class="form-check-label" for="addUserPrimary">
+                            {% trans "Administrateur principal" %}
+                        </label>
+                        <div class="form-text">
+                            {% trans "Un administrateur principal a tous les droits sur cette fédération." %}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                    <button type="submit" class="btn btn-success">{% trans "Ajouter" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour supprimer un administrateur -->
+<div class="modal fade" id="removeAdminModal" tabindex="-1" aria-labelledby="removeAdminModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="removeAdminModalLabel">{% trans "Supprimer un administrateur" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="remove_admin" value="1">
+                <input type="hidden" name="admin_id" id="removeAdminId">
+                
+                <div class="modal-body">
+                    <p>{% trans "Êtes-vous sûr de vouloir supprimer" %} <strong id="removeAdminName"></strong> {% trans "des administrateurs de cette fédération ?" %}</p>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        {% trans "Cette action supprime les droits d'administration de cet utilisateur pour cette fédération, mais ne supprime pas son compte." %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                    <button type="submit" class="btn btn-danger">{% trans "Supprimer" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour modifier le rôle d'un administrateur -->
+<div class="modal fade" id="editRoleModal" tabindex="-1" aria-labelledby="editRoleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editRoleModalLabel">{% trans "Modifier le rôle" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="update_admin" value="1">
+                <input type="hidden" name="admin_id" id="editAdminId">
+                
+                <div class="modal-body">
+                    <p>{% trans "Modifier le rôle de" %} <strong id="editAdminName"></strong>.</p>
+                    
+                    <div class="mb-3">
+                        <label for="editAdminRole" class="form-label">{% trans "Rôle" %}</label>
+                        <select class="form-select" id="editAdminRole" name="role">
+                            {% for role_value, role_name in roles %}
+                                <option value="{{ role_value }}">{{ role_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="editAdminPrimary" name="is_primary">
+                        <label class="form-check-label" for="editAdminPrimary">
+                            {% trans "Administrateur principal" %}
+                        </label>
+                        <div class="form-text">
+                            {% trans "Un administrateur principal a tous les droits sur cette fédération." %}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                    <button type="submit" class="btn btn-primary">{% trans "Enregistrer" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Modal pour ajouter un administrateur
+        const addAdminModal = document.getElementById('addAdminModal');
+        if (addAdminModal) {
+            addAdminModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                const userId = button.getAttribute('data-user-id');
+                const userName = button.getAttribute('data-user-name');
+                
+                const userIdInput = document.getElementById('addUserId');
+                const userNameElem = document.getElementById('addUserName');
+                
+                if (userIdInput) userIdInput.value = userId;
+                if (userNameElem) userNameElem.textContent = userName;
+            });
+        }
+        
+        // Modal pour supprimer un administrateur
+        const removeAdminModal = document.getElementById('removeAdminModal');
+        if (removeAdminModal) {
+            removeAdminModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                const adminId = button.getAttribute('data-admin-id');
+                const adminName = button.getAttribute('data-admin-name');
+                
+                const adminIdInput = document.getElementById('removeAdminId');
+                const adminNameElem = document.getElementById('removeAdminName');
+                
+                if (adminIdInput) adminIdInput.value = adminId;
+                if (adminNameElem) adminNameElem.textContent = adminName;
+            });
+        }
+        
+        // Modal pour modifier le rôle d'un administrateur
+        const editRoleModal = document.getElementById('editRoleModal');
+        if (editRoleModal) {
+            editRoleModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                const adminId = button.getAttribute('data-admin-id');
+                const adminName = button.getAttribute('data-admin-name');
+                const adminRole = button.getAttribute('data-admin-role');
+                const adminPrimary = button.getAttribute('data-admin-primary');
+                
+                const adminIdInput = document.getElementById('editAdminId');
+                const adminNameElem = document.getElementById('editAdminName');
+                const adminRoleSelect = document.getElementById('editAdminRole');
+                const adminPrimaryCheck = document.getElementById('editAdminPrimary');
+                
+                if (adminIdInput) adminIdInput.value = adminId;
+                if (adminNameElem) adminNameElem.textContent = adminName;
+                if (adminRoleSelect) adminRoleSelect.value = adminRole;
+                if (adminPrimaryCheck) adminPrimaryCheck.checked = adminPrimary === 'True';
+            });
+        }
+    });
+</script>
+{% endblock %}

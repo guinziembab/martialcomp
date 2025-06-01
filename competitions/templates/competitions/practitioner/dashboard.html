@@ -1,0 +1,360 @@
+{% extends 'competitions/practitioner/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Tableau de bord" %} - {{ practitioner.full_name }}{% endblock %}
+
+{% block practitioner_content %}
+<div class="dashboard-header">
+    <h1>{% trans "Bienvenue" %}, {{ practitioner.full_name }}</h1>
+    <p>{% trans "Voici un aperçu de vos activités récentes" %}</p>
+</div>
+
+<div class="dashboard-stats">
+    <div class="stat-card">
+        <div class="stat-icon">
+            <i class="fas fa-calendar-check"></i>
+        </div>
+        <div class="stat-content">
+            <h3>{{ stats.trainings_this_month }}</h3>
+            <p>{% trans "Entraînements ce mois" %}</p>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon">
+            <i class="fas fa-trophy"></i>
+        </div>
+        <div class="stat-content">
+            <h3>{{ stats.competitions_this_year }}</h3>
+            <p>{% trans "Compétitions cette année" %}</p>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon">
+            <i class="fas fa-medal"></i>
+        </div>
+        <div class="stat-content">
+            <h3>{{ current_grade.grade.name|default:"N/A" }}</h3>
+            <p>{% trans "Grade actuel" %}</p>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon">
+            <i class="fas fa-star"></i>
+        </div>
+        <div class="stat-content">
+            <h3>{{ stats.attendance_rate }}%</h3>
+            <p>{% trans "Taux de présence" %}</p>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="dashboard-section">
+        <h2>{% trans "Prochains entraînements" %}</h2>
+        {% if next_trainings %}
+            <ul class="training-list">
+                {% for training in next_trainings %}
+                <li>
+                    <div class="training-item">
+                        <div class="training-date">
+                            <span class="day">{{ training.date|date:"d" }}</span>
+                            <span class="month">{{ training.date|date:"M" }}</span>
+                        </div>
+                        <div class="training-info">
+                            <h4>{{ training.training_slot.name }}</h4>
+                            <p>{{ training.start_time }} - {{ training.end_time }}</p>
+                            <p>{{ training.location }}</p>
+                        </div>
+                        <div class="training-actions">
+                            {% if training.reservation %}
+                                <span class="badge badge-success">{% trans "Inscrit" %}</span>
+                            {% else %}
+                                <a href="{% url 'competitions:practitioner:make_reservation' training.id|default:'default' %}" class="btn btn-sm btn-primary">
+                                    {% trans "S'inscrire" %}
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>{% trans "Aucun entraînement prévu" %}</p>
+        {% endif %}
+    </div>
+    
+    <div class="dashboard-section">
+        <h2>{% trans "Compétitions à venir" %}</h2>
+        {% if upcoming_competitions %}
+            <ul class="competition-list">
+                {% for competition in upcoming_competitions %}
+                <li>
+                    <div class="competition-item">
+                        <div class="competition-info">
+                            <h4>{{ competition.name }}</h4>
+                            <p>{{ competition.start_date|date:"d/m/Y" }}</p>
+                            <p>{{ competition.location }}</p>
+                        </div>
+                        <div class="competition-status">
+                            {% if competition.registration %}
+                                <span class="badge badge-success">{% trans "Inscrit" %}</span>
+                            {% elif competition.registration_open %}
+                                <a href="{% url 'competitions:register' competition.id %}" class="btn btn-sm btn-primary">
+                                    {% trans "S'inscrire" %}
+                                </a>
+                            {% else %}
+                                <span class="badge badge-secondary">{% trans "Inscriptions fermées" %}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>{% trans "Aucune compétition à venir" %}</p>
+        {% endif %}
+    </div>
+    
+    <div class="dashboard-section">
+        <h2>{% trans "Activité récente" %}</h2>
+        <canvas id="activityChart" width="400" height="200"></canvas>
+    </div>
+    
+    <div class="dashboard-section">
+        <h2>{% trans "Progression" %}</h2>
+        <div class="progress-section">
+            <h3>{% trans "Vers le prochain grade" %}</h3>
+            <div class="progress-bar-container">
+                <div class="progress-bar" style="width: {{ grade_progress }}%"></div>
+            </div>
+            <p>{{ grade_progress }}% {% trans "complété" %}</p>
+        </div>
+        
+        {% if active_programs %}
+        <div class="programs-section">
+            <h3>{% trans "Programmes en cours" %}</h3>
+            {% for enrollment in active_programs %}
+            <div class="program-item">
+                <h4>{{ enrollment.program.name }}</h4>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" style="width: {{ enrollment.progress }}%"></div>
+                </div>
+                <p>{{ enrollment.progress }}% {% trans "complété" %}</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.dashboard-header {
+    margin-bottom: 30px;
+}
+
+.dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+}
+
+.stat-icon {
+    font-size: 2.5em;
+    color: #e74c3c;
+    margin-right: 20px;
+}
+
+.stat-content h3 {
+    margin: 0;
+    font-size: 1.8em;
+    font-weight: bold;
+}
+
+.stat-content p {
+    margin: 5px 0 0 0;
+    color: #666;
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+}
+
+.dashboard-section {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.dashboard-section h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.3em;
+    color: #2c3e50;
+}
+
+.training-list,
+.competition-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.training-item,
+.competition-item {
+    display: flex;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.training-item:last-child,
+.competition-item:last-child {
+    border-bottom: none;
+}
+
+.training-date {
+    text-align: center;
+    margin-right: 20px;
+}
+
+.training-date .day {
+    display: block;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #e74c3c;
+}
+
+.training-date .month {
+    display: block;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    color: #666;
+}
+
+.training-info,
+.competition-info {
+    flex: 1;
+}
+
+.training-info h4,
+.competition-info h4 {
+    margin: 0 0 5px 0;
+    font-size: 1.1em;
+}
+
+.training-info p,
+.competition-info p {
+    margin: 0;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.badge {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+.badge-success {
+    background-color: #28a745;
+    color: white;
+}
+
+.badge-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 20px;
+    background-color: #f0f0f0;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: #e74c3c;
+    transition: width 0.3s ease;
+}
+
+.progress-section,
+.programs-section {
+    margin-bottom: 20px;
+}
+
+.program-item {
+    margin-bottom: 15px;
+}
+
+.program-item h4 {
+    margin: 0 0 10px 0;
+}
+
+@media (max-width: 768px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .dashboard-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 576px) {
+    .dashboard-stats {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var ctx = document.getElementById('activityChart').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ chart_labels|safe|default:"[]" }},
+            datasets: [{
+                label: '{% trans "Activités" %}',
+                data: {{ chart_data|safe|default:"[]" }},
+                backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                borderColor: 'rgba(231, 76, 60, 1)',
+                borderWidth: 2,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

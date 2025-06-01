@@ -1,0 +1,913 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Catégorie" %} - {{ category.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .performance-card {
+        transition: all 0.2s ease;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .performance-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .performance-card.active {
+        border-color: #17a2b8;
+        box-shadow: 0 0 0 3px rgba(23, 162, 184, 0.3);
+    }
+    
+    .performance-card.completed {
+        border-color: #28a745;
+    }
+    
+    .performance-header {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-bottom: 1px solid rgba(0,0,0,.125);
+    }
+    
+    .performance-order {
+        font-size: 1.2rem;
+        font-weight: bold;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        margin-right: 15px;
+    }
+    
+    .status-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-size: 0.8rem;
+    }
+    
+    .status-badge.pending {
+        background-color: #6c757d;
+    }
+    
+    .status-badge.in-progress {
+        background-color: #17a2b8;
+    }
+    
+    .status-badge.completed {
+        background-color: #28a745;
+    }
+    
+    .score-summary {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .score-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #495057;
+    }
+    
+    .criteria-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .score-badge {
+        font-size: 1.2rem;
+        padding: 5px 10px;
+    }
+    
+    .notification-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background-color: #dc3545;
+        color: white;
+        font-size: 0.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+    }
+    
+    .pulse {
+        animation: pulse 2s infinite;
+    }
+    
+    .criteria-item {
+        border-bottom: 1px solid #f0f0f0;
+        padding: 10px 0;
+    }
+    
+    .criteria-item:last-child {
+        border-bottom: none;
+    }
+    
+    .criteria-name {
+        font-weight: 500;
+    }
+    
+    .criteria-weight {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    
+    .score-input-group {
+        display: flex;
+        align-items: center;
+    }
+    
+    .score-input {
+        width: 70px;
+        text-align: center;
+        font-size: 1.1rem;
+        font-weight: 500;
+    }
+    
+    .score-btn {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        border-radius: 50%;
+        margin: 0 5px;
+    }
+    
+    .numeric-keypad {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-top: 15px;
+    }
+    
+    .keypad-btn {
+        padding: 15px;
+        font-size: 1.2rem;
+        font-weight: 500;
+    }
+    
+    .timer {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #495057;
+    }
+    
+    .notes-area {
+        resize: none;
+        height: 120px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:technical_scoring:judge_dashboard' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:technical_scoring:judge_competition_list' %}">{% trans "Compétitions" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ category.name }}</li>
+        </ol>
+    </nav>
+    
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3">{{ competition.title }}</h1>
+            <p class="text-muted">{{ category.name }}</p>
+        </div>
+        
+        <div class="col-auto d-flex align-items-center">
+            <div class="timer-container me-4">
+                <div class="timer" id="performance-timer">00:00</div>
+            </div>
+            
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-secondary" id="refresh-btn">
+                    <i class="fas fa-sync-alt"></i> {% trans "Actualiser" %}
+                </button>
+                
+                <div class="btn-group" role="group">
+                    <button id="btnGroupDrop1" type="button" class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-cog"></i> {% trans "Options" %}
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="btnGroupDrop1">
+                        <li><a class="dropdown-item" href="#" id="export-scores-btn">
+                            <i class="fas fa-file-export"></i> {% trans "Exporter les notes" %}
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" id="print-scores-btn">
+                            <i class="fas fa-print"></i> {% trans "Imprimer les notes" %}
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" id="view-criteria-btn">
+                            <i class="fas fa-list-ul"></i> {% trans "Voir les critères" %}
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Liste des performances à noter -->
+        <div class="col-md-4 col-lg-3">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">{% trans "Participants" %}</h5>
+                        <span class="badge bg-primary">{{ performances|length }}</span>
+                    </div>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for performance in performances %}
+                        <a href="#" class="list-group-item list-group-item-action performance-item {% if performance.id == current_performance.id %}active{% endif %}" 
+                           data-performance-id="{{ performance.id }}">
+                            <div class="d-flex align-items-center">
+                                <div class="performance-order">{{ forloop.counter }}</div>
+                                <div>
+                                    <h6 class="mb-0">{{ performance.participant.full_name }}</h6>
+                                    <small class="text-muted">{{ performance.participant.club.name }}</small>
+                                </div>
+                            </div>
+                            
+                            {% if performance.status == 'pending' %}
+                                <span class="badge bg-secondary status-badge pending">{% trans "En attente" %}</span>
+                            {% elif performance.status == 'in_progress' %}
+                                <span class="badge bg-info status-badge in-progress">{% trans "En cours" %}</span>
+                            {% elif performance.status == 'completed' %}
+                                <span class="badge bg-success status-badge completed">{% trans "Complété" %}</span>
+                            {% endif %}
+                        </a>
+                    {% empty %}
+                        <div class="list-group-item text-center py-4">
+                            <i class="fas fa-info-circle mb-2 text-muted" style="font-size: 2rem;"></i>
+                            <p class="mb-0">{% trans "Aucun participant dans cette catégorie" %}</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Résumé des notes -->
+            {% if current_performance %}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">{% trans "Résumé des notes" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="score-summary text-center mb-3">
+                            <div class="small text-muted">{% trans "Note finale" %}</div>
+                            <div class="score-value" id="final-score">
+                                {% if current_performance.score %}
+                                    {{ current_performance.score|floatformat:2 }}
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <h6 class="mb-2">{% trans "Notes par critère" %}</h6>
+                        <div class="criteria-list">
+                            {% for criteria in scoring_criteria %}
+                                <div class="criteria-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="criteria-name">{{ criteria.name }}</div>
+                                        <div class="criteria-weight">{% trans "Poids" %}: {{ criteria.weight }}</div>
+                                    </div>
+                                    <span class="badge bg-light text-dark score-badge">
+                                        {% if criteria.score %}
+                                            {{ criteria.score }}
+                                        {% else %}
+                                            --
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        
+                        {% if is_readonly %}
+                            <div class="alert alert-info mt-3 mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% trans "Les notes ont été soumises et ne peuvent plus être modifiées." %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Formulaire de notation -->
+        <div class="col-md-8 col-lg-9">
+            {% if current_performance %}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                {% trans "Notation de" %} {{ current_performance.participant.full_name }}
+                            </h5>
+                            {% if current_performance.status == 'in_progress' %}
+                                <span class="badge bg-info">{% trans "En cours" %}</span>
+                            {% elif current_performance.status == 'completed' %}
+                                <span class="badge bg-success">{% trans "Noté" %}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{% trans "En attente" %}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        <form id="scoring-form" method="post" action="{% url 'competitions:technical_scoring:submit_score' current_performance.id %}">
+                            {% csrf_token %}
+                            
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <div class="performance-details mb-3">
+                                        <h6>{% trans "Détails du participant" %}</h6>
+                                        <ul class="list-unstyled">
+                                            <li><strong>{% trans "Nom" %}:</strong> {{ current_performance.participant.full_name }}</li>
+                                            <li><strong>{% trans "Club" %}:</strong> {{ current_performance.participant.club.name }}</li>
+                                            <li><strong>{% trans "Grade" %}:</strong> {{ current_performance.participant.grade }}</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="competition-info mb-3">
+                                        <h6>{% trans "Informations de l'épreuve" %}</h6>
+                                        <ul class="list-unstyled">
+                                            <li><strong>{% trans "Catégorie" %}:</strong> {{ category.name }}</li>
+                                            <li><strong>{% trans "Type" %}:</strong> {{ competition_type.name }}</li>
+                                            <li><strong>{% trans "Plage de notes" %}:</strong> {{ min_score }} - {{ max_score }}</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <!-- Critères de notation -->
+                            <h5 class="mb-3">{% trans "Critères de notation" %}</h5>
+                            
+                            {% for criteria in scoring_criteria %}
+                                <div class="criteria-input mb-4" id="criteria-{{ criteria.id }}">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <label for="score-{{ criteria.id }}" class="form-label mb-0">
+                                            <strong>{{ criteria.name }}</strong>
+                                            <span class="text-muted ms-2">({% trans "Poids" %}: {{ criteria.weight }})</span>
+                                        </label>
+                                        <span class="badge bg-light text-dark">{{ min_score }} - {{ max_score }}</span>
+                                    </div>
+                                    
+                                    <div class="input-group">
+                                        <button type="button" class="btn btn-outline-secondary score-btn decrement-btn" data-criteria-id="{{ criteria.id }}">
+                                            <i class="fas fa-minus"></i>
+                                        </button>
+                                        <input type="number" 
+                                               class="form-control score-input" 
+                                               id="score-{{ criteria.id }}" 
+                                               name="criteria-{{ criteria.id }}" 
+                                               min="{{ min_score }}" 
+                                               max="{{ max_score }}" 
+                                               step="0.25"
+                                               value="{% if criteria.score %}{{ criteria.score }}{% endif %}"
+                                               {% if is_readonly %}readonly{% endif %}
+                                               required>
+                                        <button type="button" class="btn btn-outline-secondary score-btn increment-btn" data-criteria-id="{{ criteria.id }}">
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#keypadModal" data-criteria-id="{{ criteria.id }}">
+                                            <i class="fas fa-keyboard"></i>
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="form-text">{{ criteria.description }}</div>
+                                </div>
+                            {% endfor %}
+                            
+                            <!-- Notes additionnelles -->
+                            <div class="mb-4">
+                                <label for="notes" class="form-label">{% trans "Notes additionnelles" %}</label>
+                                <textarea class="form-control notes-area" id="notes" name="notes" {% if is_readonly %}readonly{% endif %}>{{ notes }}</textarea>
+                            </div>
+                            
+                            <!-- Boutons d'action -->
+                            <div class="d-flex justify-content-between">
+                                <button type="button" class="btn btn-outline-secondary" id="reset-btn" {% if is_readonly %}disabled{% endif %}>
+                                    <i class="fas fa-undo"></i> {% trans "Réinitialiser" %}
+                                </button>
+                                
+                                <div>
+                                    <button type="button" class="btn btn-outline-primary me-2" id="save-draft-btn" {% if is_readonly %}disabled{% endif %}>
+                                        <i class="fas fa-save"></i> {% trans "Enregistrer brouillon" %}
+                                    </button>
+                                    
+                                    <button type="submit" class="btn btn-primary" id="submit-btn" {% if is_readonly %}disabled{% endif %}>
+                                        <i class="fas fa-check"></i> {% trans "Soumettre les notes" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            {% else %}
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-clipboard-list mb-3" style="font-size: 3rem; color: #6c757d;"></i>
+                        <h5>{% trans "Sélectionnez un participant pour commencer la notation" %}</h5>
+                        <p class="text-muted">{% trans "Cliquez sur un participant dans la liste à gauche pour commencer à noter sa performance." %}</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour le pavé numérique -->
+<div class="modal fade" id="keypadModal" tabindex="-1" aria-labelledby="keypadModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="keypadModalLabel">{% trans "Saisir une note" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="keypad-input" class="form-label">{% trans "Note" %}</label>
+                    <input type="number" class="form-control form-control-lg text-center" id="keypad-input" min="{{ min_score }}" max="{{ max_score }}" step="0.25">
+                    <div class="form-text text-center">
+                        {% trans "Plage de notes" %}: {{ min_score }} - {{ max_score }} | {% trans "Pas" %}: 0.25
+                    </div>
+                </div>
+                
+                <div class="numeric-keypad">
+                    <button type="button" class="btn btn-outline-secondary keypad-btn" data-value="7">7</button>
+                    <button type="button" class="btn btn-outline-secondary keypad-btn" data-value="8">8</button>
+                    <button type="button" class="btn btn-outline-secondary keypad-btn" data-value="9">9</button>
+                    <button type="button" class="btn btn-outline-danger keypad-btn" data-value="clear">C</button>
+                    
+                    <button type="button" class="btn btn-outline-secondary keypad-btn" data-value="4">4</button>
+                    <button type="button" class="btn btn-outline-secondary keypad-btn" data-value="5">5</button>
+                    <button type="button" class="btn btn-outline-secondary keypad-btn" data-value="6">6</button>
+                    <button type="button" class="btn btn-outline-warning keypad-btn" data-value="backspace">
+                        <i class="fas fa-backspace"></i>
+                    </button>
+                    
+                    <button type="button" class="btn btn-outline-secondary keypad-btn" data-value="1">1</button>
+                    <button type="button" class="btn btn-outline-secondary keypad-btn" data-value="2">2</button>
+                    <button type="button" class="btn btn-outline-secondary keypad-btn" data-value="3">3</button>
+                    <button type="button" class="btn btn-outline-primary keypad-btn" data-value="-0.25">-0.25</button>
+                    
+                    <button type="button" class="btn btn-outline-secondary keypad-btn" data-value="0">0</button>
+                    <button type="button" class="btn btn-outline-secondary keypad-btn" data-value=".">.</button>
+                    <button type="button" class="btn btn-outline-secondary keypad-btn" data-value="00">00</button>
+                    <button type="button" class="btn btn-outline-primary keypad-btn" data-value="+0.25">+0.25</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-primary" id="apply-score-btn">{% trans "Appliquer" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation pour la soumission des notes -->
+<div class="modal fade" id="confirmSubmitModal" tabindex="-1" aria-labelledby="confirmSubmitModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmSubmitModalLabel">{% trans "Confirmer la soumission" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {% trans "Attention : Une fois soumises, les notes ne pourront plus être modifiées. Êtes-vous sûr de vouloir continuer ?" %}
+                </div>
+                
+                <h6 class="mb-3">{% trans "Résumé des notes" %}</h6>
+                <div id="notes-summary">
+                    <!-- Les notes seront injectées ici dynamiquement -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-primary" id="confirm-submit-btn">{% trans "Confirmer et soumettre" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour voir les critères -->
+<div class="modal fade" id="criteriaModal" tabindex="-1" aria-labelledby="criteriaModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="criteriaModalLabel">{% trans "Critères de notation" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Critère" %}</th>
+                                <th>{% trans "Description" %}</th>
+                                <th>{% trans "Poids" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for criteria in scoring_criteria %}
+                                <tr>
+                                    <td><strong>{{ criteria.name }}</strong></td>
+                                    <td>{{ criteria.description }}</td>
+                                    <td class="text-center">{{ criteria.weight }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Fermer" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialisation des variables
+        let currentCriteriaId = null;
+        let timerInterval = null;
+        let startTime = null;
+        
+        // Éléments du DOM
+        const scoringForm = document.getElementById('scoring-form');
+        const resetBtn = document.getElementById('reset-btn');
+        const saveDraftBtn = document.getElementById('save-draft-btn');
+        const submitBtn = document.getElementById('submit-btn');
+        const performanceItems = document.querySelectorAll('.performance-item');
+        const timerDisplay = document.getElementById('performance-timer');
+        const keypadInput = document.getElementById('keypad-input');
+        const keypadBtns = document.querySelectorAll('.keypad-btn');
+        const applyScoreBtn = document.getElementById('apply-score-btn');
+        const confirmSubmitBtn = document.getElementById('confirm-submit-btn');
+        const notesSummaryDiv = document.getElementById('notes-summary');
+        
+        // Fonctions utilitaires
+        
+        // Formater le timer
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // Démarrer le timer
+        function startTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+            
+            startTime = Date.now();
+            
+            timerInterval = setInterval(() => {
+                const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+                timerDisplay.textContent = formatTime(elapsedSeconds);
+            }, 1000);
+        }
+        
+        // Arrêter le timer
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+        
+        // Réinitialiser le timer
+        function resetTimer() {
+            stopTimer();
+            timerDisplay.textContent = '00:00';
+        }
+        
+        // Calculer la note finale
+        function calculateFinalScore() {
+            let totalWeightedScore = 0;
+            let totalWeight = 0;
+            let allCriteriaScored = true;
+            
+            // Pour chaque critère, calculer le score pondéré
+            {% for criteria in scoring_criteria %}
+                const criteriaInput = document.getElementById('score-{{ criteria.id }}');
+                if (criteriaInput && criteriaInput.value) {
+                    const criteriaScore = parseFloat(criteriaInput.value);
+                    const criteriaWeight = {{ criteria.weight }};
+                    
+                    totalWeightedScore += criteriaScore * criteriaWeight;
+                    totalWeight += criteriaWeight;
+                } else {
+                    allCriteriaScored = false;
+                }
+            {% endfor %}
+            
+            // Si tous les critères sont notés, calculer la moyenne pondérée
+            if (allCriteriaScored && totalWeight > 0) {
+                const finalScore = totalWeightedScore / totalWeight;
+                return finalScore.toFixed(2);
+            }
+            
+            return null;
+        }
+        
+        // Mettre à jour l'affichage de la note finale
+        function updateFinalScore() {
+            const finalScoreDisplay = document.getElementById('final-score');
+            const finalScore = calculateFinalScore();
+            
+            if (finalScore !== null) {
+                finalScoreDisplay.textContent = finalScore;
+            } else {
+                finalScoreDisplay.textContent = '--';
+            }
+        }
+        
+        // Événements du pavé numérique
+        
+        // Ouvrir le pavé numérique pour un critère
+        document.querySelectorAll('[data-bs-toggle="modal"][data-bs-target="#keypadModal"]').forEach(btn => {
+            btn.addEventListener('click', function() {
+                currentCriteriaId = this.getAttribute('data-criteria-id');
+                const criteriaInput = document.getElementById(`score-${currentCriteriaId}`);
+                
+                if (criteriaInput) {
+                    keypadInput.value = criteriaInput.value;
+                } else {
+                    keypadInput.value = '';
+                }
+            });
+        });
+        
+        // Boutons du pavé numérique
+        keypadBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const value = this.getAttribute('data-value');
+                
+                if (value === 'clear') {
+                    keypadInput.value = '';
+                } else if (value === 'backspace') {
+                    keypadInput.value = keypadInput.value.slice(0, -1);
+                } else if (value === '+0.25') {
+                    let currentValue = parseFloat(keypadInput.value) || 0;
+                    currentValue += 0.25;
+                    
+                    // S'assurer que la valeur reste dans les limites
+                    if (currentValue <= {{ max_score }}) {
+                        keypadInput.value = currentValue.toFixed(2);
+                    }
+                } else if (value === '-0.25') {
+                    let currentValue = parseFloat(keypadInput.value) || 0;
+                    currentValue -= 0.25;
+                    
+                    // S'assurer que la valeur reste dans les limites
+                    if (currentValue >= {{ min_score }}) {
+                        keypadInput.value = currentValue.toFixed(2);
+                    }
+                } else {
+                    keypadInput.value += value;
+                }
+            });
+        });
+        
+        // Appliquer la note du pavé numérique
+        applyScoreBtn.addEventListener('click', function() {
+            if (currentCriteriaId) {
+                const criteriaInput = document.getElementById(`score-${currentCriteriaId}`);
+                const enteredValue = parseFloat(keypadInput.value);
+                
+                // Vérifier que la valeur est dans les limites
+                if (!isNaN(enteredValue) && enteredValue >= {{ min_score }} && enteredValue <= {{ max_score }}) {
+                    criteriaInput.value = enteredValue.toFixed(2);
+                    
+                    // Fermer le modal
+                    const keypadModal = bootstrap.Modal.getInstance(document.getElementById('keypadModal'));
+                    keypadModal.hide();
+                    
+                    // Mettre à jour le score final
+                    updateFinalScore();
+                } else {
+                    // Afficher un message d'erreur
+                    alert("{% trans 'Veuillez entrer une note valide entre' %} {{ min_score }} {% trans 'et' %} {{ max_score }}");
+                }
+            }
+        });
+        
+        // Événements pour les boutons d'incrémentation/décrémentation
+        document.querySelectorAll('.increment-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const criteriaId = this.getAttribute('data-criteria-id');
+                const input = document.getElementById(`score-${criteriaId}`);
+                
+                let value = parseFloat(input.value) || 0;
+                value += 0.25;
+                
+                if (value <= {{ max_score }}) {
+                    input.value = value.toFixed(2);
+                    updateFinalScore();
+                }
+            });
+        });
+        
+        document.querySelectorAll('.decrement-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const criteriaId = this.getAttribute('data-criteria-id');
+                const input = document.getElementById(`score-${criteriaId}`);
+                
+                let value = parseFloat(input.value) || 0;
+                value -= 0.25;
+                
+                if (value >= {{ min_score }}) {
+                    input.value = value.toFixed(2);
+                    updateFinalScore();
+                }
+            });
+        });
+        
+        // Mise à jour du score final lors de la modification manuelle des inputs
+        document.querySelectorAll('.score-input').forEach(input => {
+            input.addEventListener('change', function() {
+                // Valider la valeur entrée
+                let value = parseFloat(this.value);
+                
+                if (isNaN(value)) {
+                    this.value = '';
+                } else {
+                    // Arrondir à 0.25 près
+                    value = Math.round(value * 4) / 4;
+                    
+                    // Limiter la valeur
+                    if (value < {{ min_score }}) value = {{ min_score }};
+                    if (value > {{ max_score }}) value = {{ max_score }};
+                    
+                    this.value = value.toFixed(2);
+                }
+                
+                updateFinalScore();
+            });
+        });
+        
+        // Sélection d'une performance
+        performanceItems.forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                const performanceId = this.getAttribute('data-performance-id');
+                window.location.href = `{% url 'competitions:technical_scoring:judge_category_view' category.id %}?performance=${performanceId}`;
+            });
+        });
+        
+        // Réinitialiser les notes
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function() {
+                if (confirm("{% trans 'Êtes-vous sûr de vouloir réinitialiser toutes les notes?' %}")) {
+                    document.querySelectorAll('.score-input').forEach(input => {
+                        input.value = '';
+                    });
+                    
+                    document.getElementById('notes').value = '';
+                    updateFinalScore();
+                }
+            });
+        }
+        
+        // Enregistrer comme brouillon
+        if (saveDraftBtn) {
+            saveDraftBtn.addEventListener('click', function() {
+                // Ajouter un champ caché pour indiquer qu'il s'agit d'un brouillon
+                const draftInput = document.createElement('input');
+                draftInput.type = 'hidden';
+                draftInput.name = 'is_draft';
+                draftInput.value = 'true';
+                
+                scoringForm.appendChild(draftInput);
+                scoringForm.submit();
+            });
+        }
+        
+        // Soumettre les notes
+        if (scoringForm) {
+            scoringForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Vérifier si tous les critères ont été notés
+                let allCriteriaScored = true;
+                let criteriaScores = {};
+                
+                document.querySelectorAll('.score-input').forEach(input => {
+                    if (!input.value) {
+                        allCriteriaScored = false;
+                    } else {
+                        const criteriaId = input.id.replace('score-', '');
+                        criteriaScores[criteriaId] = parseFloat(input.value);
+                    }
+                });
+                
+                if (!allCriteriaScored) {
+                    alert("{% trans 'Veuillez noter tous les critères avant de soumettre.' %}");
+                    return;
+                }
+                
+                // Remplir le résumé des notes pour la confirmation
+                let summaryHTML = '<ul class="list-group mb-3">';
+                
+                {% for criteria in scoring_criteria %}
+                    summaryHTML += `
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ criteria.name }}</strong>
+                                <small class="text-muted d-block">{% trans "Poids" %}: {{ criteria.weight }}</small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">${criteriaScores['{{ criteria.id }}']}</span>
+                        </li>
+                    `;
+                {% endfor %}
+                
+                const finalScore = calculateFinalScore();
+                
+                summaryHTML += `</ul>
+                    <div class="alert alert-info">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>{% trans "Note finale" %}:</strong>
+                            <span class="badge bg-info fs-5">${finalScore}</span>
+                        </div>
+                    </div>`;
+                
+                notesSummaryDiv.innerHTML = summaryHTML;
+                
+                // Afficher le modal de confirmation
+                const confirmModal = new bootstrap.Modal(document.getElementById('confirmSubmitModal'));
+                confirmModal.show();
+            });
+        }
+        
+        // Confirmer la soumission
+        if (confirmSubmitBtn) {
+            confirmSubmitBtn.addEventListener('click', function() {
+                scoringForm.submit();
+            });
+        }
+        
+        // Actualiser la page
+        document.getElementById('refresh-btn').addEventListener('click', function() {
+            window.location.reload();
+        });
+        
+        // Afficher le modal des critères
+        document.getElementById('view-criteria-btn').addEventListener('click', function(e) {
+            e.preventDefault();
+            const criteriaModal = new bootstrap.Modal(document.getElementById('criteriaModal'));
+            criteriaModal.show();
+        });
+        
+        // Exporter les notes
+        document.getElementById('export-scores-btn').addEventListener('click', function(e) {
+            e.preventDefault();
+            // Logique d'export (peut être implémentée côté serveur)
+            alert("{% trans 'Fonctionnalité d\'export en cours de développement.' %}");
+        });
+        
+        // Imprimer les notes
+        document.getElementById('print-scores-btn').addEventListener('click', function(e) {
+            e.preventDefault();
+            window.print();
+        });
+        
+        // Lancer le timer si une performance est en cours
+        {% if current_performance and current_performance.status == 'in_progress' %}
+            startTimer();
+        {% endif %}
+        
+        // Initialiser le score final au chargement
+        updateFinalScore();
+    });
+</script>
+{% endblock %}

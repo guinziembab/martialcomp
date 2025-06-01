@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }} - {{ federation.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">{{ certification.title }} - {{ title }}</h1>
+        <a href="{% url 'competitions:federations:certifications' federation.id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour aux certifications" %}
+        </a>
+    </div>
+
+    {% include "competitions/federations/tabs.html" with active="certifications" %}
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Information sur la certification -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Détails de la certification" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>{% trans "Titre" %} :</strong> {{ certification.title }}</p>
+                    <p><strong>{% trans "Discipline" %} :</strong> {{ certification.discipline.name }}</p>
+                    <p><strong>{% trans "Niveau" %} :</strong> {{ certification.get_level_display }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>{% trans "Validité" %} :</strong> {{ certification.validity_period }} {% trans "mois" %}</p>
+                    <p><strong>{% trans "Statut" %} :</strong> 
+                        {% if certification.is_active %}
+                            <span class="badge bg-success">{% trans "Active" %}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{% trans "Inactive" %}</span>
+                        {% endif %}
+                    </p>
+                    <p><strong>{% trans "Nombre d'inscriptions" %} :</strong> {{ registrations|length }}</p>
+                </div>
+            </div>
+            {% if certification.description %}
+                <div class="mt-3">
+                    <h6>{% trans "Description" %}</h6>
+                    <p>{{ certification.description }}</p>
+                </div>
+            {% endif %}
+            {% if certification.requirements %}
+                <div class="mt-3">
+                    <h6>{% trans "Prérequis" %}</h6>
+                    <p>{{ certification.requirements }}</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Filtres -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Filtres" %}</h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label for="status" class="form-label">{% trans "Statut" %}</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="">{% trans "Tous" %}</option>
+                        <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>{% trans "En attente" %}</option>
+                        <option value="approved" {% if request.GET.status == 'approved' %}selected{% endif %}>{% trans "Approuvée" %}</option>
+                        <option value="rejected" {% if request.GET.status == 'rejected' %}selected{% endif %}>{% trans "Rejetée" %}</option>
+                        <option value="completed" {% if request.GET.status == 'completed' %}selected{% endif %}>{% trans "Complétée" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary">{% trans "Filtrer" %}</button>
+                    <a href="{% url 'competitions:federations:certification_registrations' federation.id certification.id %}" class="btn btn-outline-secondary ms-2">{% trans "Réinitialiser" %}</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Liste des inscriptions -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Liste des inscriptions" %}</h6>
+        </div>
+        <div class="card-body">
+            {% if registrations %}
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Utilisateur" %}</th>
+                                <th>{% trans "Date d'inscription" %}</th>
+                                <th>{% trans "Statut" %}</th>
+                                <th>{% trans "Examiné par" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for registration in registrations %}
+                                <tr>
+                                    <td>{{ registration.user.get_full_name|default:registration.user.username }}</td>
+                                    <td>{{ registration.registration_date|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        {% if registration.status == 'pending' %}
+                                            <span class="badge bg-warning">{% trans "En attente" %}</span>
+                                        {% elif registration.status == 'approved' %}
+                                            <span class="badge bg-success">{% trans "Approuvée" %}</span>
+                                        {% elif registration.status == 'rejected' %}
+                                            <span class="badge bg-danger">{% trans "Rejetée" %}</span>
+                                        {% elif registration.status == 'completed' %}
+                                            <span class="badge bg-primary">{% trans "Complétée" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if registration.reviewed_by %}
+                                            {{ registration.reviewed_by.get_full_name|default:registration.reviewed_by.username }}
+                                            <small class="text-muted d-block">{{ registration.reviewed_at|date:"d/m/Y H:i" }}</small>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if registration.status == 'pending' %}
+                                            <a href="{% url 'competitions:federations:review_certification_registration' federation.id registration.id %}" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-check-circle me-1"></i> {% trans "Examiner" %}
+                                            </a>
+                                        {% else %}
+                                            <a href="{% url 'competitions:federations:review_certification_registration' federation.id registration.id %}" class="btn btn-outline-secondary btn-sm">
+                                                <i class="fas fa-eye me-1"></i> {% trans "Détails" %}
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info" role="alert">
+                    {% trans "Aucune inscription trouvée." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,383 @@
+{% extends 'shop/dashboard/shop_base.html' %}
+{% load i18n %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{% translate "Boutique de la fédération" %}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{% url 'shop:dashboard:federation_product_create' %}?federation_id={{ federation.id }}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-plus-circle me-2"></i>{% translate "Ajouter un produit" %}
+            </a>
+            <a href="{% url 'shop:dashboard:federation_orders' %}?federation_id={{ federation.id }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-list-check me-2"></i>{% translate "Gérer les commandes" %}
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-4">
+        <div class="card h-100 border-left-primary">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            {% translate "Total des ventes" %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.total_sales|default:"0" }} €</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-cash-stack fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-4">
+        <div class="card h-100 border-left-success">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            {% translate "Commandes" %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.orders_count|default:"0" }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-basket fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-4">
+        <div class="card h-100 border-left-info">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            {% translate "Produits" %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.products_count|default:"0" }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-box-seam fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-4">
+        <div class="card h-100 border-left-warning">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            {% translate "Clubs vendeurs" %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.selling_clubs|default:"0" }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-shop fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Performance Charts -->
+<div class="row mb-4">
+    <div class="col-xl-8 col-lg-7">
+        <div class="card mb-4">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">{% translate "Évolution des ventes" %}</h6>
+                <div class="dropdown no-arrow">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="periodDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        {% translate "Période" %}
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="periodDropdown">
+                        <a class="dropdown-item" href="#">{% translate "7 derniers jours" %}</a>
+                        <a class="dropdown-item" href="#">{% translate "Ce mois" %}</a>
+                        <a class="dropdown-item" href="#">{% translate "Cette année" %}</a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div style="height: 300px;">
+                    <canvas id="salesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-4 col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">{% translate "Ventes par catégorie" %}</h6>
+            </div>
+            <div class="card-body">
+                <div style="height: 300px;">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Orders Table -->
+<div class="card mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary">{% translate "Commandes récentes" %}</h6>
+        <a href="{% url 'shop:dashboard:federation_orders' %}?federation_id={{ federation.id }}" class="btn btn-sm btn-primary">
+            {% translate "Voir toutes les commandes" %}
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% translate "Référence" %}</th>
+                        <th>{% translate "Client" %}</th>
+                        <th>{% translate "Club" %}</th>
+                        <th>{% translate "Date" %}</th>
+                        <th>{% translate "Statut" %}</th>
+                        <th class="text-end">{% translate "Total" %}</th>
+                        <th class="text-end">{% translate "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in recent_orders %}
+                    <tr>
+                        <td>{{ order.reference }}</td>
+                        <td>{{ order.customer_name }}</td>
+                        <td>{{ order.club.name }}</td>
+                        <td>{{ order.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            <span class="badge bg-{{ order.status_badge }}">{{ order.get_status_display }}</span>
+                        </td>
+                        <td class="text-end">{{ order.total }} €</td>
+                        <td class="text-end">
+                            <a href="{% url 'shop:dashboard:federation_order_detail' order.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-3">
+                            {% translate "Aucune commande récente" %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Club Performance and Official Products -->
+<div class="row">
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">{% translate "Performance des clubs" %}</h6>
+                <a href="{% url 'shop:reports:federation_dashboard_reports' %}?federation_id={{ federation.id }}" class="btn btn-sm btn-primary">
+                    {% translate "Rapport détaillé" %}
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% translate "Club" %}</th>
+                                <th class="text-center">{% translate "Commandes" %}</th>
+                                <th class="text-end">{% translate "Total des ventes" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for club in top_clubs %}
+                            <tr>
+                                <td>{{ club.name }}</td>
+                                <td class="text-center">{{ club.orders_count }}</td>
+                                <td class="text-end">{{ club.total_sales }} €</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center py-3">
+                                    {% translate "Aucune donnée disponible" %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">{% translate "Produits officiels fédération" %}</h6>
+                <a href="{% url 'shop:dashboard:federation_catalog' %}?federation_id={{ federation.id }}" class="btn btn-sm btn-primary">
+                    {% translate "Tous les produits" %}
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% translate "Produit" %}</th>
+                                <th class="text-center">{% translate "Vendus" %}</th>
+                                <th class="text-end">{% translate "Prix" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in official_products %}
+                            <tr>
+                                <td>{{ product.name }}</td>
+                                <td class="text-center">{{ product.sold_count }}</td>
+                                <td class="text-end">{{ product.price }} €</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center py-3">
+                                    {% translate "Aucun produit officiel" %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick links -->
+<div class="row mb-4">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">{% translate "Liens rapides" %}</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <a href="{% url 'shop:dashboard:federation_product_create' %}?federation_id={{ federation.id }}" class="card h-100 py-2 bg-light text-center d-block text-decoration-none">
+                            <div class="card-body">
+                                <i class="bi bi-plus-lg text-primary mb-3" style="font-size: 2rem;"></i>
+                                <h5 class="card-title">{% translate "Nouveau produit" %}</h5>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{% url 'shop:dashboard:federation_orders' %}?federation_id={{ federation.id }}" class="card h-100 py-2 bg-light text-center d-block text-decoration-none">
+                            <div class="card-body">
+                                <i class="bi bi-basket text-success mb-3" style="font-size: 2rem;"></i>
+                                <h5 class="card-title">{% translate "Gérer les commandes" %}</h5>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{% url 'shop:dashboard:federation_catalog' %}?federation_id={{ federation.id }}" class="card h-100 py-2 bg-light text-center d-block text-decoration-none">
+                            <div class="card-body">
+                                <i class="bi bi-box-seam text-info mb-3" style="font-size: 2rem;"></i>
+                                <h5 class="card-title">{% translate "Catalogue produits" %}</h5>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{% url 'shop:dashboard:federation_sales_report' %}?federation_id={{ federation.id }}" class="card h-100 py-2 bg-light text-center d-block text-decoration-none">
+                            <div class="card-body">
+                                <i class="bi bi-graph-up text-warning mb-3" style="font-size: 2rem;"></i>
+                                <h5 class="card-title">{% translate "Rapports de ventes" %}</h5>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Sales Chart
+        const salesChart = new Chart(
+            document.getElementById('salesChart').getContext('2d'),
+            {
+                type: 'line',
+                data: {
+                    labels: {{ sales_labels|default:"[]"|safe }},
+                    datasets: [{
+                        label: '{% translate "Ventes (€)" %}',
+                        data: {{ sales_data|default:"[]"|safe }},
+                        backgroundColor: 'rgba(78, 115, 223, 0.05)',
+                        borderColor: 'rgba(78, 115, 223, 1)',
+                        pointRadius: 3,
+                        pointBackgroundColor: 'rgba(78, 115, 223, 1)',
+                        pointBorderColor: 'rgba(78, 115, 223, 1)',
+                        pointHoverRadius: 5,
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            }
+        );
+
+        // Category Chart
+        const categoryChart = new Chart(
+            document.getElementById('categoryChart').getContext('2d'),
+            {
+                type: 'doughnut',
+                data: {
+                    labels: {{ category_labels|default:"[]"|safe }},
+                    datasets: [{
+                        data: {{ category_data|default:"[]"|safe }},
+                        backgroundColor: [
+                            '#4e73df',
+                            '#1cc88a',
+                            '#36b9cc',
+                            '#f6c23e',
+                            '#e74a3b',
+                            '#5a5c69'
+                        ],
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                        }
+                    }
+                }
+            }
+        );
+    });
+</script>
+{% endblock %}

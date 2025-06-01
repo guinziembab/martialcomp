@@ -1,0 +1,281 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Détail de transaction" %} - {{ transaction.reference_number }}{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            {% trans "Transaction" %} - {{ transaction.reference_number }}
+        </h1>
+        <div>
+            {% if permissions.can_edit_transaction %}
+            <a href="{% url 'finances:transaction_update' transaction.id %}" class="btn btn-primary">
+                <i class="fas fa-edit"></i> {% trans "Modifier" %}
+            </a>
+            {% endif %}
+            {% if permissions.can_delete_transaction and transaction.status != 'completed' %}
+            <a href="{% url 'finances:transaction_delete' transaction.id %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "Supprimer" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'finances:transaction_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "Retour à la liste" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Statut de transaction -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card shadow">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-3">
+                            <span class="text-uppercase text-muted small">{% trans "Statut" %}:</span>
+                            {% if transaction.status == 'pending' %}
+                            <span class="badge bg-warning ml-2">{% trans "En attente" %}</span>
+                            {% elif transaction.status == 'completed' %}
+                            <span class="badge bg-success ml-2">{% trans "Terminée" %}</span>
+                            {% elif transaction.status == 'cancelled' %}
+                            <span class="badge bg-danger ml-2">{% trans "Annulée" %}</span>
+                            {% elif transaction.status == 'rejected' %}
+                            <span class="badge bg-secondary ml-2">{% trans "Rejetée" %}</span>
+                            {% else %}
+                            <span class="badge bg-secondary ml-2">{{ transaction.status }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-3">
+                            <span class="text-uppercase text-muted small">{% trans "Date" %}:</span>
+                            <span class="ml-2">{{ transaction.date|date:"d/m/Y" }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <span class="text-uppercase text-muted small">{% trans "Créée le" %}:</span>
+                            <span class="ml-2">{{ transaction.created_at|date:"d/m/Y H:i" }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <span class="text-uppercase text-muted small">{% trans "Mise à jour le" %}:</span>
+                            <span class="ml-2">{{ transaction.updated_at|date:"d/m/Y H:i" }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Détails de la transaction -->
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Détails de la transaction" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p>
+                                <strong>{% trans "Description" %}:</strong><br>
+                                {{ transaction.description }}
+                            </p>
+                            <p>
+                                <strong>{% trans "Type" %}:</strong><br>
+                                {% if transaction.type == 'income' %}
+                                <span class="badge bg-success">{% trans "Revenu" %}</span>
+                                {% elif transaction.type == 'expense' %}
+                                <span class="badge bg-danger">{% trans "Dépense" %}</span>
+                                {% elif transaction.type == 'transfer' %}
+                                <span class="badge bg-info">{% trans "Transfert" %}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ transaction.get_type_display }}</span>
+                                {% endif %}
+                            </p>
+                            <p>
+                                <strong>{% trans "Catégorie" %}:</strong><br>
+                                {% if transaction.category %}
+                                <span class="badge rounded-pill" style="background-color: {{ transaction.category.color|default:'#6c757d' }}; color: white;">
+                                    {{ transaction.category.name }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">{% trans "Non catégorisé" %}</span>
+                                {% endif %}
+                            </p>
+                            <p>
+                                <strong>{% trans "Compte financier" %}:</strong><br>
+                                {% if transaction.financial_account %}
+                                <a href="{% url 'finances:account_detail' transaction.financial_account.id %}">
+                                    {{ transaction.financial_account.name }}
+                                </a>
+                                {% else %}
+                                <span class="text-muted">{% trans "Aucun compte associé" %}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p>
+                                <strong>{% trans "Montant" %}:</strong><br>
+                                <span class="h4 {% if transaction.amount > 0 %}text-success{% elif transaction.amount < 0 %}text-danger{% endif %}">
+                                    {{ transaction.amount|floatformat:2 }} €
+                                </span>
+                            </p>
+                            {% if transaction.invoice %}
+                            <p>
+                                <strong>{% trans "Facture associée" %}:</strong><br>
+                                <a href="{% url 'finances:invoice_detail' transaction.invoice.id %}">
+                                    {{ transaction.invoice.invoice_number }}
+                                </a>
+                            </p>
+                            {% endif %}
+                            {% if transaction.membership_fee %}
+                            <p>
+                                <strong>{% trans "Cotisation associée" %}:</strong><br>
+                                <a href="{% url 'finances:membership_fee_detail' transaction.membership_fee.id %}">
+                                    {{ transaction.membership_fee.get_full_name }}
+                                </a>
+                            </p>
+                            {% endif %}
+                            {% if transaction.entity_content_type and transaction.entity_id %}
+                            <p>
+                                <strong>{% trans "Entité liée" %}:</strong><br>
+                                {{ transaction.entity_content_type.name }}: {{ transaction.entity_object }}
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    {% if transaction.notes %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="card bg-light">
+                                <div class="card-header">
+                                    <h6 class="m-0">{% trans "Notes" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    {{ transaction.notes|linebreaks }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions et documents -->
+        <div class="col-lg-4">
+            <!-- Actions -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Actions" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if transaction.status == 'pending' and permissions.can_approve_transaction %}
+                        <a href="{% url 'finances:transaction_approve' transaction.id %}" class="btn btn-success mb-2">
+                            <i class="fas fa-check"></i> {% trans "Approuver" %}
+                        </a>
+                        {% endif %}
+                        
+                        {% if transaction.status == 'pending' and permissions.can_reject_transaction %}
+                        <a href="{% url 'finances:transaction_reject' transaction.id %}" class="btn btn-danger mb-2">
+                            <i class="fas fa-times"></i> {% trans "Rejeter" %}
+                        </a>
+                        {% endif %}
+                        
+                        {% if transaction.status != 'cancelled' and permissions.can_cancel_transaction %}
+                        <a href="{% url 'finances:transaction_cancel' transaction.id %}" class="btn btn-warning mb-2">
+                            <i class="fas fa-ban"></i> {% trans "Annuler" %}
+                        </a>
+                        {% endif %}
+                        
+                        {% if permissions.can_duplicate_transaction %}
+                        <a href="{% url 'finances:transaction_duplicate' transaction.id %}" class="btn btn-info mb-2">
+                            <i class="fas fa-copy"></i> {% trans "Dupliquer" %}
+                        </a>
+                        {% endif %}
+                        
+                        {% if permissions.can_export_transaction %}
+                        <a href="{% url 'finances:transaction_export_single' transaction.id %}" class="btn btn-secondary mb-2">
+                            <i class="fas fa-download"></i> {% trans "Exporter" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pièces jointes -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Pièces jointes" %}</h6>
+                    {% if permissions.can_add_attachment %}
+                    <a href="{% url 'finances:transaction_add_attachment' transaction.id %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus"></i>
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if transaction.attachments.exists %}
+                    <div class="list-group">
+                        {% for attachment in transaction.attachments.all %}
+                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <a href="{{ attachment.file.url }}" target="_blank">
+                                    <i class="fas fa-file mr-2"></i> {{ attachment.get_filename }}
+                                </a>
+                                <br>
+                                <small class="text-muted">
+                                    {{ attachment.uploaded_at|date:"d/m/Y H:i" }} - {{ attachment.file.size|filesizeformat }}
+                                </small>
+                            </div>
+                            <div>
+                                {% if permissions.can_delete_attachment %}
+                                <a href="{% url 'finances:attachment_delete' attachment.id %}" class="btn btn-sm btn-danger" title="{% trans 'Supprimer' %}">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-0">{% trans "Aucune pièce jointe" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Historique de paiements -->
+            {% if transaction.payment_attempts.exists %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Paiements associés" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {% for payment in transaction.payment_attempts.all %}
+                        <div class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">
+                                    {{ payment.payment_method.name }}
+                                </h6>
+                                <small class="text-{% if payment.status == 'succeeded' %}success{% elif payment.status == 'failed' %}danger{% else %}warning{% endif %}">
+                                    {{ payment.get_status_display }}
+                                </small>
+                            </div>
+                            <div class="d-flex w-100 justify-content-between">
+                                <p class="mb-1">{{ payment.amount }} €</p>
+                                <small>{{ payment.created_at|date:"d/m/Y H:i" }}</small>
+                            </div>
+                            {% if payment.reference_number %}
+                            <small class="text-muted">{% trans "Réf." %}: {{ payment.reference_number }}</small>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

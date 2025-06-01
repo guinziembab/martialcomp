@@ -1,0 +1,2264 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Tableau de bord" %} | {{ club.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Variables de couleur et configuration de base */
+  :root {
+    --primary: #3366ff;
+    --primary-light: #e6ecff;
+    --primary-dark: #1a53ff;
+    --secondary: #6c757d;
+    --success: #28a745;
+    --info: #17a2b8;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --light: #f8f9fa;
+    --dark: #343a40;
+    --gray-100: #f8f9fa;
+    --gray-200: #e9ecef;
+    --gray-300: #dee2e6;
+    --gray-800: #343a40;
+    --sidebar-width: 280px;
+    --sidebar-width-collapsed: 80px;
+    --card-border-radius: 12px;
+    --btn-border-radius: 6px;
+    --transition-speed: 0.3s;
+  }
+  
+  /* Structure principale */
+  body {
+    background-color: #f5f7fa;
+    overflow-x: hidden;
+  }
+
+  .dashboard-container {
+    display: flex;
+    min-height: calc(100vh - 56px);
+  }
+  
+  /* Barre latérale moderne */
+  .sidebar {
+    width: var(--sidebar-width);
+    background: linear-gradient(to bottom, var(--dark) 0%, #2c3e50 100%);
+    color: white;
+    position: fixed;
+    top: 56px;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    padding: 0;
+    overflow-y: auto;
+    transition: all var(--transition-speed);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Contenu principal */
+  .main-content {
+    flex: 1;
+    padding: 2rem;
+    margin-left: var(--sidebar-width);
+    transition: all var(--transition-speed);
+    max-width: 100%;
+  }
+  
+  /* Menu de navigation */
+  .nav-link {
+    padding: 0.8rem 1.5rem;
+    color: rgba(255, 255, 255, 0.8);
+    border-left: 3px solid transparent;
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    transition: all var(--transition-speed);
+  }
+  
+  .nav-link:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-left: 3px solid var(--primary);
+    transform: translateX(4px);
+  }
+  
+  .nav-link.active {
+    color: white;
+    background-color: var(--primary);
+    border-left: 3px solid white;
+    font-weight: 500;
+    box-shadow: 0 0 10px rgba(51, 102, 255, 0.3);
+  }
+  
+  .nav-link i {
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+  }
+  
+  .sidebar-heading {
+    padding: 1rem 1.5rem 0.5rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+  }
+  
+  /* Profil utilisateur */
+  .user-profile {
+    padding: 1.5rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.1);
+    transition: all var(--transition-speed);
+  }
+  
+  .user-avatar {
+    width: 70px;
+    height: 70px;
+    background-color: var(--primary);
+    border-radius: 50%;
+    margin: 0 auto 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    transition: all var(--transition-speed);
+  }
+  
+  .user-avatar:hover {
+    transform: scale(1.05);
+  }
+  
+  /* Cards modernes */
+  .dashboard-card {
+    border-radius: var(--card-border-radius);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.5rem;
+    background-color: white;
+    border: none;
+    transition: all var(--transition-speed);
+    overflow: hidden;
+  }
+  
+  .dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Cartes de statistiques */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  .card-stats {
+    padding: 1.75rem;
+    text-align: center;
+    border-radius: var(--card-border-radius);
+    height: 100%;
+  }
+  
+  .stats-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.07);
+    transition: all var(--transition-speed);
+  }
+  
+  .card-stats:hover .stats-icon {
+    transform: scale(1.1) rotate(5deg);
+  }
+  
+  /* Couleurs des icônes de stats */
+  .stats-practitioners {
+    background-color: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+  }
+  
+  .stats-registrations {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+  
+  .stats-competitions {
+    background-color: rgba(51, 102, 255, 0.1);
+    color: var(--primary);
+  }
+  
+  .stats-judges {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+  }
+  
+  .stats-finances {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+  
+  .stats-value {
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: var(--dark);
+    transition: all var(--transition-speed);
+  }
+  
+  .stats-label {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    color: var(--secondary);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  
+  /* Section des actions rapides */
+  .quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  .quick-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 2rem 1.5rem;
+    background-color: white;
+    border-radius: var(--card-border-radius);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    transition: all var(--transition-speed);
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .quick-action:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+  
+  .quick-action::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background-color: var(--primary);
+  }
+  
+  .action-icon {
+    width: 70px;
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    margin-bottom: 1.25rem;
+    font-size: 1.75rem;
+    background-color: var(--primary-light);
+    color: var(--primary);
+    transition: all var(--transition-speed);
+  }
+  
+  .quick-action:hover .action-icon {
+    transform: scale(1.1);
+    background-color: var(--primary);
+    color: white;
+  }
+  
+  .action-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--dark);
+  }
+  
+  .action-description {
+    font-size: 0.95rem;
+    color: var(--secondary);
+    margin-bottom: 1.5rem;
+    flex-grow: 1;
+  }
+  
+  /* Sections */
+  .dashboard-section {
+    margin-bottom: 2.5rem;
+  }
+  
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+  }
+  
+  .section-title {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--dark);
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+  }
+  
+  .section-title i {
+    margin-right: 0.75rem;
+    color: var(--primary);
+    font-size: 1.25rem;
+  }
+  
+  /* Liste des compétitions */
+  .competitions-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.25rem;
+  }
+  
+  .competition-card {
+    position: relative;
+    padding: 1.25rem;
+    border-radius: var(--card-border-radius);
+    background-color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: all var(--transition-speed);
+    overflow: hidden;
+  }
+  
+  .competition-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  }
+  
+  .competition-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 5px;
+  }
+  
+  /* États des compétitions */
+  .competition-card.draft::before {
+    background-color: var(--secondary);
+  }
+  
+  .competition-card.published::before {
+    background-color: var(--success);
+  }
+  
+  .competition-card.ongoing::before {
+    background-color: var(--primary);
+  }
+  
+  .competition-card.completed::before {
+    background-color: var(--dark);
+  }
+  
+  .competition-card.cancelled::before {
+    background-color: var(--danger);
+  }
+  
+  .competition-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--dark);
+  }
+  
+  .competition-info {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    color: var(--secondary);
+  }
+  
+  .competition-info i {
+    margin-right: 0.5rem;
+    width: 16px;
+    text-align: center;
+    color: var(--primary);
+  }
+  
+  .competition-badges {
+    margin-bottom: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .competition-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1rem;
+    gap: 0.5rem;
+  }
+  
+  /* Badges de statut */
+  .status-badge {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 30px;
+    font-weight: 500;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+  }
+  
+  .status-badge i {
+    margin-right: 0.4rem;
+    font-size: 0.7rem;
+  }
+  
+  .status-draft {
+    background-color: var(--gray-200);
+    color: var(--gray-800);
+  }
+  
+  .status-published {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+  
+  .status-ongoing {
+    background-color: rgba(51, 102, 255, 0.1);
+    color: var(--primary);
+  }
+  
+  .status-completed {
+    background-color: var(--gray-200);
+    color: var(--gray-800);
+  }
+  
+  .status-cancelled {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+  }
+  
+  /* Boutons */
+  .btn {
+    border-radius: var(--btn-border-radius);
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  
+  .btn-primary {
+    background-color: var(--primary);
+    border-color: var(--primary);
+  }
+  
+  .btn-primary:hover {
+    background-color: var(--primary-dark);
+    border-color: var(--primary-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(51, 102, 255, 0.3);
+  }
+  
+  .btn-outline-primary {
+    color: var(--primary);
+    border-color: var(--primary);
+  }
+  
+  .btn-outline-primary:hover {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(51, 102, 255, 0.3);
+  }
+  
+  /* Notifications */
+  .notification-count {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background-color: var(--danger);
+    color: white;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+  }
+  
+  /* Styles pour les événements */
+  .event-date {
+    background-color: var(--primary);
+    color: white;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border-radius: 10px;
+  }
+  
+  .event-date-month {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  
+  .event-date-day {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  
+  .event-item {
+    border: 1px solid rgba(0,0,0,0.05);
+    border-radius: 10px;
+    padding: 1rem;
+    transition: all var(--transition-speed);
+    background-color: white;
+  }
+  
+  .event-item:hover {
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+  }
+  
+  .icon-wrapper {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  
+  .poll-item {
+    transition: all var(--transition-speed);
+  }
+  
+  .poll-item:hover {
+    background-color: rgba(0,0,0,0.01);
+  }
+  
+  .stats-events {
+    background-color: rgba(51, 102, 255, 0.1);
+    color: var(--primary);
+  }
+
+  /* Calendar styles */
+  .simple-calendar {
+    background-color: white;
+    border-radius: 10px;
+    padding: 1rem;
+  }
+  
+  .simple-calendar .calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  
+  .simple-calendar .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+  }
+  
+  .simple-calendar .calendar-day {
+    height: 50px;
+    border: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    border-radius: 5px;
+  }
+  
+  .simple-calendar .calendar-day.has-event {
+    background-color: rgba(51, 102, 255, 0.1);
+    border-color: rgba(51, 102, 255, 0.2);
+    cursor: pointer;
+  }
+  
+  .simple-calendar .calendar-day.has-event:hover {
+    background-color: rgba(51, 102, 255, 0.15);
+  }
+  
+  .simple-calendar .calendar-day.today {
+    border: 2px solid var(--primary);
+    font-weight: bold;
+  }
+  
+  .simple-calendar .calendar-day .event-indicator {
+    position: absolute;
+    bottom: 3px;
+    width: 6px;
+    height: 6px;
+    background-color: var(--primary);
+    border-radius: 50%;
+  }
+  
+  /* Mode responsive */
+  @media (max-width: 992px) {
+    .sidebar {
+      width: var(--sidebar-width-collapsed);
+      text-align: center;
+    }
+    
+    .main-content {
+      margin-left: var(--sidebar-width-collapsed);
+    }
+    
+    .user-profile {
+      padding: 1rem 0.5rem;
+    }
+    
+    .user-avatar {
+      width: 50px;
+      height: 50px;
+    }
+    
+    .nav-link {
+      justify-content: center;
+      padding: 0.8rem 0.5rem;
+    }
+    
+    .nav-link i {
+      margin-right: 0;
+    }
+    
+    .sidebar-heading, 
+    .nav-item span, 
+    .user-profile h5, 
+    .user-profile p, 
+    .user-profile .badge {
+      display: none;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .sidebar {
+      transform: translateX(-100%);
+      width: var(--sidebar-width);
+    }
+    
+    .sidebar.active {
+      transform: translateX(0);
+    }
+    
+    .sidebar-heading, 
+    .nav-item span, 
+    .user-profile h5, 
+    .user-profile p, 
+    .user-profile .badge {
+      display: block;
+    }
+    
+    .nav-link {
+      justify-content: flex-start;
+      padding: 0.8rem 1.5rem;
+    }
+    
+    .nav-link i {
+      margin-right: 12px;
+    }
+    
+    .main-content {
+      margin-left: 0;
+    }
+    
+    .toggle-sidebar {
+      display: block;
+    }
+    
+    .stats-grid,
+    .quick-actions-grid,
+    .competitions-list {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+  <!-- Barre latérale -->
+  <div class="sidebar">
+    <!-- Profil utilisateur -->
+    <div class="user-profile text-center">
+      <div class="user-avatar">
+        <i class="fas fa-user fa-lg"></i>
+      </div>
+      {% if user.get_full_name %}
+        <h5 class="mb-1 text-white">{{ user.get_full_name }}</h5>
+      {% else %}
+        <h5 class="mb-1 text-white">{{ user.username }}</h5>
+      {% endif %}
+      {% if club %}
+        <p class="mb-2 text-muted small">{{ club.name }}</p>
+      {% endif %}
+      <span class="badge bg-primary">{% trans "Responsable de club" %}</span>
+    </div>
+    
+    <!-- Menu principal -->
+    <nav class="mt-3">
+      <div class="sidebar-heading">{% trans "Principal" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="{% url 'competitions:dashboard:club' %}" class="nav-link active">
+            <i class="fas fa-tachometer-alt"></i> <span>{% trans "Tableau de bord" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:club:practitioners' %}" class="nav-link">
+            <i class="fas fa-users"></i> <span>{% trans "Pratiquants" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:competitions:list' %}" class="nav-link">
+            <i class="fas fa-trophy"></i> <span>{% trans "Compétitions" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:club:registrations_list' %}" class="nav-link">
+            <i class="fas fa-clipboard-list"></i> <span>{% trans "Inscriptions" %}</span>
+            {% if stats.active_registrations > 0 %}
+              <span class="badge rounded-pill bg-primary ms-auto">{{ stats.active_registrations }}</span>
+            {% endif %}
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:club:judges_list' %}" class="nav-link">
+            <i class="fas fa-gavel"></i> <span>{% trans "Juges & Arbitres" %}</span>
+            {% if stats.judges_count > 0 %}
+              <span class="badge rounded-pill bg-primary ms-auto">{{ stats.judges_count }}</span>
+            {% endif %}
+          </a>
+        </li>
+      </ul>
+      
+      <div class="sidebar-heading">{% trans "Modules" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="{% url 'competitions:club:technical_scoring' %}" class="nav-link">
+            <i class="fas fa-star-half-alt"></i> <span>{% trans "Notation technique" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:dashboard:combat' %}" class="nav-link">
+            <i class="fas fa-fist-raised"></i> <span>{% trans "Combat" %}</span>
+            {% if combat_stats.total_combats|default:0 > 0 %}
+              <span class="badge rounded-pill bg-danger ms-auto">{{ combat_stats.total_combats }}</span>
+            {% endif %}
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:events:event_list' %}" class="nav-link">
+            <i class="fas fa-calendar-alt"></i> <span>{% trans "Événements" %}</span>
+            {% if event_stats.upcoming_count|default:0 > 0 %}
+              <span class="badge rounded-pill bg-primary ms-auto">{{ event_stats.upcoming_count }}</span>
+            {% endif %}
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:events:planning:poll_list' %}" class="nav-link">
+            <i class="fas fa-vote-yea"></i> <span>{% trans "Sondages" %}</span>
+            {% if event_stats.active_polls|default:0 > 0 %}
+              <span class="badge rounded-pill bg-info ms-auto">{{ event_stats.active_polls }}</span>
+            {% endif %}
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'grades:club_management' %}" class="nav-link">
+            <i class="fas fa-award"></i> <span>{% trans "Gestion des grades" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'finances:dashboard' %}" class="nav-link">
+            <i class="fas fa-money-bill-wave"></i> <span>{% trans "Finances" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'shop:dashboard:club_dashboard' %}" class="nav-link">
+            <i class="fas fa-shopping-cart"></i> <span>{% trans "Boutique" %}</span>
+            <span class="badge rounded-pill bg-primary ms-auto">{% trans "Nouveau" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:dashboard:manager' %}" class="nav-link">
+            <i class="fas fa-cogs"></i> <span>{% trans "Dashboard Manager" %}</span>
+            {% if competitions_to_manage_count > 0 %}
+              <span class="badge rounded-pill bg-success ms-auto">{{ competitions_to_manage_count }}</span>
+            {% endif %}
+          </a>
+        </li>
+      </ul>
+      
+      <div class="sidebar-heading">{% trans "Outils" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="{% url 'competitions:qr:scan' %}" class="nav-link">
+            <i class="fas fa-qrcode"></i> <span>{% trans "Scanner QR Code" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:qr:history' %}" class="nav-link">
+            <i class="fas fa-history"></i> <span>{% trans "Historique Scans" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:club:bulk_registration' %}" class="nav-link">
+            <i class="fas fa-users-cog"></i> <span>{% trans "Inscription de masse" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:club:manage_roles' %}" class="nav-link">
+            <i class="fas fa-user-cog"></i> <span>{% trans "Gestion des rôles" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:club:import_export' %}" class="nav-link">
+            <i class="fas fa-file-excel"></i> <span>{% trans "Import/Export" %}</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+    
+    <!-- Pied de page -->
+    <div class="mt-auto p-3 text-center">
+      <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm w-100">
+        <i class="fas fa-sign-out-alt me-2"></i> <span>{% trans "Déconnexion" %}</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Contenu principal -->
+  <div class="main-content">
+    <!-- En-tête avec actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h1 class="h3 mb-0">{% trans "Tableau de bord" %}</h1>
+        <p class="text-muted mb-0">{{ club.name }}</p>
+      </div>
+      <div class="d-flex">
+        <button id="toggleSidebarBtn" class="btn btn-light me-2 d-md-none">
+          <i class="fas fa-bars"></i>
+        </button>
+        <div class="dropdown">
+          <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+            <i class="fas fa-plus me-1"></i> {% trans "Actions rapides" %}
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'competitions:competitions:create' %}">
+              <i class="fas fa-trophy me-2 text-primary"></i> {% trans "Nouvelle compétition" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'competitions:events:create_event' %}">
+              <i class="fas fa-calendar-plus me-2 text-success"></i> {% trans "Nouvel événement" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'competitions:events:planning:poll_list' %}">
+              <i class="fas fa-poll me-2 text-info"></i> {% trans "Nouveau sondage de date" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'competitions:club:practitioner_add' %}">
+              <i class="fas fa-user-plus me-2 text-success"></i> {% trans "Nouveau pratiquant" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'competitions:club:judge_add' %}">
+              <i class="fas fa-gavel me-2 text-warning"></i> {% trans "Nouveau juge/arbitre" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'shop:dashboard:club_product_create' %}">
+              <i class="fas fa-shopping-basket me-2 text-info"></i> {% trans "Nouveau produit" %}
+            </a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'competitions:club:bulk_registration' %}">
+              <i class="fas fa-user-friends me-2 text-info"></i> {% trans "Inscription de masse" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'competitions:events:import_events' %}">
+              <i class="fas fa-file-import me-2 text-secondary"></i> {% trans "Importer des événements" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'competitions:club:import_export' %}">
+              <i class="fas fa-file-import me-2 text-secondary"></i> {% trans "Importer des données" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'shop:dashboard:club_orders' %}">
+              <i class="fas fa-shopping-cart me-2 text-primary"></i> {% trans "Gérer les commandes" %}
+            </a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Messages d'alerte -->
+    {% if messages %}
+      <div class="messages mb-4">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+            <i class="fas {% if message.tags == 'success' %}fa-check-circle{% elif message.tags == 'error' %}fa-exclamation-circle{% elif message.tags == 'warning' %}fa-exclamation-triangle{% else %}fa-info-circle{% endif %} me-2"></i>
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <!-- Résumé financier -->
+    <div class="card dashboard-card mb-4">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-md-3 text-center text-md-start mb-3 mb-md-0">
+            <div class="d-flex align-items-center">
+              <div class="stats-icon stats-finances me-3" style="margin: 0;">
+                <i class="fas fa-wallet"></i>
+              </div>
+              <div>
+                <h5 class="mb-0">{% trans "Finances" %}</h5>
+                <p class="text-muted mb-0 small">{% trans "Résumé financier" %}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-9">
+            <div class="row text-center">
+              <div class="col-6 col-md-3 mb-3 mb-md-0">
+                <h5 class="mb-0">{{ financial_stats.balance|default:"0" }} €</h5>
+                <p class="text-muted mb-0 small">{% trans "Solde total" %}</p>
+              </div>
+              <div class="col-6 col-md-3 mb-3 mb-md-0">
+                <h5 class="mb-0">{{ financial_stats.income|default:"0" }} €</h5>
+                <p class="text-muted mb-0 small">{% trans "Revenus" %}</p>
+              </div>
+              <div class="col-6 col-md-3">
+                <h5 class="mb-0">{{ financial_stats.expense|default:"0" }} €</h5>
+                <p class="text-muted mb-0 small">{% trans "Dépenses" %}</p>
+              </div>
+              <div class="col-6 col-md-3">
+                <h5 class="mb-0">{{ financial_stats.pending_invoices|default:"0" }}</h5>
+                <p class="text-muted mb-0 small">{% trans "Factures en attente" %}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer bg-light">
+        <a href="{% url 'finances:dashboard' %}" class="btn btn-sm btn-primary">
+          <i class="fas fa-chart-line me-1"></i> {% trans "Voir le détail" %}
+        </a>
+      </div>
+    </div>
+
+    <!-- Résumé des événements à venir -->
+    <div class="card dashboard-card mb-4">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-md-3 text-center text-md-start mb-3 mb-md-0">
+            <div class="d-flex align-items-center">
+              <div class="stats-icon stats-events me-3" style="background-color: rgba(51, 102, 255, 0.1); color: #3366ff; margin: 0;">
+                <i class="fas fa-calendar-alt"></i>
+              </div>
+              <div>
+                <h5 class="mb-0">{% trans "Événements" %}</h5>
+                <p class="text-muted mb-0 small">{% trans "Planning du club" %}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-9">
+            <div class="row text-center">
+              <div class="col-6 col-md-3 mb-3 mb-md-0">
+                <h5 class="mb-0">{{ event_stats.upcoming_count|default:"0" }}</h5>
+                <p class="text-muted mb-0 small">{% trans "À venir" %}</p>
+              </div>
+              <div class="col-6 col-md-3 mb-3 mb-md-0">
+                <h5 class="mb-0">{{ event_stats.active_polls|default:"0" }}</h5>
+                <p class="text-muted mb-0 small">{% trans "Sondages actifs" %}</p>
+              </div>
+              <div class="col-6 col-md-3">
+                <h5 class="mb-0">{{ event_stats.month_events|default:"0" }}</h5>
+                <p class="text-muted mb-0 small">{% trans "Ce mois" %}</p>
+              </div>
+              <div class="col-6 col-md-3">
+                <h5 class="mb-0">{{ event_stats.attendance_rate|default:"0" }}%</h5>
+                <p class="text-muted mb-0 small">{% trans "Taux de participation" %}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer bg-light d-flex justify-content-between">
+        <a href="{% url 'competitions:events:event_list' %}" class="btn btn-sm btn-primary">
+          <i class="fas fa-calendar-week me-1"></i> {% trans "Voir tous les événements" %}
+        </a>
+        <a href="{% url 'competitions:events:create_event' %}" class="btn btn-sm btn-success">
+          <i class="fas fa-calendar-plus me-1"></i> {% trans "Créer un événement" %}
+        </a>
+      </div>
+    </div>
+
+    <!-- Cartes de statistiques -->
+    <div class="stats-grid">
+      <div class="dashboard-card card-stats">
+        <div class="stats-icon stats-practitioners">
+          <i class="fas fa-users"></i>
+        </div>
+        <div class="stats-value">{{ stats.total_practitioners|default:"0" }}</div>
+        <div class="stats-label">{% trans "Pratiquants" %}</div>
+        <div class="mt-3">
+          <a href="{% url 'competitions:club:practitioners' %}" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-eye me-1"></i> {% trans "Gérer" %}
+          </a>
+          <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-sm btn-outline-success ms-1">
+            <i class="fas fa-plus me-1"></i> {% trans "Ajouter" %}
+          </a>
+        </div>
+      </div>
+      
+      <div class="dashboard-card card-stats">
+        <div class="stats-icon stats-registrations">
+          <i class="fas fa-clipboard-check"></i>
+        </div>
+        <div class="stats-value">{{ stats.active_registrations|default:"0" }}</div>
+        <div class="stats-label">{% trans "Inscriptions actives" %}</div>
+        <div class="mt-3">
+          <a href="{% url 'competitions:club:registrations_list' %}" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-eye me-1"></i> {% trans "Gérer" %}
+          </a>
+          <a href="{% url 'competitions:club:bulk_registration' %}" class="btn btn-sm btn-outline-success ms-1">
+            <i class="fas fa-users-cog me-1"></i> {% trans "En masse" %}
+          </a>
+        </div>
+      </div>
+      
+      <div class="dashboard-card card-stats">
+        <div class="stats-icon stats-competitions">
+          <i class="fas fa-trophy"></i>
+        </div>
+        <div class="stats-value">{{ stats.club_competitions|default:"0" }}</div>
+        <div class="stats-label">{% trans "Compétitions organisées" %}</div>
+        <div class="mt-3">
+          <a href="{% url 'competitions:club:club_competitions' %}" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-eye me-1"></i> {% trans "Gérer" %}
+          </a>
+          <a href="{% url 'competitions:competitions:create' %}" class="btn btn-sm btn-outline-success ms-1">
+            <i class="fas fa-plus me-1"></i> {% trans "Créer" %}
+          </a>
+        </div>
+      </div>
+      
+      <div class="dashboard-card card-stats">
+        <div class="stats-icon stats-judges">
+          <i class="fas fa-gavel"></i>
+        </div>
+        <div class="stats-value">{{ stats.judges_count|default:"0" }}</div>
+        <div class="stats-label">{% trans "Juges/Arbitres" %}</div>
+        <div class="mt-3">
+          <a href="{% url 'competitions:club:judges_list' %}" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-eye me-1"></i> {% trans "Gérer" %}
+          </a>
+          <a href="{% url 'competitions:club:judge_add' %}" class="btn btn-sm btn-outline-success ms-1">
+            <i class="fas fa-plus me-1"></i> {% trans "Ajouter" %}
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Suivi des paiements -->
+    <div class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-credit-card"></i> {% translate "Suivi des paiements" %}
+        </h2>
+        <a href="{% url 'finances:payments:payment_attempt_list' %}" class="btn btn-outline-primary">
+          <i class="fas fa-eye me-1"></i> {% translate "Voir tous" %}
+        </a>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-12">
+          <div class="card dashboard-card">
+            <div class="card-body">
+              <h4 class="card-title mb-3">{% translate "Derniers paiements" %}</h4>
+              {% if recent_payments %}
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>{% translate "Date" %}</th>
+                      <th>{% translate "Pratiquant" %}</th>
+                      <th>{% translate "Montant" %}</th>
+                      <th>{% translate "Méthode" %}</th>
+                      <th>{% translate "Statut" %}</th>
+                      <th>{% translate "Type" %}</th>
+                      <th>{% translate "Actions" %}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for payment in recent_payments %}
+                    <tr>
+                      <td>{{ payment.initiated_at|date:"d/m/Y H:i" }}</td>
+                      <td>
+                        {% if payment.transaction.created_by %}
+                          <a href="{% url 'competitions:club:practitioner_detail' payment.transaction.created_by.id %}">
+                            {{ payment.transaction.created_by.get_full_name|default:payment.transaction.created_by.username }}
+                          </a>
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>
+                        <strong>{{ payment.amount }} {{ payment.currency }}</strong>
+                        {% if payment.fee_amount %}
+                          <br>
+                          <small class="text-muted">(Frais: {{ payment.fee_amount }} {{ payment.currency }})</small>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <span class="badge bg-secondary">{{ payment.payment_method.name }}</span>
+                      </td>
+                      <td>
+                        {% if payment.status == 'succeeded' %}
+                          <span class="badge bg-success">{% translate "Réussi" %}</span>
+                        {% elif payment.status == 'failed' %}
+                          <span class="badge bg-danger">{% translate "Échoué" %}</span>
+                        {% elif payment.status == 'pending' %}
+                          <span class="badge bg-warning">{% translate "En attente" %}</span>
+                        {% elif payment.status == 'refunded' %}
+                          <span class="badge bg-info">{% translate "Remboursé" %}</span>
+                        {% else %}
+                          <span class="badge bg-secondary">{{ payment.get_status_display }}</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if payment.transaction.category %}
+                          {{ payment.transaction.category.name }}
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>
+                        <a href="{% url 'finances:payments:payment_attempt_detail' payment.id %}" class="btn btn-sm btn-info">
+                          <i class="fas fa-info-circle"></i>
+                        </a>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% else %}
+              <p class="text-muted text-center py-4">
+                <i class="fas fa-info-circle"></i> {% translate "Aucun paiement récent à afficher" %}
+              </p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Section Suivi de présence aux entraînements -->
+    <div class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-users-cog"></i> {% translate "Suivi de présence aux entraînements" %}
+        </h2>
+        <a href="{% url 'competitions:club:training_sessions' %}" class="btn btn-outline-primary">
+          <i class="fas fa-eye me-1"></i> {% translate "Voir tout" %}
+        </a>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-8">
+          <div class="card dashboard-card">
+            <div class="card-body">
+              <h4 class="card-title mb-3">{% translate "Sessions récentes" %}</h4>
+              {% if recent_sessions %}
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>{% translate "Date" %}</th>
+                      <th>{% translate "Créneau" %}</th>
+                      <th>{% translate "Discipline" %}</th>
+                      <th>{% translate "Instructeur" %}</th>
+                      <th>{% translate "Présents" %}</th>
+                      <th>{% translate "Taux" %}</th>
+                      <th>{% translate "Actions" %}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for session in recent_sessions %}
+                    <tr>
+                      <td>{{ session.date|date:"d/m/Y" }}</td>
+                      <td>
+                        <strong>{{ session.training_slot.name }}</strong><br>
+                        <small class="text-muted">{{ session.start_time|time:"H:i" }} - {{ session.end_time|time:"H:i" }}</small>
+                      </td>
+                      <td>{{ session.training_slot.discipline.name }}</td>
+                      <td>
+                        {% if session.instructor %}
+                          {{ session.instructor.get_full_name|default:session.instructor.username }}
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>
+                        <strong>{{ session.presents_count }}</strong> / {{ session.total_count }}
+                      </td>
+                      <td>
+                        <span class="badge bg-{% if session.attendance_rate >= 80 %}success{% elif session.attendance_rate >= 60 %}warning{% else %}danger{% endif %}">
+                          {{ session.attendance_rate|floatformat:0 }}%
+                        </span>
+                      </td>
+                      <td>
+                        <a href="{% url 'competitions:club:attendance_list' session.id %}" class="btn btn-sm btn-info">
+                          <i class="fas fa-list"></i>
+                        </a>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% else %}
+              <p class="text-muted text-center py-4">
+                <i class="fas fa-info-circle"></i> {% translate "Aucune session récente à afficher" %}
+              </p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card dashboard-card">
+            <div class="card-body">
+              <h4 class="card-title mb-3">{% translate "Statistiques globales" %}</h4>
+              <div class="stat-grid">
+                <div class="stat-item mb-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">{% translate "Taux moyen" %}</span>
+                    <span class="h5 mb-0 text-primary">{{ attendance_stats.average_rate|default:"0" }}%</span>
+                  </div>
+                </div>
+                <div class="stat-item mb-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">{% translate "Sessions ce mois" %}</span>
+                    <span class="h5 mb-0">{{ attendance_stats.month_sessions|default:"0" }}</span>
+                  </div>
+                </div>
+                <div class="stat-item mb-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted">{% translate "Total présences" %}</span>
+                    <span class="h5 mb-0">{{ attendance_stats.total_attendances|default:"0" }}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <hr>
+              
+              <h5 class="mb-3">{% translate "Pratiquants assidus" %}</h5>
+              {% if top_attendees %}
+              <ul class="list-unstyled">
+                {% for attendee in top_attendees %}
+                <li class="mb-2">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <span>{{ attendee.practitioner.full_name }}</span>
+                    <span class="badge bg-success">{{ attendee.attendance_count }}</span>
+                  </div>
+                </li>
+                {% endfor %}
+              </ul>
+              {% else %}
+              <p class="text-muted">{% translate "Aucune donnée disponible" %}</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Section Commandes en ligne -->
+    <div class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-shopping-cart"></i> {% translate "Commandes en ligne" %}
+        </h2>
+        <a href="{% url 'shop:dashboard:club_orders' %}" class="btn btn-outline-primary">
+          <i class="fas fa-eye me-1"></i> {% translate "Voir toutes" %}
+        </a>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-12">
+          <div class="card dashboard-card">
+            <div class="card-body">
+              <h4 class="card-title mb-3">{% translate "Commandes récentes" %}</h4>
+              {% if recent_orders %}
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>{% translate "N° commande" %}</th>
+                      <th>{% translate "Date" %}</th>
+                      <th>{% translate "Client" %}</th>
+                      <th>{% translate "Montant" %}</th>
+                      <th>{% translate "Statut" %}</th>
+                      <th>{% translate "Livraison" %}</th>
+                      <th>{% translate "Actions" %}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for order in recent_orders %}
+                    <tr>
+                      <td>
+                        <strong>{{ order.order_number }}</strong>
+                      </td>
+                      <td>{{ order.created_at|date:"d/m/Y H:i" }}</td>
+                      <td>
+                        {% if order.user %}
+                          <a href="{% url 'competitions:club:practitioner_detail' order.user.id %}">
+                            {{ order.user.get_full_name|default:order.user.username }}
+                          </a>
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>
+                        <strong>{{ order.total }} €</strong>
+                      </td>
+                      <td>
+                        {% if order.status == 'pending' %}
+                          <span class="badge bg-warning">{% translate "En attente" %}</span>
+                        {% elif order.status == 'processing' %}
+                          <span class="badge bg-info">{% translate "En préparation" %}</span>
+                        {% elif order.status == 'shipped' %}
+                          <span class="badge bg-primary">{% translate "Expédiée" %}</span>
+                        {% elif order.status == 'delivered' %}
+                          <span class="badge bg-success">{% translate "Livrée" %}</span>
+                        {% elif order.status == 'cancelled' %}
+                          <span class="badge bg-danger">{% translate "Annulée" %}</span>
+                        {% elif order.status == 'refunded' %}
+                          <span class="badge bg-secondary">{% translate "Remboursée" %}</span>
+                        {% else %}
+                          <span class="badge bg-secondary">{{ order.get_status_display }}</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <span class="badge bg-secondary">{{ order.get_shipping_method_display }}</span>
+                      </td>
+                      <td>
+                        <a href="{% url 'shop:dashboard:club_order_detail' order.id %}" class="btn btn-sm btn-info">
+                          <i class="fas fa-eye"></i>
+                        </a>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% else %}
+              <p class="text-muted text-center py-4">
+                <i class="fas fa-info-circle"></i> {% translate "Aucune commande récente à afficher" %}
+              </p>
+              {% endif %}
+            </div>
+            <div class="card-footer">
+              <div class="row text-center">
+                <div class="col-md-3">
+                  <h5 class="mb-0">{{ order_stats.total_orders|default:"0" }}</h5>
+                  <p class="text-muted mb-0 small">{% translate "Total commandes" %}</p>
+                </div>
+                <div class="col-md-3">
+                  <h5 class="mb-0">{{ order_stats.pending_orders|default:"0" }}</h5>
+                  <p class="text-muted mb-0 small">{% translate "En attente" %}</p>
+                </div>
+                <div class="col-md-3">
+                  <h5 class="mb-0">{{ order_stats.processing_orders|default:"0" }}</h5>
+                  <p class="text-muted mb-0 small">{% translate "En préparation" %}</p>
+                </div>
+                <div class="col-md-3">
+                  <h5 class="mb-0">{{ order_stats.total_revenue|default:"0" }} €</h5>
+                  <p class="text-muted mb-0 small">{% translate "Chiffre d'affaires" %}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Section Événements du club -->
+    <div class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-calendar-alt"></i> {% translate "Événements du club" %}
+        </h2>
+        <div class="d-flex gap-2">
+          <a href="{% url 'competitions:events:planning:poll_list' %}" class="btn btn-outline-info">
+            <i class="fas fa-poll me-1"></i> {% translate "Sondages" %}
+          </a>
+          <a href="{% url 'competitions:events:event_list' %}" class="btn btn-outline-primary">
+            <i class="fas fa-eye me-1"></i> {% translate "Voir tous" %}
+          </a>
+          <a href="{% url 'competitions:events:create_event' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i> {% translate "Nouvel événement" %}
+          </a>
+        </div>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-8">
+          <div class="card dashboard-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h4 class="card-title mb-0">{% translate "Événements à venir" %}</h4>
+              <div class="event-view-toggle">
+                <div class="btn-group">
+                  <button type="button" class="btn btn-sm btn-outline-primary active" data-view="list">
+                    <i class="fas fa-list"></i>
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-primary" data-view="calendar">
+                    <i class="fas fa-calendar-alt"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="card-body">
+              {% if upcoming_events %}
+              <div class="event-list-view">
+                {% for event in upcoming_events %}
+                <div class="event-item mb-3">
+                  <div class="d-flex">
+                    <div class="event-date text-center me-3">
+                      <div class="event-date-month">{{ event.start_date|date:"M" }}</div>
+                      <div class="event-date-day">{{ event.start_date|date:"d" }}</div>
+                    </div>
+                    <div class="event-details flex-grow-1">
+                      <div class="d-flex justify-content-between align-items-start">
+                        <h5 class="event-title mb-1">{{ event.title }}</h5>
+                        <div class="event-status">
+                          {% if event.status == 'upcoming' %}
+                            <span class="badge bg-primary">{% translate "À venir" %}</span>
+                          {% elif event.status == 'in_progress' %}
+                            <span class="badge bg-success">{% translate "En cours" %}</span>
+                          {% elif event.status == 'completed' %}
+                            <span class="badge bg-secondary">{% translate "Terminé" %}</span>
+                          {% elif event.status == 'cancelled' %}
+                            <span class="badge bg-danger">{% translate "Annulé" %}</span>
+                          {% endif %}
+                        </div>
+                      </div>
+                      <div class="event-meta d-flex flex-wrap gap-2 mb-2">
+                        <span class="event-time">
+                          <i class="far fa-clock me-1"></i> {{ event.start_time|time:"H:i" }}
+                          {% if event.end_time %}- {{ event.end_time|time:"H:i" }}{% endif %}
+                        </span>
+                        <span class="event-location">
+                          <i class="fas fa-map-marker-alt me-1"></i> {{ event.location }}
+                        </span>
+                        <span class="event-organizer">
+                          <i class="fas fa-user me-1"></i> {{ event.organizer }}
+                        </span>
+                        <span class="event-participants">
+                          <i class="fas fa-users me-1"></i> {{ event.registered_count|default:"0" }}
+                          {% if event.capacity %}/{{ event.capacity }}{% endif %}
+                        </span>
+                      </div>
+                      <div class="event-description">
+                        {{ event.description|truncatewords:15 }}
+                      </div>
+                    </div>
+                    <div class="event-actions ms-3">
+                      <a href="{% url 'competitions:events:event_detail' event.id %}" class="btn btn-sm btn-primary mb-2 d-block">
+                        <i class="fas fa-eye"></i>
+                      </a>
+                      <a href="{% url 'competitions:events:edit_event' event.id %}" class="btn btn-sm btn-outline-primary mb-2 d-block">
+                        <i class="fas fa-edit"></i>
+                      </a>
+                      <a href="{% url 'competitions:events:event_participants' event.id %}" class="btn btn-sm btn-outline-info d-block">
+                        <i class="fas fa-users"></i>
+                      </a>
+                    </div>
+                  </div>
+                  {% if event.capacity %}
+                  <div class="event-progress mt-2">
+                    <div class="d-flex justify-content-between align-items-center small text-muted mb-1">
+                      <span>{% translate "Places occupées" %}</span>
+                      <span>{{ event.registered_count|default:"0" }}/{{ event.capacity }}</span>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                      {% with percent=event.registered_count|default:"0"|floatformat:"0"|multiply:100|divide:event.capacity %}
+                      <div class="progress-bar {% if percent > 80 %}bg-danger{% elif percent > 50 %}bg-warning{% else %}bg-success{% endif %}" 
+                           role="progressbar" style="width: {{ percent }}%;"
+                           aria-valuenow="{{ percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+                      {% endwith %}
+                    </div>
+                  </div>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              <div class="event-calendar-view d-none">
+                <div class="simple-calendar">
+                  <!-- Calendar will be initialized via JavaScript -->
+                  <div id="club-events-calendar" class="mb-3"></div>
+                </div>
+              </div>
+              {% else %}
+              <div class="alert alert-info d-flex align-items-center p-4">
+                <i class="fas fa-info-circle fa-2x me-3"></i>
+                <div>
+                  <h5 class="alert-heading">{% translate "Aucun événement prévu" %}</h5>
+                  <p class="mb-0">{% translate "Vous n'avez pas d'événements à venir planifiés pour votre club." %}</p>
+                  <a href="{% url 'competitions:events:create_event' %}" class="btn btn-primary mt-2">
+                    <i class="fas fa-calendar-plus me-1"></i> {% translate "Créer un événement" %}
+                  </a>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card dashboard-card mb-4">
+            <div class="card-header">
+              <h4 class="card-title mb-0">{% translate "Sondages actifs" %}</h4>
+            </div>
+            <div class="card-body">
+              {% if active_polls %}
+              <div class="polls-list">
+                {% for poll in active_polls %}
+                <div class="poll-item mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="mb-0">{{ poll.title }}</h5>
+                    <span class="badge bg-primary">{{ poll.responses_count }} {% translate "réponses" %}</span>
+                  </div>
+                  <div class="poll-meta d-flex flex-wrap gap-2 mb-2 text-muted small">
+                    <span><i class="fas fa-user me-1"></i> {{ poll.created_by }}</span>
+                    <span><i class="fas fa-clock me-1"></i> {{ poll.end_date|timeuntil }}</span>
+                  </div>
+                  <div class="poll-options mt-2">
+                    {% for option in poll.options|slice:":3" %}
+                    <div class="poll-option mb-2">
+                      <div class="d-flex justify-content-between mb-1 small">
+                        <span>{{ option.date|date:"d M Y" }} ({{ option.time|default:"--" }})</span>
+                        <span>{{ option.votes_count }} {% translate "votes" %}</span>
+                      </div>
+                      <div class="progress" style="height: 5px;">
+                        {% with vote_percent=option.vote_percentage|default:"0" %}
+                        <div class="progress-bar" role="progressbar" style="width: {{ vote_percent }}%;" 
+                             aria-valuenow="{{ vote_percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+                        {% endwith %}
+                      </div>
+                    </div>
+                    {% endfor %}
+                    {% if poll.options|length > 3 %}
+                    <div class="text-center mt-1">
+                      <small class="text-muted">{% translate "et" %} {{ poll.options|length|subtract:3 }} {% translate "autres options" %}</small>
+                    </div>
+                    {% endif %}
+                  </div>
+                  <div class="poll-actions mt-2">
+                    <a href="{% url 'competitions:events:planning:poll_detail' poll.id %}" class="btn btn-sm btn-primary">
+                      <i class="fas fa-eye me-1"></i> {% translate "Voir" %}
+                    </a>
+                    <a href="{% url 'competitions:events:planning:finalize_poll' poll.id poll.leading_option.id %}" 
+                      class="btn btn-sm btn-outline-success {% if not poll.leading_option %}disabled{% endif %}">
+                      <i class="fas fa-check me-1"></i> {% translate "Finaliser" %}
+                    </a>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="text-center py-4">
+                <div class="mb-3">
+                  <i class="fas fa-poll fa-3x text-muted"></i>
+                </div>
+                <p class="text-muted">{% translate "Aucun sondage actif pour le moment." %}</p>
+                <a href="{% url 'competitions:events:planning:create_poll' %}" class="btn btn-primary mt-2">
+                  <i class="fas fa-plus me-1"></i> {% translate "Créer un sondage" %}
+                </a>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <div class="card dashboard-card">
+            <div class="card-header">
+              <h4 class="card-title mb-0">{% translate "Actions rapides" %}</h4>
+            </div>
+            <div class="card-body">
+              <div class="list-group">
+                <a href="{% url 'competitions:events:create_event' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <span class="icon-wrapper bg-primary text-white me-3">
+                    <i class="fas fa-calendar-plus"></i>
+                  </span>
+                  <div>
+                    <h6 class="mb-0">{% translate "Créer un événement" %}</h6>
+                    <small class="text-muted">{% translate "Planifier un nouvel événement pour le club" %}</small>
+                  </div>
+                </a>
+                <a href="{% url 'competitions:events:planning:create_poll' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <span class="icon-wrapper bg-info text-white me-3">
+                    <i class="fas fa-poll"></i>
+                  </span>
+                  <div>
+                    <h6 class="mb-0">{% translate "Créer un sondage de date" %}</h6>
+                    <small class="text-muted">{% translate "Trouver une date qui convient à tous" %}</small>
+                  </div>
+                </a>
+                <a href="{% url 'competitions:events:import_events' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <span class="icon-wrapper bg-success text-white me-3">
+                    <i class="fas fa-file-import"></i>
+                  </span>
+                  <div>
+                    <h6 class="mb-0">{% translate "Importer des événements" %}</h6>
+                    <small class="text-muted">{% translate "Importer plusieurs événements via CSV" %}</small>
+                  </div>
+                </a>
+                <a href="{% url 'competitions:events:event_list' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <span class="icon-wrapper bg-secondary text-white me-3">
+                    <i class="fas fa-calendar-alt"></i>
+                  </span>
+                  <div>
+                    <h6 class="mb-0">{% translate "Gérer les événements" %}</h6>
+                    <small class="text-muted">{% translate "Voir et gérer tous les événements du club" %}</small>
+                  </div>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Section Notifications -->
+    <div class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-bell"></i> {% translate "Notifications récentes" %}
+        </h2>
+        <a href="{% url 'competitions:practitioner:notifications' %}" class="btn btn-outline-primary">
+          <i class="fas fa-eye me-1"></i> {% translate "Voir toutes" %}
+        </a>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-12">
+          <div class="card dashboard-card">
+            <div class="card-body">
+              {% if recent_notifications %}
+              <div class="list-group">
+                {% for notification in recent_notifications %}
+                <div class="list-group-item list-group-item-action {% if not notification.is_read %}bg-light{% endif %}">
+                  <div class="d-flex w-100 justify-content-between">
+                    <div>
+                      <div class="d-flex align-items-center mb-1">
+                        <div class="me-3">
+                          {% if notification.type == 'competition' %}
+                            <i class="fas fa-trophy text-primary"></i>
+                          {% elif notification.type == 'order' %}
+                            <i class="fas fa-shopping-cart text-success"></i>
+                          {% elif notification.type == 'grade' %}
+                            <i class="fas fa-award text-warning"></i>
+                          {% elif notification.type == 'training' %}
+                            <i class="fas fa-dumbbell text-info"></i>
+                          {% elif notification.type == 'message' %}
+                            <i class="fas fa-envelope text-secondary"></i>
+                          {% else %}
+                            <i class="fas fa-info-circle text-muted"></i>
+                          {% endif %}
+                        </div>
+                        <div>
+                          <h6 class="mb-0 {% if not notification.is_read %}fw-bold{% endif %}">
+                            {{ notification.title }}
+                          </h6>
+                          <p class="mb-0 text-muted">{{ notification.message|truncatewords:20 }}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      <small class="text-muted">{{ notification.created_at|timesince }} {% translate "ago" %}</small>
+                      {% if notification.priority == 'urgent' %}
+                        <br>
+                        <span class="badge bg-danger">{% translate "Urgent" %}</span>
+                      {% elif notification.priority == 'high' %}
+                        <br>
+                        <span class="badge bg-warning">{% translate "Important" %}</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                  {% if notification.is_actionable %}
+                  <div class="mt-2">
+                    <a href="{{ notification.action_url }}" class="btn btn-sm btn-primary">
+                      <i class="fas fa-arrow-right me-1"></i> {{ notification.action_text }}
+                    </a>
+                  </div>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              {% else %}
+              <p class="text-muted text-center py-4">
+                <i class="fas fa-info-circle"></i> {% translate "Aucune notification récente" %}
+              </p>
+              {% endif %}
+            </div>
+            {% if unread_count > 0 %}
+            <div class="card-footer text-muted text-center">
+              <i class="fas fa-bell"></i> {% blocktranslate count counter=unread_count %}Vous avez {{ counter }} notification non lue{% plural %}Vous avez {{ counter }} notifications non lues{% endblocktranslate %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Section Suivi des demandes -->
+    <div class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-ticket-alt"></i> {% translate "Suivi des demandes de support" %}
+        </h2>
+        <a href="{% url 'competitions:practitioner:support_tickets' %}" class="btn btn-outline-primary">
+          <i class="fas fa-eye me-1"></i> {% translate "Voir toutes" %}
+        </a>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-12">
+          <div class="card dashboard-card">
+            <div class="card-body">
+              <h4 class="card-title mb-3">{% translate "Demandes récentes" %}</h4>
+              {% if recent_tickets %}
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>{% translate "N° ticket" %}</th>
+                      <th>{% translate "Date" %}</th>
+                      <th>{% translate "Sujet" %}</th>
+                      <th>{% translate "Catégorie" %}</th>
+                      <th>{% translate "Statut" %}</th>
+                      <th>{% translate "Priorité" %}</th>
+                      <th>{% translate "Actions" %}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for ticket in recent_tickets %}
+                    <tr>
+                      <td>
+                        <strong>{{ ticket.ticket_number }}</strong>
+                      </td>
+                      <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+                      <td>
+                        <strong>{{ ticket.subject|truncatewords:5 }}</strong>
+                      </td>
+                      <td>
+                        <span class="badge bg-secondary">{{ ticket.get_category_display }}</span>
+                      </td>
+                      <td>
+                        {% if ticket.status == 'open' %}
+                          <span class="badge bg-primary">{% translate "Ouvert" %}</span>
+                        {% elif ticket.status == 'in_progress' %}
+                          <span class="badge bg-info">{% translate "En cours" %}</span>
+                        {% elif ticket.status == 'waiting_user' %}
+                          <span class="badge bg-warning">{% translate "En attente" %}</span>
+                        {% elif ticket.status == 'resolved' %}
+                          <span class="badge bg-success">{% translate "Résolu" %}</span>
+                        {% elif ticket.status == 'closed' %}
+                          <span class="badge bg-secondary">{% translate "Fermé" %}</span>
+                        {% else %}
+                          <span class="badge bg-secondary">{{ ticket.get_status_display }}</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if ticket.priority == 'urgent' %}
+                          <span class="badge bg-danger">{% translate "Urgent" %}</span>
+                        {% elif ticket.priority == 'high' %}
+                          <span class="badge bg-warning">{% translate "Haute" %}</span>
+                        {% elif ticket.priority == 'medium' %}
+                          <span class="badge bg-info">{% translate "Moyenne" %}</span>
+                        {% else %}
+                          <span class="badge bg-secondary">{% translate "Basse" %}</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <a href="{% url 'competitions:practitioner:ticket_detail' ticket.id %}" class="btn btn-sm btn-info">
+                          <i class="fas fa-eye"></i>
+                        </a>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% else %}
+              <p class="text-muted text-center py-4">
+                <i class="fas fa-info-circle"></i> {% translate "Aucune demande de support récente" %}
+              </p>
+              {% endif %}
+            </div>
+            <div class="card-footer">
+              <div class="row text-center">
+                <div class="col-md-3">
+                  <h5 class="mb-0">{{ ticket_stats.total_tickets|default:"0" }}</h5>
+                  <p class="text-muted mb-0 small">{% translate "Total tickets" %}</p>
+                </div>
+                <div class="col-md-3">
+                  <h5 class="mb-0">{{ ticket_stats.open_tickets|default:"0" }}</h5>
+                  <p class="text-muted mb-0 small">{% translate "Ouverts" %}</p>
+                </div>
+                <div class="col-md-3">
+                  <h5 class="mb-0">{{ ticket_stats.in_progress_tickets|default:"0" }}</h5>
+                  <p class="text-muted mb-0 small">{% translate "En cours" %}</p>
+                </div>
+                <div class="col-md-3">
+                  <h5 class="mb-0">{{ ticket_stats.resolved_tickets|default:"0" }}</h5>
+                  <p class="text-muted mb-0 small">{% translate "Résolus" %}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Section des actions rapides -->
+    <div class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-bolt"></i> {% trans "Actions rapides" %}
+        </h2>
+      </div>
+      
+      <div class="quick-actions-grid">
+        <div class="quick-action">
+          <div class="action-icon">
+            <i class="fas fa-user-plus"></i>
+          </div>
+          <h3 class="action-title">{% trans "Ajouter des pratiquants" %}</h3>
+          <p class="action-description">{% trans "Ajoutez de nouveaux membres à votre club ou importez une liste existante." %}</p>
+          <div class="mt-auto">
+            <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-primary">
+              <i class="fas fa-plus me-1"></i> {% trans "Ajouter" %}
+            </a>
+            <a href="{% url 'competitions:club:import_export' %}" class="btn btn-outline-primary ms-2">
+              <i class="fas fa-file-import me-1"></i> {% trans "Importer" %}
+            </a>
+          </div>
+        </div>
+        
+        <div class="quick-action">
+          <div class="action-icon">
+            <i class="fas fa-shopping-cart"></i>
+          </div>
+          <h3 class="action-title">{% trans "Gérer la boutique" %}</h3>
+          <p class="action-description">{% trans "Vendez du matériel d'arts martiaux et gérez vos produits, commandes et stocks." %}</p>
+          <div class="mt-auto">
+            <a href="{% url 'shop:dashboard:club_dashboard' %}" class="btn btn-primary">
+              <i class="fas fa-store me-1"></i> {% trans "Accéder à la boutique" %}
+            </a>
+            <a href="{% url 'shop:dashboard:club_product_create' %}" class="btn btn-outline-primary ms-2">
+              <i class="fas fa-plus me-1"></i> {% trans "Nouveau produit" %}
+            </a>
+          </div>
+        </div>
+        
+        <div class="quick-action">
+          <div class="action-icon">
+            <i class="fas fa-clipboard-list"></i>
+          </div>
+          <h3 class="action-title">{% trans "Gérer les inscriptions" %}</h3>
+          <p class="action-description">{% trans "Inscrivez vos pratiquants aux compétitions disponibles simplement et efficacement." %}</p>
+          <div class="mt-auto">
+            <a href="{% url 'competitions:club:bulk_registration' %}" class="btn btn-primary">
+              <i class="fas fa-users-cog me-1"></i> {% trans "Inscription de masse" %}
+            </a>
+          </div>
+        </div>
+        
+        <div class="quick-action">
+          <div class="action-icon">
+            <i class="fas fa-trophy"></i>
+          </div>
+          <h3 class="action-title">{% trans "Créer une compétition" %}</h3>
+          <p class="action-description">{% trans "Configurez et organisez une nouvelle compétition pour votre club." %}</p>
+          <div class="mt-auto">
+            <a href="{% url 'competitions:competitions:create' %}" class="btn btn-primary">
+              <i class="fas fa-plus me-1"></i> {% trans "Nouvelle compétition" %}
+            </a>
+          </div>
+        </div>
+        
+        <div class="quick-action">
+          <div class="action-icon">
+            <i class="fas fa-chart-line"></i>
+          </div>
+          <h3 class="action-title">{% trans "Voir les résultats" %}</h3>
+          <p class="action-description">{% trans "Consultez les performances et résultats des participants de votre club." %}</p>
+          <div class="mt-auto">
+            <a href="{% url 'competitions:club:results' %}" class="btn btn-primary">
+              <i class="fas fa-eye me-1"></i> {% trans "Voir les résultats" %}
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Section Manager de compétition -->
+    {% if competitions_to_manage %}
+    <div class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-tasks"></i> {% trans "Compétitions à gérer" %}
+        </h2>
+        <a href="{% url 'competitions:dashboard:manager' %}" class="btn btn-primary">
+          <i class="fas fa-cogs me-1"></i> {% trans "Dashboard Manager" %}
+        </a>
+      </div>
+      
+      <div class="card dashboard-card">
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>{% trans "Compétition" %}</th>
+                  <th>{% trans "Date" %}</th>
+                  <th>{% trans "Statut" %}</th>
+                  <th>{% trans "Participants" %}</th>
+                  <th>{% trans "Actions" %}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for competition in competitions_to_manage %}
+                <tr>
+                  <td class="align-middle">
+                    <div class="d-flex align-items-center">
+                      <div class="me-3">
+                        {% if competition.logo %}
+                          <img src="{{ competition.logo.url }}" alt="{{ competition.name }}" width="40" height="40" class="rounded-circle">
+                        {% else %}
+                          <div class="bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <i class="fas fa-trophy text-secondary"></i>
+                          </div>
+                        {% endif %}
+                      </div>
+                      <div>
+                        <h6 class="mb-0">{{ competition.name }}</h6>
+                        <small class="text-muted">{{ competition.discipline.name }}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="align-middle">{{ competition.start_date|date:"d/m/Y" }}</td>
+                  <td class="align-middle">
+                    <span class="status-badge status-{{ competition.status }}">
+                      <i class="fas fa-circle"></i> {{ competition.get_status_display }}
+                    </span>
+                  </td>
+                  <td class="align-middle">{{ competition.get_participant_count }}</td>
+                  <td class="align-middle">
+                    <a href="{% url 'competitions:management:dashboard' competition.id %}" class="btn btn-sm btn-primary">
+                      <i class="fas fa-cog me-1"></i> {% trans "Gérer" %}
+                    </a>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    
+    <!-- Compétitions à venir -->
+    <div class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-calendar-alt"></i> {% trans "Compétitions à venir" %}
+        </h2>
+        <a href="{% url 'competitions:competitions:list' %}" class="btn btn-outline-primary">
+          <i class="fas fa-eye me-1"></i> {% trans "Voir toutes" %}
+        </a>
+      </div>
+      
+      <div class="competitions-list">
+        {% for competition in upcoming_competitions|slice:":4" %}
+        <div class="competition-card {{ competition.status }}">
+          <div class="competition-badges">
+            <span class="status-badge status-{{ competition.status }}">
+              <i class="fas fa-circle"></i> {{ competition.get_status_display }}
+            </span>
+            <span class="status-badge status-published">
+              <i class="fas fa-dumbbell"></i> {{ competition.discipline.name }}
+            </span>
+          </div>
+          <h3 class="competition-title">{{ competition.name }}</h3>
+          
+          <div class="competition-info">
+            <i class="far fa-calendar-alt"></i> {{ competition.start_date|date:"d/m/Y" }}
+            {% if competition.end_date and competition.end_date != competition.start_date %}
+            - {{ competition.end_date|date:"d/m/Y" }}
+            {% endif %}
+          </div>
+          
+          <div class="competition-info">
+            <i class="fas fa-map-marker-alt"></i> {{ competition.location }}
+          </div>
+          
+          <div class="competition-info">
+            <i class="fas fa-users"></i> {{ competition.get_participant_count }} {% trans "participants" %}
+            {% if competition.get_registered_from_club_count %} 
+            ({{ competition.get_registered_from_club_count }} {% trans "de votre club" %})
+            {% endif %}
+          </div>
+          
+          <div class="competition-actions">
+            <a href="{% url 'competitions:competitions:detail' competition.id %}" class="btn btn-sm btn-outline-primary">
+              <i class="fas fa-eye me-1"></i> {% trans "Détails" %}
+            </a>
+            
+            {% if competition.status == 'registration_open' %}
+            <a href="{% url 'competitions:club:bulk_registration' %}?competition={{ competition.id }}" class="btn btn-sm btn-primary">
+              <i class="fas fa-user-plus me-1"></i> {% trans "Inscrire" %}
+            </a>
+            {% endif %}
+          </div>
+        </div>
+        {% empty %}
+        <div class="card dashboard-card w-100">
+          <div class="card-body text-center p-4">
+            <div class="mb-3">
+              <i class="fas fa-calendar-alt fa-3x text-muted"></i>
+            </div>
+            <h4>{% trans "Aucune compétition à venir" %}</h4>
+            <p class="text-muted">{% trans "Il n'y a actuellement aucune compétition planifiée pour votre club." %}</p>
+            <a href="{% url 'competitions:competitions:list' %}" class="btn btn-primary mt-2">
+              <i class="fas fa-search me-1"></i> {% trans "Rechercher des compétitions" %}
+            </a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block extra_js %}
+<script>
+  // Fonction pour gérer le basculement de la barre latérale
+  document.addEventListener('DOMContentLoaded', function() {
+    const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+    const sidebar = document.querySelector('.sidebar');
+    
+    if (toggleSidebarBtn) {
+      toggleSidebarBtn.addEventListener('click', function() {
+        sidebar.classList.toggle('active');
+      });
+    }
+    
+    // Fermer la barre latérale quand on clique à l'extérieur (sur mobile)
+    document.addEventListener('click', function(event) {
+      const isClickInsideSidebar = sidebar.contains(event.target);
+      const isClickOnToggleBtn = toggleSidebarBtn && toggleSidebarBtn.contains(event.target);
+      
+      if (!isClickInsideSidebar && !isClickOnToggleBtn && window.innerWidth < 768 && sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+      }
+    });
+    
+    // Gestion des vues des événements (liste/calendrier)
+    const eventViewButtons = document.querySelectorAll('.event-view-toggle .btn');
+    const eventListView = document.querySelector('.event-list-view');
+    const eventCalendarView = document.querySelector('.event-calendar-view');
+    
+    if (eventViewButtons.length && eventListView && eventCalendarView) {
+      eventViewButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          // Retirer la classe active de tous les boutons
+          eventViewButtons.forEach(btn => btn.classList.remove('active'));
+          // Ajouter la classe active au bouton cliqué
+          this.classList.add('active');
+          
+          const viewType = this.getAttribute('data-view');
+          if (viewType === 'list') {
+            eventListView.classList.remove('d-none');
+            eventCalendarView.classList.add('d-none');
+          } else if (viewType === 'calendar') {
+            eventListView.classList.add('d-none');
+            eventCalendarView.classList.remove('d-none');
+            initializeCalendar();
+          }
+        });
+      });
+    }
+    
+    // Initialisation du calendrier simple
+    function initializeCalendar() {
+      const calendarContainer = document.getElementById('club-events-calendar');
+      if (!calendarContainer) return;
+      
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
+      // Récupérer les données des événements
+      const events = [];
+      {% if upcoming_events %}
+      {% for event in upcoming_events %}
+      events.push({
+        id: '{{ event.id }}',
+        title: '{{ event.title }}',
+        date: new Date('{{ event.start_date|date:"Y-m-d" }}'),
+        url: '{% url "competitions:events:event_detail" event.id %}'
+      });
+      {% endfor %}
+      {% endif %}
+      
+      renderCalendar(calendarContainer, currentMonth, currentYear, events);
+    }
+    
+    function renderCalendar(container, month, year, events) {
+      const today = new Date();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const daysInMonth = lastDay.getDate();
+      const startingDay = firstDay.getDay(); // 0 = Dimanche, 1 = Lundi, etc.
+      
+      // Créer l'en-tête du calendrier
+      const header = document.createElement('div');
+      header.className = 'calendar-header';
+      
+      const prevButton = document.createElement('button');
+      prevButton.className = 'btn btn-sm btn-outline-secondary';
+      prevButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
+      prevButton.addEventListener('click', () => {
+        let newMonth = month - 1;
+        let newYear = year;
+        if (newMonth < 0) {
+          newMonth = 11;
+          newYear--;
+        }
+        container.innerHTML = '';
+        renderCalendar(container, newMonth, newYear, events);
+      });
+      
+      const monthTitle = document.createElement('h5');
+      monthTitle.className = 'mb-0';
+      const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+      monthTitle.textContent = `${monthNames[month]} ${year}`;
+      
+      const nextButton = document.createElement('button');
+      nextButton.className = 'btn btn-sm btn-outline-secondary';
+      nextButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
+      nextButton.addEventListener('click', () => {
+        let newMonth = month + 1;
+        let newYear = year;
+        if (newMonth > 11) {
+          newMonth = 0;
+          newYear++;
+        }
+        container.innerHTML = '';
+        renderCalendar(container, newMonth, newYear, events);
+      });
+      
+      header.appendChild(prevButton);
+      header.appendChild(monthTitle);
+      header.appendChild(nextButton);
+      container.appendChild(header);
+      
+      // Créer la grille des jours de la semaine
+      const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+      const daysHeader = document.createElement('div');
+      daysHeader.className = 'calendar-grid mb-2';
+      
+      dayNames.forEach(day => {
+        const dayHeader = document.createElement('div');
+        dayHeader.className = 'text-center small text-muted font-weight-bold';
+        dayHeader.textContent = day;
+        daysHeader.appendChild(dayHeader);
+      });
+      
+      container.appendChild(daysHeader);
+      
+      // Créer la grille du calendrier
+      const calendarGrid = document.createElement('div');
+      calendarGrid.className = 'calendar-grid';
+      
+      // Ajouter les jours vides du début du mois
+      for (let i = 0; i < startingDay; i++) {
+        const emptyDay = document.createElement('div');
+        emptyDay.className = 'calendar-day empty';
+        calendarGrid.appendChild(emptyDay);
+      }
+      
+      // Ajouter les jours du mois
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const calendarDay = document.createElement('div');
+        calendarDay.className = 'calendar-day';
+        calendarDay.textContent = day;
+        
+        // Vérifier si c'est aujourd'hui
+        if (date.getDate() === today.getDate() && 
+            date.getMonth() === today.getMonth() && 
+            date.getFullYear() === today.getFullYear()) {
+          calendarDay.classList.add('today');
+        }
+        
+        // Vérifier s'il y a des événements ce jour-là
+        const dayEvents = events.filter(event => 
+          event.date.getDate() === day && 
+          event.date.getMonth() === month && 
+          event.date.getFullYear() === year
+        );
+        
+        if (dayEvents.length > 0) {
+          calendarDay.classList.add('has-event');
+          
+          // Ajouter un indicateur d'événement
+          const indicator = document.createElement('div');
+          indicator.className = 'event-indicator';
+          calendarDay.appendChild(indicator);
+          
+          // Ajouter un tooltip avec les événements
+          if (typeof bootstrap !== 'undefined') {
+            calendarDay.setAttribute('data-bs-toggle', 'tooltip');
+            calendarDay.setAttribute('data-bs-html', 'true');
+            calendarDay.setAttribute('title', dayEvents.map(e => e.title).join('<br>'));
+            new bootstrap.Tooltip(calendarDay);
+          }
+          
+          // Ajouter un événement de clic pour afficher les détails
+          calendarDay.addEventListener('click', () => {
+            if (dayEvents.length === 1) {
+              window.location.href = dayEvents[0].url;
+            } else {
+              // TODO: Afficher une liste d'événements pour ce jour
+              alert(`${dayEvents.length} événements pour le ${day}/${month + 1}/${year}`);
+            }
+          });
+        }
+        
+        calendarGrid.appendChild(calendarDay);
+      }
+      
+      container.appendChild(calendarGrid);
+    }
+  });
+</script>
+{% endblock %}
+{% endblock %}

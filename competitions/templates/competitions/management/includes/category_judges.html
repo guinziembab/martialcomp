@@ -1,0 +1,159 @@
+{% comment %}
+Liste des juges assignés à une catégorie.
+Ce template partiel est inclus dans judge_schedule.html.
+{% endcomment %}
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-gavel me-2"></i>{{ category.name }}
+        </h5>
+        {% if perms.competitions.add_judgeassignment %}
+            <button class="btn btn-sm btn-primary add-judge-btn" 
+                    data-bs-toggle="modal" 
+                    data-bs-target="#assignJudgeModal"
+                    data-category-id="{{ category.id }}">
+                <i class="fas fa-plus me-2"></i>{% trans "Ajouter un juge" %}
+            </button>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <div class="mb-3">
+            <span class="badge bg-info me-2">{{ category.competition_type.name }}</span>
+            {% if category.start_time and category.end_time %}
+                <span class="badge bg-secondary">
+                    <i class="far fa-clock me-1"></i>
+                    {{ category.start_time|date:"H:i" }} - {{ category.end_time|date:"H:i" }}
+                </span>
+            {% endif %}
+            <span class="badge bg-light text-dark">
+                <i class="fas fa-users me-1"></i>{{ category.registrations.count }} {% trans "participants" %}
+            </span>
+        </div>
+        
+        {% if judges %}
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "Juge" %}</th>
+                            <th>{% trans "Rôle" %}</th>
+                            <th>{% trans "Tatami" %}</th>
+                            <th>{% trans "Statut" %}</th>
+                            <th class="text-end">{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for assignment in judges %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if assignment.registration.practitioner.photo %}
+                                            <img src="{{ assignment.registration.practitioner.photo.url }}" 
+                                                 alt="{{ assignment.registration.practitioner.full_name }}" 
+                                                 class="rounded-circle me-2" width="30" height="30">
+                                        {% else %}
+                                            <div class="rounded-circle bg-secondary text-white d-flex justify-content-center align-items-center me-2" 
+                                                 style="width: 30px; height: 30px;">
+                                                <i class="fas fa-user"></i>
+                                            </div>
+                                        {% endif %}
+                                        <div>
+                                            <div class="fw-bold">{{ assignment.registration.practitioner.full_name }}</div>
+                                            <div class="small text-muted">
+                                                {% if assignment.registration.practitioner.club %}
+                                                    {{ assignment.registration.practitioner.club.name }}
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if assignment.assignment_type == 'technical_judge' %}
+                                        <span class="badge bg-info">{% trans "Juge Technique" %}</span>
+                                    {% elif assignment.assignment_type == 'combat_referee' %}
+                                        <span class="badge bg-danger">{% trans "Arbitre Combat" %}</span>
+                                    {% elif assignment.assignment_type == 'chief_judge' %}
+                                        <span class="badge bg-primary">{% trans "Juge en Chef" %}</span>
+                                    {% elif assignment.assignment_type == 'timekeeper' %}
+                                        <span class="badge bg-warning text-dark">{% trans "Chronométreur" %}</span>
+                                    {% elif assignment.assignment_type == 'scorekeeper' %}
+                                        <span class="badge bg-secondary">{% trans "Marqueur" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if assignment.tatami %}
+                                        <span class="badge bg-success">
+                                            {% trans "Tatami" %} {{ assignment.tatami }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if assignment.status == 'pending' %}
+                                        <span class="badge bg-warning text-dark">{% trans "En attente" %}</span>
+                                    {% elif assignment.status == 'confirmed' %}
+                                        <span class="badge bg-success">{% trans "Confirmé" %}</span>
+                                    {% elif assignment.status == 'declined' %}
+                                        <span class="badge bg-danger">{% trans "Refusé" %}</span>
+                                    {% elif assignment.status == 'completed' %}
+                                        <span class="badge bg-secondary">{% trans "Terminé" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        {% if perms.competitions.change_judgeassignment %}
+                                            <a href="{% url 'competitions:judge:edit_assignment' assignment.id %}" class="btn btn-outline-primary">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                        {% endif %}
+                                        
+                                        {% if assignment.status == 'pending' %}
+                                            <form method="POST" action="{% url 'competitions:judge:update_assignment_status' assignment.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="status" value="confirmed">
+                                                <button type="submit" class="btn btn-outline-success">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                            </form>
+                                            
+                                            <form method="POST" action="{% url 'competitions:judge:update_assignment_status' assignment.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="status" value="declined">
+                                                <button type="submit" class="btn btn-outline-danger">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                        
+                                        {% if perms.competitions.delete_judgeassignment %}
+                                            <button type="button" class="btn btn-outline-danger delete-assignment-btn"
+                                                    data-bs-toggle="modal" data-bs-target="#deleteAssignmentModal"
+                                                    data-assignment-id="{{ assignment.id }}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info mb-0">
+                <i class="fas fa-info-circle me-2"></i>
+                {% trans "Aucun juge n'a encore été assigné à cette catégorie." %}
+                {% if perms.competitions.add_judgeassignment %}
+                    <a href="#" class="alert-link add-judge-btn" 
+                       data-bs-toggle="modal" 
+                       data-bs-target="#assignJudgeModal"
+                       data-category-id="{{ category.id }}">
+                        {% trans "Ajouter un juge" %}
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>

@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{{ family.family_name }} - {% trans "Détails de la famille" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .family-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .member-card {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: all 0.2s;
+    }
+    
+    .member-card:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-color: #007bff;
+    }
+    
+    .member-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: #007bff;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
+    
+    .role-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+    }
+    
+    .role-parent { background: #d4edda; color: #155724; }
+    .role-child { background: #cce5ff; color: #0066cc; }
+    .role-guardian { background: #fff3cd; color: #856404; }
+    .role-spouse { background: #f8d7da; color: #721c24; }
+    
+    .quick-action-card {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+    
+    .quick-action-card:hover {
+        background: #f8f9fa;
+        border-color: #007bff;
+        transform: translateY(-2px);
+    }
+    
+    .stats-widget {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+    }
+    
+    .event-preview {
+        background: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+        border-radius: 0 4px 4px 0;
+    }
+    
+    .payment-preview {
+        background: #fff3e0;
+        border-left: 4px solid #ff9800;
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+        border-radius: 0 4px 4px 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- En-tête familial -->
+    <div class="family-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1 class="h2 mb-2">
+                    <i class="fas fa-home me-3"></i>
+                    {{ family.family_name }}
+                </h1>
+                <p class="mb-0 opacity-75">
+                    <i class="fas fa-user me-2"></i>
+                    {% trans "Responsable:" %} {{ family.primary_responsible.get_full_name }}
+                    <span class="mx-3">•</span>
+                    <i class="fas fa-calendar me-2"></i>
+                    {% trans "Créée le" %} {{ family.created_at|date:"d/m/Y" }}
+                    {% if family.organization %}
+                        <span class="mx-3">•</span>
+                        <i class="fas fa-building me-2"></i>
+                        {{ family.organization.name }}
+                    {% endif %}
+                </p>
+            </div>
+            <div class="col-md-4 text-end">
+                {% if can_manage %}
+                <div class="btn-group">
+                    <button class="btn btn-light" data-bs-toggle="dropdown">
+                        <i class="fas fa-cog me-2"></i>{% trans "Gérer" %}
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'family_management:family_members' family.id %}">
+                            <i class="fas fa-users me-2"></i>{% trans "Gérer les membres" %}
+                        </a></li>
+                        <li><a class="dropdown-item" href="#">
+                            <i class="fas fa-edit me-2"></i>{% trans "Modifier la famille" %}
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'family_management:export_family_data' family.id %}">
+                            <i class="fas fa-download me-2"></i>{% trans "Exporter les données" %}
+                        </a></li>
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Statistiques rapides -->
+        <div class="row mt-3">
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h4 class="mb-0">{{ stats.total_members }}</h4>
+                    <small class="opacity-75">{% trans "Membres" %}</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h4 class="mb-0">{{ stats.total_practitioners }}</h4>
+                    <small class="opacity-75">{% trans "Pratiquants" %}</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h4 class="mb-0">{{ stats.upcoming_events }}</h4>
+                    <small class="opacity-75">{% trans "Événements à venir" %}</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <h4 class="mb-0">{{ stats.pending_payments }}</h4>
+                    <small class="opacity-75">{% trans "Paiements en attente" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Colonne principale - Membres -->
+        <div class="col-lg-8">
+            <!-- Actions rapides -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <a href="{% url 'family_management:group_registration' family.id %}" class="text-decoration-none">
+                        <div class="quick-action-card">
+                            <i class="fas fa-users-cog fa-2x text-primary mb-2"></i>
+                            <h6>{% trans "Inscriptions groupées" %}</h6>
+                            <small class="text-muted">{% trans "Inscrire plusieurs membres" %}</small>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="{% url 'family_management:payment_center' family.id %}" class="text-decoration-none">
+                        <div class="quick-action-card">
+                            <i class="fas fa-credit-card fa-2x text-success mb-2"></i>
+                            <h6>{% trans "Paiements" %}</h6>
+                            <small class="text-muted">{% trans "Gérer les factures" %}</small>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="{% url 'family_management:family_calendar' family.id %}" class="text-decoration-none">
+                        <div class="quick-action-card">
+                            <i class="fas fa-calendar-alt fa-2x text-info mb-2"></i>
+                            <h6>{% trans "Calendrier" %}</h6>
+                            <small class="text-muted">{% trans "Événements familiaux" %}</small>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="{% url 'family_management:family_statistics' family.id %}" class="text-decoration-none">
+                        <div class="quick-action-card">
+                            <i class="fas fa-chart-bar fa-2x text-warning mb-2"></i>
+                            <h6>{% trans "Statistiques" %}</h6>
+                            <small class="text-muted">{% trans "Rapports détaillés" %}</small>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Liste des membres -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-users me-2"></i>
+                        {% trans "Membres de la famille" %} ({{ members.count }})
+                    </h5>
+                    {% if can_manage %}
+                    <a href="{% url 'family_management:family_members' family.id %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus me-1"></i>{% trans "Ajouter un membre" %}
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if members %}
+                        {% for member in members %}
+                        <div class="member-card">
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <div class="member-avatar">
+                                        {{ member.get_display_name|first|upper }}
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <h6 class="mb-1">
+                                        {{ member.get_display_name }}
+                                        <span class="role-badge role-{{ member.role }}">
+                                            {{ member.get_role_display }}
+                                        </span>
+                                        {% if member.user == family.primary_responsible %}
+                                            <span class="badge bg-warning text-dark">
+                                                <i class="fas fa-crown me-1"></i>{% trans "Responsable" %}
+                                            </span>
+                                        {% endif %}
+                                    </h6>
+                                    
+                                    {% if member.practitioner %}
+                                        <p class="text-muted small mb-1">
+                                            <i class="fas fa-karate me-1"></i>
+                                            {% trans "Pratiquant" %} - {{ member.practitioner.age }} ans
+                                            {% if member.practitioner.primary_discipline %}
+                                                <span class="mx-2">•</span>
+                                                {{ member.practitioner.primary_discipline.name }}
+                                            {% endif %}
+                                            {% if member.practitioner.grade_display %}
+                                                <span class="mx-2">•</span>
+                                                {{ member.practitioner.grade_display }}
+                                            {% endif %}
+                                        </p>
+                                    {% endif %}
+                                    
+                                    <!-- Permissions -->
+                                    {% if member.can_manage_others or member.can_make_payments %}
+                                    <div class="mb-1">
+                                        {% if member.can_manage_others %}
+                                            <span class="badge bg-primary">{% trans "Gestion" %}</span>
+                                        {% endif %}
+                                        {% if member.can_make_payments %}
+                                            <span class="badge bg-success">{% trans "Paiements" %}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-auto">
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            {% if member.practitioner %}
+                                            <li><a class="dropdown-item" href="#">
+                                                <i class="fas fa-user me-2"></i>{% trans "Voir le profil" %}
+                                            </a></li>
+                                            {% endif %}
+                                            {% if can_manage %}
+                                            <li><a class="dropdown-item" href="#">
+                                                <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                            </a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item text-danger" href="#">
+                                                <i class="fas fa-trash me-2"></i>{% trans "Retirer de la famille" %}
+                                            </a></li>
+                                            {% endif %}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-user-plus fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">{% trans "Aucun membre" %}</h5>
+                            <p class="text-muted">{% trans "Ajoutez des membres à cette famille." %}</p>
+                            {% if can_manage %}
+                            <a href="{% url 'family_management:family_members' family.id %}" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>{% trans "Ajouter le premier membre" %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Colonne latérale - Événements et paiements -->
+        <div class="col-lg-4">
+            <!-- Événements à venir -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-calendar me-2 text-primary"></i>
+                        {% trans "Événements à venir" %}
+                    </h6>
+                    <a href="{% url 'family_management:event_management' family.id %}" class="btn btn-sm btn-outline-primary">
+                        {% trans "Voir tout" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if upcoming_events %}
+                        {% for event in upcoming_events %}
+                        <div class="event-preview">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">{{ event.title }}</h6>
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock me-1"></i>
+                                        {{ event.start_date|date:"d/m/Y H:i" }}
+                                    </small>
+                                </div>
+                                <span class="badge bg-primary">{{ event.concerned_members.count }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-3">
+                            <i class="fas fa-calendar-times fa-2x text-muted mb-2"></i>
+                            <p class="text-muted small">{% trans "Aucun événement à venir" %}</p>
+                            <a href="{% url 'family_management:event_management' family.id %}" class="btn btn-sm btn-outline-primary">
+                                {% trans "Créer un événement" %}
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Paiements en attente -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-credit-card me-2 text-warning"></i>
+                        {% trans "Paiements en attente" %}
+                    </h6>
+                    <a href="{% url 'family_management:payment_center' family.id %}" class="btn btn-sm btn-outline-warning">
+                        {% trans "Voir tout" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if pending_payments %}
+                        {% for payment in pending_payments %}
+                        <div class="payment-preview">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">{{ payment.description }}</h6>
+                                    <small class="text-muted">{{ payment.created_at|date:"d/m/Y" }}</small>
+                                </div>
+                                <strong class="text-warning">{{ payment.total_amount }}€</strong>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
+                        {% if pending_payments.count > 3 %}
+                        <div class="text-center mt-2">
+                            <small class="text-muted">
+                                +{{ pending_payments.count|add:"-3" }} {% trans "autres paiements" %}
+                            </small>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center py-3">
+                            <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                            <p class="text-muted small">{% trans "Aucun paiement en attente" %}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Informations de contact -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2 text-info"></i>
+                        {% trans "Informations de contact" %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if family.billing_email %}
+                    <p class="mb-2">
+                        <i class="fas fa-envelope me-2 text-muted"></i>
+                        <a href="mailto:{{ family.billing_email }}">{{ family.billing_email }}</a>
+                    </p>
+                    {% endif %}
+                    
+                    {% if family.billing_phone %}
+                    <p class="mb-2">
+                        <i class="fas fa-phone me-2 text-muted"></i>
+                        <a href="tel:{{ family.billing_phone }}">{{ family.billing_phone }}</a>
+                    </p>
+                    {% endif %}
+                    
+                    {% if family.billing_address %}
+                    <p class="mb-0">
+                        <i class="fas fa-map-marker-alt me-2 text-muted"></i>
+                        {{ family.billing_address|linebreaksbr }}
+                    </p>
+                    {% endif %}
+                    
+                    {% if not family.billing_email and not family.billing_phone and not family.billing_address %}
+                    <div class="text-center py-2">
+                        <small class="text-muted">{% trans "Aucune information de contact" %}</small>
+                        {% if can_manage %}
+                        <br><a href="#" class="btn btn-sm btn-outline-primary mt-2">
+                            {% trans "Ajouter des informations" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Fonctions pour les actions rapides
+function quickRegistration() {
+    window.location.href = '{% url "family_management:group_registration" family.id %}';
+}
+
+function quickPayment() {
+    window.location.href = '{% url "family_management:payment_center" family.id %}';
+}
+
+function quickCalendar() {
+    window.location.href = '{% url "family_management:family_calendar" family.id %}';
+}
+
+function quickStats() {
+    window.location.href = '{% url "family_management:family_statistics" family.id %}';
+}
+</script>
+{% endblock %}

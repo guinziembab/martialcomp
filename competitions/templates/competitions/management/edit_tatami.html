@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Modifier le tatami" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .color-preview {
+        width: 30px;
+        height: 30px;
+        display: inline-block;
+        margin-right: 10px;
+        border-radius: 4px;
+        border: 1px solid #ced4da;
+    }
+    .form-header {
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .field-info {
+        color: #6c757d;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>{% trans "Modifier le tatami" %}</h1>
+            <p class="lead">{{ tatami.name }}</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'competitions:management:schedule_overview' competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "Retour au planning" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                            <p>{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Informations de base -->
+                        <div class="form-header">
+                            <h2>{% trans "Informations du tatami" %}</h2>
+                            <p>{% trans "Configurez les détails du tatami." %}</p>
+                        </div>
+                        
+                        <div class="form-group mb-4">
+                            <label for="{{ form.name.id_for_label }}" class="form-label">{% trans "Nom du tatami" %}</label>
+                            {{ form.name.errors }}
+                            {{ form.name }}
+                            {% if form.name.help_text %}
+                            <div class="field-info">{{ form.name.help_text }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group mb-4">
+                            <label for="{{ form.tatami_number.id_for_label }}" class="form-label">{% trans "Numéro du tatami" %}</label>
+                            {{ form.tatami_number.errors }}
+                            {{ form.tatami_number }}
+                            {% if form.tatami_number.help_text %}
+                            <div class="field-info">{{ form.tatami_number.help_text }}</div>
+                            {% else %}
+                            <div class="field-info">{% trans "Le numéro du tatami est utilisé pour l'ordre d'affichage." %}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Paramètres d'affichage -->
+                        <div class="form-header mt-5">
+                            <h2>{% trans "Paramètres d'affichage" %}</h2>
+                            <p>{% trans "Personnalisez l'apparence du tatami dans le planning." %}</p>
+                        </div>
+                        
+                        {% if form.color_code %}
+                        <div class="form-group mb-4">
+                            <label for="{{ form.color_code.id_for_label }}" class="form-label">{% trans "Couleur" %}</label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">
+                                        <div class="color-preview" id="colorPreview" style="background-color: {{ form.color_code.value|default:'#dc3545' }};"></div>
+                                    </span>
+                                </div>
+                                {{ form.color_code.errors }}
+                                {{ form.color_code }}
+                            </div>
+                            {% if form.color_code.help_text %}
+                            <div class="field-info">{{ form.color_code.help_text }}</div>
+                            {% else %}
+                            <div class="field-info">{% trans "Code couleur hexadécimal (ex: #FF0000 pour rouge)." %}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Description et notes -->
+                        <div class="form-header mt-5">
+                            <h2>{% trans "Description et notes" %}</h2>
+                        </div>
+                        
+                        {% if form.description %}
+                        <div class="form-group mb-4">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">{% trans "Description" %}</label>
+                            {{ form.description.errors }}
+                            {{ form.description }}
+                            {% if form.description.help_text %}
+                            <div class="field-info">{{ form.description.help_text }}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if form.notes %}
+                        <div class="form-group mb-4">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">{% trans "Notes" %}</label>
+                            {{ form.notes.errors }}
+                            {{ form.notes }}
+                            {% if form.notes.help_text %}
+                            <div class="field-info">{{ form.notes.help_text }}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Options supplémentaires -->
+                        <div class="form-header mt-5">
+                            <h2>{% trans "Options supplémentaires" %}</h2>
+                        </div>
+                        
+                        {% if form.is_active %}
+                        <div class="form-check mb-3">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                {% trans "Tatami actif" %}
+                            </label>
+                            {% if form.is_active.help_text %}
+                            <div class="field-info">{{ form.is_active.help_text }}</div>
+                            {% else %}
+                            <div class="field-info">{% trans "Décochez cette case pour désactiver temporairement ce tatami sans le supprimer." %}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Boutons d'action -->
+                        <div class="form-actions d-flex justify-content-between mt-5">
+                            <a href="{% url 'competitions:management:schedule_overview' competition.id %}" class="btn btn-outline-secondary">
+                                {% trans "Annuler" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> {% trans "Enregistrer les modifications" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Informations sur le tatami -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Informations" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        {% if tatami.color_code %}
+                        <div class="color-preview" style="background-color: {{ tatami.color_code }};"></div>
+                        {% else %}
+                        <div class="color-preview" style="background-color: #dc3545;"></div>
+                        {% endif %}
+                        <h6 class="mb-0">{{ tatami.name }}</h6>
+                    </div>
+                    
+                    <p><strong>{% trans "Numéro:" %}</strong> {{ tatami.tatami_number }}</p>
+                    
+                    {% with category_count=tatami.category_schedules.count %}
+                    <p><strong>{% trans "Catégories affectées:" %}</strong> {{ category_count }}</p>
+                    {% endwith %}
+                    
+                    {% if tatami.description %}
+                    <p><strong>{% trans "Description:" %}</strong> {{ tatami.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Catégories sur ce tatami -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Catégories planifiées" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% with categories=tatami.category_schedules.all %}
+                    {% if categories %}
+                    <ul class="list-group">
+                        {% for category_schedule in categories %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    {{ category_schedule.category.name }}
+                                    {% if category_schedule.estimated_start_time %}
+                                    <br><small class="text-muted">{{ category_schedule.estimated_start_time|time:"H:i" }}</small>
+                                    {% endif %}
+                                </div>
+                                <span class="badge bg-secondary rounded-pill">{{ category_schedule.order }}</span>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div class="alert alert-light">
+                        {% trans "Aucune catégorie n'est planifiée sur ce tatami pour le moment." %}
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Script pour mettre à jour l'aperçu de la couleur en temps réel
+    document.addEventListener('DOMContentLoaded', function() {
+        // Ajouter des classes Bootstrap aux champs de formulaire
+        var formControls = document.querySelectorAll('input, select, textarea');
+        formControls.forEach(function(element) {
+            if (!element.classList.contains('form-control') && 
+                !element.classList.contains('form-select') && 
+                !element.classList.contains('form-check-input')) {
+                if (element.tagName === 'SELECT') {
+                    element.classList.add('form-select');
+                } else if (element.type === 'checkbox' || element.type === 'radio') {
+                    element.classList.add('form-check-input');
+                } else {
+                    element.classList.add('form-control');
+                }
+            }
+        });
+
+        // Mise à jour de l'aperçu de la couleur
+        var colorInput = document.getElementById('{{ form.color_code.id_for_label }}');
+        var colorPreview = document.getElementById('colorPreview');
+
+        if (colorInput && colorPreview) {
+            colorInput.addEventListener('input', function() {
+                colorPreview.style.backgroundColor = colorInput.value;
+            });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Retirer un grade" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .revoke-form-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .revoke-form-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    .revoke-form-header h1 {
+        color: #dc3545;
+        font-size: 1.8rem;
+        font-weight: 600;
+    }
+    
+    .revoke-warning {
+        background-color: #fff5f5;
+        border-left: 4px solid #dc3545;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        border-radius: 0.25rem;
+    }
+    
+    .revoke-warning i {
+        color: #dc3545;
+        margin-right: 0.5rem;
+    }
+    
+    .grade-info {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .grade-info-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .grade-label {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+    
+    .grade-value {
+        margin-bottom: 1rem;
+    }
+    
+    .revoke-reason {
+        margin-top: 1.5rem;
+    }
+    
+    .action-buttons {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 2rem;
+    }
+    
+    .confirm-checkbox {
+        margin-top: 1.5rem;
+        padding: 1rem;
+        background-color: #fff5f5;
+        border-radius: 0.25rem;
+    }
+    
+    @media (max-width: 768px) {
+        .revoke-form-container {
+            padding: 1.5rem;
+        }
+        
+        .action-buttons {
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .action-buttons .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="revoke-form-container">
+        <div class="revoke-form-header">
+            <h1>
+                <i class="fas fa-ban me-2"></i>
+                {% trans "Retirer un grade" %}
+            </h1>
+            <p class="text-muted">
+                {% trans "Cette action retirera le grade du pratiquant et mettra à jour son historique." %}
+            </p>
+        </div>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <div class="revoke-warning">
+            <p class="mb-0">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>{% trans "Attention" %} :</strong> 
+                {% trans "Retirer un grade est une action importante qui doit être effectuée avec précaution. Cette action sera enregistrée dans l'historique du pratiquant." %}
+            </p>
+        </div>
+        
+        <div class="grade-info">
+            <h5 class="grade-info-title">{% trans "Informations sur le grade" %}</h5>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="grade-label">{% trans "Pratiquant" %}</p>
+                    <p class="grade-value">{{ grade.practitioner.full_name }}</p>
+                </div>
+                
+                <div class="col-md-6">
+                    <p class="grade-label">{% trans "Discipline" %}</p>
+                    <p class="grade-value">{{ grade.discipline.name }}</p>
+                </div>
+                
+                <div class="col-md-6">
+                    <p class="grade-label">{% trans "Grade" %}</p>
+                    <p class="grade-value">
+                        <span class="badge bg-secondary" 
+                              {% if grade.grade.color_code %}style="background-color: {{ grade.grade.color_code }} !important;"{% endif %}>
+                            {{ grade.grade.name }}
+                        </span>
+                    </p>
+                </div>
+                
+                <div class="col-md-6">
+                    <p class="grade-label">{% trans "Date d'obtention" %}</p>
+                    <p class="grade-value">{{ grade.date_obtained|date:"d/m/Y" }}</p>
+                </div>
+                
+                {% if grade.awarded_by %}
+                    <div class="col-md-6">
+                        <p class="grade-label">{% trans "Décerné par" %}</p>
+                        <p class="grade-value">{{ grade.awarded_by }}</p>
+                    </div>
+                {% endif %}
+                
+                {% if grade.location %}
+                    <div class="col-md-6">
+                        <p class="grade-label">{% trans "Lieu d'obtention" %}</p>
+                        <p class="grade-value">{{ grade.location }}</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <form method="post" id="revokeGradeForm">
+            {% csrf_token %}
+            
+            <div class="revoke-reason">
+                <label for="revoke_reason" class="form-label">
+                    <strong>{% trans "Raison du retrait" %}</strong> <span class="text-danger">*</span>
+                </label>
+                <textarea class="form-control" id="revoke_reason" name="revoke_reason" rows="4" required></textarea>
+                <small class="form-text text-muted">
+                    {% trans "Veuillez indiquer la raison pour laquelle ce grade est retiré." %}
+                </small>
+            </div>
+            
+            <div class="confirm-checkbox">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="confirm_revoke" name="confirm_revoke" required>
+                    <label class="form-check-label" for="confirm_revoke">
+                        <strong>{% trans "Je confirme vouloir retirer ce grade" %}</strong>
+                        <span class="text-danger">*</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group mt-4">
+                <label for="set_previous_grade" class="form-label">
+                    <strong>{% trans "Rétablir le grade précédent comme grade actuel" %}</strong>
+                </label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="set_previous_grade" name="set_previous_grade" checked>
+                    <label class="form-check-label" for="set_previous_grade">
+                        {% trans "Rétablir automatiquement le grade précédent comme grade actuel du pratiquant" %}
+                    </label>
+                </div>
+                <small class="form-text text-muted">
+                    {% trans "Si coché, le système attribuera automatiquement le grade précédent comme grade actuel du pratiquant." %}
+                </small>
+            </div>
+            
+            <div class="action-buttons">
+                <a href="{% url 'grades:practitioner_history' practitioner_id=grade.practitioner.id %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>
+                    {% trans "Annuler" %}
+                </a>
+                
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-ban me-2"></i>
+                    {% trans "Confirmer le retrait du grade" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Validation du formulaire
+        const form = document.getElementById('revokeGradeForm');
+        
+        form.addEventListener('submit', function(e) {
+            const reason = document.getElementById('revoke_reason').value.trim();
+            const confirmed = document.getElementById('confirm_revoke').checked;
+            
+            if (!reason) {
+                e.preventDefault();
+                alert("{% trans 'Veuillez indiquer la raison du retrait du grade.' %}");
+                return false;
+            }
+            
+            if (!confirmed) {
+                e.preventDefault();
+                alert("{% trans 'Veuillez confirmer le retrait du grade en cochant la case correspondante.' %}");
+                return false;
+            }
+            
+            // Double confirmation avec une boîte de dialogue
+            if (!confirm("{% trans "Êtes-vous vraiment sûr de vouloir retirer ce grade ? Cette action sera enregistrée dans l'historique du pratiquant." %}")) {
+                e.preventDefault();
+                return false;
+            }
+            
+            return true;
+        });
+    });
+</script>
+{% endblock %}

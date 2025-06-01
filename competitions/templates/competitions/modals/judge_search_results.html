@@ -1,0 +1,309 @@
+{% comment %}
+Modale pour afficher les résultats de recherche de juges.
+Utilisé avec la fonction judge_search.
+{% endcomment %}
+
+<div class="modal fade" id="judgeSearchModal" tabindex="-1" aria-labelledby="judgeSearchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="judgeSearchModalLabel">
+                    <i class="fas fa-search me-2"></i>{% trans "Recherche de juges" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Fermer' %}"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Formulaire de recherche -->
+                <form id="judgeSearchForm" class="mb-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="searchQuery" class="form-label">{% trans "Recherche" %}</label>
+                            <input type="text" class="form-control" id="searchQuery" placeholder="{% trans 'Nom, prénom, club...' %}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="searchDiscipline" class="form-label">{% trans "Discipline" %}</label>
+                            <select class="form-select" id="searchDiscipline">
+                                <option value="">{% trans "Toutes les disciplines" %}</option>
+                                {% for discipline in disciplines %}
+                                    <option value="{{ discipline.id }}">{{ discipline.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="searchQualification" class="form-label">{% trans "Type de qualification" %}</label>
+                            <select class="form-select" id="searchQualification">
+                                <option value="">{% trans "Tous les types" %}</option>
+                                <option value="technical_judge">{% trans "Juge Technique" %}</option>
+                                <option value="combat_referee">{% trans "Arbitre Combat" %}</option>
+                                <option value="chief_judge">{% trans "Juge en Chef" %}</option>
+                                <option value="timekeeper">{% trans "Chronométreur" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="searchAvailability" class="form-label">{% trans "Disponibilité" %}</label>
+                            <select class="form-select" id="searchAvailability">
+                                <option value="">{% trans "Tous les juges" %}</option>
+                                <option value="true">{% trans "Disponibles uniquement" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="text-center mt-3">
+                        <button type="button" id="searchJudgesBtn" class="btn btn-primary">
+                            <i class="fas fa-search me-2"></i>{% trans "Rechercher" %}
+                        </button>
+                    </div>
+                </form>
+                
+                <!-- Résultats de recherche -->
+                <div id="searchResults">
+                    <div class="d-flex justify-content-center mb-4" id="searchLoading" style="display: none !important;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">{% trans "Chargement..." %}</span>
+                        </div>
+                    </div>
+                    
+                    <div id="resultsContainer">
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-search fa-3x mb-3"></i>
+                            <p>{% trans "Lancez une recherche pour trouver des juges" %}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>{% trans "Fermer" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Template pour les résultats de recherche -->
+<template id="judgeResultTemplate">
+    <div class="card shadow-hover mb-3 judge-result">
+        <div class="card-body">
+            <div class="d-flex justify-content-between">
+                <div class="d-flex">
+                    <div class="judge-avatar me-3">
+                        <!-- L'image sera injectée ici -->
+                    </div>
+                    <div>
+                        <h5 class="mb-1 judge-name"></h5>
+                        <div class="d-flex mb-2">
+                            <span class="badge bg-secondary me-2 judge-level"></span>
+                            <span class="badge bg-info judge-type"></span>
+                        </div>
+                        <div class="small text-muted judge-info"></div>
+                    </div>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-primary select-judge-btn">
+                        <i class="fas fa-plus me-2"></i>{% trans "Sélectionner" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Éléments DOM
+        const searchForm = document.getElementById('judgeSearchForm');
+        const searchBtn = document.getElementById('searchJudgesBtn');
+        const searchLoading = document.getElementById('searchLoading');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const judgeModal = document.getElementById('judgeSearchModal');
+        
+        let selectedCategoryId = null;
+        let selectedAssignmentType = null;
+        
+        // Gérer l'ouverture de la modale
+        if (judgeModal) {
+            judgeModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                selectedCategoryId = button.getAttribute('data-category-id');
+                selectedAssignmentType = button.getAttribute('data-assignment-type');
+                
+                // Réinitialiser les résultats
+                resultsContainer.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-search fa-3x mb-3"></i>
+                        <p>{% trans "Lancez une recherche pour trouver des juges" %}</p>
+                    </div>
+                `;
+                
+                // Présélectionner le type d'assignation si défini
+                if (selectedAssignmentType) {
+                    const qualificationSelect = document.getElementById('searchQualification');
+                    if (qualificationSelect) {
+                        qualificationSelect.value = selectedAssignmentType;
+                    }
+                }
+            });
+        }
+        
+        // Recherche des juges
+        if (searchBtn) {
+            searchBtn.addEventListener('click', function() {
+                // Afficher le spinner
+                searchLoading.style.display = 'flex';
+                
+                // Récupérer les valeurs du formulaire
+                const searchQuery = document.getElementById('searchQuery').value;
+                const discipline = document.getElementById('searchDiscipline').value;
+                const qualification = document.getElementById('searchQualification').value;
+                const availability = document.getElementById('searchAvailability').value;
+                
+                // Construire les paramètres de recherche
+                const params = new URLSearchParams();
+                if (searchQuery) params.append('q', searchQuery);
+                if (discipline) params.append('discipline', discipline);
+                if (qualification) params.append('qualification_type', qualification);
+                if (availability) params.append('available', availability);
+                if (selectedCategoryId) params.append('category_id', selectedCategoryId);
+                
+                // Effectuer la requête AJAX
+                fetch(`/competitions/judge/search/?${params.toString()}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // Masquer le spinner
+                        searchLoading.style.display = 'none';
+                        
+                        // Vider les résultats précédents
+                        resultsContainer.innerHTML = '';
+                        
+                        if (data.judges && data.judges.length > 0) {
+                            // Récupérer le template
+                            const template = document.getElementById('judgeResultTemplate');
+                            
+                            // Afficher les résultats
+                            data.judges.forEach(judge => {
+                                // Cloner le template
+                                const judgeElement = template.content.cloneNode(true);
+                                
+                                // Mettre à jour les données
+                                judgeElement.querySelector('.judge-name').textContent = judge.full_name;
+                                judgeElement.querySelector('.judge-level').textContent = judge.qualification_level_display;
+                                
+                                // Afficher le type de juge
+                                if (judge.is_technical_judge) {
+                                    judgeElement.querySelector('.judge-type').textContent = '{% trans "Juge Technique" %}';
+                                    judgeElement.querySelector('.judge-type').classList.add('bg-info');
+                                } else if (judge.is_combat_referee) {
+                                    judgeElement.querySelector('.judge-type').textContent = '{% trans "Arbitre Combat" %}';
+                                    judgeElement.querySelector('.judge-type').classList.add('bg-danger');
+                                }
+                                
+                                // Afficher le club et l'expérience
+                                judgeElement.querySelector('.judge-info').textContent = 
+                                    `${judge.club_name || ''} - ${judge.years_experience} {% trans "années d'expérience" %}`;
+                                
+                                // Afficher l'avatar
+                                const avatarContainer = judgeElement.querySelector('.judge-avatar');
+                                if (judge.photo_url) {
+                                    const img = document.createElement('img');
+                                    img.src = judge.photo_url;
+                                    img.alt = judge.full_name;
+                                    img.className = 'rounded-circle';
+                                    img.width = 50;
+                                    img.height = 50;
+                                    avatarContainer.appendChild(img);
+                                } else {
+                                    const placeholderAvatar = document.createElement('div');
+                                    placeholderAvatar.className = 'rounded-circle bg-secondary text-white d-flex justify-content-center align-items-center';
+                                    placeholderAvatar.style.width = '50px';
+                                    placeholderAvatar.style.height = '50px';
+                                    
+                                    const icon = document.createElement('i');
+                                    icon.className = 'fas fa-user';
+                                    placeholderAvatar.appendChild(icon);
+                                    
+                                    avatarContainer.appendChild(placeholderAvatar);
+                                }
+                                
+                                // Configurer le bouton de sélection
+                                const selectButton = judgeElement.querySelector('.select-judge-btn');
+                                selectButton.setAttribute('data-judge-id', judge.id);
+                                selectButton.setAttribute('data-judge-name', judge.full_name);
+                                
+                                // Ajouter l'événement de sélection du juge
+                                selectButton.addEventListener('click', function() {
+                                    const judgeId = this.getAttribute('data-judge-id');
+                                    const judgeName = this.getAttribute('data-judge-name');
+                                    
+                                    // Fermer la modale
+                                    const modal = bootstrap.Modal.getInstance(judgeModal);
+                                    modal.hide();
+                                    
+                                    // Appeler la fonction de sélection du juge
+                                    selectJudge(judgeId, judgeName, selectedCategoryId, selectedAssignmentType);
+                                });
+                                
+                                // Ajouter au conteneur de résultats
+                                resultsContainer.appendChild(judgeElement);
+                            });
+                        } else {
+                            // Aucun résultat
+                            resultsContainer.innerHTML = `
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    {% trans "Aucun juge trouvé correspondant aux critères." %}
+                                </div>
+                            `;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erreur lors de la recherche:', error);
+                        searchLoading.style.display = 'none';
+                        resultsContainer.innerHTML = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-circle me-2"></i>
+                                {% trans "Une erreur est survenue lors de la recherche. Veuillez réessayer." %}
+                            </div>
+                        `;
+                    });
+            });
+        }
+        
+        // Fonction pour sélectionner un juge
+        function selectJudge(judgeId, judgeName, categoryId, assignmentType) {
+            // Rediriger vers le formulaire d'assignation avec les paramètres
+            window.location.href = `/competitions/judge/assignment/create/?judge_id=${judgeId}&category_id=${categoryId}&assignment_type=${assignmentType || ''}`;
+            
+            // Alternative : remplir automatiquement le formulaire si présent sur la page
+            const judgeIdInput = document.querySelector('#judgeAssignmentForm [name="judge_id"]');
+            const categoryInput = document.querySelector('#judgeAssignmentForm [name="category"]');
+            const assignmentTypeInput = document.querySelector('#judgeAssignmentForm [name="assignment_type"]');
+            
+            if (judgeIdInput && categoryInput) {
+                judgeIdInput.value = judgeId;
+                categoryInput.value = categoryId;
+                
+                if (assignmentTypeInput && assignmentType) {
+                    assignmentTypeInput.value = assignmentType;
+                }
+                
+                // Feedback pour l'utilisateur
+                const feedbackElement = document.createElement('div');
+                feedbackElement.className = 'alert alert-success mt-3';
+                feedbackElement.innerHTML = `
+                    <i class="fas fa-check-circle me-2"></i>
+                    {% trans "Juge" %} <strong>${judgeName}</strong> {% trans "sélectionné. Veuillez compléter le formulaire et soumettre." %}
+                `;
+                
+                const form = document.getElementById('judgeAssignmentForm');
+                form.prepend(feedbackElement);
+                
+                // Faire défiler jusqu'au formulaire
+                form.scrollIntoView({ behavior: 'smooth' });
+                
+                // Supprimer le feedback après quelques secondes
+                setTimeout(() => {
+                    feedbackElement.remove();
+                }, 5000);
+            }
+        }
+    });
+</script>

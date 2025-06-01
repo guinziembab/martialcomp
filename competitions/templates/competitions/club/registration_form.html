@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Inscription" %} - {{ practitioner.full_name }} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-check-input:checked ~ .form-check-label {
+        font-weight: 500;
+        color: #0d6efd;
+    }
+    .competition-header {
+        background-size: cover;
+        background-position: center;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        position: relative;
+    }
+    .competition-header::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        border-radius: 8px;
+    }
+    .competition-header-content {
+        position: relative;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h1 class="h4 mb-0 text-center">
+                        <i class="fas fa-clipboard-list me-2"></i>
+                        {% if is_edit %}
+                            {% trans "Modifier l'inscription" %}
+                        {% else %}
+                            {% trans "Inscrire à une compétition" %}
+                        {% endif %}
+                    </h1>
+                </div>
+                <div class="card-body p-4">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <!-- Informations de la compétition -->
+                    <div class="competition-header mb-4" style="background-image: url('{% if competition.logo %}{{ competition.logo.url }}{% else %}{% static 'img/competition-default.jpg' %}{% endif %}');">
+                        <div class="competition-header-content">
+                            <h4 class="mb-1">{{ competition.title }}</h4>
+                            <p class="mb-0">
+                                <i class="fas fa-calendar-alt me-1"></i> {{ competition.start_date|date:"d/m/Y" }}
+                                {% if competition.end_date != competition.start_date %}
+                                    - {{ competition.end_date|date:"d/m/Y" }}
+                                {% endif %}
+                                <i class="fas fa-map-marker-alt ms-3 me-1"></i> {{ competition.city }}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Informations du pratiquant -->
+                    <div class="practitioner-info mb-4 p-3 rounded bg-light">
+                        <div class="d-flex align-items-center">
+                            <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
+                                {{ practitioner.first_name|first }}{{ practitioner.last_name|first }}
+                            </div>
+                            <div>
+                                <h5 class="mb-0">{{ practitioner.full_name }}</h5>
+                                <p class="mb-0 text-muted">{{ practitioner.grade }} - {{ practitioner.age }} {% trans "ans" %}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Types de compétition -->
+                        <h5 class="card-title mb-3">{% trans "Types de compétition" %} *</h5>
+                        <div class="competition-types-container mb-4">
+                            <div class="row g-3">
+                                {% for type_option in form.competition_types %}
+                                    <div class="col-md-6">
+                                        <div class="form-check d-flex align-items-center p-3 border rounded">
+                                            {{ type_option.tag }}
+                                            <label class="form-check-label ms-2" for="{{ type_option.id_for_label }}">
+                                                {{ type_option.choice_label }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% if form.competition_types.errors %}
+                                <div class="invalid-feedback d-block mt-2">{{ form.competition_types.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Rôles -->
+                        <h5 class="card-title mb-3">{% trans "Rôles (optionnel)" %}</h5>
+                        <div class="roles-container mb-4">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="form-check d-flex align-items-center p-3 border rounded">
+                                        {{ form.is_technical_judge }}
+                                        <label class="form-check-label ms-2" for="{{ form.is_technical_judge.id_for_label }}">
+                                            {% trans "Juge Technique" %}
+                                            {% if practitioner.qualifications.filter(qualification_type='technical_judge').exists %}
+                                                <span class="badge bg-success ms-1">{% trans "Qualifié" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-warning text-dark ms-1">{% trans "Non qualifié" %}</span>
+                                            {% endif %}
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check d-flex align-items-center p-3 border rounded">
+                                        {{ form.is_combat_referee }}
+                                        <label class="form-check-label ms-2" for="{{ form.is_combat_referee.id_for_label }}">
+                                            {% trans "Arbitre Combat" %}
+                                            {% if practitioner.qualifications.filter(qualification_type='combat_referee').exists %}
+                                                <span class="badge bg-success ms-1">{% trans "Qualifié" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-warning text-dark ms-1">{% trans "Non qualifié" %}</span>
+                                            {% endif %}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Rôles personnalisés -->
+                        {% if form.roles %}
+                            <h5 class="card-title mb-3">{% trans "Rôles personnalisés (optionnel)" %}</h5>
+                            <div class="custom-roles-container mb-4">
+                                <div class="row g-3">
+                                    {% for role_option in form.roles %}
+                                        <div class="col-md-6">
+                                            <div class="form-check d-flex align-items-center p-3 border rounded">
+                                                {{ role_option.tag }}
+                                                <label class="form-check-label ms-2" for="{{ role_option.id_for_label }}">
+                                                    {{ role_option.choice_label }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                        
+                        <!-- Commentaires et besoins spécifiques -->
+                        {% if form.comments %}
+                            <div class="mb-4">
+                                <label for="{{ form.comments.id_for_label }}" class="form-label">{% trans "Commentaires et besoins spécifiques" %}</label>
+                                {{ form.comments }}
+                                {% if form.comments.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.comments.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'competitions:club:practitioners' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                {% if is_edit %}
+                                    <i class="fas fa-save me-2"></i>{% trans "Mettre à jour l'inscription" %}
+                                {% else %}
+                                    <i class="fas fa-paper-plane me-2"></i>{% trans "Soumettre l'inscription" %}
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

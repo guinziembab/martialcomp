@@ -1,0 +1,795 @@
+{% extends "competitions/dashboard/base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Mon profil" %} - MartialComp{% endblock %}
+
+{% block user_role %}{% trans "Participant" %}{% endblock %}
+
+{% block page_title %}{% trans "Mon profil" %}{% endblock %}
+
+{% block sidebar_menu %}
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        {% trans "Tableau de bord" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant_competitions' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+        {% trans "Mes compétitions" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:competitions:list' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+        {% trans "Toutes les compétitions" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant_results' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        {% trans "Mes résultats" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant_profile' %}" class="nav-link active">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        {% trans "Mon profil" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:logout' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        {% trans "Déconnexion" %}
+    </a>
+</li>
+{% endblock %}
+
+{% block dashboard_content %}
+{% if practitioners %}
+    {% if practitioners|length > 1 %}
+        <div class="alert alert-info mb-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-info-circle me-3 fs-4"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">{% trans "Plusieurs profils detectés" %}</h5>
+                    <p class="mb-0">{% trans "Vous avez plusieurs profils de participants. Sélectionnez le profil que vous souhaitez consulter ou modifier." %}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mb-4">
+            {% for practitioner in practitioners %}
+                <div class="col-md-6 col-xl-4 mb-3">
+                    <div class="card h-100 practitioner-card {% if selected_practitioner.id == practitioner.id %}border-primary{% endif %}">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="practitioner-avatar me-3">
+                                    {% if practitioner.photo %}
+                                        <img src="{{ practitioner.photo.url }}" alt="{{ practitioner.full_name }}" class="rounded-circle">
+                                    {% else %}
+                                        <div class="avatar-placeholder rounded-circle bg-secondary d-flex align-items-center justify-content-center">
+                                            <i class="fas fa-user fa-2x text-white"></i>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <h5 class="card-title mb-0">{{ practitioner.full_name }}</h5>
+                                    <p class="text-muted mb-0">
+                                        {{ practitioner.license_number|default:"-" }}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div class="practitioner-info mb-3">
+                                <p class="mb-2">
+                                    <i class="fas fa-birthday-cake text-secondary me-2"></i> 
+                                    {% if practitioner.birth_date %}
+                                        {{ practitioner.birth_date|date:"d/m/Y" }} 
+                                        ({{ practitioner.age }} {% trans "ans" %})
+                                    {% else %}
+                                        {% trans "Non renseigné" %}
+                                    {% endif %}
+                                </p>
+                                <p class="mb-2">
+                                    <i class="fas fa-dumbbell text-secondary me-2"></i> 
+                                    {% if practitioner.disciplines.exists %}
+                                        {{ practitioner.disciplines.all|join:", " }}
+                                    {% else %}
+                                        {% trans "Aucune discipline" %}
+                                    {% endif %}
+                                </p>
+                                <p class="mb-0">
+                                    <i class="fas fa-building text-secondary me-2"></i> 
+                                    {% if practitioner.organization %}
+                                        {{ practitioner.organization.name }}
+                                    {% else %}
+                                        {% trans "Aucun club" %}
+                                    {% endif %}
+                                </p>
+                            </div>
+                            
+                            <div class="text-center">
+                                <a href="{% url 'competitions:dashboard:participant_profile' %}?id={{ practitioner.id }}" class="btn btn-primary">
+                                    <i class="fas fa-edit me-2"></i> {% trans "Modifier ce profil" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    
+    {% if selected_practitioner %}
+        <div class="row">
+            <div class="col-12 col-lg-4 order-lg-2 mb-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">{% trans "Informations personnelles" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <div class="avatar-container mx-auto mb-3">
+                                {% if selected_practitioner.photo %}
+                                    <img src="{{ selected_practitioner.photo.url }}" alt="{{ selected_practitioner.full_name }}" class="profile-image rounded-circle img-thumbnail">
+                                {% else %}
+                                    <div class="profile-placeholder rounded-circle bg-secondary d-flex align-items-center justify-content-center">
+                                        <i class="fas fa-user fa-3x text-white"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <h5 class="mb-0">{{ selected_practitioner.full_name }}</h5>
+                            <p class="text-muted">
+                                {% if selected_practitioner.license_number %}
+                                    <span class="badge bg-info">{{ selected_practitioner.license_number }}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        
+                        <div class="info-list">
+                            <div class="info-item">
+                                <div class="info-label">{% trans "Date de naissance" %}</div>
+                                <div class="info-value">
+                                    {% if selected_practitioner.birth_date %}
+                                        {{ selected_practitioner.birth_date|date:"d/m/Y" }} 
+                                        <span class="text-muted">({{ selected_practitioner.age }} {% trans "ans" %})</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">{% trans "Genre" %}</div>
+                                <div class="info-value">
+                                    {% if selected_practitioner.gender == 'M' %}
+                                        {% trans "Masculin" %}
+                                    {% elif selected_practitioner.gender == 'F' %}
+                                        {% trans "Féminin" %}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">{% trans "Nationalité" %}</div>
+                                <div class="info-value">
+                                    {% if selected_practitioner.nationality %}
+                                        {{ selected_practitioner.nationality }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">{% trans "Email" %}</div>
+                                <div class="info-value">
+                                    {% if selected_practitioner.email %}
+                                        {{ selected_practitioner.email }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">{% trans "Téléphone" %}</div>
+                                <div class="info-value">
+                                    {% if selected_practitioner.phone %}
+                                        {{ selected_practitioner.phone }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">{% trans "Club" %}</div>
+                                <div class="info-value">
+                                    {% if selected_practitioner.organization %}
+                                        {{ selected_practitioner.organization.name }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if practitioner_disciplines %}
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">{% trans "Grades et disciplines" %}</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="list-group list-group-flush">
+                                {% for pd in practitioner_disciplines %}
+                                    <div class="list-group-item">
+                                        <div class="d-flex align-items-center">
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1">{{ pd.discipline.name }}</h6>
+                                                {% if pd.current_grade %}
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="badge bg-secondary me-2">{{ pd.current_grade.name }}</span>
+                                                        <small class="text-muted">
+                                                            {% if pd.grade_date %}
+                                                                {% trans "Obtenu le" %} {{ pd.grade_date|date:"d/m/Y" }}
+                                                            {% endif %}
+                                                        </small>
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-muted small">{% trans "Aucun grade" %}</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="col-12 col-lg-8 order-lg-1">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">{% trans "Modifier mon profil" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            
+                            {% if form.errors %}
+                                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    {% trans "Des erreurs ont été détectées dans le formulaire. Veuillez les corriger et réessayer." %}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            {% endif %}
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.first_name.id_for_label }}" class="form-label">{% trans "Prénom" %} <span class="text-danger">*</span></label>
+                                    {{ form.first_name }}
+                                    {% if form.first_name.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.first_name.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.last_name.id_for_label }}" class="form-label">{% trans "Nom" %} <span class="text-danger">*</span></label>
+                                    {{ form.last_name }}
+                                    {% if form.last_name.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.last_name.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.birth_date.id_for_label }}" class="form-label">{% trans "Date de naissance" %}</label>
+                                    {{ form.birth_date }}
+                                    {% if form.birth_date.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.birth_date.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.gender.id_for_label }}" class="form-label">{% trans "Genre" %}</label>
+                                    {{ form.gender }}
+                                    {% if form.gender.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.gender.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.email.id_for_label }}" class="form-label">{% trans "Email" %}</label>
+                                    {{ form.email }}
+                                    {% if form.email.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.email.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.phone.id_for_label }}" class="form-label">{% trans "Téléphone" %}</label>
+                                    {{ form.phone }}
+                                    {% if form.phone.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.phone.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.nationality.id_for_label }}" class="form-label">{% trans "Nationalité" %}</label>
+                                    {{ form.nationality }}
+                                    {% if form.nationality.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.nationality.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="{{ form.license_number.id_for_label }}" class="form-label">{% trans "Numéro de licence" %}</label>
+                                    {{ form.license_number }}
+                                    {% if form.license_number.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.license_number.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.photo.id_for_label }}" class="form-label">{% trans "Photo de profil" %}</label>
+                                <div class="input-group mb-3">
+                                    {{ form.photo }}
+                                    {% if form.photo.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.photo.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                {% if form.instance.photo %}
+                                    <div class="form-text">
+                                        {% trans "Photo actuelle:" %} {{ form.instance.photo.name }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.notes.id_for_label }}" class="form-label">{% trans "Notes" %}</label>
+                                {{ form.notes }}
+                                {% if form.notes.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.notes.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mt-4 d-flex justify-content-between">
+                                <a href="{% url 'competitions:dashboard:participant_profile' %}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-arrow-left me-2"></i> {% trans "Retour" %}
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-2"></i> {% trans "Enregistrer les modifications" %}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                {% if grade_history %}
+                    <div class="card mt-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">{% trans "Historique des grades" %}</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>{% trans "Date" %}</th>
+                                            <th>{% trans "Discipline" %}</th>
+                                            <th>{% trans "Grade" %}</th>
+                                            <th>{% trans "Délivré par" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for history in grade_history %}
+                                            <tr>
+                                                <td>{{ history.date_obtained|date:"d/m/Y" }}</td>
+                                                <td>
+                                                    {% if history.discipline %}
+                                                        {{ history.discipline.name }}
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if history.grade %}
+                                                        <span class="badge bg-secondary">{{ history.grade.name }}</span>
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if history.federation %}
+                                                        {{ history.federation.name }}
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    {% elif practitioners|length == 1 %}
+        <div class="text-center my-5">
+            <div class="mb-4">
+                <a href="{% url 'competitions:dashboard:participant_profile' %}?id={{ practitioners.0.id }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-edit me-2"></i> {% trans "Modifier mon profil" %}
+                </a>
+            </div>
+            
+            <div class="profile-card mx-auto">
+                <div class="profile-header"></div>
+                <div class="profile-body">
+                    <div class="profile-image-container">
+                        {% if practitioners.0.photo %}
+                            <img src="{{ practitioners.0.photo.url }}" alt="{{ practitioners.0.full_name }}" class="profile-image">
+                        {% else %}
+                            <div class="profile-image-placeholder">
+                                <i class="fas fa-user"></i>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <h3 class="profile-name mt-4">{{ practitioners.0.full_name }}</h3>
+                    
+                    {% if practitioners.0.license_number %}
+                        <div class="license-badge">
+                            <span>License # {{ practitioners.0.license_number }}</span>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="profile-info">
+                        <div class="info-row">
+                            <div class="info-icon">
+                                <i class="fas fa-birthday-cake"></i>
+                            </div>
+                            <div class="info-content">
+                                <span class="info-label">{% trans "Date de naissance" %}</span>
+                                <span class="info-value">
+                                    {% if practitioners.0.birth_date %}
+                                        {{ practitioners.0.birth_date|date:"d/m/Y" }} ({{ practitioners.0.age }} {% trans "ans" %})
+                                    {% else %}
+                                        {% trans "Non renseigné" %}
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="info-row">
+                            <div class="info-icon">
+                                <i class="fas fa-venus-mars"></i>
+                            </div>
+                            <div class="info-content">
+                                <span class="info-label">{% trans "Genre" %}</span>
+                                <span class="info-value">
+                                    {% if practitioners.0.gender == 'M' %}
+                                        {% trans "Masculin" %}
+                                    {% elif practitioners.0.gender == 'F' %}
+                                        {% trans "Féminin" %}
+                                    {% else %}
+                                        {% trans "Non renseigné" %}
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="info-row">
+                            <div class="info-icon">
+                                <i class="fas fa-flag"></i>
+                            </div>
+                            <div class="info-content">
+                                <span class="info-label">{% trans "Nationalité" %}</span>
+                                <span class="info-value">
+                                    {% if practitioners.0.nationality %}
+                                        {{ practitioners.0.nationality }}
+                                    {% else %}
+                                        {% trans "Non renseigné" %}
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="info-row">
+                            <div class="info-icon">
+                                <i class="fas fa-envelope"></i>
+                            </div>
+                            <div class="info-content">
+                                <span class="info-label">{% trans "Email" %}</span>
+                                <span class="info-value">
+                                    {% if practitioners.0.email %}
+                                        {{ practitioners.0.email }}
+                                    {% else %}
+                                        {% trans "Non renseigné" %}
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="info-row">
+                            <div class="info-icon">
+                                <i class="fas fa-phone"></i>
+                            </div>
+                            <div class="info-content">
+                                <span class="info-label">{% trans "Téléphone" %}</span>
+                                <span class="info-value">
+                                    {% if practitioners.0.phone %}
+                                        {{ practitioners.0.phone }}
+                                    {% else %}
+                                        {% trans "Non renseigné" %}
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="info-row">
+                            <div class="info-icon">
+                                <i class="fas fa-building"></i>
+                            </div>
+                            <div class="info-content">
+                                <span class="info-label">{% trans "Club" %}</span>
+                                <span class="info-value">
+                                    {% if practitioners.0.organization %}
+                                        {{ practitioners.0.organization.name }}
+                                    {% else %}
+                                        {% trans "Non renseigné" %}
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+{% else %}
+    <div class="alert alert-warning">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-exclamation-triangle me-3 fs-4"></i>
+            <div>
+                <h5 class="alert-heading mb-1">{% trans "Aucun profil de participant" %}</h5>
+                <p class="mb-0">{% trans "Vous n'avez pas encore de profil de participant créé dans le système." %}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="text-center my-5">
+        <a href="#" class="btn btn-primary btn-lg">
+            <i class="fas fa-plus-circle me-2"></i> {% trans "Créer mon profil de participant" %}
+        </a>
+    </div>
+{% endif %}
+
+<style>
+    /* Custom styling for the profile page */
+    .avatar-container, .profile-image-container {
+        width: 120px;
+        height: 120px;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .profile-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .profile-placeholder, .avatar-placeholder, .profile-image-placeholder {
+        width: 100%;
+        height: 100%;
+    }
+    
+    .info-list {
+        margin-top: 1rem;
+    }
+    
+    .info-item {
+        padding: 0.75rem 0;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .info-item:last-child {
+        border-bottom: none;
+    }
+    
+    .info-label {
+        color: #6c757d;
+        font-weight: 500;
+    }
+    
+    .info-value {
+        font-weight: 500;
+    }
+    
+    /* Practitioner cards */
+    .practitioner-card {
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    
+    .practitioner-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .practitioner-avatar {
+        width: 60px;
+        height: 60px;
+        overflow: hidden;
+    }
+    
+    .practitioner-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .avatar-placeholder {
+        font-size: 1.5rem;
+    }
+    
+    /* Profile card styling */
+    .profile-card {
+        max-width: 500px;
+        background-color: #fff;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    
+    .profile-header {
+        height: 100px;
+        background: linear-gradient(135deg, #0d6efd, #6610f2);
+    }
+    
+    .profile-body {
+        padding: 0 2rem 2rem 2rem;
+        position: relative;
+    }
+    
+    .profile-image-container {
+        border: 5px solid #fff;
+        border-radius: 50%;
+        margin: -60px auto 0 auto;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .profile-image {
+        border-radius: 50%;
+    }
+    
+    .profile-image-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #6c757d;
+        color: #fff;
+        font-size: 3rem;
+        border-radius: 50%;
+    }
+    
+    .profile-name {
+        font-weight: 600;
+    }
+    
+    .license-badge {
+        display: inline-block;
+        background-color: #f0f0f0;
+        padding: 0.5rem 1rem;
+        border-radius: 50px;
+        font-size: 0.85rem;
+        color: #333;
+        margin-bottom: 1.5rem;
+    }
+    
+    .profile-info {
+        margin-top: 1.5rem;
+    }
+    
+    .info-row {
+        display: flex;
+        margin-bottom: 1rem;
+    }
+    
+    .info-icon {
+        width: 40px;
+        height: 40px;
+        background-color: #f8f9fa;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #0d6efd;
+        margin-right: 1rem;
+    }
+    
+    .info-content {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .info-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-bottom: 0.25rem;
+    }
+    
+    .info-value {
+        font-weight: 500;
+    }
+    
+    /* Form styling */
+    .form-control, .form-select {
+        padding: 0.75rem;
+        border-radius: 0.25rem;
+    }
+    
+    .form-label {
+        font-weight: 500;
+    }
+    
+    .btn {
+        border-radius: 0.25rem;
+        padding: 0.5rem 1rem;
+    }
+</style>
+{% endblock %}

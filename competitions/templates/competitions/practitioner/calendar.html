@@ -1,0 +1,390 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Calendrier" %} | {% trans "Espace Pratiquant" %}{% endblock %}
+
+{% block dashboard_content %}
+<!-- Page Header -->
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fas fa-calendar text-primary"></i> {% trans "Calendrier" %}
+    </h1>
+    <p class="page-subtitle">{% trans "Visualisez tous vos événements et compétitions" %}</p>
+</div>
+
+<!-- Calendar Controls -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <div class="btn-group" role="group">
+                    <a href="{% url 'competitions:practitioner:calendar_month' year=prev_year month=prev_month %}" 
+                       class="btn btn-outline-primary">
+                        <i class="fas fa-chevron-left"></i> {% trans "Précédent" %}
+                    </a>
+                    <button class="btn btn-primary" onclick="goToToday()">
+                        {% trans "Aujourd'hui" %}
+                    </button>
+                    <a href="{% url 'competitions:practitioner:calendar_month' year=next_year month=next_month %}" 
+                       class="btn btn-outline-primary">
+                        {% trans "Suivant" %} <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-4 text-center">
+                <h4 class="mb-0">{{ month_name }} {{ year }}</h4>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="btn-group" role="group">
+                    <button class="btn btn-outline-secondary" onclick="setView('month')" id="btn-month">
+                        <i class="fas fa-calendar-alt"></i> {% trans "Mois" %}
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="setView('week')" id="btn-week">
+                        <i class="fas fa-calendar-week"></i> {% trans "Semaine" %}
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="setView('list')" id="btn-list">
+                        <i class="fas fa-list"></i> {% trans "Liste" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Calendar Grid -->
+<div class="card" id="calendar-view">
+    <div class="card-body p-0">
+        <!-- Month View -->
+        <div id="month-view" class="calendar-view">
+            <table class="table table-bordered mb-0 calendar-table">
+                <thead>
+                    <tr>
+                        <th>{% trans "Lundi" %}</th>
+                        <th>{% trans "Mardi" %}</th>
+                        <th>{% trans "Mercredi" %}</th>
+                        <th>{% trans "Jeudi" %}</th>
+                        <th>{% trans "Vendredi" %}</th>
+                        <th>{% trans "Samedi" %}</th>
+                        <th>{% trans "Dimanche" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for week in calendar %}
+                        <tr>
+                            {% for day in week %}
+                                {% if day == 0 %}
+                                    <td class="calendar-day other-month"></td>
+                                {% else %}
+                                    <td class="calendar-day {% if day == now.day and month == now.month and year == now.year %}today{% endif %}">
+                                        <div class="day-number">{{ day }}</div>
+                                        <div class="events">
+                                            {% with events=events_by_day|get_item:day %}
+                                                {% if events %}
+                                                    {% for event in events %}
+                                                        <div class="event event-{{ event.type }}" 
+                                                             onclick="showEventDetails('{{ event.id }}')"
+                                                             data-bs-toggle="tooltip" 
+                                                             title="{{ event.title }}">
+                                                            <small>
+                                                                {% if event.time %}
+                                                                    {{ event.time|time:"H:i" }}
+                                                                {% endif %}
+                                                                {{ event.title|truncatechars:20 }}
+                                                            </small>
+                                                        </div>
+                                                    {% endfor %}
+                                                {% endif %}
+                                            {% endwith %}
+                                        </div>
+                                    </td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Week View -->
+        <div id="week-view" class="calendar-view" style="display: none;">
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle"></i> {% trans "Vue semaine en cours de développement" %}
+            </div>
+        </div>
+
+        <!-- List View -->
+        <div id="list-view" class="calendar-view" style="display: none;">
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle"></i> {% trans "Vue liste en cours de développement" %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Legend -->
+<div class="card mt-4">
+    <div class="card-body">
+        <h6>{% trans "Légende" %}</h6>
+        <div class="row">
+            <div class="col-md-3">
+                <span class="legend-item event-competition"></span> {% trans "Compétition" %}
+            </div>
+            <div class="col-md-3">
+                <span class="legend-item event-training"></span> {% trans "Formation" %}
+            </div>
+            <div class="col-md-3">
+                <span class="legend-item event-exam"></span> {% trans "Passage de grade" %}
+            </div>
+            <div class="col-md-3">
+                <span class="legend-item event-meeting"></span> {% trans "Réunion" %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="eventDetailsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="eventDetails">
+                <!-- Event details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "Fermer" %}
+                </button>
+                <a href="#" id="eventDetailsLink" class="btn btn-primary">
+                    {% trans "Voir les détails" %}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Initialize calendar view
+let currentView = 'month';
+
+function setView(view) {
+    // Hide all views
+    document.querySelectorAll('.calendar-view').forEach(v => v.style.display = 'none');
+    
+    // Remove active class from all buttons
+    document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
+    
+    // Show selected view
+    document.getElementById(view + '-view').style.display = 'block';
+    document.getElementById('btn-' + view).classList.add('active');
+    
+    currentView = view;
+}
+
+function goToToday() {
+    window.location.href = "{% url 'competitions:practitioner:calendar' %}";
+}
+
+function showEventDetails(eventId) {
+    // Here you would typically make an AJAX call to get event details
+    // For now, show the modal with basic info
+    const modal = new bootstrap.Modal(document.getElementById('eventDetailsModal'));
+    modal.show();
+}
+
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Set initial view
+    setView('month');
+});
+</script>
+
+<style>
+.calendar-table {
+    table-layout: fixed;
+}
+
+.calendar-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    text-align: center;
+    padding: 10px 5px;
+}
+
+.calendar-day {
+    height: 100px;
+    vertical-align: top;
+    padding: 5px;
+    position: relative;
+}
+
+.calendar-day.other-month {
+    background-color: #f8f9fa;
+    color: #6c757d;
+}
+
+.calendar-day.today {
+    background-color: #e7f3ff;
+}
+
+.day-number {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.events {
+    overflow-y: auto;
+    max-height: 70px;
+}
+
+.event {
+    margin: 2px 0;
+    padding: 2px 5px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.event-competition {
+    background-color: #e3f2fd;
+    color: #1976d2;
+}
+
+.event-training {
+    background-color: #e8f5e9;
+    color: #388e3c;
+}
+
+.event-exam {
+    background-color: #fff3e0;
+    color: #f57c00;
+}
+
+.event-meeting {
+    background-color: #fce4ec;
+    color: #c2185b;
+}
+
+/* Week View Styles */
+.week-view-container {
+    display: flex;
+    height: 600px;
+    overflow-y: auto;
+}
+
+.time-column {
+    width: 80px;
+    flex-shrink: 0;
+    border-right: 1px solid #dee2e6;
+}
+
+.hour-slot {
+    height: 60px;
+    padding: 5px;
+    border-bottom: 1px solid #f0f0f0;
+    text-align: right;
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.days-container {
+    display: flex;
+    flex-grow: 1;
+}
+
+.day-column {
+    flex: 1;
+    border-right: 1px solid #dee2e6;
+}
+
+.day-column:last-child {
+    border-right: none;
+}
+
+.day-header {
+    padding: 10px;
+    text-align: center;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.day-events {
+    position: relative;
+    height: 100%;
+}
+
+.week-event {
+    position: absolute;
+    left: 5px;
+    right: 5px;
+    padding: 5px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    overflow: hidden;
+}
+
+/* List View Styles */
+.event-item {
+    transition: box-shadow 0.3s;
+}
+
+.event-item:hover {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.event-date {
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 10px;
+}
+
+.day-large {
+    font-size: 2rem;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.month {
+    font-size: 1rem;
+    text-transform: uppercase;
+}
+
+/* Legend */
+.legend-item {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    margin-right: 5px;
+    border-radius: 3px;
+    vertical-align: middle;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .calendar-day {
+        height: 80px;
+        font-size: 0.875rem;
+    }
+    
+    .event {
+        font-size: 0.625rem;
+    }
+    
+    .week-view-container {
+        height: 400px;
+    }
+}
+</style>
+{% endblock %}

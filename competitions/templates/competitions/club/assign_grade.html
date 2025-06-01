@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Attribution de grade" %} | {{ practitioner.full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .grade-badge {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-weight: 500;
+        margin-right: 10px;
+        margin-bottom: 10px;
+    }
+    
+    /* Styles pour les grades Qwan Ki Do */
+    .grade-cap-jaune {
+        background-color: rgba(255, 235, 59, 0.2);
+        color: #806600;
+        border-left: 4px solid #FFEB3B;
+    }
+    
+    .grade-cap-rouge {
+        background-color: rgba(244, 67, 54, 0.2);
+        color: #c62828;
+        border-left: 4px solid #F44336;
+    }
+    
+    .grade-cap-blanc {
+        background-color: rgba(245, 245, 245, 0.5);
+        color: #757575;
+        border-left: 4px solid #E0E0E0;
+        border: 1px solid #dee2e6;
+    }
+    
+    .grade-cap-bleu {
+        background-color: rgba(33, 150, 243, 0.2);
+        color: #0d47a1;
+        border-left: 4px solid #2196F3;
+    }
+    
+    .grade-dang {
+        background-color: rgba(0, 0, 0, 0.1);
+        color: #000000;
+        border-left: 4px solid #000000;
+    }
+    
+    /* Styles pour les niveaux des ceintures noires */
+    .grade-dang-1 { border-bottom: 1px solid gold; }
+    .grade-dang-2 { border-bottom: 2px solid gold; }
+    .grade-dang-3 { border-bottom: 3px solid gold; }
+    .grade-dang-4 { border-bottom: 4px solid gold; }
+    .grade-dang-5 { border-bottom: 5px solid gold; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center">
+            <a href="{% url 'competitions:club:practitioner_edit' practitioner_id=practitioner.id %}" class="btn btn-outline-secondary me-3">
+                <i class="fas fa-arrow-left me-1"></i>{% trans "Retour au pratiquant" %}
+            </a>
+            <h1 class="h3 mb-0">{% trans "Attribution de grade" %} - {{ practitioner.full_name }}</h1>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-user me-2"></i>{% trans "Informations du pratiquant" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "Nom complet" %}:</strong> {{ practitioner.full_name }}</p>
+                    <p><strong>{% trans "Âge" %}:</strong> {{ practitioner.age }} {% trans "ans" %}</p>
+                    <p><strong>{% trans "Club" %}:</strong> {{ practitioner.club.name }}</p>
+                    
+                    {% if practitioner.grade %}
+                        <p><strong>{% trans "Grade actuel" %}:</strong> 
+                            <span class="grade-badge 
+                                {% if 'Cap Jaune' in practitioner.grade %}grade-cap-jaune
+                                {% elif 'Cap Rouge' in practitioner.grade %}grade-cap-rouge
+                                {% elif 'Cap Blanc' in practitioner.grade %}grade-cap-blanc
+                                {% elif 'Cap Bleu' in practitioner.grade %}grade-cap-bleu
+                                {% elif '1er Dang' in practitioner.grade %}grade-dang grade-dang-1
+                                {% elif '2ème Dang' in practitioner.grade %}grade-dang grade-dang-2
+                                {% elif '3ème Dang' in practitioner.grade %}grade-dang grade-dang-3
+                                {% elif '4ème Dang' in practitioner.grade %}grade-dang grade-dang-4
+                                {% elif '5ème Dang' in practitioner.grade %}grade-dang grade-dang-5
+                                {% elif 'Dang' in practitioner.grade %}grade-dang
+                                {% endif %}">
+                                {{ practitioner.grade }}
+                            </span>
+                        </p>
+                    {% else %}
+                        <p><strong>{% trans "Grade actuel" %}:</strong> <em>{% trans "Aucun grade attribué" %}</em></p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>{% trans "Aide" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p>{% trans "Pour attribuer un grade au pratiquant:" %}</p>
+                    <ol>
+                        <li>{% trans "Sélectionnez une discipline" %}</li>
+                        <li>{% trans "Choisissez un grade dans la liste disponible" %}</li>
+                        <li>{% trans "Renseignez la date d'obtention (aujourd'hui par défaut)" %}</li>
+                        <li>{% trans "Validez pour enregistrer le grade" %}</li>
+                    </ol>
+                    <div class="alert alert-info">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        {% trans "L'attribution d'un nouveau grade remplacera le grade actuel du pratiquant pour la discipline concernée." %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-award me-2"></i>{% trans "Attribution d'un nouveau grade" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Étape 1: Sélection de la discipline -->
+                    <div class="mb-4">
+                        <h6 class="mb-3">{% trans "1. Sélectionner une discipline" %}</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for discipline in disciplines %}
+                                <a href="?discipline={{ discipline.id }}" 
+                                   class="btn {% if selected_discipline and selected_discipline.id == discipline.id %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                                    {{ discipline.name }}
+                                </a>
+                            {% empty %}
+                                <div class="alert alert-warning">
+                                    {% trans "Aucune discipline disponible. Veuillez d'abord ajouter des disciplines." %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Étape 2: Formulaire d'attribution -->
+                    {% if selected_discipline %}
+                        <form method="post" class="mt-4">
+                            {% csrf_token %}
+                            
+                            <h6 class="mb-3">{% trans "2. Choisir un grade pour" %} {{ selected_discipline.name }}</h6>
+                            
+                            <div class="mb-3">
+                                <label for="grade" class="form-label">{% trans "Grade" %}</label>
+                                <select name="grade" id="grade" class="form-select" required>
+                                    <option value="">{% trans "Sélectionnez un grade" %}</option>
+                                    {% for grade in grades %}
+                                        <option value="{{ grade.id }}" 
+                                            class="{% if 'Cap Jaune' in grade.name %}text-warning
+                                                   {% elif 'Cap Rouge' in grade.name %}text-danger
+                                                   {% elif 'Cap Bleu' in grade.name %}text-primary
+                                                   {% elif 'Dang' in grade.name %}fw-bold
+                                                   {% endif %}">
+                                            {{ grade.name }}
+                                        </option>
+                                    {% empty %}
+                                        <option value="" disabled>{% trans "Aucun grade disponible pour cette discipline" %}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="obtained_date" class="form-label">{% trans "Date d'obtention" %}</label>
+                                <input type="date" name="obtained_date" id="obtained_date" class="form-control" 
+                                       value="{{ today|date:'Y-m-d' }}">
+                            </div>
+                            
+                            <div class="d-flex justify-content-between mt-4">
+                                <a href="{% url 'competitions:club:practitioner_edit' practitioner_id=practitioner.id %}" class="btn btn-outline-secondary">
+                                    {% trans "Annuler" %}
+                                </a>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-award me-2"></i>{% trans "Attribuer ce grade" %}
+                                </button>
+                            </div>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-info mt-4">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Veuillez sélectionner une discipline pour voir les grades disponibles." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Code pour styliser les grades dans le select
+    const gradeSelect = document.getElementById('grade');
+    if (gradeSelect) {
+        gradeSelect.addEventListener('change', function() {
+            // Mettre en évidence l'option sélectionnée
+            const selectedOption = this.options[this.selectedIndex];
+            const gradeName = selectedOption.text;
+            
+            // On pourrait ajouter un aperçu du grade sélectionné ici
+        });
+    }
+    
+    // Définir la date d'aujourd'hui par défaut
+    const dateInput = document.getElementById('obtained_date');
+    if (dateInput && !dateInput.value) {
+        const today = new Date();
+        const year = today.getFullYear();
+        let month = today.getMonth() + 1;
+        let day = today.getDate();
+        
+        // Ajouter un zéro devant pour les mois et jours < 10
+        month = month < 10 ? '0' + month : month;
+        day = day < 10 ? '0' + day : day;
+        
+        dateInput.value = `${year}-${month}-${day}`;
+    }
+});
+</script>
+{% endblock %}

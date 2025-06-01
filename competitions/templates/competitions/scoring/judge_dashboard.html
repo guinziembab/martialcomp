@@ -1,0 +1,545 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Tableau de bord Juge" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .judge-dashboard {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin-bottom: 30px;
+  }
+  
+  .judge-info {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+  }
+  
+  .judge-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 20px;
+  }
+  
+  .category-card {
+    background-color: #fff;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+  }
+  
+  .category-card:hover {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    transform: translateY(-3px);
+  }
+  
+  .category-card-header {
+    background-color: #f8f9fa;
+    padding: 15px 20px;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 8px 8px 0 0;
+  }
+  
+  .category-card-body {
+    padding: 20px;
+  }
+  
+  .category-status {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+  }
+  
+  .status-pending {
+    background-color: #e2e3e5;
+    color: #41464b;
+  }
+  
+  .status-in-progress {
+    background-color: #cff4fc;
+    color: #055160;
+  }
+  
+  .status-completed {
+    background-color: #d1e7dd;
+    color: #0f5132;
+  }
+  
+  .performance-card {
+    border-left: 4px solid #dc3545;
+    margin-bottom: 10px;
+    padding: 12px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+  }
+  
+  .performance-card:hover {
+    background-color: #e9ecef;
+  }
+  
+  .performance-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .performance-name {
+    font-weight: 500;
+  }
+  
+  .performance-status {
+    font-size: 0.8rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  
+  .performance-status-pending {
+    background-color: #e2e3e5;
+    color: #41464b;
+  }
+  
+  .performance-status-in-progress {
+    background-color: #cff4fc;
+    color: #055160;
+  }
+  
+  .performance-status-completed {
+    background-color: #d1e7dd;
+    color: #0f5132;
+  }
+  
+  .performance-meta {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 5px;
+  }
+  
+  .current-performance {
+    background-color: #e2e3e5;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+  }
+  
+  .current-performance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .timer-display {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #dc3545;
+    text-align: center;
+    margin: 15px 0;
+  }
+  
+  .stats-card {
+    background-color: #fff;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px dotted #dee2e6;
+  }
+  
+  .stat-item:last-child {
+    border-bottom: none;
+  }
+  
+  .stat-label {
+    color: #6c757d;
+  }
+  
+  .stat-value {
+    font-weight: 500;
+  }
+  
+  .criteria-list {
+    margin-top: 20px;
+  }
+  
+  .criterion-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #dee2e6;
+  }
+  
+  .criterion-name {
+    font-weight: 500;
+  }
+  
+  .criterion-weight {
+    font-size: 0.85rem;
+    color: #6c757d;
+  }
+  
+  @media (max-width: 768px) {
+    .judge-info {
+      flex-direction: column;
+    }
+    
+    .judge-avatar {
+      margin-right: 0;
+      margin-bottom: 20px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">{% trans "Tableau de bord Juge" %}</h1>
+        <a href="{% url 'competitions:dashboard:referee' %}" class="btn btn-outline-secondary">
+          <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+        </a>
+      </div>
+      
+      <!-- Judge Info -->
+      <div class="judge-info d-flex align-items-center mb-4">
+        <img src="{% if judge.profile.photo %}{{ judge.profile.photo.url }}{% else %}{% static 'img/default-avatar.png' %}{% endif %}" alt="{{ judge.get_full_name }}" class="judge-avatar">
+        <div>
+          <h2>{{ judge.get_full_name }}</h2>
+          <div class="mb-2">
+            <span class="badge bg-primary me-2">{% trans "Juge" %}</span>
+            <span class="badge bg-secondary">{{ assignment.get_assignment_type_display }}</span>
+          </div>
+          <div class="text-muted">
+            {{ judge.email }}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Current Performance (if any) -->
+      {% if current_performance %}
+      <div class="current-performance">
+        <div class="current-performance-header">
+          <h4 class="mb-0">{% trans "Performance en cours" %}</h4>
+          <span class="performance-status performance-status-in-progress">{% trans "En cours" %}</span>
+        </div>
+        
+        <div class="timer-display" id="timer">00:00</div>
+        
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <div class="mb-2"><strong>{% trans "Participant" %}:</strong> {{ current_performance.practitioner.full_name }}</div>
+            <div><strong>{% trans "Club" %}:</strong> {{ current_performance.practitioner.club.name|default:"-" }}</div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-2"><strong>{% trans "Catégorie" %}:</strong> {{ current_performance.category.name }}</div>
+            <div><strong>{% trans "Ordre de passage" %}:</strong> {{ current_performance.performance_order }}</div>
+          </div>
+        </div>
+        
+        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+          <a href="{% url 'competitions:management:judge_scoring_interface' competition_id=competition.id category_id=category.id judge_id=judge.id %}" class="btn btn-danger">
+            <i class="fas fa-clipboard-list me-2"></i>{% trans "Noter cette performance" %}
+          </a>
+        </div>
+      </div>
+      {% endif %}
+      
+      <!-- Category Information -->
+      <div class="judge-dashboard">
+        <h4 class="mb-4">{% trans "Informations sur la catégorie" %}</h4>
+        
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <strong>{% trans "Catégorie" %}:</strong> {{ category.name }}
+            </div>
+            <div class="mb-3">
+              <strong>{% trans "Type de compétition" %}:</strong> {{ category.get_competition_type_display|default:"-" }}
+            </div>
+            <div class="mb-3">
+              <strong>{% trans "Rôle assigné" %}:</strong> {{ assignment.get_assignment_type_display }}
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <strong>{% trans "Nombre de participants" %}:</strong> {{ category.registrations.count }}
+            </div>
+            <div class="mb-3">
+              <strong>{% trans "Nombre de juges" %}:</strong> {{ category.judge_assignments.count }}
+            </div>
+            <div class="mb-3">
+              <strong>{% trans "Statut" %}:</strong> 
+              <span class="category-status {% if category.status == 'pending' %}status-pending{% elif category.status == 'in_progress' %}status-in-progress{% else %}status-completed{% endif %}">
+                {{ category.get_status_display }}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Scoring Criteria -->
+        <h5 class="mt-4">{% trans "Critères de notation" %}</h5>
+        
+        {% if criteria %}
+        <div class="criteria-list">
+          {% for criterion in criteria %}
+          <div class="criterion-item">
+            <div>
+              <div class="criterion-name">{{ criterion.name }}</div>
+              <div class="criterion-weight">{% trans "Poids" %}: {{ criterion.weight }}</div>
+            </div>
+            <div>{{ criterion.min_score }} - {{ criterion.max_score }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>{% trans "Aucun critère de notation n'a été défini pour cette catégorie." %}
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Performances List -->
+      <div class="judge-dashboard">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h4 class="mb-0">{% trans "Performances" %}</h4>
+          <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-secondary active" id="pendingBtn">{% trans "À venir" %}</button>
+            <button type="button" class="btn btn-outline-secondary" id="completedBtn">{% trans "Terminées" %}</button>
+          </div>
+        </div>
+        
+        <!-- Pending Performances -->
+        <div id="pendingPerformances">
+          {% with pending_performances=performances|filter_by_status:'pending,in_progress' %}
+          {% if pending_performances %}
+          {% for performance in pending_performances %}
+          <div class="performance-card">
+            <div class="performance-info">
+              <div class="performance-name">{{ performance.practitioner.full_name }}</div>
+              <div class="performance-status {% if performance.status == 'pending' %}performance-status-pending{% else %}performance-status-in-progress{% endif %}">
+                {{ performance.get_status_display }}
+              </div>
+            </div>
+            <div class="performance-meta">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <i class="fas fa-dumbbell me-1"></i>{{ performance.practitioner.club.name|default:"-" }}
+                </div>
+                <div>
+                  <i class="fas fa-sort-numeric-down me-1"></i>{% trans "Ordre" %}: {{ performance.performance_order }}
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>{% trans "Aucune performance à venir pour cette catégorie." %}
+          </div>
+          {% endif %}
+          {% endwith %}
+        </div>
+        
+        <!-- Completed Performances -->
+        <div id="completedPerformances" style="display: none;">
+          {% with completed_performances=performances|filter_by_status:'completed' %}
+          {% if completed_performances %}
+          {% for performance in completed_performances %}
+          <div class="performance-card">
+            <div class="performance-info">
+              <div class="performance-name">{{ performance.practitioner.full_name }}</div>
+              <div class="performance-status performance-status-completed">
+                {{ performance.get_status_display }}
+              </div>
+            </div>
+            <div class="performance-meta">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <i class="fas fa-dumbbell me-1"></i>{{ performance.practitioner.club.name|default:"-" }}
+                </div>
+                <div>
+                  {% with score=performance|judge_score:judge.id %}
+                  {% if score %}
+                  <i class="fas fa-star me-1"></i>{% trans "Note" %}: {{ score }}
+                  {% else %}
+                  <span class="text-danger"><i class="fas fa-times-circle me-1"></i>{% trans "Non noté" %}</span>
+                  {% endif %}
+                  {% endwith %}
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>{% trans "Aucune performance terminée pour cette catégorie." %}
+          </div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-4">
+      <!-- Competition Info -->
+      <div class="stats-card">
+        <h5 class="mb-4">{% trans "Informations sur la compétition" %}</h5>
+        
+        <div class="stat-item">
+          <div class="stat-label">{% trans "Compétition" %}</div>
+          <div class="stat-value">{{ competition.title }}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">{% trans "Date" %}</div>
+          <div class="stat-value">{{ competition.start_date|date:"d/m/Y" }}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">{% trans "Lieu" %}</div>
+          <div class="stat-value">{{ competition.location }}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">{% trans "Statut" %}</div>
+          <div class="stat-value">{{ competition.get_status_display }}</div>
+        </div>
+      </div>
+      
+      <!-- Assigned Categories -->
+      <div class="stats-card">
+        <h5 class="mb-4">{% trans "Catégories assignées" %}</h5>
+        
+        {% with other_assignments=judge|get_other_assignments:competition %}
+        {% if other_assignments %}
+        {% for assignment in other_assignments %}
+        <div class="category-card">
+          <div class="category-card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">{{ assignment.category.name }}</h6>
+            <span class="category-status {% if assignment.category.status == 'pending' %}status-pending{% elif assignment.category.status == 'in_progress' %}status-in-progress{% else %}status-completed{% endif %}">
+              {{ assignment.category.get_status_display }}
+            </span>
+          </div>
+          <div class="category-card-body">
+            <div class="mb-2">
+              <strong>{% trans "Rôle" %}:</strong> {{ assignment.get_assignment_type_display }}
+            </div>
+            <div class="mb-2">
+              <strong>{% trans "Participants" %}:</strong> {{ assignment.category.registrations.count }}
+            </div>
+            <div class="d-grid">
+              <a href="{% url 'competitions:management:judge_scoring_interface' competition_id=competition.id category_id=assignment.category.id judge_id=judge.id %}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-clipboard-list me-1"></i>{% trans "Accéder" %}
+              </a>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle me-2"></i>{% trans "Vous n'êtes assigné à aucune autre catégorie dans cette compétition." %}
+        </div>
+        {% endif %}
+        {% endwith %}
+      </div>
+      
+      <!-- Scoring Statistics -->
+      <div class="stats-card">
+        <h5 class="mb-4">{% trans "Statistiques de notation" %}</h5>
+        
+        <div class="stat-item">
+          <div class="stat-label">{% trans "Performances notées" %}</div>
+          <div class="stat-value">{{ judge|performances_scored:category }}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">{% trans "Performances à noter" %}</div>
+          <div class="stat-value">{{ judge|performances_to_score:category }}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">{% trans "Note moyenne donnée" %}</div>
+          <div class="stat-value">{{ judge|average_score:category|default:"-" }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Performance tabs
+    const pendingBtn = document.getElementById('pendingBtn');
+    const completedBtn = document.getElementById('completedBtn');
+    const pendingPerformances = document.getElementById('pendingPerformances');
+    const completedPerformances = document.getElementById('completedPerformances');
+    
+    pendingBtn.addEventListener('click', function() {
+      pendingPerformances.style.display = 'block';
+      completedPerformances.style.display = 'none';
+      pendingBtn.classList.add('active');
+      completedBtn.classList.remove('active');
+    });
+    
+    completedBtn.addEventListener('click', function() {
+      pendingPerformances.style.display = 'none';
+      completedPerformances.style.display = 'block';
+      pendingBtn.classList.remove('active');
+      completedBtn.classList.add('active');
+    });
+    
+    // Timer for current performance
+    const timerElement = document.getElementById('timer');
+    
+    if (timerElement) {
+      let timerInterval;
+      let seconds = 0;
+      
+      {% if current_performance and current_performance.start_time %}
+        // Calculate elapsed time if performance has already started
+        const startTime = new Date('{{ current_performance.start_time|date:"c" }}');
+        const now = new Date();
+        seconds = Math.floor((now - startTime) / 1000);
+      {% endif %}
+      
+      function updateTimer() {
+        seconds++;
+        const minutes = Math.floor(seconds / 60);
+        const remainderSeconds = seconds % 60;
+        timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${remainderSeconds.toString().padStart(2, '0')}`;
+      }
+      
+      // Update timer immediately
+      updateTimer();
+      
+      // Start timer if performance is in progress
+      {% if current_performance and current_performance.status == 'in_progress' %}
+        timerInterval = setInterval(updateTimer, 1000);
+      {% endif %}
+    }
+    
+    // Auto reload to keep the dashboard updated
+    setTimeout(function() {
+      location.reload();
+    }, 60000); // Reload every minute
+  });
+</script>
+{% endblock %}

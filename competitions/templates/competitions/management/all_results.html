@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Tous les résultats" %} - {{ competition.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Titre et navigation -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Tous les résultats" %}</h1>
+        <div class="btn-group">
+            <a href="{% url 'competitions:management:results_dashboard' competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+            </a>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-file-export me-2"></i>{% trans "Exporter" %}
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <a class="dropdown-item" href="{% url 'competitions:management:export_all_results' competition.id %}?format=pdf">
+                            <i class="fas fa-file-pdf me-2 text-danger"></i>{% trans "Format PDF" %}
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{% url 'competitions:management:export_all_results' competition.id %}?format=csv">
+                            <i class="fas fa-file-csv me-2 text-success"></i>{% trans "Format CSV" %}
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{% url 'competitions:management:export_all_results' competition.id %}?format=excel">
+                            <i class="fas fa-file-excel me-2 text-primary"></i>{% trans "Format Excel" %}
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Information sur la compétition -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{{ competition.title }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><i class="fas fa-calendar-alt me-2"></i>{% trans "Dates" %}: {{ competition.start_date|date:"d/m/Y" }} {% if competition.end_date and competition.end_date != competition.start_date %}- {{ competition.end_date|date:"d/m/Y" }}{% endif %}</p>
+                    <p class="mb-1"><i class="fas fa-map-marker-alt me-2"></i>{% trans "Lieu" %}: {{ competition.location }}</p>
+                    <p class="mb-0"><i class="fas fa-info-circle me-2"></i>{% trans "Statut" %}: 
+                        {% if competition.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">{% trans "En attente" %}</span>
+                        {% elif competition.status == 'ongoing' %}
+                            <span class="badge bg-info">{% trans "En cours" %}</span>
+                        {% elif competition.status == 'completed' %}
+                            <span class="badge bg-success">{% trans "Terminée" %}</span>
+                        {% elif competition.status == 'cancelled' %}
+                            <span class="badge bg-danger">{% trans "Annulée" %}</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <div class="btn-group">
+                        <a href="{% url 'competitions:management:club_results' competition.id %}" class="btn btn-outline-primary">
+                            <i class="fas fa-building me-1"></i>{% trans "Résultats par club" %}
+                        </a>
+                        <a href="{% url 'competitions:management:medals_report' competition.id %}" class="btn btn-outline-primary">
+                            <i class="fas fa-medal me-1"></i>{% trans "Rapport des médailles" %}
+                        </a>
+                        <a href="{% url 'competitions:management:public_results_link' competition.id %}" class="btn btn-outline-primary">
+                            <i class="fas fa-share-alt me-1"></i>{% trans "Partager" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contrôles de filtre et recherche -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="searchResults" placeholder="{% trans 'Rechercher un participant...' %}">
+                        <button class="btn btn-outline-secondary" type="button" id="searchButton">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="categoryFilter">
+                        <option value="all">{% trans "Toutes les catégories" %}</option>
+                        {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="medalFilter">
+                        <option value="all">{% trans "Tous les résultats" %}</option>
+                        <option value="medalists">{% trans "Médaillés uniquement" %}</option>
+                        <option value="gold">{% trans "Or uniquement" %}</option>
+                        <option value="silver">{% trans "Argent uniquement" %}</option>
+                        <option value="bronze">{% trans "Bronze uniquement" %}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Résultats par catégorie -->
+    {% for category in categories %}
+        <div class="card shadow-sm mb-4 result-category" data-category-id="{{ category.id }}">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="h5 mb-0">{{ category.name }}</h3>
+                    <span class="badge bg-primary">{{ category.competition_type.name }}</span>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="80">{% trans "Rang" %}</th>
+                            <th>{% trans "Participant" %}</th>
+                            <th>{% trans "Club" %}</th>
+                            <th class="text-center">{% trans "Score" %}</th>
+                            <th>{% trans "Médaille" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ranking in results_by_category|get_item:category.id %}
+                            <tr class="result-row {% if ranking.rank <= 3 %}medalist rank-{{ ranking.rank }}{% endif %}">
+                                <td>
+                                    <span class="fs-4 fw-bold">{{ ranking.rank }}</span>
+                                    {% if ranking.is_tie %}
+                                        <span class="badge bg-info ms-1">{% trans "Ex-aequo" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if ranking.practitioner.photo %}
+                                            <img src="{{ ranking.practitioner.photo.url }}" alt="{{ ranking.practitioner.full_name }}" 
+                                                class="rounded-circle me-2" width="40" height="40">
+                                        {% else %}
+                                            <div class="rounded-circle bg-secondary text-white d-flex justify-content-center align-items-center me-2" 
+                                                style="width: 40px; height: 40px;">
+                                                <i class="fas fa-user"></i>
+                                            </div>
+                                        {% endif %}
+                                        <div>
+                                            <span class="participant-name">{{ ranking.practitioner.full_name }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if ranking.practitioner.club %}
+                                        <span class="club-name">{{ ranking.practitioner.club.name }}</span>
+                                    {% else %}
+                                        <span class="text-muted">{% trans "Sans club" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center fw-bold">{{ ranking.final_score }}</td>
+                                <td>
+                                    {% if ranking.rank <= 3 %}
+                                        {% if ranking.rank == 1 %}
+                                            <span class="badge bg-warning">
+                                                <i class="fas fa-medal me-1"></i>{% trans "Or" %}
+                                            </span>
+                                        {% elif ranking.rank == 2 %}
+                                            <span class="badge bg-secondary">
+                                                <i class="fas fa-medal me-1"></i>{% trans "Argent" %}
+                                            </span>
+                                        {% elif ranking.rank == 3 %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-medal me-1"></i>{% trans "Bronze" %}
+                                            </span>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'competitions:management:edit_ranking' competition.id ranking.id %}" class="btn btn-outline-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{% url 'competitions:management:category_results' competition.id category.id %}" class="btn btn-outline-secondary">
+                                            <i class="fas fa-list"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center py-3">
+                                    <p class="text-muted mb-0">{% trans "Aucun résultat disponible pour cette catégorie." %}</p>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% empty %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            {% trans "Aucun résultat n'est encore disponible pour cette compétition." %}
+        </div>
+    {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Fonction de recherche
+        const searchInput = document.getElementById('searchResults');
+        const searchButton = document.getElementById('searchButton');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const medalFilter = document.getElementById('medalFilter');
+        
+        // Fonction qui exécute le filtrage
+        function filterResults() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const categoryValue = categoryFilter.value;
+            const medalValue = medalFilter.value;
+            
+            // Toutes les catégories
+            const categories = document.querySelectorAll('.result-category');
+            
+            categories.forEach(category => {
+                // Filtre de catégorie
+                if (categoryValue !== 'all' && category.dataset.categoryId !== categoryValue) {
+                    category.style.display = 'none';
+                    return;
+                } else {
+                    category.style.display = '';
+                }
+                
+                // Toutes les lignes de cette catégorie
+                const rows = category.querySelectorAll('.result-row');
+                let visibleRows = 0;
+                
+                rows.forEach(row => {
+                    // Récupérer les données à filtrer
+                    const participantName = row.querySelector('.participant-name').textContent.toLowerCase();
+                    const clubElement = row.querySelector('.club-name');
+                    const clubName = clubElement ? clubElement.textContent.toLowerCase() : '';
+                    
+                    // Filtre de recherche
+                    const matchesSearch = participantName.includes(searchTerm) || clubName.includes(searchTerm);
+                    
+                    // Filtre de médaille
+                    let matchesMedal = true;
+                    if (medalValue === 'medalists') {
+                        matchesMedal = row.classList.contains('medalist');
+                    } else if (medalValue === 'gold') {
+                        matchesMedal = row.classList.contains('rank-1');
+                    } else if (medalValue === 'silver') {
+                        matchesMedal = row.classList.contains('rank-2');
+                    } else if (medalValue === 'bronze') {
+                        matchesMedal = row.classList.contains('rank-3');
+                    }
+                    
+                    // Appliquer les filtres
+                    if (matchesSearch && matchesMedal) {
+                        row.style.display = '';
+                        visibleRows++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+                
+                // Si aucune ligne n'est visible, masquer la catégorie
+                if (visibleRows === 0 && categoryValue === 'all') {
+                    category.style.display = 'none';
+                }
+            });
+        }
+        
+        // Attacher les événements
+        searchButton.addEventListener('click', filterResults);
+        searchInput.addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                filterResults();
+            }
+        });
+        
+        categoryFilter.addEventListener('change', filterResults);
+        medalFilter.addEventListener('change', filterResults);
+    });
+</script>
+{% endblock %}

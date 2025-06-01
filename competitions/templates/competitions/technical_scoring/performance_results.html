@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Résultats" %} - {{ practitioner.full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .results-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .practitioner-info {
+        background-color: #fff;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        border-left: 5px solid #28a745;
+    }
+    
+    .practitioner-name {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .competition-info {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .final-score-container {
+        background-color: #fff;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+    
+    .final-score-label {
+        font-size: 1.2rem;
+        font-weight: 500;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+    }
+    
+    .final-score {
+        font-size: 3.5rem;
+        font-weight: 700;
+        color: #28a745;
+    }
+    
+    .score-details {
+        background-color: #fff;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .score-details h3 {
+        margin-bottom: 1rem;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 0.5rem;
+    }
+    
+    .results-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+    }
+    
+    .judge-score {
+        font-weight: 600;
+        font-size: 1.1rem;
+        text-align: center;
+    }
+    
+    .highest {
+        color: #28a745;
+    }
+    
+    .lowest {
+        color: #dc3545;
+    }
+    
+    .excluded {
+        text-decoration: line-through;
+        opacity: 0.7;
+    }
+    
+    .criterion-weight {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .criterion-row {
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .criterion-row:last-child {
+        border-bottom: none;
+    }
+    
+    .validation-form {
+        background-color: #fff;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .criteria-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .criterion-card {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        flex: 1 1 45%;
+        min-width: 200px;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .criterion-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .criterion-avg {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-top: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="results-container">
+        <!-- En-tête avec infos du participant -->
+        <div class="practitioner-info">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h1 class="practitioner-name">{{ practitioner.full_name }}</h1>
+                    <div class="competition-info">
+                        <span class="me-3">{{ competition.title }}</span>
+                        <span class="me-3">{{ category.name }}</span>
+                        {% if practitioner.club %}
+                            <span>{{ practitioner.club.name }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <a href="{% url 'competitions:technical_scoring:manage_performances' category_id=category.id %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                </a>
+            </div>
+        </div>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <!-- Score final -->
+        <div class="final-score-container">
+            <div class="final-score-label">{% trans "Score final" %}</div>
+            <div class="final-score">{{ final_score|floatformat:2 }}</div>
+        </div>
+        
+        <!-- Résumé par critère -->
+        <div class="score-details">
+            <h3>{% trans "Résumé par critère" %}</h3>
+            
+            <div class="criteria-summary">
+                {% for criterion in criteria %}
+                    <div class="criterion-card">
+                        <div class="criterion-title">
+                            {{ criterion.name }}
+                            <span class="criterion-weight">({{ criterion.weight }}x)</span>
+                        </div>
+                        
+                        {% with criterion_scores=scores_by_criterion|get_item:criterion.id %}
+                            {% if criterion_scores %}
+                                {% with scores=criterion_scores|map_attribute:'value' %}
+                                    <div class="criterion-avg">
+                                        {{ scores|avg|floatformat:2 }}
+                                    </div>
+                                {% endwith %}
+                            {% else %}
+                                <div class="criterion-avg text-muted">N/A</div>
+                            {% endif %}
+                        {% endwith %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Détail des notes par juge et critère -->
+        <div class="score-details">
+            <h3>{% trans "Détail des notes" %}</h3>
+            
+            <div class="table-responsive">
+                <table class="table table-hover results-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">{% trans "Critère" %}</th>
+                            {% for judge in judges %}
+                                <th scope="col" class="text-center">{{ judge.first_name }} {{ judge.last_name|first }}.</th>
+                            {% endfor %}
+                            <th scope="col" class="text-center">{% trans "Moyenne" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for criterion in criteria %}
+                            <tr class="criterion-row">
+                                <td>
+                                    <strong>{{ criterion.name }}</strong>
+                                    <div class="criterion-weight">{% trans "Pondération:" %} {{ criterion.weight }}x</div>
+                                </td>
+                                
+                                {% for judge in judges %}
+                                    <td class="text-center">
+                                        {% with judge_scores=scores_by_judge|get_item:judge.id %}
+                                            {% if judge_scores %}
+                                                {% with score=judge_scores|get_item:criterion.id %}
+                                                    {% if score %}
+                                                        <div class="judge-score 
+                                                            {% if score == criterion_scores|max_value %}highest{% endif %} 
+                                                            {% if score == criterion_scores|min_value %}lowest{% endif %}
+                                                            {% if criterion_scores|is_extreme_score:score %}excluded{% endif %}">
+                                                            {{ score|floatformat:2 }}
+                                                        </div>
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                {% endwith %}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                {% endfor %}
+                                
+                                <td class="text-center">
+                                    {% with criterion_scores=scores_by_criterion|get_item:criterion.id %}
+                                        {% if criterion_scores %}
+                                            {% with scores=criterion_scores|map_attribute:'value' %}
+                                                <div class="judge-score">
+                                                    {{ scores|avg|floatformat:2 }}
+                                                </div>
+                                            {% endwith %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    {% endwith %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="small text-muted mt-3">
+                <i class="fas fa-info-circle me-1"></i>
+                {% if config and config.exclude_extreme_scores %}
+                    {% trans "Les notes extrêmes (plus haute et plus basse) sont exclues du calcul pour chaque critère et sont indiquées par un barré." %}
+                {% else %}
+                    {% trans "Toutes les notes sont prises en compte dans le calcul." %}
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Validation des résultats -->
+        <form method="post" class="validation-form">
+            {% csrf_token %}
+            
+            <h3>{% trans "Validation des résultats" %}</h3>
+            
+            <div class="form-check mb-3">
+                {{ form.publish_results }}
+                <label class="form-check-label" for="{{ form.publish_results.id_for_label }}">
+                    {{ form.publish_results.label }}
+                </label>
+                <div class="form-text">
+                    {% trans "Si coché, les résultats seront immédiatement publiés et visibles par tous" %}
+                </div>
+            </div>
+            
+            <div class="form-check mb-4">
+                {{ form.confirm_results }}
+                <label class="form-check-label" for="{{ form.confirm_results.id_for_label }}">
+                    {{ form.confirm_results.label }}
+                </label>
+            </div>
+            
+            <div class="text-center">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-check-circle me-2"></i>{% trans "Valider les résultats" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Confirmation avant publication des résultats
+        const publishCheckbox = document.getElementById('{{ form.publish_results.id_for_label }}');
+        const submitButton = document.querySelector('button[type="submit"]');
+        
+        submitButton.addEventListener('click', function(e) {
+            if (publishCheckbox.checked) {
+                if (!confirm("{% trans 'Êtes-vous sûr de vouloir publier les résultats ? Cette action est irréversible.' %}")) {
+                    e.preventDefault();
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

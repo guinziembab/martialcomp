@@ -1,0 +1,207 @@
+{% extends "grades/base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block page_title %}
+    {% if grade %}
+        {% trans "Modifier le grade de" %} {{ practitioner.full_name }}
+    {% else %}
+        {% trans "Attribuer un grade à" %} {{ practitioner.full_name }}
+    {% endif %}
+{% endblock %}
+
+{% block page_actions %}
+<div>
+    <a href="{% url 'grades:practitioner_grades' practitioner.id %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i> {% trans "Retour" %}
+    </a>
+</div>
+{% endblock %}
+
+{% block main_content %}
+    <!-- Résumé du pratiquant -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <div class="d-flex align-items-center">
+                {% if practitioner.photo %}
+                    <img src="{{ practitioner.photo.url }}" alt="{{ practitioner.full_name }}" 
+                         class="rounded-circle me-3" style="width: 48px; height: 48px; object-fit: cover;">
+                {% else %}
+                    <div class="rounded-circle bg-secondary text-white me-3 d-flex align-items-center justify-content-center" 
+                         style="width: 48px; height: 48px; font-size: 1.2rem;">
+                        {{ practitioner.first_name|first }}{{ practitioner.last_name|first }}
+                    </div>
+                {% endif %}
+                <div>
+                    <h5 class="mb-0">{{ practitioner.full_name }}</h5>
+                    <p class="text-muted mb-0 small">
+                        {{ practitioner.club.name }} | 
+                        {% trans "Âge" %}: {{ practitioner.age }} {% trans "ans" %} | 
+                        {% trans "Grade actuel" %}: {{ practitioner.grade }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Formulaire d'attribution de grade -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                {% if grade %}
+                    {% trans "Modifier le grade" %}
+                {% else %}
+                    {% trans "Attribuer un grade" %}
+                {% endif %}
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                {% if form.errors %}
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        {% trans "Veuillez corriger les erreurs suivantes :" %}
+                        <ul class="mb-0 mt-2">
+                            {% for field in form %}
+                                {% for error in field.errors %}
+                                    <li>{{ field.label }}: {{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                            {% for error in form.non_field_errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+                
+                <fieldset class="mb-4">
+                    <legend class="h6 border-bottom pb-2">{% trans "Informations sur le grade" %}</legend>
+                    <div class="row g-3">
+                        <!-- Discipline -->
+                        <div class="col-md-6">
+                            <label for="{{ form.discipline.id_for_label }}" class="form-label fw-bold">{{ form.discipline.label }} *</label>
+                            {{ form.discipline }}
+                            {% if form.discipline.help_text %}
+                                <div class="form-text">{{ form.discipline.help_text }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Grade -->
+                        <div class="col-md-6">
+                            <label for="{{ form.grade.id_for_label }}" class="form-label fw-bold">{{ form.grade.label }} *</label>
+                            {{ form.grade }}
+                            {% if form.grade.help_text %}
+                                <div class="form-text">{{ form.grade.help_text }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Date d'obtention -->
+                        <div class="col-md-6">
+                            <label for="{{ form.date_obtained.id_for_label }}" class="form-label fw-bold">{{ form.date_obtained.label }} *</label>
+                            {{ form.date_obtained }}
+                            {% if form.date_obtained.help_text %}
+                                <div class="form-text">{{ form.date_obtained.help_text }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Date d'expiration -->
+                        <div class="col-md-6">
+                            <label for="{{ form.date_expiry.id_for_label }}" class="form-label fw-bold">{{ form.date_expiry.label }}</label>
+                            {{ form.date_expiry }}
+                            {% if form.date_expiry.help_text %}
+                                <div class="form-text">{{ form.date_expiry.help_text }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </fieldset>
+                
+                <fieldset class="mb-4">
+                    <legend class="h6 border-bottom pb-2">{% trans "Détails de l'attribution" %}</legend>
+                    <div class="row g-3">
+                        <!-- Décerné par -->
+                        <div class="col-md-6">
+                            <label for="{{ form.awarded_by.id_for_label }}" class="form-label fw-bold">{{ form.awarded_by.label }}</label>
+                            {{ form.awarded_by }}
+                            {% if form.awarded_by.help_text %}
+                                <div class="form-text">{{ form.awarded_by.help_text }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Lieu d'obtention -->
+                        <div class="col-md-6">
+                            <label for="{{ form.location.id_for_label }}" class="form-label fw-bold">{{ form.location.label }}</label>
+                            {{ form.location }}
+                            {% if form.location.help_text %}
+                                <div class="form-text">{{ form.location.help_text }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Numéro de certificat -->
+                        <div class="col-md-6">
+                            <label for="{{ form.certificate_number.id_for_label }}" class="form-label fw-bold">{{ form.certificate_number.label }}</label>
+                            {{ form.certificate_number }}
+                            {% if form.certificate_number.help_text %}
+                                <div class="form-text">{{ form.certificate_number.help_text }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Fichier certificat -->
+                        <div class="col-md-6">
+                            <label for="{{ form.certificate_file.id_for_label }}" class="form-label fw-bold">{{ form.certificate_file.label }}</label>
+                            {{ form.certificate_file }}
+                            {% if form.certificate_file.help_text %}
+                                <div class="form-text">{{ form.certificate_file.help_text }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Notes -->
+                        <div class="col-12">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label fw-bold">{{ form.notes.label }}</label>
+                            {{ form.notes }}
+                            {% if form.notes.help_text %}
+                                <div class="form-text">{{ form.notes.help_text }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </fieldset>
+                
+                <fieldset class="mb-4">
+                    <legend class="h6 border-bottom pb-2">{% trans "Options" %}</legend>
+                    <div class="form-check form-switch">
+                        {{ form.is_current }}
+                        <label class="form-check-label" for="{{ form.is_current.id_for_label }}">{{ form.is_current.label }}</label>
+                        {% if form.is_current.help_text %}
+                            <div class="form-text">{{ form.is_current.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </fieldset>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                    <a href="{% url 'grades:practitioner_grades' practitioner.id %}" class="btn btn-outline-secondary me-md-2">
+                        {% trans "Annuler" %}
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>
+                        {% if grade %}
+                            {% trans "Mettre à jour" %}
+                        {% else %}
+                            {% trans "Attribuer le grade" %}
+                        {% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock %}
+
+{% block page_js %}
+<script src="{% static 'competitions/js/grade_filtering.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialiser le filtrage des grades
+        new GradeFilter('#{{ form.discipline.id_for_label }}', '#{{ form.grade.id_for_label }}');
+    });
+</script>
+{% endblock %}

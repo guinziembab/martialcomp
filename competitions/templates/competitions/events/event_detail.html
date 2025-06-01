@@ -1,0 +1,1204 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load competition_tags %}
+{% load custom_filters %}
+
+{% block title %}{{ event.title }} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Styles pour la page de détail d'événement */
+  .event-header {
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+    overflow: hidden;
+  }
+  
+  .event-banner {
+    height: 250px;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+  }
+  
+  .event-banner-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 2rem;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+    color: white;
+  }
+  
+  .event-type-badge {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    border-radius: 30px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #fff;
+    margin-bottom: 1rem;
+  }
+  
+  .event-type-badge.competition {
+    background-color: #ff9800;
+  }
+  
+  .event-type-badge.training {
+    background-color: #3366ff;
+  }
+  
+  .event-type-badge.seminar {
+    background-color: #9c27b0;
+  }
+  
+  .event-type-badge.exam {
+    background-color: #e91e63;
+  }
+  
+  .event-type-badge.meeting {
+    background-color: #607d8b;
+  }
+  
+  .event-type-badge.social {
+    background-color: #4caf50;
+  }
+  
+  .event-title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+  
+  .event-info-bar {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1.5rem 2rem;
+    background-color: #fff;
+  }
+  
+  .event-info-item {
+    display: flex;
+    align-items: center;
+  }
+  
+  .event-info-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #f0f4ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.75rem;
+    color: #3366ff;
+  }
+  
+  .event-info-text {
+    line-height: 1.3;
+  }
+  
+  .event-info-label {
+    font-size: 0.8rem;
+    color: #666;
+    display: block;
+  }
+  
+  .event-info-value {
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .event-main {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+  }
+  
+  .event-details {
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+  }
+  
+  .event-section {
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .event-section:last-child {
+    border-bottom: none;
+  }
+  
+  .event-section-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+  }
+  
+  .event-section-title i {
+    margin-right: 0.75rem;
+    color: #3366ff;
+  }
+  
+  .event-description {
+    line-height: 1.6;
+    color: #444;
+  }
+  
+  .event-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+  
+  .sidebar-card {
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+  }
+  
+  .sidebar-card-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #eee;
+    background-color: #f8f9fa;
+  }
+  
+  .sidebar-card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+  }
+  
+  .sidebar-card-title i {
+    margin-right: 0.75rem;
+    color: #3366ff;
+  }
+  
+  .sidebar-card-body {
+    padding: 1.5rem;
+  }
+  
+  .sidebar-card-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #eee;
+    background-color: #f8f9fa;
+  }
+  
+  .action-button {
+    width: 100%;
+    padding: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    border-radius: 30px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+  }
+  
+  .status-badge.upcoming {
+    background-color: rgba(51, 102, 255, 0.1);
+    color: #3366ff;
+  }
+  
+  .status-badge.ongoing {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+  
+  .status-badge.past {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+  }
+  
+  .status-badge.cancelled {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+  }
+  
+  .status-badge i {
+    margin-right: 0.5rem;
+  }
+  
+  .event-registration-info {
+    margin-bottom: 1.5rem;
+  }
+  
+  .registration-counter {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .registration-progress {
+    flex-grow: 1;
+    height: 8px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  
+  .registration-progress-bar {
+    height: 100%;
+    background-color: #3366ff;
+    border-radius: 4px;
+  }
+  
+  .registration-progress-bar.full {
+    background-color: #28a745;
+  }
+  
+  .registration-progress-bar.nearly-full {
+    background-color: #ffc107;
+  }
+  
+  .registration-text {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  
+  .registration-deadline {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 1rem;
+  }
+  
+  .registration-deadline i {
+    margin-right: 0.5rem;
+    color: #dc3545;
+  }
+  
+  .registration-expired {
+    color: #dc3545;
+    font-weight: 600;
+  }
+  
+  .participants-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  
+  .participant-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .participant-item:last-child {
+    border-bottom: none;
+  }
+  
+  .participant-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.75rem;
+    font-weight: 600;
+    color: #6c757d;
+  }
+  
+  .participant-info {
+    flex-grow: 1;
+  }
+  
+  .participant-name {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  
+  .participant-role {
+    font-size: 0.8rem;
+    color: #6c757d;
+  }
+  
+  .participant-status {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 30px;
+  }
+  
+  .event-options-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .event-option-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .event-option-item:last-child {
+    border-bottom: none;
+  }
+  
+  .event-option-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: #f0f4ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.75rem;
+    color: #3366ff;
+  }
+  
+  .event-option-text {
+    flex-grow: 1;
+  }
+  
+  .event-option-label {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  
+  .event-option-description {
+    font-size: 0.9rem;
+    color: #666;
+  }
+  
+  .event-poll-section {
+    margin-top: 2rem;
+  }
+  
+  .poll-option {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    transition: all 0.3s ease;
+  }
+  
+  .poll-option:hover {
+    border-color: #3366ff;
+    background-color: #f0f4ff;
+  }
+  
+  .poll-option-date {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .poll-option-time {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .poll-option-responses {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  
+  .poll-response-btn {
+    flex-grow: 1;
+    border-radius: 4px;
+    padding: 0.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .poll-response-btn.yes {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+    border: 1px solid rgba(40, 167, 69, 0.2);
+  }
+  
+  .poll-response-btn.maybe {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.2);
+  }
+  
+  .poll-response-btn.no {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.2);
+  }
+  
+  .poll-response-btn:hover,
+  .poll-response-btn.active {
+    transform: translateY(-2px);
+  }
+  
+  .poll-response-btn.yes:hover,
+  .poll-response-btn.yes.active {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .poll-response-btn.maybe:hover,
+  .poll-response-btn.maybe.active {
+    background-color: #ffc107;
+    color: #212529;
+  }
+  
+  .poll-response-btn.no:hover,
+  .poll-response-btn.no.active {
+    background-color: #dc3545;
+    color: white;
+  }
+  
+  @media (max-width: 992px) {
+    .event-main {
+      grid-template-columns: 1fr;
+    }
+    
+    .event-info-bar {
+      flex-direction: column;
+      gap: 1rem;
+    }
+    
+    .event-info-item {
+      width: 100%;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .event-banner {
+      height: 200px;
+    }
+    
+    .event-title {
+      font-size: 1.5rem;
+    }
+    
+    .event-section,
+    .sidebar-card-body {
+      padding: 1rem 1.25rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <!-- En-tête de l'événement -->
+  <div class="event-header">
+    <div class="event-banner" style="background-image: url('{% if event.image %}{{ event.image.url }}{% else %}{% static 'images/event-default.jpg' %}{% endif %}');">
+      <div class="event-banner-overlay">
+        <span class="event-type-badge {{ event.event_type }}">{{ event.get_event_type_display }}</span>
+        <h1 class="event-title">{{ event.title }}</h1>
+        <p class="mb-0">{{ event.organization.name }}</p>
+      </div>
+    </div>
+    <div class="event-info-bar">
+      <div class="event-info-item">
+        <div class="event-info-icon">
+          <i class="fas fa-calendar-alt"></i>
+        </div>
+        <div class="event-info-text">
+          <span class="event-info-label">{% trans "Date" %}</span>
+          <span class="event-info-value">
+            {{ event.start_date|date:"d M Y" }}
+            {% if event.end_date and event.end_date != event.start_date %}
+              - {{ event.end_date|date:"d M Y" }}
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      <div class="event-info-item">
+        <div class="event-info-icon">
+          <i class="fas fa-clock"></i>
+        </div>
+        <div class="event-info-text">
+          <span class="event-info-label">{% trans "Heure" %}</span>
+          <span class="event-info-value">
+            {% if event.all_day %}
+              {% trans "Toute la journée" %}
+            {% else %}
+              {{ event.start_time|time:"H:i" }}
+              {% if event.end_time %} - {{ event.end_time|time:"H:i" }}{% endif %}
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      <div class="event-info-item">
+        <div class="event-info-icon">
+          <i class="fas fa-map-marker-alt"></i>
+        </div>
+        <div class="event-info-text">
+          <span class="event-info-label">{% trans "Lieu" %}</span>
+          <span class="event-info-value">
+            {% if event.location %}{{ event.location }}{% else %}{% trans "Non spécifié" %}{% endif %}
+          </span>
+        </div>
+      </div>
+      <div class="event-info-item">
+        <div class="event-info-icon">
+          <i class="fas fa-users"></i>
+        </div>
+        <div class="event-info-text">
+          <span class="event-info-label">{% trans "Participants" %}</span>
+          <span class="event-info-value">
+            {% if event.max_participants %}
+              {{ event.participants_count }} / {{ event.max_participants }}
+              {% if event.is_full %}({% trans "Complet" %}){% endif %}
+            {% else %}
+              {{ event.participants_count }}
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      {% if event.price > 0 %}
+      <div class="event-info-item">
+        <div class="event-info-icon">
+          <i class="fas fa-tag"></i>
+        </div>
+        <div class="event-info-text">
+          <span class="event-info-label">{% trans "Prix" %}</span>
+          <span class="event-info-value">{{ event.price }} €</span>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- Messages d'alerte -->
+  {% if messages %}
+    <div class="messages mb-4">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+          <i class="fas {% if message.tags == 'success' %}fa-check-circle{% elif message.tags == 'error' %}fa-exclamation-circle{% elif message.tags == 'warning' %}fa-exclamation-triangle{% else %}fa-info-circle{% endif %} me-2"></i>
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  
+  <!-- Contenu principal -->
+  <div class="event-main">
+    <!-- Détails de l'événement -->
+    <div class="event-details">
+      <div class="event-section">
+        <h2 class="event-section-title">
+          <i class="fas fa-info-circle"></i> {% trans "À propos de cet événement" %}
+        </h2>
+        <div class="event-description">
+          {{ event.description|linebreaks }}
+        </div>
+      </div>
+      
+      {% if event.address or event.city or event.postal_code %}
+      <div class="event-section">
+        <h2 class="event-section-title">
+          <i class="fas fa-map-marked-alt"></i> {% trans "Adresse complète" %}
+        </h2>
+        <p>
+          {% if event.address %}{{ event.address }}<br>{% endif %}
+          {% if event.city %}{{ event.city }}{% endif %}
+          {% if event.postal_code %}{{ event.postal_code }}{% endif %}
+        </p>
+        {% if event.address and event.city %}
+        <div class="mt-3">
+          <a href="https://www.google.com/maps/search/?api=1&query={{ event.address|urlencode }}+{{ event.city|urlencode }}" target="_blank" class="btn btn-outline-primary">
+            <i class="fas fa-directions me-1"></i> {% trans "Itinéraire" %}
+          </a>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+      
+      {% if event.contact_person or event.contact_email or event.contact_phone %}
+      <div class="event-section">
+        <h2 class="event-section-title">
+          <i class="fas fa-address-card"></i> {% trans "Contact" %}
+        </h2>
+        {% if event.contact_person %}
+        <p><strong>{% trans "Personne de contact" %} :</strong> {{ event.contact_person.get_full_name }}</p>
+        {% endif %}
+        {% if event.contact_email %}
+        <p><strong>{% trans "Email" %} :</strong> <a href="mailto:{{ event.contact_email }}">{{ event.contact_email }}</a></p>
+        {% endif %}
+        {% if event.contact_phone %}
+        <p><strong>{% trans "Téléphone" %} :</strong> <a href="tel:{{ event.contact_phone }}">{{ event.contact_phone }}</a></p>
+        {% endif %}
+      </div>
+      {% endif %}
+      
+      {% if connected_poll and connected_poll.is_active %}
+      <div class="event-section event-poll-section">
+        <h2 class="event-section-title">
+          <i class="fas fa-poll"></i> {% trans "Sondage de planification" %}
+        </h2>
+        <p>{% trans "Veuillez indiquer vos disponibilités pour les dates proposées ci-dessous:" %}</p>
+        
+        <!-- TODO: Fix poll response URL -->
+        <form method="post" action="#">
+          {% csrf_token %}
+          
+          {% for option in connected_poll.options.all %}
+          <div class="poll-option">
+            <div class="poll-option-date">{{ option.date|date:"l d F Y" }}</div>
+            <div class="poll-option-time">
+              {% if option.all_day %}
+                {% trans "Toute la journée" %}
+              {% elif option.start_time and option.end_time %}
+                {{ option.start_time|time:"H:i" }} - {{ option.end_time|time:"H:i" }}
+              {% elif option.start_time %}
+                {% trans "À partir de" %} {{ option.start_time|time:"H:i" }}
+              {% endif %}
+              
+              {% if option.location %}
+                - {{ option.location }}
+              {% endif %}
+            </div>
+            
+            <div class="poll-responses-stats">
+              <span class="badge bg-success me-2">{{ option.yes_count }} {% trans "Oui" %}</span>
+              <span class="badge bg-warning text-dark me-2">{{ option.maybe_count }} {% trans "Peut-être" %}</span>
+              <span class="badge bg-danger">{{ option.no_count }} {% trans "Non" %}</span>
+            </div>
+            
+            <div class="poll-option-responses">
+              <input type="hidden" name="option_id" value="{{ option.id }}">
+              
+              <div class="poll-response-btn yes {% if user_response.response == 'yes' %}active{% endif %}" data-value="yes" data-option-id="{{ option.id }}">
+                <i class="fas fa-check me-1"></i> {% trans "Oui" %}
+              </div>
+              
+              {% if connected_poll.response_type == 'yes_maybe_no' %}
+              <div class="poll-response-btn maybe {% if user_response.response == 'maybe' %}active{% endif %}" data-value="maybe" data-option-id="{{ option.id }}">
+                <i class="fas fa-question me-1"></i> {% trans "Peut-être" %}
+              </div>
+              {% endif %}
+              
+              <div class="poll-response-btn no {% if user_response.response == 'no' %}active{% endif %}" data-value="no" data-option-id="{{ option.id }}">
+                <i class="fas fa-times me-1"></i> {% trans "Non" %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+          
+          {% if connected_poll.allow_comments %}
+          <div class="form-group mb-3">
+            <label for="comment">{% trans "Commentaire (optionnel)" %}</label>
+            <textarea class="form-control" id="comment" name="comment" rows="3">{{ user_response.comment }}</textarea>
+          </div>
+          {% endif %}
+          
+          <div class="text-end">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save me-1"></i> {% trans "Enregistrer mes réponses" %}
+            </button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+      
+      {% if event.participants.count > 0 %}
+      <div class="event-section">
+        <h2 class="event-section-title">
+          <i class="fas fa-users"></i> {% trans "Participants" %}
+        </h2>
+        
+        {% if user_can_view_participants %}
+        <ul class="participants-list">
+          {% for participant in event.participants.all %}
+          <li class="participant-item">
+            <div class="participant-avatar">
+              {% if participant.user.first_name %}
+                {{ participant.user.first_name|first|upper }}{{ participant.user.last_name|first|upper }}
+              {% else %}
+                {{ participant.user.username|first|upper }}
+              {% endif %}
+            </div>
+            <div class="participant-info">
+              <div class="participant-name">
+                {{ participant.user.get_full_name|default:participant.user.username }}
+              </div>
+              <div class="participant-role">
+                {% if participant.user.userprofile.role %}
+                  {{ participant.user.userprofile.get_role_display }}
+                {% else %}
+                  {% trans "Participant" %}
+                {% endif %}
+              </div>
+            </div>
+            <span class="participant-status badge bg-{% if participant.status == 'confirmed' %}success{% elif participant.status == 'registered' %}info{% elif participant.status == 'waitlist' %}warning{% else %}secondary{% endif %}">
+              {{ participant.get_status_display }}
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">
+          {% trans "La liste des participants n'est visible que pour les organisateurs et administrateurs." %}
+        </p>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+    
+    <!-- Barre latérale -->
+    <div class="event-sidebar">
+      <!-- Statut et actions -->
+      <div class="sidebar-card">
+        <div class="sidebar-card-body text-center">
+          <span class="status-badge
+                     {% if event.is_cancelled %}cancelled
+                     {% elif event.is_ongoing %}ongoing  
+                     {% elif event.is_upcoming %}upcoming
+                     {% else %}past
+                     {% endif %}">
+            <i class="fas fa-circle"></i>
+            {% if event.is_cancelled %}
+              {% trans "Annulé" %}
+            {% elif event.is_ongoing %}
+              {% trans "En cours" %}
+            {% elif event.is_upcoming %}
+              {% trans "À venir" %}
+            {% else %}
+              {% trans "Passé" %}
+            {% endif %}
+          </span>
+          
+          {% if not event.is_cancelled %}
+            {% if event.is_upcoming or event.is_ongoing %}
+            {% if user_registration %}
+              <div class="alert alert-success">
+                <i class="fas fa-check-circle me-1"></i> {% trans "Vous êtes inscrit à cet événement." %}
+              </div>
+              
+              <form method="post" action="{% url 'competitions:events:cancel_registration' event.id user_registration.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger action-button">
+                  <i class="fas fa-times me-1"></i> {% trans "Annuler mon inscription" %}
+                </button>
+              </form>
+            {% elif event.registration_required %}
+              {% if event.is_full %}
+                <div class="alert alert-warning">
+                  <i class="fas fa-exclamation-triangle me-1"></i> {% trans "Cet événement est complet." %}
+                </div>
+                <a href="{% url 'competitions:events:register_for_event' event.id %}" class="btn btn-outline-primary action-button">
+                  <i class="fas fa-clipboard-list me-1"></i> {% trans "Rejoindre la liste d'attente" %}
+                </a>
+              {% elif event.registration_deadline and event.registration_deadline < now %}
+                <div class="alert alert-danger">
+                  <i class="fas fa-exclamation-circle me-1"></i> {% trans "Les inscriptions sont terminées." %}
+                </div>
+              {% else %}
+                <a href="{% url 'competitions:events:register_for_event' event.id %}" class="btn btn-primary action-button">
+                  <i class="fas fa-user-plus me-1"></i> {% trans "S'inscrire" %}
+                </a>
+              {% endif %}
+            {% endif %}
+            
+            <div class="mt-3">
+              {% comment %}
+              <!-- TODO: Implement poll functionality for events -->
+              <a href="#" class="btn btn-outline-primary action-button disabled">
+                <i class="fas fa-poll me-1"></i> {% trans "Répondre au sondage" %}
+              </a>
+              {% endcomment %}
+              <a href="#" class="btn btn-outline-secondary action-button" data-bs-toggle="modal" data-bs-target="#shareModal">
+                <i class="fas fa-share-alt me-1"></i> {% trans "Partager" %}
+              </a>
+            </div>
+            {% endif %}
+          {% endif %}
+          
+          {% if user_can_edit %}
+            <hr>
+            <div class="mt-3">
+              <a href="{% url 'competitions:events:edit_event' event.id %}" class="btn btn-outline-primary action-button">
+                <i class="fas fa-edit me-1"></i> {% trans "Modifier l'événement" %}
+              </a>
+              {% if not event.is_cancelled %}
+                <button type="button" class="btn btn-outline-danger action-button" data-bs-toggle="modal" data-bs-target="#cancelModal">
+                  <i class="fas fa-ban me-1"></i> {% trans "Annuler l'événement" %}
+                </button>
+              {% endif %}
+              <a href="{% url 'competitions:events:event_participants' event.id %}" class="btn btn-outline-secondary action-button">
+                <i class="fas fa-users-cog me-1"></i> {% trans "Gérer les participants" %}
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Informations d'inscription -->
+      {% if event.registration_required and event.is_upcoming %}
+      <div class="sidebar-card">
+        <div class="sidebar-card-header">
+          <h3 class="sidebar-card-title">
+            <i class="fas fa-clipboard-check"></i> {% trans "Informations d'inscription" %}
+          </h3>
+        </div>
+        <div class="sidebar-card-body">
+          <div class="event-registration-info">
+            {% if event.max_participants %}
+              <div class="registration-counter">
+                <div class="registration-progress">
+                  <div class="registration-progress-bar 
+                    {% if event.is_full %}full
+                    {% elif event.is_nearly_full %}nearly-full{% endif %}" 
+                    style="width: {{ event.participants_count|percentof:event.max_participants }}%"></div>
+                </div>
+                <div class="registration-text">
+                  {{ event.participants_count }}/{{ event.max_participants }}
+                </div>
+              </div>
+              
+              {% if event.is_full %}
+                <div class="text-center mb-2">
+                  <span class="badge bg-success">{% trans "Complet" %}</span>
+                </div>
+              {% elif event.is_nearly_full %}
+                <div class="text-center mb-2">
+                  <span class="badge bg-warning text-dark">{% trans "Presque complet" %}</span>
+                </div>
+              {% endif %}
+            {% endif %}
+            
+            {% if event.registration_deadline %}
+              <div class="registration-deadline">
+                <i class="far fa-clock"></i> 
+                {% if event.registration_deadline < now %}
+                  <span class="registration-expired">
+                    {% trans "Inscriptions terminées le" %} {{ event.registration_deadline|date:"d/m/Y à H:i" }}
+                  </span>
+                {% else %}
+                  {% trans "Inscriptions ouvertes jusqu'au" %} {{ event.registration_deadline|date:"d/m/Y à H:i" }}
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      
+      <!-- Options de l'événement -->
+      <div class="sidebar-card">
+        <div class="sidebar-card-header">
+          <h3 class="sidebar-card-title">
+            <i class="fas fa-list-ul"></i> {% trans "Options" %}
+          </h3>
+        </div>
+        <div class="sidebar-card-body">
+          <ul class="event-options-list">
+            <li class="event-option-item">
+              <div class="event-option-icon">
+                <i class="fas fa-eye"></i>
+              </div>
+              <div class="event-option-text">
+                <div class="event-option-label">{% trans "Visibilité" %}</div>
+                <div class="event-option-description">{{ event.get_visibility_display }}</div>
+              </div>
+            </li>
+            <li class="event-option-item">
+              <div class="event-option-icon">
+                <i class="fas fa-users"></i>
+              </div>
+              <div class="event-option-text">
+                <div class="event-option-label">{% trans "Inscription" %}</div>
+                <div class="event-option-description">
+                  {% if event.registration_required %}
+                    {% trans "Inscription requise" %}
+                  {% else %}
+                    {% trans "Pas d'inscription nécessaire" %}
+                  {% endif %}
+                </div>
+              </div>
+            </li>
+            {% if event.price > 0 %}
+            <li class="event-option-item">
+              <div class="event-option-icon">
+                <i class="fas fa-money-bill-wave"></i>
+              </div>
+              <div class="event-option-text">
+                <div class="event-option-label">{% trans "Prix" %}</div>
+                <div class="event-option-description">{{ event.price }} €</div>
+              </div>
+            </li>
+            {% endif %}
+            {% if event.contact_email or event.contact_person %}
+            <li class="event-option-item">
+              <div class="event-option-icon">
+                <i class="fas fa-question-circle"></i>
+              </div>
+              <div class="event-option-text">
+                <div class="event-option-label">{% trans "Support" %}</div>
+                <div class="event-option-description">
+                  {% if event.contact_email %}
+                    <a href="mailto:{{ event.contact_email }}">{% trans "Contacter l'organisateur" %}</a>
+                  {% elif event.contact_person %}
+                    {% trans "Contacter" %} {{ event.contact_person.get_full_name }}
+                  {% endif %}
+                </div>
+              </div>
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+      
+      <!-- Organisateur -->
+      <div class="sidebar-card">
+        <div class="sidebar-card-header">
+          <h3 class="sidebar-card-title">
+            <i class="fas fa-building"></i> {% trans "Organisateur" %}
+          </h3>
+        </div>
+        <div class="sidebar-card-body">
+          <div class="d-flex align-items-center mb-3">
+            {% if event.organization.logo %}
+              <img src="{{ event.organization.logo.url }}" alt="{{ event.organization.name }}" class="me-3" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px;">
+            {% else %}
+              <div class="me-3" style="width: 50px; height: 50px; background-color: #e9ecef; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-building text-secondary"></i>
+              </div>
+            {% endif %}
+            <div>
+              <h4 class="h6 mb-0">{{ event.organization.name }}</h4>
+              <span class="text-muted small">{{ event.organization.type|default:_("Organisation") }}</span>
+            </div>
+          </div>
+          
+          {% if event.organization.website %}
+            <a href="{{ event.organization.website }}" target="_blank" class="btn btn-outline-primary btn-sm mb-2 w-100">
+              <i class="fas fa-globe me-1"></i> {% trans "Site web" %}
+            </a>
+          {% endif %}
+          
+          <a href="{% url 'organizations:detail' event.organization.id %}" class="btn btn-outline-secondary btn-sm w-100">
+            <i class="fas fa-info-circle me-1"></i> {% trans "Voir le profil" %}
+          </a>
+        </div>
+      </div>
+      
+      <!-- Rappels et notifications -->
+      {% if event.is_upcoming and not event.is_cancelled %}
+      <div class="sidebar-card">
+        <div class="sidebar-card-header">
+          <h3 class="sidebar-card-title">
+            <i class="fas fa-bell"></i> {% trans "Rappels" %}
+          </h3>
+        </div>
+        <div class="sidebar-card-body">
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="reminder1Day" {% if user_has_reminder %}checked{% endif %}>
+            <label class="form-check-label" for="reminder1Day">
+              {% trans "Rappel 1 jour avant" %}
+            </label>
+          </div>
+          
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="reminder3Hours">
+            <label class="form-check-label" for="reminder3Hours">
+              {% trans "Rappel 3 heures avant" %}
+            </label>
+          </div>
+          
+          <button type="button" class="btn btn-outline-primary btn-sm w-100" id="saveReminders">
+            <i class="fas fa-save me-1"></i> {% trans "Enregistrer mes préférences" %}
+          </button>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Modal Partage -->
+<div class="modal fade" id="shareModal" tabindex="-1" aria-labelledby="shareModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="shareModalLabel">{% trans "Partager cet événement" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="eventUrl" class="form-label">{% trans "Lien de l'événement" %}</label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="eventUrl" value="{{ request.build_absolute_uri }}" readonly>
+            <button class="btn btn-outline-secondary" type="button" id="copyLinkBtn">
+              <i class="fas fa-copy"></i>
+            </button>
+          </div>
+        </div>
+        
+        <div class="d-flex justify-content-center gap-3 mt-4">
+          <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.build_absolute_uri|urlencode }}" target="_blank" class="btn btn-outline-primary">
+            <i class="fab fa-facebook fa-lg"></i>
+          </a>
+          <a href="https://twitter.com/intent/tweet?text={{ event.title|urlencode }}&url={{ request.build_absolute_uri|urlencode }}" target="_blank" class="btn btn-outline-primary">
+            <i class="fab fa-twitter fa-lg"></i>
+          </a>
+          <a href="https://wa.me/?text={{ event.title|urlencode }}%20{{ request.build_absolute_uri|urlencode }}" target="_blank" class="btn btn-outline-primary">
+            <i class="fab fa-whatsapp fa-lg"></i>
+          </a>
+          <a href="mailto:?subject={{ event.title|urlencode }}&body={{ event.description|truncatewords:30|urlencode }}%0A%0A{{ request.build_absolute_uri|urlencode }}" target="_blank" class="btn btn-outline-primary">
+            <i class="fas fa-envelope fa-lg"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Annulation d'événement -->
+{% if user_can_edit and not event.is_cancelled %}
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-labelledby="cancelModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cancelModalLabel">{% trans "Annuler l'événement" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{% url 'competitions:events:delete_event' event.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p>{% trans "Êtes-vous sûr de vouloir annuler cet événement ? Cette action est irréversible." %}</p>
+          <div class="form-group mb-3">
+            <label for="cancellation_reason" class="form-label">{% trans "Raison de l'annulation" %}</label>
+            <textarea class="form-control" id="cancellation_reason" name="cancellation_reason" rows="3" required></textarea>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="notify_participants" name="notify_participants" checked>
+            <label class="form-check-label" for="notify_participants">
+              {% trans "Notifier tous les participants" %}
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+          <button type="submit" class="btn btn-danger">{% trans "Confirmer l'annulation" %}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Copier le lien
+    const copyLinkBtn = document.getElementById('copyLinkBtn');
+    const eventUrl = document.getElementById('eventUrl');
+    
+    if (copyLinkBtn) {
+      copyLinkBtn.addEventListener('click', function() {
+        eventUrl.select();
+        document.execCommand('copy');
+        
+        // Feedback visuel
+        copyLinkBtn.innerHTML = '<i class="fas fa-check"></i>';
+        setTimeout(() => {
+          copyLinkBtn.innerHTML = '<i class="fas fa-copy"></i>';
+        }, 2000);
+      });
+    }
+    
+    // Gestion des réponses au sondage
+    const pollResponseBtns = document.querySelectorAll('.poll-response-btn');
+    
+    if (pollResponseBtns.length > 0) {
+      pollResponseBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+          const optionId = this.getAttribute('data-option-id');
+          const value = this.getAttribute('data-value');
+          
+          // Désactiver les autres boutons du même groupe
+          document.querySelectorAll(`.poll-response-btn[data-option-id="${optionId}"]`).forEach(b => {
+            b.classList.remove('active');
+          });
+          
+          // Activer le bouton cliqué
+          this.classList.add('active');
+          
+          // Mettre à jour l'input caché
+          const input = document.querySelector(`input[name="responses[${optionId}]"]`);
+          if (!input) {
+            // Créer l'input s'il n'existe pas
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = `responses[${optionId}]`;
+            hiddenInput.value = value;
+            document.querySelector('form').appendChild(hiddenInput);
+          } else {
+            input.value = value;
+          }
+        });
+      });
+    }
+    
+    // Gestion des rappels
+    const saveRemindersBtn = document.getElementById('saveReminders');
+    const reminder1Day = document.getElementById('reminder1Day');
+    const reminder3Hours = document.getElementById('reminder3Hours');
+    
+    if (saveRemindersBtn) {
+      saveRemindersBtn.addEventListener('click', function() {
+        // Simuler l'enregistrement des préférences
+        saveRemindersBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> {% trans "Enregistrement..." %}';
+        
+        // Exemple d'appel AJAX (à adapter selon votre backend)
+        // TODO: Implement set_reminder URL
+        fetch('#', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          },
+          body: JSON.stringify({
+            reminder_1day: reminder1Day.checked,
+            reminder_3hours: reminder3Hours.checked,
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          saveRemindersBtn.innerHTML = '<i class="fas fa-check me-1"></i> {% trans "Préférences enregistrées" %}';
+          setTimeout(() => {
+            saveRemindersBtn.innerHTML = '<i class="fas fa-save me-1"></i> {% trans "Enregistrer mes préférences" %}';
+          }, 2000);
+        })
+        .catch(error => {
+          saveRemindersBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> {% trans "Erreur" %}';
+          setTimeout(() => {
+            saveRemindersBtn.innerHTML = '<i class="fas fa-save me-1"></i> {% trans "Enregistrer mes préférences" %}';
+          }, 2000);
+        });
+      });
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Assignation des juges" %} - {{ category.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .judge-card {
+        transition: transform 0.2s;
+        cursor: pointer;
+    }
+    
+    .judge-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .judge-card.selected {
+        border-color: #28a745;
+        background-color: rgba(40, 167, 69, 0.05);
+    }
+    
+    .judge-card.chief {
+        border-color: #ffc107;
+        background-color: rgba(255, 193, 7, 0.05);
+    }
+    
+    .judge-info {
+        display: flex;
+        align-items: center;
+    }
+    
+    .judge-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background-color: #f8f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+    }
+    
+    .assignment-area {
+        min-height: 200px;
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+    }
+    
+    .assignment-area.highlight {
+        border-color: #28a745;
+        background-color: rgba(40, 167, 69, 0.05);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:competitions:detail' pk=competition.id %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:competitions:categories' competition_id=competition.id %}">{% trans "Catégories" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% trans "Assignation des juges" %} - {{ category.name }}</li>
+        </ol>
+    </nav>
+    
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3">{% trans "Assignation des juges" %} - {{ category.name }}</h1>
+            <p class="text-muted">{% trans "Sélectionnez les juges pour cette catégorie et désignez le juge en chef." %}</p>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h2 class="h5 mb-0">{% trans "Juges disponibles" %}</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Sélectionnez les juges que vous souhaitez assigner à cette catégorie." %}
+                        </div>
+                        
+                        <div class="row row-cols-1 row-cols-md-2 g-3 mt-2">
+                            {% for judge in form.judges.field.queryset %}
+                                <div class="col">
+                                    <div class="card judge-card" data-judge-id="{{ judge.id }}">
+                                        <div class="card-body">
+                                            <div class="judge-info">
+                                                <div class="judge-avatar">
+                                                    <i class="fas fa-user fa-lg text-secondary"></i>
+                                                </div>
+                                                <div>
+                                                    <h5 class="card-title mb-0">{{ judge.get_full_name }}</h5>
+                                                    <p class="card-text small text-muted">
+                                                        <i class="fas fa-gavel me-1"></i>
+                                                        {{ judge.qualifications.first.get_level_display|default:"Juge" }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="form-check mt-2">
+                                                <input class="form-check-input" type="checkbox" name="judges" value="{{ judge.id }}" id="judge-{{ judge.id }}" {% if judge.id in current_assignments %}checked{% endif %}>
+                                                <label class="form-check-label" for="judge-{{ judge.id }}">
+                                                    {% trans "Assigner comme juge" %}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <div class="col-12">
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        {% trans "Aucun juge n'est disponible. Veuillez d'abord ajouter des juges." %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-6">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h2 class="h5 mb-0">{% trans "Juge en chef" %}</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Sélectionnez un juge en chef parmi les juges assignés." %}
+                        </div>
+                        
+                        <select name="chief_judge" class="form-select" id="chief-judge-select">
+                            <option value="">{% trans "Sélectionner un juge en chef" %}</option>
+                            {% for judge in form.judges.field.queryset %}
+                                {% if judge.id in current_assignments %}
+                                    <option value="{{ judge.id }}" {% if judge.id == chief_judge %}selected{% endif %}>
+                                        {{ judge.get_full_name }}
+                                    </option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        
+                        <div class="mt-4">
+                            <h5>{% trans "Informations sur le juge en chef" %}</h5>
+                            <p>{% trans "Le juge en chef a les responsabilités suivantes:" %}</p>
+                            <ul>
+                                <li>{% trans "Superviser l'ensemble du processus de notation" %}</li>
+                                <li>{% trans "Intervenir en cas d'ex-aequo ou de litige" %}</li>
+                                <li>{% trans "Valider les résultats finaux" %}</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h2 class="h5 mb-0">{% trans "Configuration" %}</h2>
+                    </div>
+                    <div class="card-body">
+                        {% for field in form %}
+                            {% if field.name != 'judges' and field.name != 'chief_judge' %}
+                                <div class="mb-3">
+                                    <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                                    {{ field }}
+                                    {% if field.help_text %}
+                                        <div class="form-text">{{ field.help_text }}</div>
+                                    {% endif %}
+                                    {% if field.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {% for error in field.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="d-flex justify-content-between mt-4">
+            <a href="{% url 'competitions:competitions:categories' competition_id=competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+            </a>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-2"></i>{% trans "Enregistrer" %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Interactions pour les cartes de juges
+        const judgeCards = document.querySelectorAll('.judge-card');
+        const judgeCheckboxes = document.querySelectorAll('input[name="judges"]');
+        const chiefJudgeSelect = document.getElementById('chief-judge-select');
+        
+        // Mettre à jour les classes des cartes
+        function updateCardStates() {
+            judgeCards.forEach(card => {
+                const judgeId = card.dataset.judgeId;
+                const checkbox = document.getElementById(`judge-${judgeId}`);
+                const isChiefJudge = chiefJudgeSelect.value === judgeId;
+                
+                card.classList.remove('selected', 'chief');
+                
+                if (checkbox.checked) {
+                    card.classList.add('selected');
+                    
+                    if (isChiefJudge) {
+                        card.classList.add('chief');
+                    }
+                }
+            });
+        }
+        
+        // Initialiser l'état des cartes
+        updateCardStates();
+        
+        // Interaction avec les cartes
+        judgeCards.forEach(card => {
+            card.addEventListener('click', function(e) {
+                const judgeId = this.dataset.judgeId;
+                const checkbox = document.getElementById(`judge-${judgeId}`);
+                
+                // Ne pas changer si on clique sur le checkbox directement
+                if (e.target !== checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                }
+                
+                // Mettre à jour le select du juge en chef
+                if (!checkbox.checked && chiefJudgeSelect.value === judgeId) {
+                    chiefJudgeSelect.value = '';
+                }
+                
+                // Mettre à jour la liste des options du juge en chef
+                updateChiefJudgeOptions();
+                
+                // Mettre à jour les classes des cartes
+                updateCardStates();
+            });
+        });
+        
+        // Mise à jour des options du juge en chef
+        function updateChiefJudgeOptions() {
+            const options = chiefJudgeSelect.querySelectorAll('option');
+            const selectedChief = chiefJudgeSelect.value;
+            
+            // Réinitialiser les options
+            options.forEach(option => {
+                if (option.value === '') return; // Ignorer l'option vide
+                
+                const checkbox = document.getElementById(`judge-${option.value}`);
+                option.disabled = !checkbox || !checkbox.checked;
+                option.hidden = option.disabled;
+            });
+            
+            // Si le juge en chef précédemment sélectionné n'est plus disponible
+            if (selectedChief && document.querySelector(`option[value="${selectedChief}"]`).disabled) {
+                chiefJudgeSelect.value = '';
+            }
+        }
+        
+        // Écouter les changements des checkboxes
+        judgeCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateChiefJudgeOptions();
+                updateCardStates();
+            });
+        });
+        
+        // Écouter les changements du sélecteur de juge en chef
+        chiefJudgeSelect.addEventListener('change', updateCardStates);
+        
+        // Initialiser la liste des options
+        updateChiefJudgeOptions();
+    });
+</script>
+{% endblock %}

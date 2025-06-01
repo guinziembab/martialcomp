@@ -1,0 +1,127 @@
+<!-- permissions_manager/templates/permissions_manager/user_role_list.html -->
+{% extends "permissions_manager/base.html" %}
+{% load i18n %}
+
+{% block permission_content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">{% trans "Liste des attributions de rôles" %}</h5>
+        <a href="{% url 'permissions_manager:user_role_create' %}" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus"></i> {% trans "Attribuer un rôle" %}
+        </a>
+    </div>
+    <div class="card-body">
+        <form method="get" class="mb-4">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <select name="role" class="form-select">
+                        <option value="">-- {% trans "Tous les rôles" %} --</option>
+                        {% for role in roles %}
+                            <option value="{{ role.id }}"{% if selected_role == role.id|stringformat:"s" %} selected{% endif %}>
+                                {{ role.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="is_active" class="form-select">
+                        <option value="">-- {% trans "Tous" %} --</option>
+                        <option value="true"{% if selected_is_active == "true" %} selected{% endif %}>
+                            {% trans "Actifs" %}
+                        </option>
+                        <option value="false"{% if selected_is_active == "false" %} selected{% endif %}>
+                            {% trans "Inactifs" %}
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="context_type" class="form-select">
+                        <option value="">-- {% trans "Tous les contextes" %} --</option>
+                        <option value="global"{% if selected_context_type == "global" %} selected{% endif %}>
+                            {% trans "Global" %}
+                        </option>
+                        <option value="federation"{% if selected_context_type == "federation" %} selected{% endif %}>
+                            {% trans "Fédération" %}
+                        </option>
+                        <option value="club"{% if selected_context_type == "club" %} selected{% endif %}>
+                            {% trans "Club" %}
+                        </option>
+                        <option value="competition"{% if selected_context_type == "competition" %} selected{% endif %}>
+                            {% trans "Compétition" %}
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="{% trans 'Rechercher...' %}">
+                </div>
+                <div class="col-md-1">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+        
+        {% if assignments %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Utilisateur" %}</th>
+                            <th>{% trans "Rôle" %}</th>
+                            <th>{% trans "Contexte" %}</th>
+                            <th>{% trans "Période" %}</th>
+                            <th>{% trans "Statut" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for assignment in assignments %}
+                            <tr>
+                                <td>{{ assignment.user.get_full_name|default:assignment.user.username }}</td>
+                                <td>{{ assignment.role.name }}</td>
+                                <td>
+                                    {% if assignment.context %}
+                                        <span class="badge bg-info">{{ assignment.content_type.name }}</span>
+                                        {{ assignment.context }}
+                                    {% else %}
+                                        <span class="badge bg-secondary">{% trans "Global" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ assignment.start_date }}
+                                    {% if assignment.end_date %}
+                                        <br>
+                                        <small class="text-muted">
+                                            {% trans "jusqu'au" %} {{ assignment.end_date }}
+                                        </small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if assignment.is_active %}
+                                        <span class="badge bg-success">{% trans "Actif" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{% trans "Inactif" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{% url 'permissions_manager:user_role_update' pk=assignment.pk %}" class="btn btn-sm btn-warning">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'permissions_manager:user_role_delete' pk=assignment.pk %}" class="btn btn-sm btn-danger">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                {% trans "Aucune attribution de rôle trouvée." %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

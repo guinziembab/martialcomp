@@ -1,0 +1,767 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ exam.title }} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .exam-header {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .exam-header.status-scheduled {
+        border-left: 5px solid #17a2b8;
+    }
+    
+    .exam-header.status-in_progress {
+        border-left: 5px solid #007bff;
+    }
+    
+    .exam-header.status-completed {
+        border-left: 5px solid #28a745;
+    }
+    
+    .exam-header.status-cancelled {
+        border-left: 5px solid #dc3545;
+    }
+    
+    .badge-discipline {
+        background-color: #6c757d;
+        color: white;
+    }
+    
+    .badge-status {
+        padding: 0.5em 0.75em;
+    }
+    
+    .stats-card {
+        border-radius: 10px;
+        padding: 1.5rem;
+        height: 100%;
+        text-align: center;
+        transition: all 0.3s ease;
+        border: none;
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .stats-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .stats-value {
+        font-size: 2rem;
+        font-weight: 700;
+    }
+    
+    .stats-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+    }
+    
+    .registration-card {
+        transition: all 0.3s ease;
+        border-left: 4px solid #6c757d;
+    }
+    
+    .registration-card.status-pending {
+        border-left-color: #ffc107;
+    }
+    
+    .registration-card.status-approved {
+        border-left-color: #17a2b8;
+    }
+    
+    .registration-card.status-passed {
+        border-left-color: #28a745;
+    }
+    
+    .registration-card.status-failed {
+        border-left-color: #dc3545;
+    }
+    
+    .registration-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+    }
+    
+    .nav-tabs {
+        border-bottom: 1px solid #dee2e6;
+        margin-bottom: 1.5rem;
+    }
+    
+    .nav-tabs .nav-link {
+        border: 1px solid transparent;
+        border-top-left-radius: 0.25rem;
+        border-top-right-radius: 0.25rem;
+        color: #495057;
+        font-weight: 500;
+        padding: 0.75rem 1.25rem;
+    }
+    
+    .nav-tabs .nav-link:hover {
+        border-color: #e9ecef #e9ecef #dee2e6;
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: #dc3545;
+        background-color: #fff;
+        border-color: #dee2e6 #dee2e6 #fff;
+    }
+    
+    .tab-content {
+        padding-top: 1rem;
+    }
+    
+    .countdown-badge {
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 0.5em 0.75em;
+        border-radius: 0.25rem;
+    }
+    
+    .status-badge {
+        padding: 0.5em 0.75em;
+        border-radius: 0.25rem;
+        font-weight: 500;
+    }
+    
+    .status-pending {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    
+    .status-approved {
+        background-color: #d1ecf1;
+        color: #0c5460;
+    }
+    
+    .status-passed {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .status-failed {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+    
+    .available-grades-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .grade-badge {
+        padding: 0.5em 0.75em;
+        border-radius: 0.25rem;
+        background-color: #e9ecef;
+        font-size: 0.85rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- En-tête de l'examen -->
+    <div class="exam-header status-{{ exam.status }}">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h1 class="mb-2">{{ exam.title }}</h1>
+                
+                <div class="mb-3">
+                    {% if exam.discipline %}
+                        <span class="badge badge-discipline me-2">{{ exam.discipline.name }}</span>
+                    {% endif %}
+                    
+                    {% if exam.status == 'scheduled' %}
+                        <span class="badge bg-info badge-status">{% trans "Programmé" %}</span>
+                    {% elif exam.status == 'in_progress' %}
+                        <span class="badge bg-primary badge-status">{% trans "En cours" %}</span>
+                    {% elif exam.status == 'completed' %}
+                        <span class="badge bg-success badge-status">{% trans "Terminé" %}</span>
+                    {% elif exam.status == 'cancelled' %}
+                        <span class="badge bg-danger badge-status">{% trans "Annulé" %}</span>
+                    {% endif %}
+                    
+                    {% if exam.is_registration_open %}
+                        <span class="badge bg-success ms-2">{% trans "Inscriptions ouvertes" %}</span>
+                    {% else %}
+                        <span class="badge bg-secondary ms-2">{% trans "Inscriptions fermées" %}</span>
+                    {% endif %}
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <p>
+                            <i class="fas fa-calendar-alt me-2"></i>
+                            <strong>{% trans "Date" %}:</strong> {{ exam.date|date:"j F Y" }}
+                        </p>
+                        
+                        {% if exam.start_time %}
+                            <p>
+                                <i class="fas fa-clock me-2"></i>
+                                <strong>{% trans "Heure" %}:</strong> {{ exam.start_time|time:"H:i" }}
+                                {% if exam.end_time %} - {{ exam.end_time|time:"H:i" }}{% endif %}
+                            </p>
+                        {% endif %}
+                        
+                        <p>
+                            <i class="fas fa-map-marker-alt me-2"></i>
+                            <strong>{% trans "Lieu" %}:</strong> {{ exam.location }}
+                        </p>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <p>
+                            <i class="fas fa-user-tie me-2"></i>
+                            <strong>{% trans "Examinateurs" %}:</strong> {{ exam.examiners }}
+                        </p>
+                        
+                        {% if exam.registration_deadline %}
+                            <p>
+                                <i class="fas fa-hourglass-end me-2"></i>
+                                <strong>{% trans "Date limite d'inscription" %}:</strong> 
+                                {{ exam.registration_deadline|date:"j F Y" }}
+                                
+                                {% now "Y-m-d" as today %}
+                                {% if exam.registration_deadline|date:"Y-m-d" > today and exam.is_registration_open %}
+                                    {% with days_left=exam.registration_deadline|timeuntil %}
+                                        <span class="countdown-badge ms-2">
+                                            <i class="fas fa-stopwatch me-1"></i>{{ days_left }}
+                                        </span>
+                                    {% endwith %}
+                                {% endif %}
+                            </p>
+                        {% endif %}
+                        
+                        <p>
+                            <i class="fas fa-users me-2"></i>
+                            <strong>{% trans "Inscrits" %}:</strong> {{ total_registrations }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div>
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="actionMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-cog me-1"></i>{% trans "Actions" %}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionMenuButton">
+                        <li><a class="dropdown-item" href="{% url 'grades:exam_update' exam.id %}">
+                            <i class="fas fa-edit me-2"></i>{% trans "Modifier l'examen" %}
+                        </a></li>
+                        
+                        {% if exam.is_registration_open %}
+                            <li><a class="dropdown-item" href="{% url 'grades:register_for_exam' exam.id %}">
+                                <i class="fas fa-user-plus me-2"></i>{% trans "Inscrire un pratiquant" %}
+                            </a></li>
+                        {% endif %}
+                        
+                        {% if exam.status == 'scheduled' %}
+                            <li><a class="dropdown-item" href="#">
+                                <i class="fas fa-play-circle me-2"></i>{% trans "Démarrer l'examen" %}
+                            </a></li>
+                        {% elif exam.status == 'in_progress' %}
+                            <li><a class="dropdown-item" href="#">
+                                <i class="fas fa-check-circle me-2"></i>{% trans "Terminer l'examen" %}
+                            </a></li>
+                        {% endif %}
+                        
+                        <li><hr class="dropdown-divider"></li>
+                        
+                        <li><a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#deleteExamModal">
+                            <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        {% if exam.description %}
+            <div class="mt-4">
+                <h5>{% trans "Description" %}</h5>
+                <p>{{ exam.description }}</p>
+            </div>
+        {% endif %}
+        
+        {% if exam.available_grades.exists %}
+            <div class="mt-4">
+                <h5>{% trans "Grades disponibles à l'examen" %}</h5>
+                <div class="available-grades-container mt-2">
+                    {% for grade in exam.available_grades.all %}
+                        <span class="grade-badge" style="background-color: {{ grade.color_code|default:'#e9ecef' }}">
+                            {{ grade.name }}
+                        </span>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Statistiques rapides -->
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4 mb-4">
+        <div class="col">
+            <div class="card stats-card bg-light">
+                <div class="stats-icon text-info">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stats-value text-dark">{{ total_registrations }}</div>
+                <div class="stats-label">{% trans "Total des inscriptions" %}</div>
+            </div>
+        </div>
+        
+        <div class="col">
+            <div class="card stats-card bg-light">
+                <div class="stats-icon text-warning">
+                    <i class="fas fa-hourglass-half"></i>
+                </div>
+                <div class="stats-value text-dark">{{ pending_registrations }}</div>
+                <div class="stats-label">{% trans "En attente" %}</div>
+            </div>
+        </div>
+        
+        <div class="col">
+            <div class="card stats-card bg-light">
+                <div class="stats-icon text-success">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stats-value text-dark">{{ passed_registrations }}</div>
+                <div class="stats-label">{% trans "Réussis" %}</div>
+            </div>
+        </div>
+        
+        <div class="col">
+            <div class="card stats-card bg-light">
+                <div class="stats-icon text-danger">
+                    <i class="fas fa-times-circle"></i>
+                </div>
+                <div class="stats-value text-dark">{{ failed_registrations }}</div>
+                <div class="stats-label">{% trans "Échoués" %}</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Onglets -->
+    <ul class="nav nav-tabs" id="examTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="registrations-tab" data-bs-toggle="tab" data-bs-target="#registrations" type="button" role="tab" aria-controls="registrations" aria-selected="true">
+                <i class="fas fa-users me-2"></i>{% trans "Inscriptions" %}
+                <span class="badge rounded-pill bg-secondary ms-1">{{ total_registrations }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="requirements-tab" data-bs-toggle="tab" data-bs-target="#requirements" type="button" role="tab" aria-controls="requirements" aria-selected="false">
+                <i class="fas fa-clipboard-list me-2"></i>{% trans "Exigences" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="grades-tab" data-bs-toggle="tab" data-bs-target="#grades" type="button" role="tab" aria-controls="grades" aria-selected="false">
+                <i class="fas fa-award me-2"></i>{% trans "Grades" %}
+            </button>
+        </li>
+    </ul>
+    
+    <div class="tab-content" id="examTabsContent">
+        <!-- Onglet Inscriptions -->
+        <div class="tab-pane fade show active" id="registrations" role="tabpanel" aria-labelledby="registrations-tab">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h4">{% trans "Liste des inscrits" %}</h2>
+                
+                {% if exam.is_registration_open %}
+                    <a href="{% url 'grades:register_for_exam' exam.id %}" class="btn btn-success">
+                        <i class="fas fa-user-plus me-2"></i>{% trans "Inscrire un pratiquant" %}
+                    </a>
+                {% endif %}
+            </div>
+            
+            {% if registrations %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th scope="col">{% trans "Pratiquant" %}</th>
+                                <th scope="col">{% trans "Club" %}</th>
+                                <th scope="col">{% trans "Grade actuel" %}</th>
+                                <th scope="col">{% trans "Grade ciblé" %}</th>
+                                <th scope="col">{% trans "Statut" %}</th>
+                                <th scope="col">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for registration in registrations %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if registration.practitioner.photo %}
+                                                <img src="{{ registration.practitioner.photo.url }}" alt="{{ registration.practitioner.full_name }}" class="rounded-circle me-2" width="40" height="40">
+                                            {% else %}
+                                                <div class="bg-secondary rounded-circle d-flex justify-content-center align-items-center me-2" style="width: 40px; height: 40px; color: white;">
+                                                    <i class="fas fa-user"></i>
+                                                </div>
+                                            {% endif %}
+                                            <div>
+                                                <div>{{ registration.practitioner.full_name }}</div>
+                                                <small class="text-muted">{{ registration.practitioner.age }} ans</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>{{ registration.practitioner.club.name|default:"-" }}</td>
+                                    <td>{{ registration.current_grade|default:"-" }}</td>
+                                    <td>{{ registration.target_grade.name|default:"-" }}</td>
+                                    <td>
+                                        {% if registration.status == 'pending' %}
+                                            <span class="status-badge status-pending">{% trans "En attente" %}</span>
+                                        {% elif registration.status == 'approved' %}
+                                            <span class="status-badge status-approved">{% trans "Approuvé" %}</span>
+                                        {% elif registration.status == 'passed' %}
+                                            <span class="status-badge status-passed">{% trans "Réussi" %}</span>
+                                        {% elif registration.status == 'failed' %}
+                                            <span class="status-badge status-failed">{% trans "Échoué" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li>
+                                                    <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#registrationDetailModal{{ registration.id }}">
+                                                        <i class="fas fa-eye me-2"></i>{% trans "Détails" %}
+                                                    </a>
+                                                </li>
+                                                
+                                                {% if registration.status == 'pending' %}
+                                                    <li>
+                                                        <form method="post" action="{% url 'grades:update_exam_registration_status' registration.id %}">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="status" value="approved">
+                                                            <button type="submit" class="dropdown-item">
+                                                                <i class="fas fa-check-circle me-2 text-success"></i>{% trans "Approuver" %}
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                {% elif registration.status == 'approved' %}
+                                                    <li>
+                                                        <form method="post" action="{% url 'grades:update_exam_registration_status' registration.id %}">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="status" value="passed">
+                                                            <button type="submit" class="dropdown-item">
+                                                                <i class="fas fa-check-circle me-2 text-success"></i>{% trans "Valider la réussite" %}
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                    <li>
+                                                        <form method="post" action="{% url 'grades:update_exam_registration_status' registration.id %}">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="status" value="failed">
+                                                            <button type="submit" class="dropdown-item">
+                                                                <i class="fas fa-times-circle me-2 text-danger"></i>{% trans "Marquer l'échec" %}
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                {% endif %}
+                                                
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#cancelRegistrationModal{{ registration.id }}">
+                                                        <i class="fas fa-trash-alt me-2"></i>{% trans "Annuler l'inscription" %}
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        
+                                        <!-- Modal détails de l'inscription -->
+                                        <div class="modal fade" id="registrationDetailModal{{ registration.id }}" tabindex="-1" aria-labelledby="registrationDetailModalLabel{{ registration.id }}" aria-hidden="true">
+                                            <div class="modal-dialog modal-lg">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title" id="registrationDetailModalLabel{{ registration.id }}">
+                                                            {% trans "Détails de l'inscription" %} - {{ registration.practitioner.full_name }}
+                                                        </h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <div class="row">
+                                                            <div class="col-md-6">
+                                                                <h6>{% trans "Informations du pratiquant" %}</h6>
+                                                                <p><strong>{% trans "Nom complet" %}:</strong> {{ registration.practitioner.full_name }}</p>
+                                                                <p><strong>{% trans "Âge" %}:</strong> {{ registration.practitioner.age }} ans</p>
+                                                                <p><strong>{% trans "Club" %}:</strong> {{ registration.practitioner.club.name|default:"-" }}</p>
+                                                                <p><strong>{% trans "Grade actuel" %}:</strong> {{ registration.current_grade|default:"-" }}</p>
+                                                            </div>
+                                                            
+                                                            <div class="col-md-6">
+                                                                <h6>{% trans "Informations de l'inscription" %}</h6>
+                                                                <p><strong>{% trans "Date d'inscription" %}:</strong> {{ registration.registration_date|date:"j F Y" }}</p>
+                                                                <p><strong>{% trans "Grade ciblé" %}:</strong> {{ registration.target_grade.name|default:"-" }}</p>
+                                                                <p><strong>{% trans "Statut" %}:</strong> 
+                                                                    {% if registration.status == 'pending' %}
+                                                                        <span class="status-badge status-pending">{% trans "En attente" %}</span>
+                                                                    {% elif registration.status == 'approved' %}
+                                                                        <span class="status-badge status-approved">{% trans "Approuvé" %}</span>
+                                                                    {% elif registration.status == 'passed' %}
+                                                                        <span class="status-badge status-passed">{% trans "Réussi" %}</span>
+                                                                    {% elif registration.status == 'failed' %}
+                                                                        <span class="status-badge status-failed">{% trans "Échoué" %}</span>
+                                                                    {% endif %}
+                                                                </p>
+                                                                
+                                                                {% if registration.certificate_number %}
+                                                                    <p><strong>{% trans "Numéro de certificat" %}:</strong> {{ registration.certificate_number }}</p>
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {% if registration.notes %}
+                                                            <div class="mt-3">
+                                                                <h6>{% trans "Notes" %}</h6>
+                                                                <p>{{ registration.notes }}</p>
+                                                            </div>
+                                                        {% endif %}
+                                                        
+                                                        {% if registration.status == 'approved' or registration.status == 'pending' %}
+                                                            <div class="mt-4">
+                                                                <h6>{% trans "Mettre à jour le statut" %}</h6>
+                                                                <div class="d-flex gap-2">
+                                                                    {% if registration.status == 'pending' %}
+                                                                        <form method="post" action="{% url 'grades:update_exam_registration_status' registration.id %}">
+                                                                            {% csrf_token %}
+                                                                            <input type="hidden" name="status" value="approved">
+                                                                            <button type="submit" class="btn btn-outline-success">
+                                                                                <i class="fas fa-check-circle me-2"></i>{% trans "Approuver" %}
+                                                                            </button>
+                                                                        </form>
+                                                                    {% elif registration.status == 'approved' %}
+                                                                        <form method="post" action="{% url 'grades:update_exam_registration_status' registration.id %}">
+                                                                            {% csrf_token %}
+                                                                            <input type="hidden" name="status" value="passed">
+                                                                            <button type="submit" class="btn btn-success">
+                                                                                <i class="fas fa-check-circle me-2"></i>{% trans "Valider la réussite" %}
+                                                                            </button>
+                                                                        </form>
+                                                                        
+                                                                        <form method="post" action="{% url 'grades:update_exam_registration_status' registration.id %}">
+                                                                            {% csrf_token %}
+                                                                            <input type="hidden" name="status" value="failed">
+                                                                            <button type="submit" class="btn btn-danger">
+                                                                                <i class="fas fa-times-circle me-2"></i>{% trans "Marquer l'échec" %}
+                                                                            </button>
+                                                                        </form>
+                                                                    {% endif %}
+                                                                </div>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                                            {% trans "Fermer" %}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Modal annulation d'inscription -->
+                                        <div class="modal fade" id="cancelRegistrationModal{{ registration.id }}" tabindex="-1" aria-labelledby="cancelRegistrationModalLabel{{ registration.id }}" aria-hidden="true">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <div class="modal-header bg-danger text-white">
+                                                        <h5 class="modal-title" id="cancelRegistrationModalLabel{{ registration.id }}">
+                                                            {% trans "Annuler l'inscription" %}
+                                                        </h5>
+                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <p>{% trans "Êtes-vous sûr de vouloir annuler l'inscription de" %} <strong>{{ registration.practitioner.full_name }}</strong> {% trans "à cet examen ?" %}</p>
+                                                        <p class="text-danger">
+                                                            <i class="fas fa-exclamation-triangle me-2"></i>
+                                                            {% trans "Cette action est irréversible." %}
+                                                        </p>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                                            {% trans "Annuler" %}
+                                                        </button>
+                                                        <form method="post" action="{% url 'grades:cancel_exam_registration' registration.id %}">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-danger">
+                                                                <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucune inscription pour cet examen." %}
+                    
+                    {% if exam.is_registration_open %}
+                        <div class="mt-3">
+                            <a href="{% url 'grades:register_for_exam' exam.id %}" class="btn btn-success">
+                                <i class="fas fa-user-plus me-2"></i>{% trans "Inscrire un pratiquant" %}
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Onglet Exigences -->
+        <div class="tab-pane fade" id="requirements" role="tabpanel" aria-labelledby="requirements-tab">
+            <div class="row my-3">
+                <div class="col-md-12">
+                    <h2 class="h4">{% trans "Exigences pour l'examen" %}</h2>
+                    
+                    {% if exam.requirements %}
+                        <div class="card">
+                            <div class="card-body">
+                                {{ exam.requirements|linebreaks }}
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Aucune exigence spécifique n'a été définie pour cet examen." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Onglet Grades -->
+        <div class="tab-pane fade" id="grades" role="tabpanel" aria-labelledby="grades-tab">
+            <div class="row my-3">
+                <div class="col-md-12">
+                    <h2 class="h4">{% trans "Grades disponibles" %}</h2>
+                    
+                    {% if exam.available_grades.exists %}
+                        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
+                            {% for grade in exam.available_grades.all %}
+                                <div class="col">
+                                    <div class="card h-100">
+                                        <div class="card-header" style="background-color: {{ grade.color_code|default:'#e9ecef' }}; color: {{ grade.color_code|default:'#e9ecef'|yesno:'white,black' }}">
+                                            <h5 class="card-title mb-0">{{ grade.name }}</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <p class="card-text">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-ruler-vertical me-1"></i>{% trans "Niveau" %}: {{ grade.level }}
+                                                </small>
+                                            </p>
+                                            
+                                            {% if grade.min_age > 0 %}
+                                                <p class="card-text">
+                                                    <i class="fas fa-birthday-cake me-2"></i>{% trans "Âge minimum" %}: {{ grade.min_age }} ans
+                                                </p>
+                                            {% endif %}
+                                            
+                                            {% if grade.min_time_in_previous_grade > 0 %}
+                                                <p class="card-text">
+                                                    <i class="fas fa-hourglass-half me-2"></i>{% trans "Temps minimum dans le grade précédent" %}: {{ grade.min_time_in_previous_grade }} mois
+                                                </p>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Aucun grade spécifique n'a été défini pour cet examen." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal de confirmation de suppression -->
+    <div class="modal fade" id="deleteExamModal" tabindex="-1" aria-labelledby="deleteExamModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="deleteExamModalLabel">
+                        {% trans "Supprimer l'examen" %} "{{ exam.title }}"
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>{% trans "Êtes-vous sûr de vouloir supprimer cet examen de passage de grade ?" %}</p>
+                    <p class="text-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        {% trans "Cette action est irréversible. Toutes les inscriptions associées seront également supprimées." %}
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "Annuler" %}
+                    </button>
+                    <form action="{% url 'grades:exam_delete' exam.id %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animation des cartes au chargement
+        const cards = document.querySelectorAll('.stats-card');
+        cards.forEach((card, index) => {
+            setTimeout(() => {
+                card.style.opacity = '1';
+            }, 100 * index);
+        });
+        
+        // Activation des onglets
+        const triggerTabList = [].slice.call(document.querySelectorAll('#examTabs button'))
+        triggerTabList.forEach(function (triggerEl) {
+            const tabTrigger = new bootstrap.Tab(triggerEl)
+            
+            triggerEl.addEventListener('click', function (event) {
+                event.preventDefault()
+                tabTrigger.show()
+            })
+        });
+    });
+</script>
+{% endblock %}

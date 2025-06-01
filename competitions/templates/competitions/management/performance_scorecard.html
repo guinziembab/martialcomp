@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Fiche de scores" %} - {{ performance.practitioner.full_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Fiche de scores détaillée" %}</h1>
+        <div class="btn-group">
+            <a href="{% url 'competitions:management:performance_scores' competition.id performance.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour aux scores" %}
+            </a>
+            <a href="javascript:window.print();" class="btn btn-outline-primary">
+                <i class="fas fa-print me-2"></i>{% trans "Imprimer" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- En-tête de la fiche -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{{ performance.practitioner.full_name }} - {{ competition.title }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><i class="fas fa-user me-2"></i>{% trans "Participant" %}: {{ performance.practitioner.full_name }}</p>
+                    {% if performance.practitioner.club %}
+                    <p class="mb-1"><i class="fas fa-building me-2"></i>{% trans "Club" %}: {{ performance.practitioner.club.name }}</p>
+                    {% endif %}
+                    <p class="mb-0"><i class="fas fa-tag me-2"></i>{% trans "Catégorie" %}: {{ category.name }}</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="mb-1">
+                        <i class="fas fa-clock me-2"></i>{% trans "Statut" %}: 
+                        <span class="badge {% if performance.status == 'completed' %}bg-success{% elif performance.status == 'in_progress' %}bg-warning{% elif performance.status == 'disqualified' %}bg-danger{% else %}bg-secondary{% endif %}">
+                            {{ performance.get_status_display }}
+                        </span>
+                    </p>
+                    {% if performance.start_time %}
+                    <p class="mb-1"><i class="fas fa-play me-2"></i>{% trans "Début" %}: {{ performance.start_time|date:"d/m/Y H:i:s" }}</p>
+                    {% endif %}
+                    {% if performance.end_time %}
+                    <p class="mb-1"><i class="fas fa-stop me-2"></i>{% trans "Fin" %}: {{ performance.end_time|date:"d/m/Y H:i:s" }}</p>
+                    {% endif %}
+                    {% if performance.duration %}
+                    <p class="mb-0"><i class="fas fa-stopwatch me-2"></i>{% trans "Durée" %}: {{ performance.duration|floatformat:1 }}s</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Matrice des scores -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h3 class="h5 mb-0">{% trans "Matrice des scores" %}</h3>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "Critère / Juge" %}</th>
+                            {% for judge_id, judge_data in judges.items %}
+                            <th>{{ judge_data.name }}<br><small class="text-muted">{{ judge_data.role }}</small></th>
+                            {% endfor %}
+                            <th>{% trans "Min" %}</th>
+                            <th>{% trans "Max" %}</th>
+                            <th>{% trans "Moy" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for criterion in criteria %}
+                        <tr>
+                            <td>
+                                <strong>{{ criterion.name }}</strong>
+                                <div class="small text-muted">{{ criterion.weight }}x</div>
+                            </td>
+                            
+                            {% for judge_id, judge_data in judges.items %}
+                            <td class="text-center">
+                                {% if criterion.id in judge_data.scores %}
+                                <span class="badge bg-primary fs-6">{{ judge_data.scores|get_item:criterion.id }}</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            
+                            <!-- Statistiques pour ce critère -->
+                            {% if criterion.id in stats %}
+                            <td class="text-center">
+                                <span class="badge bg-danger">{{ stats|get_item:criterion.id|get_item:'min'|floatformat:2 }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-success">{{ stats|get_item:criterion.id|get_item:'max'|floatformat:2 }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-info">{{ stats|get_item:criterion.id|get_item:'avg'|floatformat:2 }}</span>
+                            </td>
+                            {% else %}
+                            <td colspan="3" class="text-center text-muted">{% trans "Pas de données" %}</td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphique radar des scores -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h3 class="h5 mb-0">{% trans "Visualisation des scores" %}</h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <canvas id="radarChart" height="300"></canvas>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h4 class="h6 mb-3">{% trans "Légende" %}</h4>
+                            <ul class="list-group list-group-flush mb-3">
+                                {% for judge_id, judge_data in judges.items %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="color-box" style="background-color: {{ judge_data.color|default:'#0d6efd' }}"></span>
+                                        {{ judge_data.name }}
+                                    </div>
+                                    <small class="text-muted">{{ judge_data.role }}</small>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            
+                            <div class="alert alert-info small">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% trans "Le graphique montre les scores de chaque juge pour tous les critères. Les valeurs sont normalisées sur une échelle de 0 à 10 pour permettre la comparaison." %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notes et commentaires -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h3 class="h5 mb-0">{% trans "Notes et commentaires" %}</h3>
+        </div>
+        <div class="card-body">
+            {% if performance.notes %}
+            <div class="mb-3">
+                <h4 class="h6">{% trans "Notes sur la performance" %}:</h4>
+                <p>{{ performance.notes|linebreaks }}</p>
+            </div>
+            {% else %}
+            <p class="text-muted">{% trans "Aucune note enregistrée pour cette performance." %}</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Style pour les badges de score */
+    .table .badge.fs-6 {
+        min-width: 3rem;
+        padding: 0.4rem 0.5rem;
+    }
+    
+    /* Style pour les carrés de couleur de la légende */
+    .color-box {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        margin-right: 8px;
+        border-radius: 3px;
+    }
+    
+    /* Style pour l'impression */
+    @media print {
+        .btn-group, .no-print {
+            display: none !important;
+        }
+        
+        .card {
+            border: 1px solid #ddd !important;
+            margin-bottom: 20px !important;
+            break-inside: avoid;
+        }
+        
+        .card-header {
+            background-color: #f8f9fa !important;
+            color: #000 !important;
+        }
+        
+        body {
+            font-size: 12pt;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Filtre personnalisé pour récupérer une valeur dans un dictionnaire
+    if (!window.django) window.django = {};
+    if (!window.django.template) window.django.template = {};
+    if (!window.django.template.filters) window.django.template.filters = {};
+    
+    window.django.template.filters.get_item = function(dict, key) {
+        return dict[key];
+    };
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Créer le graphique radar
+        const ctx = document.getElementById('radarChart');
+        
+        // Couleurs pour les juges
+        const colors = [
+            'rgba(13, 110, 253, 0.7)',   // Bleu
+            'rgba(220, 53, 69, 0.7)',    // Rouge
+            'rgba(25, 135, 84, 0.7)',    // Vert
+            'rgba(255, 193, 7, 0.7)',    // Jaune
+            'rgba(111, 66, 193, 0.7)',   // Violet
+        ];
+        
+        // Préparer les données
+        const data = {
+            labels: [
+                {% for criterion in criteria %}
+                '{{ criterion.name }}',
+                {% endfor %}
+            ],
+            datasets: [
+                {% for judge_id, judge_data in judges.items %}
+                {
+                    label: '{{ judge_data.name }}',
+                    data: [
+                        {% for criterion in criteria %}
+                        {% if criterion.id in judge_data.scores %}
+                        {{ judge_data.scores|get_item:criterion.id }},
+                        {% else %}
+                        0,
+                        {% endif %}
+                        {% endfor %}
+                    ],
+                    backgroundColor: colors[{{ forloop.counter0 }} % colors.length].replace('0.7', '0.2'),
+                    borderColor: colors[{{ forloop.counter0 }} % colors.length],
+                    borderWidth: 2,
+                    pointBackgroundColor: colors[{{ forloop.counter0 }} % colors.length],
+                    pointRadius: 4
+                },
+                {% endfor %}
+            ]
+        };
+        
+        new Chart(ctx, {
+            type: 'radar',
+            data: data,
+            options: {
+                scales: {
+                    r: {
+                        beginAtZero: true,
+                        max: 10,
+                        ticks: {
+                            stepSize: 2
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                    },
+                    title: {
+                        display: true,
+                        text: '{% trans "Scores par critère et par juge" %}'
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

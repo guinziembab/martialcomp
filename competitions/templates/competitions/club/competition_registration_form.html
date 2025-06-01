@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Inscription à" %} {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .practitioner-card {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .practitioner-card:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    .practitioner-card.selected {
+        background-color: rgba(13, 110, 253, 0.1);
+        border-color: var(--bs-primary);
+    }
+    .competition-type-card {
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+    }
+    .practitioners-list {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:dashboard:club' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:club:available_competitions' %}">{% trans "Compétitions disponibles" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% trans "Inscription" %}</li>
+        </ol>
+    </nav>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <h1 class="h3 mb-4">{% trans "Inscription à" %}: {{ competition.title }}</h1>
+    
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{% trans "Informations sur la compétition" %}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><i class="fas fa-calendar-alt me-2"></i> <strong>{% trans "Date" %}:</strong> {{ competition.start_date|date:"d/m/Y" }}
+                    {% if competition.end_date != competition.start_date %}
+                        - {{ competition.end_date|date:"d/m/Y" }}
+                    {% endif %}</p>
+                    
+                    <p><i class="fas fa-map-marker-alt me-2"></i> <strong>{% trans "Lieu" %}:</strong> {{ competition.address }}</p>
+                    
+                    {% if competition.discipline %}
+                        <p><i class="fas fa-dumbbell me-2"></i> <strong>{% trans "Discipline" %}:</strong> {{ competition.discipline.name }}</p>
+                    {% endif %}
+                    
+                    {% if competition.registration_deadline %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-clock me-2"></i><strong>{% trans "Date limite d'inscription" %}:</strong> {{ competition.registration_deadline|date:"d/m/Y" }}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6 text-center">
+                    {% if competition.logo %}
+                        <img src="{{ competition.logo.url }}" alt="{{ competition.title }}" class="img-fluid rounded" style="max-height: 150px;">
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="row">
+            <!-- Liste des pratiquants -->
+            <div class="col-md-6 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h3 class="h5 mb-0">{% trans "Pratiquants" %}</h3>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="select-all-practitioners">
+                                <label class="form-check-label" for="select-all-practitioners">
+                                    {% trans "Tout sélectionner" %}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body practitioners-list">
+                        {% if practitioners %}
+                            {% for practitioner in practitioners %}
+                                <div class="form-check mb-3 practitioner-card p-2 rounded {% if practitioner.id in registered_practitioners %}selected{% endif %}">
+                                    <input class="form-check-input" type="checkbox" name="practitioners" value="{{ practitioner.id }}" id="practitioner-{{ practitioner.id }}" {% if practitioner.id in registered_practitioners %}checked{% endif %}>
+                                    <label class="form-check-label d-flex justify-content-between w-100" for="practitioner-{{ practitioner.id }}">
+                                        <div>
+                                            <strong>{{ practitioner.full_name }}</strong>
+                                            <div class="text-muted small">
+                                                {{ practitioner.grade }} - {{ practitioner.age }} ans
+                                            </div>
+                                        </div>
+                                        {% if practitioner.id in registered_practitioners %}
+                                            <span class="badge bg-success align-self-center">{% trans "Déjà inscrit" %}</span>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="alert alert-warning">
+                                {% trans "Aucun pratiquant disponible." %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Types de compétition -->
+            <div class="col-md-6 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h3 class="h5 mb-0">{% trans "Types de compétition" %}</h3>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="select-all-types">
+                                <label class="form-check-label" for="select-all-types">
+                                    {% trans "Tout sélectionner" %}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if competition_types %}
+                            {% for competition_type in competition_types %}
+                                <div class="competition-type-card">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="competition_types" value="{{ competition_type.id }}" id="type-{{ competition_type.id }}">
+                                        <label class="form-check-label w-100" for="type-{{ competition_type.id }}">
+                                            <strong>{{ competition_type.name }}</strong>
+                                            <div class="text-muted small">
+                                                {{ competition_type.description|truncatechars:100 }}
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="alert alert-warning">
+                                {% trans "Aucun type de compétition disponible." %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="d-flex justify-content-between mt-3">
+            <a href="{% url 'competitions:club:available_competitions' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+            </a>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-2"></i>{% trans "Enregistrer les inscriptions" %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Sélectionner tous les pratiquants
+        const selectAllPractitioners = document.getElementById('select-all-practitioners');
+        const practitionerCheckboxes = document.querySelectorAll('input[name="practitioners"]');
+        
+        selectAllPractitioners.addEventListener('change', function() {
+            practitionerCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllPractitioners.checked;
+                updateCardSelection(checkbox);
+            });
+        });
+        
+        // Sélectionner tous les types de compétition
+        const selectAllTypes = document.getElementById('select-all-types');
+        const typeCheckboxes = document.querySelectorAll('input[name="competition_types"]');
+        
+        selectAllTypes.addEventListener('change', function() {
+            typeCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllTypes.checked;
+            });
+        });
+        
+        // Mettre à jour visuellement les cartes des pratiquants
+        function updateCardSelection(checkbox) {
+            const card = checkbox.closest('.practitioner-card');
+            if (checkbox.checked) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        }
+        
+        // Ajouter des événements pour la sélection des pratiquants
+        practitionerCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateCardSelection(this);
+            });
+            
+            // Rendre toute la carte cliquable
+            const card = checkbox.closest('.practitioner-card');
+            card.addEventListener('click', function(e) {
+                // Ne pas déclencher si on clique directement sur la checkbox
+                if (e.target !== checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    updateCardSelection(checkbox);
+                }
+            });
+        });
+        
+        // Pré-cocher les types de compétition pour les pratiquants sélectionnés
+        const registeredPractitioners = JSON.parse('{{ registered_practitioners|safe|escapejs }}');
+        
+        function updateCompetitionTypeSelection() {
+            // Récupérer tous les pratiquants sélectionnés
+            const selectedPractitioners = Array.from(practitionerCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+            
+            // Si un seul pratiquant est sélectionné et qu'il est déjà inscrit
+            if (selectedPractitioners.length === 1 && registeredPractitioners[selectedPractitioners[0]]) {
+                const practitionerId = selectedPractitioners[0];
+                const registeredTypes = registeredPractitioners[practitionerId];
+                
+                // Cocher ses types de compétition
+                typeCheckboxes.forEach(checkbox => {
+                    checkbox.checked = registeredTypes.includes(checkbox.value);
+                });
+            }
+        }
+        
+        // Mettre à jour quand la sélection change
+        practitionerCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateCompetitionTypeSelection);
+        });
+        
+        // Initialiser
+        updateCompetitionTypeSelection();
+    });
+</script>
+{% endblock %}

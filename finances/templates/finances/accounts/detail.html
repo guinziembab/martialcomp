@@ -1,0 +1,425 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Détail du compte" %} - {{ account.name }}{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            {{ account.name }}
+        </h1>
+        <div>
+            {% if permissions.can_edit_account %}
+            <a href="{% url 'finances:account_update' account.id %}" class="btn btn-primary">
+                <i class="fas fa-edit"></i> {% trans "Modifier" %}
+            </a>
+            {% endif %}
+            {% if permissions.can_delete_account %}
+            <a href="{% url 'finances:account_delete' account.id %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "Supprimer" %}
+            </a>
+            {% endif %}
+            <a href="{% url 'finances:account_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "Retour à la liste" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Résumé du compte -->
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card shadow mb-4">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-2 text-center">
+                            <div class="display-1">
+                                <i class="fas fa-{{ account.get_icon_class }} text-{{ account.get_color_class }}"></i>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <h4>{{ account.name }}</h4>
+                            <div class="text-muted mb-2">{{ account.get_account_type_display }}</div>
+                            {% if account.category %}
+                            <span class="badge rounded-pill" style="background-color: {{ account.category.color|default:'#6c757d' }}; color: white;">
+                                {{ account.category.name }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted">{% trans "Solde initial" %}</div>
+                            <div class="h5">{{ account.initial_balance|floatformat:2 }} €</div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-muted">{% trans "Solde actuel" %}</div>
+                            <div class="h3 {% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ account.current_balance|floatformat:2 }} €
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Graphique d'évolution du solde -->
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Évolution du solde" %}</h6>
+                    <div class="dropdown no-arrow">
+                        <a class="dropdown-toggle" href="#" role="button" id="periodDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in" aria-labelledby="periodDropdown">
+                            <div class="dropdown-header">{% trans "Période" %}</div>
+                            <a class="dropdown-item {% if period == '30days' %}active{% endif %}" href="?period=30days">{% trans "30 derniers jours" %}</a>
+                            <a class="dropdown-item {% if period == '90days' %}active{% endif %}" href="?period=90days">{% trans "90 derniers jours" %}</a>
+                            <a class="dropdown-item {% if period == '180days' %}active{% endif %}" href="?period=180days">{% trans "6 derniers mois" %}</a>
+                            <a class="dropdown-item {% if period == '365days' %}active{% endif %}" href="?period=365days">{% trans "12 derniers mois" %}</a>
+                            <a class="dropdown-item {% if period == 'ytd' %}active{% endif %}" href="?period=ytd">{% trans "Année en cours" %}</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="chart-area">
+                        <canvas id="accountBalanceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistiques -->
+        <div class="col-lg-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Statistiques du compte" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="text-muted">{% trans "Revenus totaux" %}</div>
+                        <div class="h5 text-success">+ {{ stats.total_income|floatformat:2 }} €</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="text-muted">{% trans "Dépenses totales" %}</div>
+                        <div class="h5 text-danger">- {{ stats.total_expense|floatformat:2 }} €</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="text-muted">{% trans "Résultat net" %}</div>
+                        <div class="h5 {% if stats.net_result >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ stats.net_result|floatformat:2 }} €
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <div class="text-muted">{% trans "Moyenne mensuelle des revenus" %}</div>
+                        <div class="h6 text-success">+ {{ stats.avg_monthly_income|floatformat:2 }} €</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="text-muted">{% trans "Moyenne mensuelle des dépenses" %}</div>
+                        <div class="h6 text-danger">- {{ stats.avg_monthly_expense|floatformat:2 }} €</div>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <div class="text-muted">{% trans "Nombre de transactions" %}</div>
+                        <div class="h6">{{ stats.transaction_count }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="text-muted">{% trans "Dernière transaction" %}</div>
+                        <div class="h6">{{ stats.last_transaction_date|date:"d/m/Y"|default:"-" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtres des transactions -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Filtres" %}</h6>
+            <button class="btn btn-sm btn-outline-primary" type="button" data-toggle="collapse" data-target="#collapseFilters">
+                <i class="fas fa-filter"></i> {% trans "Afficher/Masquer" %}
+            </button>
+        </div>
+        <div class="card-body collapse show" id="collapseFilters">
+            <form method="get" class="mb-0">
+                <input type="hidden" name="period" value="{{ period }}">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="type">{% trans "Type" %}</label>
+                        {{ filter_form.type }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="category">{% trans "Catégorie" %}</label>
+                        {{ filter_form.category }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="start_date">{% trans "Date de début" %}</label>
+                        {{ filter_form.start_date }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="end_date">{% trans "Date de fin" %}</label>
+                        {{ filter_form.end_date }}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="min_amount">{% trans "Montant min" %}</label>
+                        {{ filter_form.min_amount }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="max_amount">{% trans "Montant max" %}</label>
+                        {{ filter_form.max_amount }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="keywords">{% trans "Mots-clés" %}</label>
+                        {{ filter_form.keywords }}
+                    </div>
+                    <div class="col-md-3 mb-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary mr-2">
+                            <i class="fas fa-search"></i> {% trans "Filtrer" %}
+                        </button>
+                        <a href="{% url 'finances:account_detail' account.id %}?period={{ period }}" class="btn btn-secondary">
+                            <i class="fas fa-undo"></i> {% trans "Réinitialiser" %}
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Transactions -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Transactions" %}</h6>
+            <div>
+                <a href="{% url 'finances:transaction_create' %}?account={{ account.id }}" class="btn btn-sm btn-success">
+                    <i class="fas fa-plus-circle"></i> {% trans "Nouvelle transaction" %}
+                </a>
+                {% if permissions.can_export_transactions %}
+                <a href="{% url 'finances:account_export_transactions' account.id %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-sm btn-primary ml-2">
+                    <i class="fas fa-download"></i> {% trans "Exporter" %}
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="transactionsTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Date" %}</th>
+                            <th>{% trans "Description" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Catégorie" %}</th>
+                            <th>{% trans "Montant" %}</th>
+                            <th>{% trans "Solde" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in transactions %}
+                        <tr>
+                            <td>{{ transaction.date|date:"d/m/Y" }}</td>
+                            <td>{{ transaction.description }}</td>
+                            <td>
+                                {% if transaction.type == 'income' %}
+                                <span class="badge bg-success">{% trans "Revenu" %}</span>
+                                {% elif transaction.type == 'expense' %}
+                                <span class="badge bg-danger">{% trans "Dépense" %}</span>
+                                {% elif transaction.type == 'transfer' %}
+                                <span class="badge bg-info">{% trans "Transfert" %}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ transaction.get_type_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if transaction.category %}
+                                <span class="badge rounded-pill" style="background-color: {{ transaction.category.color|default:'#6c757d' }}; color: white;">
+                                    {{ transaction.category.name }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">{% trans "Non catégorisé" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="{% if transaction.amount > 0 %}text-success{% elif transaction.amount < 0 %}text-danger{% endif %}">
+                                {{ transaction.amount|floatformat:2 }} €
+                            </td>
+                            <td class="{% if transaction.running_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ transaction.running_balance|floatformat:2 }} €
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'finances:transaction_detail' transaction.id %}" class="btn btn-info" title="{% trans 'Voir' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if permissions.can_edit_transaction %}
+                                    <a href="{% url 'finances:transaction_update' transaction.id %}" class="btn btn-primary" title="{% trans 'Modifier' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if permissions.can_delete_transaction %}
+                                    <a href="{% url 'finances:transaction_delete' transaction.id %}" class="btn btn-danger" title="{% trans 'Supprimer' %}">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center">
+                                {% trans "Aucune transaction ne correspond aux critères de recherche." %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <!-- Pagination -->
+                {% if transactions.has_other_pages %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mt-4">
+                        {% if transactions.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}" aria-label="First">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ transactions.previous_page_number }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}" aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">&laquo;&laquo;</span>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">&laquo;</span>
+                        </li>
+                        {% endif %}
+                        
+                        {% for i in transactions.paginator.page_range %}
+                            {% if transactions.number == i %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ i }}</span>
+                            </li>
+                            {% elif i > transactions.number|add:'-3' and i < transactions.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ i }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">{{ i }}</a>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if transactions.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ transactions.next_page_number }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}" aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ transactions.paginator.num_pages }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}" aria-label="Last">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">&raquo;</span>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">&raquo;&raquo;</span>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    $(document).ready(function() {
+        // Initialisation des datepickers
+        $('.datepicker').datepicker({
+            format: 'dd/mm/yyyy',
+            language: 'fr',
+            autoclose: true
+        });
+        
+        // Initialisation select2
+        $('.select2').select2({
+            theme: 'bootstrap4',
+            width: '100%'
+        });
+        
+        // Graphique d'évolution du solde
+        {% if chart_data %}
+        const ctx = document.getElementById('accountBalanceChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: {{ chart_data.labels|safe }},
+                datasets: [{
+                    label: "{% trans 'Solde' %}",
+                    backgroundColor: "rgba(78, 115, 223, 0.05)",
+                    borderColor: "rgba(78, 115, 223, 1)",
+                    pointBackgroundColor: "rgba(78, 115, 223, 1)",
+                    pointBorderColor: "#fff",
+                    pointHoverRadius: 3,
+                    pointHoverBackgroundColor: "rgba(78, 115, 223, 1)",
+                    pointHoverBorderColor: "rgba(78, 115, 223, 1)",
+                    pointHitRadius: 10,
+                    pointBorderWidth: 2,
+                    tension: 0.3,
+                    data: {{ chart_data.balances|safe }},
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        left: 10,
+                        right: 25,
+                        top: 25,
+                        bottom: 0
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 12,
+                            font: {
+                                size: 10
+                            }
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            callback: function(value) {
+                                return value.toLocaleString() + ' €';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return "{% trans 'Solde' %}: " + context.raw.toLocaleString() + ' €';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        {% endif %}
+    });
+</script>
+{% endblock %}

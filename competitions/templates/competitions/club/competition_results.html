@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title }} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .competition-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .competition-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .filter-card {
+        border-left: 4px solid #dc3545;
+    }
+    
+    .competition-date {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .discipline-badge {
+        display: inline-block;
+        padding: 0.35em 0.65em;
+        font-size: 0.85em;
+        font-weight: 500;
+        line-height: 1;
+        color: #fff;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.25rem;
+        background-color: #6c757d;
+        margin-bottom: 1rem;
+    }
+    
+    .search-box {
+        position: relative;
+    }
+    
+    .search-box i {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        left: 10px;
+        color: #6c757d;
+    }
+    
+    .search-box input {
+        padding-left: 35px;
+    }
+    
+    .no-results {
+        background-color: #f8f9fa;
+        padding: 2rem;
+        border-radius: 0.5rem;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">{% trans "Résultats des compétitions" %}</h1>
+        
+        <!-- Bouton de retour -->
+        <a href="javascript:history.back()" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+        </a>
+    </div>
+    
+    <!-- Filtres -->
+    <div class="card shadow-sm mb-4 filter-card">
+        <div class="card-body">
+            <h5 class="card-title mb-3">{% trans "Filtrer les résultats" %}</h5>
+            <form method="get" class="row g-3">
+                <!-- Filtre par discipline -->
+                <div class="col-md-4">
+                    <label for="discipline" class="form-label">{% trans "Discipline" %}</label>
+                    <select name="discipline" id="discipline" class="form-select">
+                        <option value="">{% trans "Toutes les disciplines" %}</option>
+                        {% for discipline in disciplines %}
+                            <option value="{{ discipline.id }}" {% if selected_discipline == discipline.id|stringformat:"i" %}selected{% endif %}>
+                                {{ discipline.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Filtre par année -->
+                <div class="col-md-4">
+                    <label for="year" class="form-label">{% trans "Année" %}</label>
+                    <select name="year" id="year" class="form-select">
+                        <option value="">{% trans "Toutes les années" %}</option>
+                        {% for year_option in years %}
+                            <option value="{{ year_option }}" {% if selected_year == year_option|stringformat:"i" %}selected{% endif %}>
+                                {{ year_option }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Champ de recherche -->
+                <div class="col-md-4">
+                    <label for="search" class="form-label">{% trans "Recherche" %}</label>
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" class="form-control" id="search" name="search" placeholder="{% trans 'Rechercher une compétition...' %}" value="{{ search|default:'' }}">
+                    </div>
+                </div>
+                
+                <div class="col-12 mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter me-2"></i>{% trans "Appliquer les filtres" %}
+                    </button>
+                    <a href="{% url 'competitions:results:list' %}" class="btn btn-outline-secondary ms-2">
+                        <i class="fas fa-undo me-2"></i>{% trans "Réinitialiser" %}
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Statistiques -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Total des compétitions" %}</h5>
+                    <p class="card-text display-4">{{ past_competitions.count }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Compétitions cette année" %}</h5>
+                    <p class="card-text display-4">{{ this_year_count|default:"0" }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Disciplines représentées" %}</h5>
+                    <p class="card-text display-4">{{ disciplines_count|default:"0" }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Liste des compétitions -->
+    <h2 class="h4 mb-3">{% trans "Compétitions terminées" %}</h2>
+    
+    {% if past_competitions %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for competition in past_competitions %}
+                <div class="col">
+                    <div class="card h-100 shadow-sm competition-card">
+                        {% if competition.logo %}
+                            <img src="{{ competition.logo.url }}" class="card-img-top" alt="{{ competition.title }}" style="height: 140px; object-fit: cover;">
+                        {% else %}
+                            <div class="text-center pt-3">
+                                <i class="fas fa-trophy fa-3x text-muted"></i>
+                            </div>
+                        {% endif %}
+                        
+                        <div class="card-body">
+                            <h5 class="card-title">{{ competition.title }}</h5>
+                            
+                            <div class="competition-date mb-2">
+                                <i class="fas fa-calendar-alt me-1"></i>
+                                {{ competition.start_date|date:"d/m/Y" }}
+                                {% if competition.end_date != competition.start_date %}
+                                    - {{ competition.end_date|date:"d/m/Y" }}
+                                {% endif %}
+                            </div>
+                            
+                            {% if competition.discipline %}
+                                <div class="discipline-badge">
+                                    {{ competition.discipline.name }}
+                                </div>
+                            {% endif %}
+                            
+                            {% if competition.address or competition.city %}
+                                <p class="card-text small text-muted mb-3">
+                                    <i class="fas fa-map-marker-alt me-1"></i>
+                                    {% if competition.address %}{{ competition.address }}{% endif %}
+                                    {% if competition.city %}
+                                        {% if competition.address %}, {% endif %}
+                                        {{ competition.city }}
+                                    {% endif %}
+                                </p>
+                            {% endif %}
+                            
+                            <a href="{% url 'competitions:results:detail' competition.id %}" class="btn btn-outline-primary w-100">
+                                <i class="fas fa-trophy me-2"></i>{% trans "Voir les résultats" %}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination -->
+        {% if past_competitions.has_other_pages %}
+            <nav aria-label="{% trans 'Navigation de page' %}" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if past_competitions.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}{% if search %}&search={{ search }}{% endif %}" aria-label="{% trans 'Première' %}">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ past_competitions.previous_page_number }}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}{% if search %}&search={{ search }}{% endif %}" aria-label="{% trans 'Précédente' %}">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">&laquo;&laquo;</span>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">&laquo;</span>
+                        </li>
+                    {% endif %}
+                    
+                    {% for i in past_competitions.paginator.page_range %}
+                        {% if i >= past_competitions.number|add:"-2" and i <= past_competitions.number|add:"2" %}
+                            <li class="page-item {% if i == past_competitions.number %}active{% endif %}">
+                                <a class="page-link" href="?page={{ i }}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}{% if search %}&search={{ search }}{% endif %}">{{ i }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if past_competitions.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ past_competitions.next_page_number }}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}{% if search %}&search={{ search }}{% endif %}" aria-label="{% trans 'Suivante' %}">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ past_competitions.paginator.num_pages }}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_year %}&year={{ selected_year }}{% endif %}{% if search %}&search={{ search }}{% endif %}" aria-label="{% trans 'Dernière' %}">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">&raquo;</span>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">&raquo;&raquo;</span>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="no-results">
+            <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+            <h3>{% trans "Aucune compétition terminée trouvée" %}</h3>
+            <p class="text-muted">{% trans "Il n'y a pas encore de compétitions terminées correspondant à vos critères de recherche." %}</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Auto-submit du formulaire lors des changements de sélection
+        const selectFilters = document.querySelectorAll('#discipline, #year');
+        selectFilters.forEach(filter => {
+            filter.addEventListener('change', function() {
+                document.querySelector('form').submit();
+            });
+        });
+    });
+</script>
+{% endblock %}

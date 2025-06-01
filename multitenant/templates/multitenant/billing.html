@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Facturation et abonnement" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>{% trans "Facturation et abonnement" %}</h1>
+    
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'multitenant:tenant_dashboard' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% trans "Facturation" %}</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-md-3">
+            <div class="list-group">
+                <a href="{% url 'multitenant:tenant_settings' %}" class="list-group-item list-group-item-action">
+                    {% trans "Général" %}
+                </a>
+                <a href="{% url 'multitenant:tenant_billing' %}" class="list-group-item list-group-item-action active">
+                    {% trans "Facturation" %}
+                </a>
+            </div>
+        </div>
+        
+        <div class="col-md-9">
+            <!-- Plan actuel -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Plan actuel" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h4>{{ tenant.get_subscription_plan_display }}</h4>
+                            <p class="mb-2">
+                                {% if tenant.is_trial %}
+                                    <span class="badge bg-warning">{% trans "Période d'essai" %}</span>
+                                    {% if tenant.trial_end_date %}
+                                        {% trans "Expire le" %} {{ tenant.trial_end_date|date:"d/m/Y" }}
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-success">{% trans "Actif" %}</span>
+                                {% endif %}
+                            </p>
+                            <h5>{{ pricing }}€/{% trans "an" %}</h5>
+                            <small class="text-muted">
+                                {% trans "Prix pour votre région:" %} {{ tenant.get_continent_display }}
+                            </small>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            {% if portal_url %}
+                                <a href="{{ portal_url }}" class="btn btn-primary" target="_blank">
+                                    {% trans "Gérer l'abonnement" %}
+                                </a>
+                            {% else %}
+                                <a href="{% url 'multitenant:payment_setup' %}" class="btn btn-primary">
+                                    {% trans "Configurer le paiement" %}
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Informations de facturation -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Informations de facturation" %}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+                        
+                        <div class="mb-3">
+                            {{ form.billing_name.label_tag }}
+                            {{ form.billing_name }}
+                            {% if form.billing_name.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.billing_name.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.billing_address.label_tag }}
+                            {{ form.billing_address }}
+                            {% if form.billing_address.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.billing_address.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.billing_city.label_tag }}
+                                {{ form.billing_city }}
+                                {% if form.billing_city.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.billing_city.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.billing_postal_code.label_tag }}
+                                {{ form.billing_postal_code }}
+                                {% if form.billing_postal_code.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.billing_postal_code.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                {{ form.billing_country.label_tag }}
+                                {{ form.billing_country }}
+                                {% if form.billing_country.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.billing_country.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.billing_tax_id.label_tag }}
+                                {{ form.billing_tax_id }}
+                                {% if form.billing_tax_id.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.billing_tax_id.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                {% trans "Enregistrer les informations" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Historique des paiements -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Historique des paiements" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if tenant.payment_config.last_payment_date %}
+                        <p>
+                            {% trans "Dernier paiement:" %} 
+                            {{ tenant.payment_config.last_payment_date|date:"d/m/Y" }}
+                            - {{ tenant.payment_config.last_payment_amount }}€
+                        </p>
+                    {% else %}
+                        <p class="text-muted">{% trans "Aucun paiement enregistré" %}</p>
+                    {% endif %}
+                    
+                    {% if portal_url %}
+                        <a href="{{ portal_url }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                            {% trans "Voir l'historique complet" %}
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

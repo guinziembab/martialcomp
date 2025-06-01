@@ -1,0 +1,493 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% translate "Résultats du sondage" %} - {{ survey.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .progress {
+        height: 25px;
+    }
+    .question-card {
+        margin-bottom: 2rem;
+        border-left: 4px solid #007bff;
+    }
+    .answer-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .chart-container {
+        height: 300px;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{% translate "Résultats du sondage" %}</h1>
+        <div>
+            <a href="{% url 'competitions:events:surveys:survey_detail' survey_id=survey.id %}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left"></i> {% translate "Retour au sondage" %}
+            </a>
+            {% if survey.event %}
+                <a href="{% url 'competitions:events:event_detail' event_id=survey.event.id %}" class="btn btn-outline-info ms-2">
+                    <i class="fas fa-calendar-alt"></i> {% translate "Voir l'événement" %}
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h2 class="card-title">{{ survey.title }}</h2>
+            <p class="card-text">{{ survey.description }}</p>
+            
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            {% translate "Informations générales" %}
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {% translate "Réponses totales" %}
+                                    <span class="badge bg-primary rounded-pill">{{ total_responses }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {% translate "État" %}
+                                    {% if survey.is_active %}
+                                        <span class="badge bg-success">{% translate "Actif" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{% translate "Inactif" %}</span>
+                                    {% endif %}
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {% translate "Type de sondage" %}
+                                    {% if survey.is_anonymous %}
+                                        <span class="badge bg-info">{% translate "Anonyme" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">{% translate "Nominatif" %}</span>
+                                    {% endif %}
+                                </li>
+                                {% if survey.start_date or survey.end_date %}
+                                    <li class="list-group-item">
+                                        <strong>{% translate "Période" %}:</strong>
+                                        {% if survey.start_date %}
+                                            {{ survey.start_date|date:"d/m/Y H:i" }}
+                                        {% endif %}
+                                        
+                                        {% if survey.start_date and survey.end_date %}
+                                            -
+                                        {% endif %}
+                                        
+                                        {% if survey.end_date %}
+                                            {{ survey.end_date|date:"d/m/Y H:i" }}
+                                        {% endif %}
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            {% translate "Progression" %}
+                        </div>
+                        <div class="card-body">
+                            <canvas id="responseOverTime" width="400" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2 class="mb-4">{% translate "Résultats par question" %}</h2>
+    
+    {% for question in questions %}
+        <div class="card question-card mb-4">
+            <div class="card-header">
+                <h3 class="card-title h5 mb-0">{{ forloop.counter }}. {{ question.question_text }}</h3>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    {% translate "Type" %}: {{ question.get_question_type_display }}
+                    {% if question.is_required %}
+                        <span class="badge bg-danger ms-2">{% translate "Obligatoire" %}</span>
+                    {% endif %}
+                </p>
+                
+                {% with stats=question_stats|get_item:question.id %}
+                    <div class="row">
+                        <div class="col-md-8">
+                            {% if question.question_type == 'text' or question.question_type == 'textarea' %}
+                                <h4 class="h6">{% translate "Réponses textuelles" %} ({{ stats.total }})</h4>
+                                <div class="answer-list border rounded p-3 mb-3">
+                                    {% if stats.total > 0 %}
+                                        <ul class="list-group list-group-flush">
+                                            {% for response in question.responses.all %}
+                                                <li class="list-group-item">
+                                                    "{{ response.text_response }}"
+                                                    {% if not survey.is_anonymous and response.response.participant %}
+                                                        <small class="text-muted">
+                                                            - {{ response.response.participant.get_full_name|default:response.response.participant.username }}
+                                                        </small>
+                                                    {% endif %}
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <p class="text-muted">{% translate "Aucune réponse pour cette question." %}</p>
+                                    {% endif %}
+                                </div>
+                                
+                            {% elif question.question_type == 'single_choice' or question.question_type == 'multiple_choice' %}
+                                <div class="chart-container">
+                                    <canvas id="chart-question-{{ question.id }}" width="400" height="300"></canvas>
+                                </div>
+                                
+                                {% if stats.choice_counts %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>{% translate "Option" %}</th>
+                                                    <th>{% translate "Nombre" %}</th>
+                                                    <th>{% translate "Pourcentage" %}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for choice, count in stats.choice_counts.items %}
+                                                    <tr>
+                                                        <td>{{ choice }}</td>
+                                                        <td>{{ count }}</td>
+                                                        <td>{{ count|percentage:stats.total }}%</td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">{% translate "Aucune réponse pour cette question." %}</p>
+                                {% endif %}
+                                
+                            {% elif question.question_type == 'rating' or question.question_type == 'scale' %}
+                                <div class="chart-container">
+                                    <canvas id="chart-question-{{ question.id }}" width="400" height="300"></canvas>
+                                </div>
+                                
+                                {% if stats.rating_distribution %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>{% translate "Note" %}</th>
+                                                    <th>{% translate "Nombre" %}</th>
+                                                    <th>{% translate "Pourcentage" %}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for rating, count in stats.rating_distribution.items %}
+                                                    <tr>
+                                                        <td>{{ rating }}</td>
+                                                        <td>{{ count }}</td>
+                                                        <td>{{ count|percentage:stats.total }}%</td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    
+                                    <div class="alert alert-info mt-3">
+                                        <strong>{% translate "Note moyenne" %}:</strong> 
+                                        {% if stats.avg_rating %}
+                                            {{ stats.avg_rating|floatformat:1 }} / {{ question.max_value }}
+                                        {% else %}
+                                            {% translate "Non disponible" %}
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">{% translate "Aucune réponse pour cette question." %}</p>
+                                {% endif %}
+                                
+                            {% elif question.question_type == 'date' %}
+                                <div class="chart-container">
+                                    <canvas id="chart-question-{{ question.id }}" width="400" height="300"></canvas>
+                                </div>
+                                
+                                {% if stats.date_counts %}
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>{% translate "Date" %}</th>
+                                                    <th>{% translate "Nombre" %}</th>
+                                                    <th>{% translate "Pourcentage" %}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for date, count in stats.date_counts.items %}
+                                                    <tr>
+                                                        <td>{{ date|date:"d/m/Y" }}</td>
+                                                        <td>{{ count }}</td>
+                                                        <td>{{ count|percentage:stats.total }}%</td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">{% translate "Aucune réponse pour cette question." %}</p>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header bg-light">
+                                    {% translate "Statistiques" %}
+                                </div>
+                                <div class="card-body">
+                                    <ul class="list-group list-group-flush">
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            {% translate "Nombre de réponses" %}
+                                            <span class="badge bg-primary rounded-pill">{{ stats.total }}</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            {% translate "Taux de réponse" %}
+                                            <span class="badge bg-info rounded-pill">
+                                                {{ stats.total|percentage:total_responses }}%
+                                            </span>
+                                        </li>
+                                        
+                                        {% if question.question_type == 'rating' or question.question_type == 'scale' %}
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                {% translate "Note moyenne" %}
+                                                <span class="badge bg-success rounded-pill">
+                                                    {% if stats.avg_rating %}
+                                                        {{ stats.avg_rating|floatformat:1 }}
+                                                    {% else %}
+                                                        N/A
+                                                    {% endif %}
+                                                </span>
+                                            </li>
+                                        {% endif %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endwith %}
+            </div>
+        </div>
+    {% endfor %}
+
+    {% if responses.exists %}
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title h5 mb-0">{% translate "Liste des répondants" %}</h3>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>{% translate "Participant" %}</th>
+                                <th>{% translate "Date de soumission" %}</th>
+                                <th>{% translate "Temps de complétion" %}</th>
+                                <th>{% translate "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for response in responses %}
+                                <tr>
+                                    <td>
+                                        {% if response.is_anonymous %}
+                                            <i class="fas fa-user-secret"></i> {% translate "Anonyme" %}
+                                        {% elif response.participant %}
+                                            <i class="fas fa-user"></i> {{ response.participant.get_full_name|default:response.participant.username }}
+                                        {% elif response.respondent_name %}
+                                            <i class="fas fa-user"></i> {{ response.respondent_name }}
+                                            {% if response.respondent_email %}
+                                                <small class="text-muted d-block">{{ response.respondent_email }}</small>
+                                            {% endif %}
+                                        {% else %}
+                                            <i class="fas fa-user-times"></i> {% translate "Non identifié" %}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ response.submitted_at|date:"d/m/Y H:i" }}
+                                    </td>
+                                    <td>
+                                        {% if response.completion_time %}
+                                            {{ response.completion_time }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'competitions:events:surveys:response_detail' response_id=response.id %}" class="btn btn-sm btn-outline-info">
+                                            <i class="fas fa-eye"></i> {% translate "Voir" %}
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Graphique de progression des réponses dans le temps
+        const responseData = {
+            labels: [],
+            datasets: [{
+                label: '{% translate "Réponses" %}',
+                data: [],
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                tension: 0.1,
+                fill: true
+            }]
+        };
+        
+        // Créer un graphique pour les réponses au fil du temps
+        new Chart(document.getElementById('responseOverTime'), {
+            type: 'line',
+            data: responseData,
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '{% translate "Nombre de réponses" %}'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: '{% translate "Date" %}'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Créer des graphiques pour chaque question selon son type
+        {% for question in questions %}
+            {% with stats=question_stats|get_item:question.id %}
+                {% if question.question_type == 'single_choice' or question.question_type == 'multiple_choice' %}
+                    {% if stats.choice_counts %}
+                        const choiceLabels{{ question.id }} = [{% for choice, _ in stats.choice_counts.items %}"{{ choice }}"{% if not forloop.last %}, {% endif %}{% endfor %}];
+                        const choiceData{{ question.id }} = [{% for _, count in stats.choice_counts.items %}{{ count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+                        
+                        new Chart(document.getElementById('chart-question-{{ question.id }}'), {
+                            type: 'bar',
+                            data: {
+                                labels: choiceLabels{{ question.id }},
+                                datasets: [{
+                                    label: '{% translate "Réponses" %}',
+                                    data: choiceData{{ question.id }},
+                                    backgroundColor: 'rgba(0, 123, 255, 0.5)',
+                                    borderColor: 'rgba(0, 123, 255, 1)',
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: '{% translate "Nombre de réponses" %}'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    {% endif %}
+                {% elif question.question_type == 'rating' or question.question_type == 'scale' %}
+                    {% if stats.rating_distribution %}
+                        const ratingLabels{{ question.id }} = [{% for rating, _ in stats.rating_distribution.items %}"{{ rating }}"{% if not forloop.last %}, {% endif %}{% endfor %}];
+                        const ratingData{{ question.id }} = [{% for _, count in stats.rating_distribution.items %}{{ count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+                        
+                        new Chart(document.getElementById('chart-question-{{ question.id }}'), {
+                            type: 'bar',
+                            data: {
+                                labels: ratingLabels{{ question.id }},
+                                datasets: [{
+                                    label: '{% translate "Réponses" %}',
+                                    data: ratingData{{ question.id }},
+                                    backgroundColor: 'rgba(40, 167, 69, 0.5)',
+                                    borderColor: 'rgba(40, 167, 69, 1)',
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: '{% translate "Nombre de réponses" %}'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    {% endif %}
+                {% elif question.question_type == 'date' %}
+                    {% if stats.date_counts %}
+                        const dateLabels{{ question.id }} = [{% for date, _ in stats.date_counts.items %}"{{ date|date:"d/m/Y" }}"{% if not forloop.last %}, {% endif %}{% endfor %}];
+                        const dateData{{ question.id }} = [{% for _, count in stats.date_counts.items %}{{ count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+                        
+                        new Chart(document.getElementById('chart-question-{{ question.id }}'), {
+                            type: 'bar',
+                            data: {
+                                labels: dateLabels{{ question.id }},
+                                datasets: [{
+                                    label: '{% translate "Réponses" %}',
+                                    data: dateData{{ question.id }},
+                                    backgroundColor: 'rgba(23, 162, 184, 0.5)',
+                                    borderColor: 'rgba(23, 162, 184, 1)',
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: '{% translate "Nombre de réponses" %}'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    {% endif %}
+                {% endif %}
+            {% endwith %}
+        {% endfor %}
+    });
+</script>
+{% endblock %}

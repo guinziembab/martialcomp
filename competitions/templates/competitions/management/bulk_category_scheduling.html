@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Planification en masse des catégories" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .category-list {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+    
+    .category-item {
+        padding: 10px;
+        margin-bottom: 8px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+    }
+    
+    .category-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .category-item.selected {
+        background-color: #e2f0ff;
+        border-color: #007bff;
+    }
+    
+    .scheduling-options {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .tatami-selector {
+        margin-bottom: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:dashboard:manager' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:competitions:detail' competition.pk %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:schedule:index' competition.pk %}">{% trans "Planning" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% trans "Planification en masse" %}</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h2 class="h4 mb-0">{% trans "Planification en masse des catégories" %}</h2>
+        </div>
+        <div class="card-body">
+            <form method="post" id="bulkScheduleForm">
+                {% csrf_token %}
+                
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in form.non_field_errors %}
+                    {{ error }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h3 class="h5 mb-3">{% trans "Catégories disponibles" %}</h3>
+                        <div class="form-group mb-3">
+                            <input type="text" id="categorySearch" class="form-control" placeholder="{% trans 'Rechercher une catégorie...' %}">
+                        </div>
+                        
+                        <div class="category-list">
+                            {% for category in unscheduled_categories %}
+                            <div class="category-item" data-category-id="{{ category.id }}">
+                                <div class="form-check">
+                                    <input class="form-check-input category-checkbox" type="checkbox" name="categories" value="{{ category.id }}" id="category{{ category.id }}">
+                                    <label class="form-check-label" for="category{{ category.id }}">
+                                        <strong>{{ category.name }}</strong>
+                                        <div class="text-muted small">
+                                            {% if category.participants_count %}
+                                            {{ category.participants_count }} {% trans "participants" %}
+                                            {% else %}
+                                            {% trans "Aucun participant" %}
+                                            {% endif %}
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="alert alert-info">
+                                {% trans "Toutes les catégories ont déjà été planifiées." %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="selectAll">{% trans "Tout sélectionner" %}</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="deselectAll">{% trans "Tout désélectionner" %}</button>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h3 class="h5 mb-3">{% trans "Options de planification" %}</h3>
+                        
+                        <div class="scheduling-options">
+                            <div class="form-group tatami-selector">
+                                <label for="{{ form.tatami.id_for_label }}">{% trans "Tatami" %}:</label>
+                                {{ form.tatami }}
+                                {% if form.tatami.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.tatami.errors %}
+                                    {{ error }}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="{{ form.start_time.id_for_label }}">{% trans "Heure de début" %}:</label>
+                                {{ form.start_time }}
+                                {% if form.start_time.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.start_time.errors %}
+                                    {{ error }}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                <small class="form-text text-muted">{% trans "Format: HH:MM" %}</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="{{ form.duration_per_match.id_for_label }}">{% trans "Durée par match (minutes)" %}:</label>
+                                {{ form.duration_per_match }}
+                                {% if form.duration_per_match.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.duration_per_match.errors %}
+                                    {{ error }}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="{{ form.break_between_categories.id_for_label }}">{% trans "Pause entre catégories (minutes)" %}:</label>
+                                {{ form.break_between_categories }}
+                                {% if form.break_between_categories.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.break_between_categories.errors %}
+                                    {{ error }}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="form-check">
+                                {{ form.avoid_conflicts }}
+                                <label class="form-check-label" for="{{ form.avoid_conflicts.id_for_label }}">
+                                    {% trans "Éviter les conflits de participants/juges" %}
+                                </label>
+                                {% if form.avoid_conflicts.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.avoid_conflicts.errors %}
+                                    {{ error }}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary" id="scheduleButton">{% trans "Planifier les catégories sélectionnées" %}</button>
+                            <a href="{% url 'competitions:schedule:index' competition.pk %}" class="btn btn-outline-secondary">{% trans "Annuler" %}</a>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Recherche de catégories
+        const searchInput = document.getElementById('categorySearch');
+        const categoryItems = document.querySelectorAll('.category-item');
+        
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            
+            categoryItems.forEach(item => {
+                const categoryName = item.querySelector('label').textContent.toLowerCase();
+                if (categoryName.includes(searchTerm)) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+        
+        // Sélection / désélection de toutes les catégories
+        const selectAllBtn = document.getElementById('selectAll');
+        const deselectAllBtn = document.getElementById('deselectAll');
+        const checkboxes = document.querySelectorAll('.category-checkbox');
+        
+        selectAllBtn.addEventListener('click', function() {
+            checkboxes.forEach(checkbox => {
+                if (checkbox.closest('.category-item').style.display !== 'none') {
+                    checkbox.checked = true;
+                    checkbox.closest('.category-item').classList.add('selected');
+                }
+            });
+        });
+        
+        deselectAllBtn.addEventListener('click', function() {
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+                checkbox.closest('.category-item').classList.remove('selected');
+            });
+        });
+        
+        // Mise en évidence des catégories sélectionnées
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    this.closest('.category-item').classList.add('selected');
+                } else {
+                    this.closest('.category-item').classList.remove('selected');
+                }
+            });
+        });
+        
+        // Vérification de la sélection avant soumission
+        const form = document.getElementById('bulkScheduleForm');
+        form.addEventListener('submit', function(e) {
+            const selectedCategories = document.querySelectorAll('.category-checkbox:checked');
+            
+            if (selectedCategories.length === 0) {
+                e.preventDefault();
+                alert("{% trans 'Veuillez sélectionner au moins une catégorie.' %}");
+            }
+        });
+    });
+</script>
+{% endblock %}

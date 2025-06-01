@@ -1,0 +1,129 @@
+{% extends "multitenant/base.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans "Tableau de bord des ressources" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h1>{% trans "Utilisation des ressources" %}</h1>
+            <p class="text-muted">
+                {% trans "Plan actuel:" %} <strong>{{ tenant.subscription_plan|upper }}</strong>
+            </p>
+        </div>
+    </div>
+
+    <!-- Alertes -->
+    {% if alerts %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            {% for alert in alerts %}
+            <div class="alert alert-{% if alert.level == 'critical' %}danger{% else %}warning{% endif %}" role="alert">
+                <i class="fas fa-exclamation-triangle"></i> {{ alert.message }}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Cartes de métriques -->
+    <div class="row mb-4">
+        {% for metric in usage_data %}
+        <div class="col-md-4 mb-3">
+            <div class="card {% if metric.critical %}border-danger{% elif metric.warning %}border-warning{% endif %}">
+                <div class="card-body">
+                    <h5 class="card-title">{{ metric.name }}</h5>
+                    <div class="progress mb-2">
+                        <div class="progress-bar {% if metric.critical %}bg-danger{% elif metric.warning %}bg-warning{% else %}bg-success{% endif %}" 
+                             role="progressbar" 
+                             style="width: {% if metric.unlimited %}0{% else %}{{ metric.percentage }}{% endif %}%"
+                             aria-valuenow="{{ metric.percentage }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                        </div>
+                    </div>
+                    <p class="card-text text-center">
+                        {% if metric.unlimited %}
+                            <i class="fas fa-infinity"></i> {% trans "Illimité" %}
+                        {% else %}
+                            {{ metric.count }} / {{ summary.usage.limits|get_item:metric.name|default:"?" }}
+                            <small class="text-muted">({{ metric.percentage|floatformat:0 }}%)</small>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Quotas restants -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>{% trans "Quotas restants" %}</h2>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>{% trans "Ressource" %}</th>
+                        <th>{% trans "Restant" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for resource, remaining in quotas.items %}
+                    <tr>
+                        <td>{{ resource|title }}</td>
+                        <td>
+                            {% if remaining == None %}
+                                <i class="fas fa-infinity"></i> {% trans "Illimité" %}
+                            {% else %}
+                                {{ remaining }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if remaining == None or remaining > 0 %}
+                                <span class="badge badge-success">{% trans "Disponible" %}</span>
+                            {% else %}
+                                <span class="badge badge-danger">{% trans "Épuisé" %}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="row">
+        <div class="col-md-12">
+            {% if can_upgrade %}
+            <a href="{% url 'multitenant:resource_upgrade' %}" class="btn btn-primary">
+                <i class="fas fa-arrow-up"></i> {% trans "Mettre à niveau le plan" %}
+            </a>
+            {% endif %}
+            <button class="btn btn-secondary" onclick="refreshData()">
+                <i class="fas fa-sync"></i> {% trans "Actualiser" %}
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function refreshData() {
+    fetch('{% url "multitenant:resource_usage_api" %}')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Resource usage updated:', data);
+            // Ici vous pourriez mettre à jour l'interface dynamiquement
+            location.reload(); // Pour l'instant, on recharge simplement la page
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+// Actualisation automatique toutes les 30 secondes
+setInterval(refreshData, 30000);
+</script>
+{% endblock %}

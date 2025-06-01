@@ -1,0 +1,287 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% translate "Mon Tableau de Bord Financier" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h3 mb-0">{% translate "Tableau de Bord Financier" %}</h2>
+        <div class="btn-group">
+            <a href="{% url 'competitions:practitioner:payment_list' %}" class="btn btn-outline-primary">
+                <i class="fas fa-history"></i> {% translate "Historique des Paiements" %}
+            </a>
+            <a href="{% url 'competitions:practitioner:invoice_list' %}" class="btn btn-outline-primary">
+                <i class="fas fa-file-invoice"></i> {% translate "Factures" %}
+            </a>
+            <a href="{% url 'competitions:practitioner:transaction_list' %}" class="btn btn-outline-primary">
+                <i class="fas fa-exchange-alt"></i> {% translate "Transactions" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistiques -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">{% translate "Total Payé" %}</h6>
+                            <h3 class="mb-0">{{ stats.total_paid|floatformat:2 }} €</h3>
+                        </div>
+                        <div class="card-icon">
+                            <i class="fas fa-euro-sign fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">{% translate "En Attente" %}</h6>
+                            <h3 class="mb-0">{{ stats.total_pending|floatformat:2 }} €</h3>
+                        </div>
+                        <div class="card-icon">
+                            <i class="fas fa-clock fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">{% translate "Balance" %}</h6>
+                            <h3 class="mb-0">{{ stats.balance|floatformat:2 }} €</h3>
+                        </div>
+                        <div class="card-icon">
+                            <i class="fas fa-balance-scale fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-0">{% translate "Paiements à Venir" %}</h6>
+                            <h3 class="mb-0">{{ stats.upcoming_payments }}</h3>
+                        </div>
+                        <div class="card-icon">
+                            <i class="fas fa-calendar-alt fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphiques -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">{% translate "Évolution des Paiements" %}</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="paymentsChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">{% translate "Répartition par Type" %}</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="typeChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transactions récentes -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">{% translate "Transactions Récentes" %}</h5>
+        </div>
+        <div class="card-body">
+            {% if recent_transactions %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% translate "Date" %}</th>
+                                <th>{% translate "Description" %}</th>
+                                <th>{% translate "Montant" %}</th>
+                                <th>{% translate "Type" %}</th>
+                                <th>{% translate "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in recent_transactions %}
+                            <tr>
+                                <td>{{ transaction.date|date:"d/m/Y" }}</td>
+                                <td>{{ transaction.description }}</td>
+                                <td>{{ transaction.amount|floatformat:2 }} €</td>
+                                <td>
+                                    {% if transaction.type == 'credit' %}
+                                        <span class="badge bg-success">{% translate "Crédit" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">{% translate "Débit" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="#" class="btn btn-sm btn-outline-primary">
+                                        {% translate "Détails" %}
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted text-center">{% translate "Aucune transaction récente" %}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Factures en attente -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">{% translate "Factures En Attente" %}</h5>
+        </div>
+        <div class="card-body">
+            {% if pending_invoices %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% translate "Numéro" %}</th>
+                                <th>{% translate "Date" %}</th>
+                                <th>{% translate "Description" %}</th>
+                                <th>{% translate "Montant" %}</th>
+                                <th>{% translate "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for invoice in pending_invoices %}
+                            <tr>
+                                <td>{{ invoice.number }}</td>
+                                <td>{{ invoice.date|date:"d/m/Y" }}</td>
+                                <td>{{ invoice.description }}</td>
+                                <td>{{ invoice.amount|floatformat:2 }} €</td>
+                                <td>
+                                    <a href="#" class="btn btn-sm btn-outline-primary">
+                                        {% translate "Voir" %}
+                                    </a>
+                                    <a href="#" class="btn btn-sm btn-success">
+                                        {% translate "Payer" %}
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted text-center">{% translate "Aucune facture en attente" %}</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Graphique des paiements par mois (données simulées pour le moment)
+    const paymentsCtx = document.getElementById('paymentsChart').getContext('2d');
+    new Chart(paymentsCtx, {
+        type: 'line',
+        data: {
+            labels: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin'],
+            datasets: [{
+                label: 'Montant des paiements',
+                data: [0, 0, 0, 0, 0, 0],
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value + ' €';
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Graphique des types de paiements (données simulées pour le moment)
+    const typeCtx = document.getElementById('typeChart').getContext('2d');
+    new Chart(typeCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Cotisations', 'Licences', 'Compétitions', 'Autres'],
+            datasets: [{
+                data: [0, 0, 0, 0],
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 205, 86, 0.8)',
+                    'rgba(75, 192, 192, 0.8)',
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+});
+</script>
+
+<style>
+.card-icon {
+    opacity: 0.7;
+}
+
+.table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+.badge {
+    padding: 0.5em 0.75em;
+}
+</style>
+{% endblock %}

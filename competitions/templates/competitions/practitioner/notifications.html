@@ -1,0 +1,327 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Mes Notifications" %} | {% trans "Espace Pratiquant" %}{% endblock %}
+
+{% block dashboard_content %}
+<!-- Page Header -->
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fas fa-bell text-primary"></i> {% trans "Mes Notifications" %}
+    </h1>
+    <p class="page-subtitle">{% trans "Consultez toutes vos notifications et alertes" %}</p>
+</div>
+
+<!-- Notification Stats -->
+<div class="stats-grid">
+    <div class="stats-card">
+        <div class="stats-icon stats-competitions">
+            <i class="fas fa-bell"></i>
+        </div>
+        <div class="stats-value">{{ notification_stats.total }}</div>
+        <div class="stats-label">{% trans "Total Notifications" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon stats-upcoming">
+            <i class="fas fa-envelope"></i>
+        </div>
+        <div class="stats-value">{{ notification_stats.unread }}</div>
+        <div class="stats-label">{% trans "Non lues" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon stats-podiums">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="stats-value">{{ notification_stats.read }}</div>
+        <div class="stats-label">{% trans "Lues" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon stats-memberships">
+            <i class="fas fa-clock"></i>
+        </div>
+        <div class="stats-value">{{ notification_stats.today }}</div>
+        <div class="stats-label">{% trans "Aujourd'hui" %}</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label for="filter_type" class="form-label">{% trans "Type" %}</label>
+                <select class="form-select" id="filter_type" name="type">
+                    <option value="">{% trans "Tous" %}</option>
+                    <option value="info" {% if filter_type == 'info' %}selected{% endif %}>
+                        {% trans "Information" %}
+                    </option>
+                    <option value="warning" {% if filter_type == 'warning' %}selected{% endif %}>
+                        {% trans "Avertissement" %}
+                    </option>
+                    <option value="error" {% if filter_type == 'error' %}selected{% endif %}>
+                        {% trans "Erreur" %}
+                    </option>
+                    <option value="success" {% if filter_type == 'success' %}selected{% endif %}>
+                        {% trans "Succès" %}
+                    </option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filter_read" class="form-label">{% trans "Statut" %}</label>
+                <select class="form-select" id="filter_read" name="read">
+                    <option value="">{% trans "Tous" %}</option>
+                    <option value="0" {% if filter_read == '0' %}selected{% endif %}>
+                        {% trans "Non lues" %}
+                    </option>
+                    <option value="1" {% if filter_read == '1' %}selected{% endif %}>
+                        {% trans "Lues" %}
+                    </option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filter_date" class="form-label">{% trans "Période" %}</label>
+                <select class="form-select" id="filter_date" name="period">
+                    <option value="">{% trans "Toutes" %}</option>
+                    <option value="today" {% if filter_period == 'today' %}selected{% endif %}>
+                        {% trans "Aujourd'hui" %}
+                    </option>
+                    <option value="week" {% if filter_period == 'week' %}selected{% endif %}>
+                        {% trans "Cette semaine" %}
+                    </option>
+                    <option value="month" {% if filter_period == 'month' %}selected{% endif %}>
+                        {% trans "Ce mois" %}
+                    </option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-filter"></i> {% trans "Filtrer" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Actions -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5>{% trans "Liste des notifications" %}</h5>
+    <div>
+        <button class="btn btn-outline-primary" onclick="markAllAsRead()">
+            <i class="fas fa-check-double"></i> {% trans "Marquer tout comme lu" %}
+        </button>
+        <button class="btn btn-outline-danger" onclick="deleteAllRead()">
+            <i class="fas fa-trash"></i> {% trans "Supprimer les lues" %}
+        </button>
+    </div>
+</div>
+
+<!-- Notifications List -->
+<div class="card">
+    <div class="card-body">
+        {% if notifications %}
+            <div class="list-group">
+                {% for notification in notifications %}
+                    <div class="list-group-item list-group-item-action {% if not notification.is_read %}unread-notification{% endif %}" 
+                         id="notification-{{ notification.id }}">
+                        <div class="d-flex w-100 justify-content-between">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-start">
+                                    <div class="notification-icon me-3">
+                                        {% if notification.level == 'info' %}
+                                            <i class="fas fa-info-circle text-info fa-2x"></i>
+                                        {% elif notification.level == 'warning' %}
+                                            <i class="fas fa-exclamation-triangle text-warning fa-2x"></i>
+                                        {% elif notification.level == 'error' %}
+                                            <i class="fas fa-times-circle text-danger fa-2x"></i>
+                                        {% elif notification.level == 'success' %}
+                                            <i class="fas fa-check-circle text-success fa-2x"></i>
+                                        {% else %}
+                                            <i class="fas fa-bell text-primary fa-2x"></i>
+                                        {% endif %}
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1">{{ notification.title }}</h6>
+                                        <p class="mb-1">{{ notification.message }}</p>
+                                        <small class="text-muted">
+                                            <i class="fas fa-clock"></i> {{ notification.created_at|date:"d/m/Y H:i" }}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="notification-actions ms-3">
+                                {% if not notification.is_read %}
+                                    <button class="btn btn-sm btn-outline-primary" 
+                                            onclick="markAsRead('{{ notification.id }}')">
+                                        <i class="fas fa-check"></i> {% trans "Marquer comme lu" %}
+                                    </button>
+                                {% endif %}
+                                <button class="btn btn-sm btn-outline-danger" 
+                                        onclick="deleteNotification('{{ notification.id }}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% if notification.link %}
+                            <div class="mt-2">
+                                <a href="{{ notification.link }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-arrow-right"></i> {% trans "Voir plus" %}
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if page_obj %}
+                <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                    {% trans "Précédent" %}
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        <li class="page-item disabled">
+                            <span class="page-link">
+                                {% trans "Page" %} {{ page_obj.number }} {% trans "sur" %} {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                    {% trans "Suivant" %}
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle"></i> 
+                {% trans "Aucune notification disponible" %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function markAsRead(notificationId) {
+    fetch("{% url 'competitions:practitioner:mark_notification_read' 0 %}".replace('0', notificationId), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const notifElement = document.getElementById('notification-' + notificationId);
+            notifElement.classList.remove('unread-notification');
+            location.reload();
+        }
+    });
+}
+
+function markAllAsRead() {
+    if (confirm("{% trans 'Marquer toutes les notifications comme lues ?' %}")) {
+        // Implémenter l'appel API pour marquer toutes comme lues
+        location.reload();
+    }
+}
+
+function deleteNotification(notificationId) {
+    if (confirm("{% trans 'Supprimer cette notification ?' %}")) {
+        // Implémenter l'appel API pour supprimer
+        document.getElementById('notification-' + notificationId).remove();
+    }
+}
+
+function deleteAllRead() {
+    if (confirm("{% trans 'Supprimer toutes les notifications lues ?' %}")) {
+        // Implémenter l'appel API pour supprimer toutes les lues
+        location.reload();
+    }
+}
+</script>
+
+<style>
+.unread-notification {
+    background-color: #f0f8ff;
+    border-left: 4px solid #0d6efd;
+}
+
+.notification-icon {
+    min-width: 50px;
+}
+
+.notification-actions {
+    white-space: nowrap;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stats-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.stats-icon {
+    display: inline-flex;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.stats-competitions {
+    background-color: #e3f2fd;
+    color: #1976d2;
+}
+
+.stats-upcoming {
+    background-color: #fff3e0;
+    color: #f57c00;
+}
+
+.stats-podiums {
+    background-color: #e8f5e9;
+    color: #388e3c;
+}
+
+.stats-memberships {
+    background-color: #fce4ec;
+    color: #c2185b;
+}
+
+.stats-value {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.stats-label {
+    color: #666;
+    font-size: 0.875rem;
+}
+</style>
+{% endblock %}

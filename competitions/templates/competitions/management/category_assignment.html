@@ -1,0 +1,682 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ competition.title }} - {% trans "Attribution de catégories" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .category-card {
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        height: 100%;
+    }
+    
+    .category-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .category-card.selected {
+        border: 2px solid #0d6efd;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    
+    .participant-item {
+        transition: all 0.2s ease;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+    
+    .participant-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    
+    .participant-item.selected {
+        border: 2px solid #198754;
+        background-color: rgba(25, 135, 84, 0.05);
+    }
+    
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 3px 10px;
+        border-radius: 20px;
+    }
+    
+    .status-pending {
+        background-color: #f0ad4e;
+        color: white;
+    }
+    
+    .status-approved {
+        background-color: #5cb85c;
+        color: white;
+    }
+    
+    .status-rejected {
+        background-color: #d9534f;
+        color: white;
+    }
+    
+    .filter-card {
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+    
+    .action-footer {
+        position: sticky;
+        bottom: 0;
+        background-color: #f8f9fa;
+        border-top: 1px solid #dee2e6;
+        padding: 15px;
+        border-radius: 0 0 10px 10px;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+    }
+    
+    .step-indicator {
+        display: flex;
+        justify-content: space-between;
+        position: relative;
+        margin-bottom: 30px;
+    }
+    
+    .step-indicator::before {
+        content: '';
+        position: absolute;
+        top: 15px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background-color: #e9ecef;
+        z-index: 0;
+    }
+    
+    .step {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+    }
+    
+    .step-number {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 5px;
+        font-weight: bold;
+    }
+    
+    .step.active .step-number {
+        background-color: #0d6efd;
+        color: white;
+    }
+    
+    .step.completed .step-number {
+        background-color: #198754;
+        color: white;
+    }
+    
+    .step-name {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    .step.active .step-name,
+    .step.completed .step-name {
+        color: #212529;
+        font-weight: 500;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <a href="{% url 'competitions:management:participants_list' competition.id %}" class="btn btn-outline-secondary mb-2">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la liste" %}
+            </a>
+            <h1 class="h3 mb-0">{% trans "Attribution de catégories" %} - {{ competition.title }}</h1>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="alert alert-info">
+                <div class="d-flex">
+                    <div class="me-3">
+                        <i class="fas fa-info-circle fa-2x"></i>
+                    </div>
+                    <div>
+                        <h5 class="alert-heading">{% trans "Comment ça fonctionne" %}</h5>
+                        <p class="mb-0">
+                            {% trans "Cette page vous permet d'assigner plusieurs participants à des catégories en une seule opération. Suivez les 3 étapes : 1) Sélectionnez une catégorie, 2) Sélectionnez les participants, 3) Confirmez l'attribution." %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" id="categoryAssignmentForm">
+                {% csrf_token %}
+                
+                <!-- Indicateur d'étapes -->
+                <div class="step-indicator">
+                    <div class="step active" id="step1">
+                        <div class="step-number">1</div>
+                        <div class="step-name">{% trans "Sélectionner une catégorie" %}</div>
+                    </div>
+                    <div class="step" id="step2">
+                        <div class="step-number">2</div>
+                        <div class="step-name">{% trans "Sélectionner les participants" %}</div>
+                    </div>
+                    <div class="step" id="step3">
+                        <div class="step-number">3</div>
+                        <div class="step-name">{% trans "Confirmer" %}</div>
+                    </div>
+                </div>
+                
+                <!-- Étape 1: Sélection de la catégorie -->
+                <div id="categorySelectionStep">
+                    <h4 class="mb-3">{% trans "Sélectionnez une catégorie" %}</h4>
+                    
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-4">
+                        {% for category in form.fields.category.queryset %}
+                            <div class="col">
+                                <div class="card category-card h-100" data-category-id="{{ category.id }}">
+                                    <div class="card-body">
+                                        <h5 class="card-title">{{ category.name }}</h5>
+                                        <p class="card-text text-muted small">
+                                            {% if category.description %}
+                                                {{ category.description }}
+                                            {% else %}
+                                                {% if category.gender_restriction %}
+                                                    {{ category.get_gender_restriction_display }} -
+                                                {% endif %}
+                                                {% if category.min_age and category.max_age %}
+                                                    {{ category.min_age }}-{{ category.max_age }} {% trans "ans" %}
+                                                {% elif category.min_age %}
+                                                    {{ category.min_age }}+ {% trans "ans" %}
+                                                {% elif category.max_age %}
+                                                    < {{ category.max_age }} {% trans "ans" %}
+                                                {% endif %}
+                                                {% if category.min_weight and category.max_weight %}
+                                                    - {{ category.min_weight }}-{{ category.max_weight }} kg
+                                                {% elif category.min_weight %}
+                                                    - {{ category.min_weight }}+ kg
+                                                {% elif category.max_weight %}
+                                                    - < {{ category.max_weight }} kg
+                                                {% endif %}
+                                            {% endif %}
+                                        </p>
+                                        <p class="card-text text-primary">
+                                            <i class="fas fa-users me-1"></i>
+                                            <span class="participant-count">{{ category.registrations.count }}</span> {% trans "participants" %}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <div class="col-12">
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>{% trans "Aucune catégorie disponible pour cette compétition." %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <input type="hidden" name="category" id="selectedCategory" value="">
+                    
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-primary" id="goToStep2" disabled>
+                            {% trans "Continuer" %} <i class="fas fa-arrow-right ms-2"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Étape 2: Sélection des participants -->
+                <div id="participantSelectionStep" style="display: none;">
+                    <h4 class="mb-3">{% trans "Sélectionnez les participants" %}</h4>
+                    
+                    <!-- Filtres -->
+                    <div class="card filter-card mb-4">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-5">
+                                    <div class="input-group mb-3">
+                                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                        <input type="text" id="participantSearch" class="form-control" placeholder="{% trans 'Rechercher un participant...' %}">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <select id="clubFilter" class="form-select mb-3">
+                                        <option value="">{% trans "Tous les clubs" %}</option>
+                                        {% for club in form.fields.club_filter.choices %}
+                                            <option value="{{ club.0 }}">{{ club.1 }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" id="hideAlreadyAssigned">
+                                        <label class="form-check-label" for="hideAlreadyAssigned">
+                                            {% trans "Masquer les participants déjà assignés" %}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-end">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="selectAllParticipants">
+                                    <label class="form-check-label" for="selectAllParticipants">
+                                        {% trans "Tout sélectionner" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Liste des participants -->
+                    <div class="list-group mb-4" id="participantsList">
+                        {% for registration in form.fields.registrations.queryset %}
+                            <div class="list-group-item list-group-item-action participant-item" 
+                                data-name="{{ registration.practitioner.full_name }}"
+                                data-club="{{ registration.practitioner.club.name|default:'' }}"
+                                data-club-id="{{ registration.practitioner.club.id|default:'' }}"
+                                data-categories="{{ registration.categories.all|join:',' }}">
+                                <div class="d-flex align-items-center">
+                                    <div class="form-check me-3">
+                                        <input class="form-check-input participant-checkbox" type="checkbox" name="registrations" value="{{ registration.id }}" id="participant{{ registration.id }}">
+                                        <label class="form-check-label" for="participant{{ registration.id }}"></label>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1">{{ registration.practitioner.full_name }}</h6>
+                                        <p class="mb-0 small text-muted">
+                                            <i class="fas fa-dojo me-1"></i>{{ registration.practitioner.club.name|default:"Sans club" }}
+                                            {% if registration.practitioner.grade %} - {{ registration.practitioner.grade }}{% endif %}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        {% if registration.status == 'pending' %}
+                                            <span class="badge status-badge status-pending">{% trans "En attente" %}</span>
+                                        {% elif registration.status == 'approved' %}
+                                            <span class="badge status-badge status-approved">{% trans "Approuvé" %}</span>
+                                        {% elif registration.status == 'rejected' %}
+                                            <span class="badge status-badge status-rejected">{% trans "Rejeté" %}</span>
+                                        {% endif %}
+                                        
+                                        {% for category in registration.categories.all %}
+                                            <span class="badge bg-info text-dark ms-1">{{ category.name }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>{% trans "Aucun participant trouvé." %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary" id="backToStep1">
+                            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                        </button>
+                        <button type="button" class="btn btn-primary" id="goToStep3" disabled>
+                            {% trans "Continuer" %} <i class="fas fa-arrow-right ms-2"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Étape 3: Confirmation -->
+                <div id="confirmationStep" style="display: none;">
+                    <h4 class="mb-3">{% trans "Confirmation" %}</h4>
+                    
+                    <div class="alert alert-warning mb-4">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <i class="fas fa-exclamation-triangle fa-2x"></i>
+                            </div>
+                            <div>
+                                <h5 class="alert-heading">{% trans "Attention" %}</h5>
+                                <p class="mb-0">
+                                    {% trans "Vous êtes sur le point d'assigner plusieurs participants à une catégorie. Cette action ne supprime pas les catégories existantes. Veuillez vérifier les informations ci-dessous avant de confirmer." %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Résumé de l'opération -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">{% trans "Résumé de l'opération" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>{% trans "Catégorie sélectionnée" %}</h6>
+                                    <div class="selected-category-info mb-4"></div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>{% trans "Participants sélectionnés" %}</h6>
+                                    <p><span id="selectedParticipantsCount">0</span> {% trans "participants" %}</p>
+                                    <div class="small text-muted">
+                                        <a href="#" id="showSelectedParticipants" data-bs-toggle="modal" data-bs-target="#selectedParticipantsModal">
+                                            <i class="fas fa-eye me-1"></i>{% trans "Voir la liste complète" %}
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary" id="backToStep2">
+                            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                        </button>
+                        <button type="submit" class="btn btn-success" id="confirmButton">
+                            <i class="fas fa-check me-2"></i>{% trans "Confirmer l'attribution" %}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Liste des participants sélectionnés -->
+<div class="modal fade" id="selectedParticipantsModal" tabindex="-1" aria-labelledby="selectedParticipantsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="selectedParticipantsModalLabel">{% trans "Participants sélectionnés" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Nom" %}</th>
+                                <th>{% trans "Club" %}</th>
+                                <th>{% trans "Grade" %}</th>
+                                <th>{% trans "Catégories actuelles" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="selectedParticipantsTable">
+                            <!-- Sera rempli dynamiquement -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Fermer" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Éléments DOM
+        const categoryCards = document.querySelectorAll('.category-card');
+        const selectedCategoryInput = document.getElementById('selectedCategory');
+        const goToStep2Button = document.getElementById('goToStep2');
+        const goToStep3Button = document.getElementById('goToStep3');
+        const backToStep1Button = document.getElementById('backToStep1');
+        const backToStep2Button = document.getElementById('backToStep2');
+        const categorySelectionStep = document.getElementById('categorySelectionStep');
+        const participantSelectionStep = document.getElementById('participantSelectionStep');
+        const confirmationStep = document.getElementById('confirmationStep');
+        const stepIndicators = document.querySelectorAll('.step');
+        const participantCheckboxes = document.querySelectorAll('.participant-checkbox');
+        const selectAllCheckbox = document.getElementById('selectAllParticipants');
+        const participantSearch = document.getElementById('participantSearch');
+        const clubFilter = document.getElementById('clubFilter');
+        const hideAlreadyAssigned = document.getElementById('hideAlreadyAssigned');
+        const selectedParticipantsCount = document.getElementById('selectedParticipantsCount');
+        const selectedParticipantsTable = document.getElementById('selectedParticipantsTable');
+        const selectedCategoryInfo = document.querySelector('.selected-category-info');
+        const confirmButton = document.getElementById('confirmButton');
+        const categoryAssignmentForm = document.getElementById('categoryAssignmentForm');
+        
+        // Variables globales
+        let selectedCategory = null;
+        
+        // Fonction pour mettre à jour l'état des boutons
+        function updateButtonStates() {
+            // Étape 1: Sélection de catégorie
+            goToStep2Button.disabled = !selectedCategory;
+            
+            // Étape 2: Sélection des participants
+            const checkedParticipants = document.querySelectorAll('.participant-checkbox:checked');
+            goToStep3Button.disabled = checkedParticipants.length === 0;
+        }
+        
+        // Fonction pour changer d'étape
+        function goToStep(step) {
+            // Masquer toutes les étapes
+            categorySelectionStep.style.display = 'none';
+            participantSelectionStep.style.display = 'none';
+            confirmationStep.style.display = 'none';
+            
+            // Réinitialiser les classes des indicateurs d'étape
+            stepIndicators.forEach((indicator, index) => {
+                indicator.classList.remove('active', 'completed');
+                if (index + 1 < step) {
+                    indicator.classList.add('completed');
+                } else if (index + 1 === step) {
+                    indicator.classList.add('active');
+                }
+            });
+            
+            // Afficher l'étape demandée
+            if (step === 1) {
+                categorySelectionStep.style.display = 'block';
+            } else if (step === 2) {
+                participantSelectionStep.style.display = 'block';
+            } else if (step === 3) {
+                confirmationStep.style.display = 'block';
+                updateConfirmationInfo();
+            }
+        }
+        
+        // Fonction pour filtrer les participants
+        function filterParticipants() {
+            const searchTerm = participantSearch.value.toLowerCase();
+            const selectedClub = clubFilter.value;
+            const hideAssigned = hideAlreadyAssigned.checked;
+            const participantItems = document.querySelectorAll('.participant-item');
+            
+            participantItems.forEach(item => {
+                const name = item.dataset.name.toLowerCase();
+                const club = item.dataset.clubId;
+                const categories = item.dataset.categories;
+                const isAlreadyAssigned = categories.includes(selectedCategory.name);
+                
+                const matchesSearch = name.includes(searchTerm);
+                const matchesClub = !selectedClub || club === selectedClub;
+                const matchesHideAssigned = !hideAssigned || !isAlreadyAssigned;
+                
+                if (matchesSearch && matchesClub && matchesHideAssigned) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            // Mettre à jour le "tout sélectionner"
+            updateSelectAllState();
+        }
+        
+        // Mettre à jour l'état du "tout sélectionner"
+        function updateSelectAllState() {
+            const visibleItems = Array.from(document.querySelectorAll('.participant-item')).filter(item => item.style.display !== 'none');
+            const allChecked = visibleItems.length > 0 && visibleItems.every(item => item.querySelector('.participant-checkbox').checked);
+            
+            selectAllCheckbox.checked = allChecked;
+        }
+        
+        // Mettre à jour l'apparence des éléments sélectionnés
+        function updateSelectionAppearance() {
+            // Catégories
+            categoryCards.forEach(card => {
+                if (card.dataset.categoryId === selectedCategoryInput.value) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+            
+            // Participants
+            participantCheckboxes.forEach(checkbox => {
+                const item = checkbox.closest('.participant-item');
+                if (checkbox.checked) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+        
+        // Mettre à jour les informations de confirmation
+        function updateConfirmationInfo() {
+            // Compter les participants sélectionnés
+            const checkedParticipants = document.querySelectorAll('.participant-checkbox:checked');
+            selectedParticipantsCount.textContent = checkedParticipants.length;
+            
+            // Afficher les informations de la catégorie
+            if (selectedCategory) {
+                const categoryCard = document.querySelector(`.category-card[data-category-id="${selectedCategoryInput.value}"]`);
+                if (categoryCard) {
+                    selectedCategoryInfo.innerHTML = `
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">${categoryCard.querySelector('.card-title').textContent}</h5>
+                                <p class="card-text text-muted small">${categoryCard.querySelector('.card-text.text-muted').textContent}</p>
+                                <p class="card-text text-primary">${categoryCard.querySelector('.card-text.text-primary').textContent}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            // Remplir le tableau des participants sélectionnés
+            selectedParticipantsTable.innerHTML = '';
+            checkedParticipants.forEach(checkbox => {
+                const item = checkbox.closest('.participant-item');
+                const name = item.dataset.name;
+                const club = item.dataset.club || "{% trans 'Sans club' %}";
+                const grade = item.querySelector('.text-muted').textContent.split('-')[1]?.trim() || "-";
+                const categories = Array.from(item.querySelectorAll('.badge.bg-info')).map(badge => badge.textContent).join(', ');
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${name}</td>
+                    <td>${club}</td>
+                    <td>${grade}</td>
+                    <td>${categories || "{% trans 'Aucune' %}"}</td>
+                `;
+                selectedParticipantsTable.appendChild(row);
+            });
+        }
+        
+        // Gérer le clic sur les cartes de catégorie
+        categoryCards.forEach(card => {
+            card.addEventListener('click', function() {
+                selectedCategory = {
+                    id: this.dataset.categoryId,
+                    name: this.querySelector('.card-title').textContent
+                };
+                selectedCategoryInput.value = selectedCategory.id;
+                updateSelectionAppearance();
+                updateButtonStates();
+            });
+        });
+        
+        // Gérer le clic sur les éléments de participant
+        document.querySelectorAll('.participant-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                if (!e.target.closest('.form-check-input')) {
+                    const checkbox = this.querySelector('.participant-checkbox');
+                    checkbox.checked = !checkbox.checked;
+                    updateSelectionAppearance();
+                    updateButtonStates();
+                    updateSelectAllState();
+                }
+            });
+        });
+        
+        // Gérer le changement des cases à cocher
+        participantCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateSelectionAppearance();
+                updateButtonStates();
+                updateSelectAllState();
+            });
+        });
+        
+        // Gérer le "tout sélectionner"
+        selectAllCheckbox.addEventListener('change', function() {
+            const isChecked = this.checked;
+            const visibleItems = document.querySelectorAll('.participant-item:not([style*="display: none"])');
+            
+            visibleItems.forEach(item => {
+                const checkbox = item.querySelector('.participant-checkbox');
+                checkbox.checked = isChecked;
+            });
+            
+            updateSelectionAppearance();
+            updateButtonStates();
+        });
+        
+        // Gérer la recherche et les filtres
+        participantSearch.addEventListener('input', filterParticipants);
+        clubFilter.addEventListener('change', filterParticipants);
+        hideAlreadyAssigned.addEventListener('change', filterParticipants);
+        
+        // Gérer la navigation entre les étapes
+        goToStep2Button.addEventListener('click', function() {
+            goToStep(2);
+        });
+        
+        goToStep3Button.addEventListener('click', function() {
+            goToStep(3);
+        });
+        
+        backToStep1Button.addEventListener('click', function() {
+            goToStep(1);
+        });
+        
+        backToStep2Button.addEventListener('click', function() {
+            goToStep(2);
+        });
+        
+        // Gérer la soumission du formulaire
+        categoryAssignmentForm.addEventListener('submit', function(e) {
+            const checkedParticipants = document.querySelectorAll('.participant-checkbox:checked');
+            
+            if (!selectedCategory || checkedParticipants.length === 0) {
+                e.preventDefault();
+                alert("{% trans 'Veuillez sélectionner une catégorie et au moins un participant.' %}");
+                return;
+            }
+            
+            if (!confirm(`{% trans 'Êtes-vous sûr de vouloir assigner' %} ${checkedParticipants.length} {% trans 'participants à la catégorie' %} "${selectedCategory.name}" ?`)) {
+                e.preventDefault();
+            }
+        });
+        
+        // Initialiser l'interface
+        updateButtonStates();
+        updateSelectionAppearance();
+    });
+</script>
+{% endblock %}

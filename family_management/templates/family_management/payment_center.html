@@ -1,0 +1,494 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Centre de paiements" %} - {{ family.family_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .payment-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+    
+    .payment-card.pending {
+        border-left: 4px solid #ffc107;
+        background-color: #fffbf0;
+    }
+    
+    .payment-card.paid {
+        border-left: 4px solid #28a745;
+        background-color: #f8fff9;
+    }
+    
+    .financial-summary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+    }
+    
+    .stat-card {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 1rem;
+        text-align: center;
+    }
+    
+    .amount-display {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+    
+    .payment-filters {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- En-tête -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">
+                        <i class="fas fa-credit-card me-2 text-primary"></i>
+                        {% trans "Centre de paiements" %}
+                    </h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{% url 'family_management:dashboard' %}">{% trans "Familles" %}</a></li>
+                            <li class="breadcrumb-item"><a href="{% url 'family_management:family_detail' family.id %}">{{ family.family_name }}</a></li>
+                            <li class="breadcrumb-item active">{% trans "Paiements" %}</li>
+                        </ol>
+                    </nav>
+                </div>
+                <div>
+                    {% if can_manage_payments %}
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPaymentModal">
+                        <i class="fas fa-plus me-2"></i>{% trans "Nouveau groupe de paiement" %}
+                    </button>
+                    {% endif %}
+                    <a href="{% url 'family_management:family_detail' family.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Résumé financier -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="financial-summary">
+                <h4 class="mb-4">
+                    <i class="fas fa-chart-pie me-2"></i>
+                    {% trans "Résumé financier" %} - {{ financial_summary.period_start|date:"m/Y" }} à {{ financial_summary.period_end|date:"m/Y" }}
+                </h4>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="amount-display text-warning">{{ financial_summary.total_pending }}€</div>
+                            <div>{% trans "En attente" %}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="amount-display text-success">{{ financial_summary.total_paid }}€</div>
+                            <div>{% trans "Payé" %}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="amount-display">{{ financial_summary.payment_count }}</div>
+                            <div>{% trans "Total paiements" %}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="amount-display text-info">{{ financial_summary.pending_count }}</div>
+                            <div>{% trans "Non payés" %}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtres -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="payment-filters">
+                <div class="d-flex align-items-center">
+                    <span class="me-3">{% trans "Filtrer par statut:" %}</span>
+                    <div class="btn-group" role="group">
+                        <a href="?status=all" class="btn btn-sm {% if status_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                            {% trans "Tous" %}
+                        </a>
+                        <a href="?status=pending" class="btn btn-sm {% if status_filter == 'pending' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+                            {% trans "En attente" %}
+                        </a>
+                        <a href="?status=paid" class="btn btn-sm {% if status_filter == 'paid' %}btn-success{% else %}btn-outline-success{% endif %}">
+                            {% trans "Payés" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Liste des paiements -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-list me-2"></i>
+                        {% trans "Groupes de paiements" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if page_obj %}
+                        {% for payment_group in page_obj %}
+                        <div class="payment-card {% if payment_group.is_paid %}paid{% else %}pending{% endif %} p-3 mb-3">
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <h6 class="mb-1">{{ payment_group.description }}</h6>
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar me-1"></i>
+                                        {% trans "Créé le" %} {{ payment_group.created_at|date:"d/m/Y" }}
+                                        <span class="mx-2">•</span>
+                                        <i class="fas fa-hashtag me-1"></i>
+                                        ID: {{ payment_group.group_id|slice:":8" }}
+                                    </small>
+                                </div>
+                                <div class="col-md-3 text-center">
+                                    <div class="amount-display">{{ payment_group.total_amount }}€</div>
+                                    {% if payment_group.is_paid %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>{% trans "Payé" %}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-clock me-1"></i>{% trans "En attente" %}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-3 text-end">
+                                    {% if not payment_group.is_paid and can_manage_payments %}
+                                        <button class="btn btn-success btn-sm me-2" 
+                                                onclick="processPayment({{ payment_group.id }}, '{{ payment_group.description }}', {{ payment_group.total_amount }})">
+                                            <i class="fas fa-credit-card me-1"></i>{% trans "Payer" %}
+                                        </button>
+                                    {% endif %}
+                                    <button class="btn btn-outline-primary btn-sm" 
+                                            onclick="viewPaymentDetails({{ payment_group.id }})">
+                                        <i class="fas fa-eye me-1"></i>{% trans "Détails" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+
+                        <!-- Pagination -->
+                        {% if page_obj.has_other_pages %}
+                        <nav aria-label="{% trans 'Pagination des paiements' %}">
+                            <ul class="pagination justify-content-center">
+                                {% if page_obj.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}&status={{ status_filter }}">
+                                            <i class="fas fa-chevron-left"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                
+                                {% for num in page_obj.paginator.page_range %}
+                                    {% if page_obj.number == num %}
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ num }}</span>
+                                        </li>
+                                    {% else %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ num }}&status={{ status_filter }}">{{ num }}</a>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                {% if page_obj.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.next_page_number }}&status={{ status_filter }}">
+                                            <i class="fas fa-chevron-right"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                        {% endif %}
+
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-receipt fa-4x text-muted mb-3"></i>
+                            <h5 class="text-muted">{% trans "Aucun paiement trouvé" %}</h5>
+                            <p class="text-muted">
+                                {% if status_filter == 'pending' %}
+                                    {% trans "Aucun paiement en attente pour cette famille." %}
+                                {% elif status_filter == 'paid' %}
+                                    {% trans "Aucun paiement effectué pour cette famille." %}
+                                {% else %}
+                                    {% trans "Aucun paiement enregistré pour cette famille." %}
+                                {% endif %}
+                            </p>
+                            {% if can_manage_payments %}
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPaymentModal">
+                                <i class="fas fa-plus me-2"></i>{% trans "Créer le premier paiement" %}
+                            </button>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de création de paiement -->
+<div class="modal fade" id="createPaymentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Nouveau groupe de paiement" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createPaymentForm">
+                    <div class="mb-3">
+                        <label for="paymentDescription" class="form-label">{% trans "Description" %}</label>
+                        <input type="text" class="form-control" id="paymentDescription" required>
+                        <div class="form-text">{% trans "Ex: Inscriptions compétition régionale, Licences annuelles, etc." %}</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Éléments du paiement" %}</label>
+                        <div id="payment-items">
+                            <div class="payment-item row mb-2">
+                                <div class="col-8">
+                                    <input type="text" class="form-control" placeholder="{% trans 'Description de l\'élément' %}" name="item_description[]">
+                                </div>
+                                <div class="col-3">
+                                    <input type="number" class="form-control item-amount" placeholder="0.00" step="0.01" name="item_amount[]">
+                                </div>
+                                <div class="col-1">
+                                    <button type="button" class="btn btn-outline-danger btn-sm remove-item">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="add-payment-item">
+                            <i class="fas fa-plus me-1"></i>{% trans "Ajouter un élément" %}
+                        </button>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                            <strong>{% trans "Total:" %}</strong>
+                            <strong id="payment-total">0.00€</strong>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-primary" onclick="createPaymentGroup()">{% trans "Créer le groupe" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de traitement de paiement -->
+<div class="modal fade" id="processPaymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Traiter le paiement" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="payment-details"></div>
+                <div class="mt-3">
+                    <label for="payment-method" class="form-label">{% trans "Méthode de paiement" %}</label>
+                    <select class="form-select" id="payment-method">
+                        <option value="stripe">{% trans "Carte bancaire (Stripe)" %}</option>
+                        <option value="bank_transfer">{% trans "Virement bancaire" %}</option>
+                        <option value="cash">{% trans "Espèces" %}</option>
+                        <option value="check">{% trans "Chèque" %}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-success" id="confirm-payment">{% trans "Confirmer le paiement" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentPaymentGroupId = null;
+    
+    // Gestion des éléments de paiement
+    document.getElementById('add-payment-item').addEventListener('click', function() {
+        addPaymentItem();
+    });
+    
+    // Mise à jour du total
+    document.addEventListener('input', function(e) {
+        if (e.target.classList.contains('item-amount')) {
+            updatePaymentTotal();
+        }
+    });
+    
+    // Suppression d'éléments
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-item') || e.target.parentElement.classList.contains('remove-item')) {
+            e.target.closest('.payment-item').remove();
+            updatePaymentTotal();
+        }
+    });
+    
+    function addPaymentItem() {
+        const container = document.getElementById('payment-items');
+        const newItem = document.createElement('div');
+        newItem.className = 'payment-item row mb-2';
+        newItem.innerHTML = `
+            <div class="col-8">
+                <input type="text" class="form-control" placeholder="{% trans 'Description de l\'élément' %}" name="item_description[]">
+            </div>
+            <div class="col-3">
+                <input type="number" class="form-control item-amount" placeholder="0.00" step="0.01" name="item_amount[]">
+            </div>
+            <div class="col-1">
+                <button type="button" class="btn btn-outline-danger btn-sm remove-item">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        container.appendChild(newItem);
+    }
+    
+    function updatePaymentTotal() {
+        let total = 0;
+        document.querySelectorAll('.item-amount').forEach(input => {
+            total += parseFloat(input.value) || 0;
+        });
+        document.getElementById('payment-total').textContent = total.toFixed(2) + '€';
+    }
+    
+    window.createPaymentGroup = function() {
+        const description = document.getElementById('paymentDescription').value;
+        const items = [];
+        
+        document.querySelectorAll('.payment-item').forEach(item => {
+            const desc = item.querySelector('input[name="item_description[]"]').value;
+            const amount = item.querySelector('input[name="item_amount[]"]').value;
+            if (desc && amount) {
+                items.push({ description: desc, amount: parseFloat(amount) });
+            }
+        });
+        
+        if (!description) {
+            alert('{% trans "Veuillez saisir une description" %}');
+            return;
+        }
+        
+        fetch('{% url "family_management:create_payment_group" family.id %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                description: description,
+                items: items
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('{% trans "Groupe de paiement créé avec succès" %}');
+                location.reload();
+            } else {
+                alert('{% trans "Erreur:" %} ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            alert('{% trans "Erreur lors de la création du groupe de paiement" %}');
+        });
+        
+        bootstrap.Modal.getInstance(document.getElementById('createPaymentModal')).hide();
+    };
+    
+    window.processPayment = function(paymentGroupId, description, amount) {
+        currentPaymentGroupId = paymentGroupId;
+        document.getElementById('payment-details').innerHTML = `
+            <div class="alert alert-info">
+                <strong>{% trans "Description:" %}</strong> ${description}<br>
+                <strong>{% trans "Montant:" %}</strong> ${amount}€
+            </div>
+        `;
+        new bootstrap.Modal(document.getElementById('processPaymentModal')).show();
+    };
+    
+    document.getElementById('confirm-payment').addEventListener('click', function() {
+        if (!currentPaymentGroupId) return;
+        
+        const paymentMethod = document.getElementById('payment-method').value;
+        
+        fetch(`{% url "family_management:process_payment" family.id 0 %}`.replace('0', currentPaymentGroupId), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                payment_method: paymentMethod,
+                payment_data: {}
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('{% trans "Erreur:" %} ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            alert('{% trans "Erreur lors du traitement du paiement" %}');
+        });
+        
+        bootstrap.Modal.getInstance(document.getElementById('processPaymentModal')).hide();
+    });
+    
+    window.viewPaymentDetails = function(paymentGroupId) {
+        // TODO: Afficher les détails complets du paiement
+        alert('{% trans "Fonctionnalité de détails à implémenter" %}');
+    };
+});
+</script>
+
+<!-- Token CSRF -->
+{% csrf_token %}
+{% endblock %}

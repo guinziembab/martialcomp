@@ -1,0 +1,118 @@
+{% extends "onboarding/base.html" %}
+{% load static i18n %}
+
+{% block title %}{% trans "Set Your Teaching Schedule" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">{% trans "Teaching Schedule" %}</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-4">
+                            <p class="text-muted">{% trans "Define your weekly teaching schedule for each discipline" %}</p>
+                        </div>
+
+                        {{ schedule_formset.management_form }}
+                        
+                        <div id="schedule-formset">
+                            {% for form in schedule_formset %}
+                                <div class="schedule-form card mb-3">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                {{ form.discipline|as_crispy_field }}
+                                            </div>
+                                            <div class="col-md-2">
+                                                {{ form.day_of_week|as_crispy_field }}
+                                            </div>
+                                            <div class="col-md-2">
+                                                {{ form.start_time|as_crispy_field }}
+                                            </div>
+                                            <div class="col-md-2">
+                                                {{ form.end_time|as_crispy_field }}
+                                            </div>
+                                            <div class="col-md-3">
+                                                {{ form.location|as_crispy_field }}
+                                            </div>
+                                            <div class="col-md-2">
+                                                {{ form.max_students|as_crispy_field }}
+                                            </div>
+                                            <div class="col-md-2">
+                                                <div class="form-check">
+                                                    {{ form.is_active }}
+                                                    <label class="form-check-label">
+                                                        {% trans "Active" %}
+                                                    </label>
+                                                </div>
+                                                {% if form.instance.pk %}
+                                                    {{ form.DELETE }}
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% for hidden in form.hidden_fields %}
+                                            {{ hidden }}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <button type="button" class="btn btn-secondary" id="add-schedule">
+                            <i class="fas fa-plus"></i> {% trans "Add Schedule" %}
+                        </button>
+
+                        <hr class="my-4">
+
+                        <div class="row">
+                            <div class="col-12">
+                                <button type="submit" name="save_continue" class="btn btn-primary">
+                                    {% trans "Save and Continue" %}
+                                </button>
+                                <button type="submit" name="save" class="btn btn-secondary">
+                                    {% trans "Save" %}
+                                </button>
+                                <a href="{% url 'onboarding:coach:achievements' %}" class="btn btn-link">
+                                    {% trans "Skip" %}
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const addButton = document.getElementById('add-schedule');
+    const formsetDiv = document.getElementById('schedule-formset');
+    const totalFormsInput = document.querySelector('[name$=TOTAL_FORMS]');
+    
+    addButton.addEventListener('click', function() {
+        const formCount = parseInt(totalFormsInput.value);
+        const newForm = document.querySelector('.schedule-form').cloneNode(true);
+        
+        // Mettre à jour les IDs et names
+        newForm.innerHTML = newForm.innerHTML.replace(/form-\d+/g, `form-${formCount}`);
+        
+        // Vider les valeurs
+        newForm.querySelectorAll('input, select').forEach(field => {
+            if (field.type !== 'checkbox') {
+                field.value = '';
+            }
+        });
+        
+        formsetDiv.appendChild(newForm);
+        totalFormsInput.value = formCount + 1;
+    });
+});
+</script>
+{% endblock %}

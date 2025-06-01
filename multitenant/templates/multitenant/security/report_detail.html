@@ -1,0 +1,200 @@
+{% extends "multitenant/admin/base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Détail du rapport de sécurité" %} | MartialComp Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4">{% translate "Détail du rapport de sécurité" %}</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="{% url 'multitenant:admin_dashboard' %}">{% translate "Administration" %}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'multitenant:security_dashboard' %}">{% translate "Sécurité" %}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'multitenant:security_reports' %}">{% translate "Rapports" %}</a></li>
+        <li class="breadcrumb-item active">{% translate "Détail" %}</li>
+    </ol>
+
+    <!-- En-tête du rapport -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-file-alt me-1"></i>
+                    {% translate "Informations du rapport" %}
+                </div>
+                <div>
+                    <a href="{% url 'multitenant:download_security_report' report_id=report.id %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-download me-1"></i> {% translate "Télécharger" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <dl class="row">
+                        <dt class="col-sm-4">{% translate "Identifiant" %}</dt>
+                        <dd class="col-sm-8">{{ report.id }}</dd>
+                        
+                        <dt class="col-sm-4">{% translate "Date de l'audit" %}</dt>
+                        <dd class="col-sm-8">{{ report.date|date:"d/m/Y H:i:s" }}</dd>
+                        
+                        <dt class="col-sm-4">{% translate "Tenant" %}</dt>
+                        <dd class="col-sm-8">
+                            {% if report.is_global %}
+                                <span class="badge bg-primary">{% translate "Global" %}</span>
+                            {% else %}
+                                {{ report.tenant }}
+                            {% endif %}
+                        </dd>
+                    </dl>
+                </div>
+                <div class="col-md-6">
+                    <dl class="row">
+                        <dt class="col-sm-4">{% translate "Statut" %}</dt>
+                        <dd class="col-sm-8">
+                            {% if report.data.summary.status == 'passed' %}
+                                <span class="badge bg-success">{% translate "Réussi" %}</span>
+                            {% elif report.data.summary.status == 'failed' %}
+                                <span class="badge bg-danger">{% translate "Échoué" %}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{% translate "Inconnu" %}</span>
+                            {% endif %}
+                        </dd>
+                        
+                        <dt class="col-sm-4">{% translate "Tests exécutés" %}</dt>
+                        <dd class="col-sm-8">{{ report.data.summary.tests_run }}</dd>
+                        
+                        <dt class="col-sm-4">{% translate "Violations" %}</dt>
+                        <dd class="col-sm-8">
+                            {% if report.data.summary.violations_found > 0 %}
+                                <span class="text-danger fw-bold">{{ report.data.summary.violations_found }}</span>
+                            {% else %}
+                                <span class="text-success">0</span>
+                            {% endif %}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Résultats des tests -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-clipboard-check me-1"></i>
+            {% translate "Résultats des tests" %}
+        </div>
+        <div class="card-body">
+            <div class="accordion" id="accordionTests">
+                {% for test_name, test_result in report.data.results.items %}
+                    {% if test_name != "summary" %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading{{ forloop.counter }}">
+                            <button class="accordion-button {% if test_result.status != 'passed' %}text-danger{% else %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}" aria-expanded="{% if test_result.status != 'passed' %}true{% else %}false{% endif %}" aria-controls="collapse{{ forloop.counter }}">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <div>
+                                        <strong>{{ test_name }}</strong>
+                                    </div>
+                                    <div>
+                                        {% if test_result.status == 'passed' %}
+                                            <span class="badge bg-success me-2">{% translate "Réussi" %}</span>
+                                        {% elif test_result.status == 'failed' %}
+                                            <span class="badge bg-danger me-2">{% translate "Échoué" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary me-2">{% translate "Inconnu" %}</span>
+                                        {% endif %}
+                                        {% if test_result.violations %}
+                                            <span class="badge bg-warning text-dark">{{ test_result.violations|length }} {% translate "violations" %}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </button>
+                        </h2>
+                        <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse {% if test_result.status != 'passed' %}show{% endif %}" aria-labelledby="heading{{ forloop.counter }}" data-bs-parent="#accordionTests">
+                            <div class="accordion-body">
+                                {% if test_result.violations %}
+                                <div class="alert alert-danger">
+                                    <h5 class="alert-heading">{% translate "Violations détectées" %}</h5>
+                                    <ul class="list-group mb-3">
+                                        {% for violation in test_result.violations %}
+                                        <li class="list-group-item list-group-item-danger">
+                                            <div class="d-flex w-100 justify-content-between">
+                                                <div>
+                                                    <p class="mb-1">{{ violation.description }}</p>
+                                                    {% if violation.tenant %}
+                                                    <small>{% translate "Tenant" %}: {{ violation.tenant }}</small>
+                                                    {% endif %}
+                                                </div>
+                                                <span class="badge bg-danger">{{ violation.severity }}</span>
+                                            </div>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                                {% endif %}
+                                
+                                <h5 class="mt-3">{% translate "Vérifications effectuées" %}</h5>
+                                <ul class="list-group">
+                                    {% for check in test_result.checks %}
+                                    <li class="list-group-item list-group-item-success">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <div>
+                                                <p class="mb-1">{{ check.description }}</p>
+                                                {% if check.tenant %}
+                                                <small>{% translate "Tenant" %}: {{ check.tenant }}</small>
+                                                {% endif %}
+                                            </div>
+                                            <small>{{ check.timestamp|slice:":19"|date:"H:i:s" }}</small>
+                                        </div>
+                                    </li>
+                                    {% empty %}
+                                    <li class="list-group-item text-center">
+                                        {% translate "Aucune vérification réussie pour ce test" %}
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                {% empty %}
+                <div class="alert alert-info">
+                    {% translate "Aucun test dans ce rapport" %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Tenants affectés -->
+    {% if report.data.tenants_audited %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-building me-1"></i>
+            {% translate "Tenants audités" %}
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for tenant_name in report.data.tenants_audited %}
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ tenant_name }}</h5>
+                            
+                            {% if report.data.results.tenant_name %}
+                                {% if report.data.results.tenant_name.status == 'passed' %}
+                                    <span class="badge bg-success">{% translate "Réussi" %}</span>
+                                {% elif report.data.results.tenant_name.status == 'failed' %}
+                                    <span class="badge bg-danger">{% translate "Échoué" %}</span>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Limite atteinte" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-warning text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-exclamation-triangle mr-2"></i> 
+                        {% trans "Limite de ressources atteinte" %}
+                    </h3>
+                </div>
+                
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <img src="{% static 'img/resource-limit.svg' %}" alt="Resource Limit" style="max-width: 250px;">
+                    </div>
+                    
+                    <h4 class="text-center mb-4">{{ message }}</h4>
+                    
+                    <div class="alert alert-info">
+                        <p>{% blocktrans %}Vous utilisez actuellement le plan <strong>{{ tenant.get_subscription_plan_display }}</strong> qui limite le nombre de {{ resource_type }} que vous pouvez avoir.{% endblocktrans %}</p>
+                    </div>
+                    
+                    <h5 class="mt-4">{% trans "Votre utilisation actuelle" %}</h5>
+                    
+                    {% if resource_type == 'storage' %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{% trans "Stockage" %}</span>
+                            <span>{{ usage.storage_usage|filesizeformat }} / {{ limits.storage_limit|filesizeformat }}</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-danger" role="progressbar" style="width: {{ usage.storage_percentage }}%">
+                                {{ usage.storage_percentage|floatformat:0 }}%
+                            </div>
+                        </div>
+                    </div>
+                    {% elif resource_type == 'users' %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{% trans "Utilisateurs" %}</span>
+                            <span>{{ usage.user_count }} / {{ limits.max_users }}</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-danger" role="progressbar" style="width: {{ usage.user_percentage }}%">
+                                {{ usage.user_percentage|floatformat:0 }}%
+                            </div>
+                        </div>
+                    </div>
+                    {% elif resource_type == 'practitioners' %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{% trans "Pratiquants" %}</span>
+                            <span>{{ usage.practitioner_count }} / {{ limits.max_practitioners }}</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-danger" role="progressbar" style="width: {{ usage.practitioner_percentage }}%">
+                                {{ usage.practitioner_percentage|floatformat:0 }}%
+                            </div>
+                        </div>
+                    </div>
+                    {% elif resource_type == 'competitions' %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{% trans "Compétitions" %}</span>
+                            <span>{{ usage.competition_count }} / {{ limits.max_competitions }}</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-danger" role="progressbar" style="width: {{ usage.competition_percentage }}%">
+                                {{ usage.competition_percentage|floatformat:0 }}%
+                            </div>
+                        </div>
+                    </div>
+                    {% elif resource_type == 'categories' %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{% trans "Catégories" %}</span>
+                            <span>{{ usage.category_count }} / {{ limits.max_categories }}</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-danger" role="progressbar" style="width: {{ usage.category_percentage }}%">
+                                {{ usage.category_percentage|floatformat:0 }}%
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        {% trans "Vous avez atteint une limite de ressources pour votre plan actuel." %}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="card mt-4 mb-4">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">{% trans "Solution: Mettez à niveau votre plan" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>{% blocktrans with plan=next_plan|title %}Le plan <strong>{{ plan }}</strong> vous offre des limites plus élevées et davantage de fonctionnalités.{% endblocktrans %}</p>
+                            
+                            <div class="text-center mt-4">
+                                <a href="{% url 'multitenant:upgrade_plan' %}" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-arrow-up mr-2"></i> {% trans "Mettre à niveau maintenant" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Alternatives" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <ul>
+                                {% if resource_type == 'storage' %}
+                                <li>{% trans "Supprimez les fichiers inutilisés pour libérer de l'espace" %}</li>
+                                {% elif resource_type == 'users' %}
+                                <li>{% trans "Désactivez les utilisateurs inactifs ou supprimez les comptes inutilisés" %}</li>
+                                {% elif resource_type == 'practitioners' %}
+                                <li>{% trans "Archivez les pratiquants inactifs" %}</li>
+                                {% elif resource_type == 'competitions' %}
+                                <li>{% trans "Archivez les compétitions terminées qui ne sont plus nécessaires" %}</li>
+                                {% elif resource_type == 'categories' %}
+                                <li>{% trans "Fusionnez les catégories similaires ou supprimez celles qui ne sont plus utilisées" %}</li>
+                                {% endif %}
+                                <li>{% trans "Contacter le support pour des solutions personnalisées" %}</li>
+                            </ul>
+                            
+                            <div class="d-flex justify-content-between mt-3">
+                                <a href="{% url 'multitenant:resource_usage' %}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-chart-bar mr-2"></i> {% trans "Voir l'utilisation détaillée" %}
+                                </a>
+                                <a href="{% url 'contact' %}" class="btn btn-outline-info">
+                                    <i class="fas fa-headset mr-2"></i> {% trans "Contacter le support" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

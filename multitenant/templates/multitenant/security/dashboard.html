@@ -1,0 +1,287 @@
+{% extends "multitenant/admin/base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Tableau de bord Sécurité" %} | MartialComp Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4">{% translate "Tableau de bord Sécurité Multi-tenant" %}</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="{% url 'multitenant:admin_dashboard' %}">{% translate "Administration" %}</a></li>
+        <li class="breadcrumb-item active">{% translate "Sécurité" %}</li>
+    </ol>
+
+    <div class="row">
+        <!-- Score de sécurité -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card {% if security_score < 50 %}bg-danger{% elif security_score < 75 %}bg-warning{% elif security_score < 90 %}bg-primary{% else %}bg-success{% endif %} text-white mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">{% translate "Score de sécurité" %}</h5>
+                            <h2 class="display-4 mb-0">{{ security_score }}/100</h2>
+                        </div>
+                        <div>
+                            <i class="fas fa-shield-alt fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <span>
+                        {% if security_score >= 90 %}
+                            {% translate "Excellente sécurité" %}
+                        {% elif security_score >= 75 %}
+                            {% translate "Bonne sécurité" %}
+                        {% elif security_score >= 50 %}
+                            {% translate "Sécurité moyenne" %}
+                        {% else %}
+                            {% translate "Sécurité à améliorer" %}
+                        {% endif %}
+                    </span>
+                    {% if security_stats.is_improving %}
+                        <span class="text-success"><i class="fas fa-arrow-up"></i> {% translate "En amélioration" %}</span>
+                    {% else %}
+                        <span class="text-warning"><i class="fas fa-arrow-right"></i> {% translate "Stable" %}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Résumé des audits -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-primary text-white mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">{% translate "Audits de sécurité" %}</h5>
+                            <div class="d-flex align-items-center mt-2">
+                                <h2 class="display-6 mb-0">{{ security_stats.total_audits }}</h2>
+                                <small class="ms-2">{% translate "audits effectués" %}</small>
+                            </div>
+                        </div>
+                        <div>
+                            <i class="fas fa-clipboard-check fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <span>
+                        {{ security_stats.passed_audits }} {% translate "réussis" %},
+                        {{ security_stats.failed_audits }} {% translate "échoués" %}
+                    </span>
+                    <a href="{% url 'multitenant:security_reports' %}" class="text-white">
+                        <i class="fas fa-angle-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Violations de sécurité -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card {% if security_stats.total_violations > 0 %}bg-warning{% else %}bg-success{% endif %} text-white mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">{% translate "Violations de sécurité" %}</h5>
+                            <div class="d-flex align-items-center mt-2">
+                                <h2 class="display-6 mb-0">{{ security_stats.total_violations }}</h2>
+                                <small class="ms-2">{% translate "violations détectées" %}</small>
+                            </div>
+                        </div>
+                        <div>
+                            <i class="fas fa-exclamation-triangle fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <span>
+                        {{ security_stats.recent_violations }} {% translate "dans les 3 derniers audits" %}
+                    </span>
+                    <a href="{% url 'multitenant:security_violations' %}" class="text-white">
+                        <i class="fas fa-angle-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dernier audit -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-secondary text-white mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">{% translate "Dernier audit" %}</h5>
+                            <div class="mt-2">
+                                {% if last_audit %}
+                                    <p class="mb-0">{{ last_audit|date:"d/m/Y H:i" }}</p>
+                                {% else %}
+                                    <p class="mb-0">{% translate "Aucun audit récent" %}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div>
+                            <i class="fas fa-calendar-check fa-3x"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a href="{% url 'multitenant:run_security_audit' %}" class="text-white text-decoration-none">
+                        {% translate "Lancer un nouvel audit" %}
+                    </a>
+                    <a href="{% url 'multitenant:run_security_audit' %}" class="text-white">
+                        <i class="fas fa-play-circle"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Rapports récents -->
+        <div class="col-xl-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-history me-1"></i>
+                    {% translate "Rapports d'audit récents" %}
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% translate "Date" %}</th>
+                                    <th>{% translate "Tenant" %}</th>
+                                    <th>{% translate "Statut" %}</th>
+                                    <th>{% translate "Violations" %}</th>
+                                    <th>{% translate "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for report in reports %}
+                                <tr>
+                                    <td>{{ report.date|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        {% if report.is_global %}
+                                            <span class="badge bg-primary">{% translate "Global" %}</span>
+                                        {% else %}
+                                            {{ report.tenant }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if report.status == 'passed' %}
+                                            <span class="badge bg-success">{% translate "Réussi" %}</span>
+                                        {% elif report.status == 'failed' %}
+                                            <span class="badge bg-danger">{% translate "Échoué" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{% translate "Inconnu" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if report.violations > 0 %}
+                                            <span class="text-danger">{{ report.violations }}</span>
+                                        {% else %}
+                                            <span class="text-success">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'multitenant:security_report_detail' report_id=report.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{% url 'multitenant:download_security_report' report_id=report.id %}" class="btn btn-sm btn-outline-secondary">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center">{% translate "Aucun rapport d'audit disponible" %}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if reports %}
+                    <div class="text-end mt-3">
+                        <a href="{% url 'multitenant:security_reports' %}" class="btn btn-primary">
+                            {% translate "Voir tous les rapports" %}
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Actions de sécurité -->
+        <div class="col-xl-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-tools me-1"></i>
+                    {% translate "Actions de sécurité" %}
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        <a href="{% url 'multitenant:run_security_audit' %}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">{% translate "Audit de sécurité" %}</h5>
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <p class="mb-1">{% translate "Exécuter un audit de sécurité complet" %}</p>
+                        </a>
+                        <a href="{% url 'multitenant:security_violations' %}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">{% translate "Violations" %}</h5>
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <p class="mb-1">{% translate "Analyser les violations de sécurité détectées" %}</p>
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">{% translate "Paramètres de sécurité" %}</h5>
+                                <i class="fas fa-cogs"></i>
+                            </div>
+                            <p class="mb-1">{% translate "Configurer les paramètres de sécurité" %}</p>
+                        </a>
+                        <a href="#" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">{% translate "Sauvegardes" %}</h5>
+                                <i class="fas fa-database"></i>
+                            </div>
+                            <p class="mb-1">{% translate "Gérer les sauvegardes des tenants" %}</p>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tenants à risque -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-user-shield me-1"></i>
+                    {% translate "Tenants" %}
+                </div>
+                <div class="card-body">
+                    <p>{% translate "Total des tenants actifs:" %} <strong>{{ tenants.count }}</strong></p>
+                    
+                    <div class="list-group mt-3">
+                        {% for tenant in tenants|slice:":5" %}
+                        <a href="#" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            {{ tenant.name }}
+                            <span class="badge bg-primary rounded-pill">{{ tenant.schema_name }}</span>
+                        </a>
+                        {% empty %}
+                        <div class="alert alert-info">
+                            {% translate "Aucun tenant actif" %}
+                        </div>
+                        {% endfor %}
+                        
+                        {% if tenants.count > 5 %}
+                        <div class="text-center mt-3">
+                            <small>+ {{ tenants.count|add:"-5" }} autres tenants</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

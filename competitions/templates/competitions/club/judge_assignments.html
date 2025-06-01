@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Affectations des juges" %} | {{ club.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">{% trans "Affectations des juges" %}</h1>
+        
+        <div>
+            <a href="{% url 'competitions:club:judges_list' %}" class="btn btn-outline-primary">
+                <i class="fas fa-list me-2"></i>{% trans "Liste des juges" %}
+            </a>
+        </div>
+    </div>
+
+    {% if competitions_assignments %}
+        {% for competition_id, data in competitions_assignments.items %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h5 mb-0">{{ data.competition.title }}</h2>
+                    <small>
+                        {{ data.competition.start_date|date:"d/m/Y" }}
+                        {% if data.competition.end_date != data.competition.start_date %}
+                            - {{ data.competition.end_date|date:"d/m/Y" }}
+                        {% endif %}
+                    </small>
+                </div>
+                
+                <div class="card-body">
+                    <p>
+                        <span class="badge bg-info">{{ data.total_assignments }} {% trans "affectations" %}</span>
+                        <span class="badge bg-secondary">{{ data.judges|length }} {% trans "juges impliqués" %}</span>
+                    </p>
+                    
+                    {% for judge_id, judge_data in data.judges.items %}
+                        <div class="mb-4">
+                            <h3 class="h6 mb-2">
+                                <i class="fas fa-user me-2"></i>{{ judge_data.judge.full_name }}
+                            </h3>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>{% trans "Catégorie" %}</th>
+                                            <th>{% trans "Rôle" %}</th>
+                                            <th>{% trans "Statut" %}</th>
+                                            <th>{% trans "Horaire" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for assignment in judge_data.assignments %}
+                                            <tr>
+                                                <td>{{ assignment.category.name }}</td>
+                                                <td>
+                                                    {% if assignment.assignment_type == 'technical_judge' %}
+                                                        <span class="badge bg-primary">{% trans "Juge Technique" %}</span>
+                                                    {% elif assignment.assignment_type == 'combat_referee' %}
+                                                        <span class="badge bg-danger">{% trans "Arbitre Combat" %}</span>
+                                                    {% elif assignment.assignment_type == 'chief_judge' %}
+                                                        <span class="badge bg-warning">{% trans "Juge en Chef" %}</span>
+                                                    {% elif assignment.assignment_type == 'timekeeper' %}
+                                                        <span class="badge bg-info">{% trans "Chronométreur" %}</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">{{ assignment.get_assignment_type_display }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if assignment.status == 'pending' %}
+                                                        <span class="badge bg-warning">{% trans "En attente" %}</span>
+                                                    {% elif assignment.status == 'confirmed' %}
+                                                        <span class="badge bg-success">{% trans "Confirmé" %}</span>
+                                                    {% elif assignment.status == 'declined' %}
+                                                        <span class="badge bg-danger">{% trans "Refusé" %}</span>
+                                                    {% elif assignment.status == 'completed' %}
+                                                        <span class="badge bg-info">{% trans "Terminé" %}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if assignment.start_time %}
+                                                        {{ assignment.start_time|date:"d/m/Y H:i" }}
+                                                        {% if assignment.end_time %}
+                                                            - {{ assignment.end_time|date:"H:i" }}
+                                                        {% endif %}
+                                                    {% else %}
+                                                        <span class="text-muted">{% trans "Non défini" %}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            {% trans "Aucune affectation de juge n'est actuellement prévue pour votre club." %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

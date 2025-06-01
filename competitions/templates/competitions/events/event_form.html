@@ -1,0 +1,1276 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}
+  {% if form.instance.pk %}
+    {% trans "Modifier l'événement" %} - {{ form.instance.title }}
+  {% else %}
+    {% trans "Créer un événement" %}
+  {% endif %}
+  | MartialComp
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  
+  .form-card {
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+    overflow: hidden;
+  }
+  
+  .form-header {
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid #eee;
+    background-color: #f8f9fa;
+  }
+  
+  .form-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+  }
+  
+  .form-title i {
+    margin-right: 0.75rem;
+    color: #3366ff;
+  }
+  
+  .form-body {
+    padding: 2rem;
+  }
+  
+  .form-footer {
+    padding: 1.5rem 2rem;
+    border-top: 1px solid #eee;
+    background-color: #f8f9fa;
+    text-align: right;
+  }
+  
+  .form-section {
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .form-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+  
+  .form-section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #eee;
+    color: #3366ff;
+  }
+  
+  .type-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .type-card {
+    background-color: #f8f9fa;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 1rem;
+    width: calc(33.333% - 1rem);
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .type-card:hover {
+    border-color: #3366ff;
+    background-color: #f0f4ff;
+  }
+  
+  .type-card.selected {
+    border-color: #3366ff;
+    background-color: #f0f4ff;
+    box-shadow: 0 4px 10px rgba(51, 102, 255, 0.1);
+  }
+  
+  .type-icon {
+    width: 60px;
+    height: 60px;
+    background-color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    border-radius: 50%;
+    color: #3366ff;
+  }
+  
+  .type-name {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .type-description {
+    font-size: 0.8rem;
+    color: #666;
+  }
+  
+  .date-time-section {
+    display: flex;
+    gap: 1rem;
+  }
+  
+  .datetime-col {
+    flex: 1;
+  }
+  
+  .all-day-field {
+    margin-top: 1.5rem;
+  }
+  
+  .location-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  
+  .visibility-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .visibility-card {
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .visibility-card:hover {
+    border-color: #3366ff;
+    background-color: #f0f4ff;
+  }
+  
+  .visibility-card.selected {
+    border-color: #3366ff;
+    background-color: #f0f4ff;
+    box-shadow: 0 4px 10px rgba(51, 102, 255, 0.1);
+  }
+  
+  .visibility-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    color: #3366ff;
+  }
+  
+  .visibility-name {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .visibility-description {
+    font-size: 0.8rem;
+    color: #666;
+  }
+  
+  .registration-toggle-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #eee;
+  }
+  
+  .text-editor-toolbar {
+    padding: 0.5rem;
+    border: 1px solid #eee;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    background-color: #f8f9fa;
+  }
+  
+  .text-editor-toolbar button {
+    background: none;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    color: #666;
+    border-radius: 4px;
+  }
+  
+  .text-editor-toolbar button:hover {
+    background-color: #eee;
+    color: #3366ff;
+  }
+  
+  .options-list {
+    margin-top: 1.5rem;
+  }
+  
+  .option-item {
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+  
+  .option-remove {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: none;
+    border: none;
+    color: #dc3545;
+    cursor: pointer;
+    font-size: 1.1rem;
+  }
+  
+  .add-option-btn {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .add-option-btn:hover {
+    border-color: #3366ff;
+    background-color: #f0f4ff;
+    color: #3366ff;
+  }
+  
+  /* Modal pour la prévisualisation */
+  .preview-banner {
+    height: 200px;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    border-radius: 8px 8px 0 0;
+  }
+  
+  .preview-banner-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 1.5rem;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+    color: white;
+  }
+  
+  .preview-type-badge {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    border-radius: 30px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #fff;
+    margin-bottom: 0.5rem;
+  }
+  
+  .preview-info-bar {
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background-color: #f8f9fa;
+  }
+  
+  .preview-info-item {
+    display: flex;
+    align-items: center;
+  }
+  
+  .preview-info-icon {
+    width: 20px;
+    margin-right: 0.5rem;
+    color: #3366ff;
+  }
+  
+  /* Médias queries */
+  @media (max-width: 992px) {
+    .type-card {
+      width: calc(50% - 1rem);
+    }
+    
+    .visibility-cards {
+      grid-template-columns: 1fr;
+    }
+    
+    .date-time-section {
+      flex-direction: column;
+      gap: 0;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .type-card {
+      width: 100%;
+    }
+    
+    .location-fields {
+      grid-template-columns: 1fr;
+    }
+    
+    .form-body {
+      padding: 1.5rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="form-container">
+    <!-- En-tête du formulaire -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h1 class="h2 mb-1">
+          {% if form.instance.pk %}
+            {% trans "Modifier l'événement" %}
+          {% else %}
+            {% trans "Créer un nouvel événement" %}
+          {% endif %}
+        </h1>
+        <p class="text-muted mb-0">
+          {% if form.instance.pk %}
+            {% trans "Mettez à jour les informations de votre événement" %}
+          {% else %}
+            {% trans "Planifiez et configurez votre nouvel événement" %}
+          {% endif %}
+        </p>
+      </div>
+      <div>
+        <button type="button" class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#previewModal">
+          <i class="fas fa-eye me-1"></i> {% trans "Prévisualiser" %}
+        </button>
+        <a href="{% url 'competitions:events:event_list' %}" class="btn btn-outline-secondary">
+          <i class="fas fa-times me-1"></i> {% trans "Annuler" %}
+        </a>
+      </div>
+    </div>
+    
+    <!-- Messages d'alerte -->
+    {% if messages %}
+      <div class="messages mb-4">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+            <i class="fas {% if message.tags == 'success' %}fa-check-circle{% elif message.tags == 'error' %}fa-exclamation-circle{% elif message.tags == 'warning' %}fa-exclamation-triangle{% else %}fa-info-circle{% endif %} me-2"></i>
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    
+    <!-- Formulaire principal -->
+    <form method="post" action="{% if form.instance.pk %}{% url 'competitions:events:edit_event' form.instance.pk %}{% else %}{% url 'competitions:events:create_event' %}{% endif %}" enctype="multipart/form-data" id="eventForm">
+      {% csrf_token %}
+      
+      <div class="form-card">
+        <div class="form-header">
+          <h2 class="form-title">
+            <i class="fas fa-info-circle"></i> {% trans "Informations de base" %}
+          </h2>
+        </div>
+        <div class="form-body">
+          <!-- Section Type d'événement -->
+          <div class="form-section">
+            <h3 class="form-section-title">{% trans "Type d'événement" %}</h3>
+            
+            <div class="type-selector">
+              <div class="type-card {% if form.event_type.value == 'competition' %}selected{% endif %}" data-type="competition">
+                <div class="type-icon">
+                  <i class="fas fa-trophy fa-2x"></i>
+                </div>
+                <div class="type-name">{% trans "Compétition" %}</div>
+                <div class="type-description">{% trans "Tournoi, championnat ou compétition" %}</div>
+              </div>
+              
+              <div class="type-card {% if form.event_type.value == 'training' %}selected{% endif %}" data-type="training">
+                <div class="type-icon">
+                  <i class="fas fa-dumbbell fa-2x"></i>
+                </div>
+                <div class="type-name">{% trans "Entraînement" %}</div>
+                <div class="type-description">{% trans "Session d'entraînement régulière ou spéciale" %}</div>
+              </div>
+              
+              <div class="type-card {% if form.event_type.value == 'seminar' %}selected{% endif %}" data-type="seminar">
+                <div class="type-icon">
+                  <i class="fas fa-chalkboard-teacher fa-2x"></i>
+                </div>
+                <div class="type-name">{% trans "Séminaire" %}</div>
+                <div class="type-description">{% trans "Atelier ou cours avec invité spécial" %}</div>
+              </div>
+              
+              <div class="type-card {% if form.event_type.value == 'exam' %}selected{% endif %}" data-type="exam">
+                <div class="type-icon">
+                  <i class="fas fa-award fa-2x"></i>
+                </div>
+                <div class="type-name">{% trans "Examen" %}</div>
+                <div class="type-description">{% trans "Passage de grade ou certification" %}</div>
+              </div>
+              
+              <div class="type-card {% if form.event_type.value == 'meeting' %}selected{% endif %}" data-type="meeting">
+                <div class="type-icon">
+                  <i class="fas fa-users fa-2x"></i>
+                </div>
+                <div class="type-name">{% trans "Réunion" %}</div>
+                <div class="type-description">{% trans "Assemblée générale ou réunion administrative" %}</div>
+              </div>
+              
+              <div class="type-card {% if form.event_type.value == 'social' %}selected{% endif %}" data-type="social">
+                <div class="type-icon">
+                  <i class="fas fa-glass-cheers fa-2x"></i>
+                </div>
+                <div class="type-name">{% trans "Social" %}</div>
+                <div class="type-description">{% trans "Fête, gala ou événement social" %}</div>
+              </div>
+            </div>
+            
+            <!-- Champ caché pour le type d'événement -->
+            <input type="hidden" name="{{ form.event_type.name }}" id="{{ form.event_type.id_for_label }}" value="{{ form.event_type.value|default:'competition' }}">
+            {% if form.event_type.errors %}
+              <div class="text-danger">{{ form.event_type.errors.0 }}</div>
+            {% endif %}
+          </div>
+          
+          <!-- Section Titre et description -->
+          <div class="form-section">
+            <h3 class="form-section-title">{% trans "Titre et description" %}</h3>
+            
+            <div class="mb-3">
+              <label for="{{ form.title.id_for_label }}" class="form-label">{% trans "Titre de l'événement" %} *</label>
+              <input type="text" name="{{ form.title.name }}" id="{{ form.title.id_for_label }}" class="form-control {% if form.title.errors %}is-invalid{% endif %}" value="{{ form.title.value|default:'' }}" required>
+              {% if form.title.errors %}
+                <div class="invalid-feedback">{{ form.title.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="mb-3">
+              <label for="{{ form.description.id_for_label }}" class="form-label">{% trans "Description" %} *</label>
+              <div class="text-editor-toolbar">
+                <button type="button" title="{% trans 'Gras' %}" onclick="formatText('bold')"><i class="fas fa-bold"></i></button>
+                <button type="button" title="{% trans 'Italique' %}" onclick="formatText('italic')"><i class="fas fa-italic"></i></button>
+                <button type="button" title="{% trans 'Titre' %}" onclick="formatText('header')"><i class="fas fa-heading"></i></button>
+                <button type="button" title="{% trans 'Liste' %}" onclick="formatText('list')"><i class="fas fa-list-ul"></i></button>
+                <button type="button" title="{% trans 'Lien' %}" onclick="formatText('link')"><i class="fas fa-link"></i></button>
+              </div>
+              <textarea name="{{ form.description.name }}" id="{{ form.description.id_for_label }}" class="form-control {% if form.description.errors %}is-invalid{% endif %}" rows="6" required>{{ form.description.value|default:'' }}</textarea>
+              {% if form.description.errors %}
+                <div class="invalid-feedback">{{ form.description.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="mb-3">
+              <label for="{{ form.image.id_for_label }}" class="form-label">{% trans "Image de l'événement" %}</label>
+              {% if form.instance.image %}
+                <div class="d-flex align-items-center mb-2">
+                  <img src="{{ form.instance.image.url }}" alt="{{ form.instance.title }}" class="me-3" style="width: 100px; height: 60px; object-fit: cover; border-radius: 4px;">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="delete_image" name="delete_image">
+                    <label class="form-check-label" for="delete_image">
+                      {% trans "Supprimer l'image actuelle" %}
+                    </label>
+                  </div>
+                </div>
+              {% endif %}
+              <input type="file" name="{{ form.image.name }}" id="{{ form.image.id_for_label }}" class="form-control {% if form.image.errors %}is-invalid{% endif %}">
+              {% if form.image.errors %}
+                <div class="invalid-feedback">{{ form.image.errors.0 }}</div>
+              {% endif %}
+              <div class="form-text">{% trans "Format recommandé : 1200 x 630 pixels (ratio 16:9). Max 2MB." %}</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="{{ form.organization.id_for_label }}" class="form-label">{% trans "Organisation" %} *</label>
+              <select name="{{ form.organization.name }}" id="{{ form.organization.id_for_label }}" class="form-select {% if form.organization.errors %}is-invalid{% endif %}" required>
+                {% for choice in form.organization.field.choices %}
+                  <option value="{{ choice.0 }}" {% if form.organization.value|stringformat:'s' == choice.0|stringformat:'s' %}selected{% endif %}>{{ choice.1 }}</option>
+                {% endfor %}
+              </select>
+              {% if form.organization.errors %}
+                <div class="invalid-feedback">{{ form.organization.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <!-- Section Date et heure -->
+          <div class="form-section">
+            <h3 class="form-section-title">{% trans "Date et heure" %}</h3>
+            
+            <div class="date-time-section">
+              <div class="datetime-col">
+                <label class="form-label">{% trans "Début" %} *</label>
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <input type="date" name="{{ form.start_date.name }}" id="{{ form.start_date.id_for_label }}" class="form-control {% if form.start_date.errors %}is-invalid{% endif %}" value="{{ form.start_date.value|date:'Y-m-d'|default:'' }}" required>
+                    {% if form.start_date.errors %}
+                      <div class="invalid-feedback">{{ form.start_date.errors.0 }}</div>
+                    {% endif %}
+                  </div>
+                  <div class="col-md-6">
+                    <input type="time" name="{{ form.start_time.name }}" id="{{ form.start_time.id_for_label }}" class="form-control {% if form.start_time.errors %}is-invalid{% endif %}" value="{{ form.start_time.value|time:'H:i'|default:'' }}" {% if not form.all_day.value %}required{% endif %}>
+                    {% if form.start_time.errors %}
+                      <div class="invalid-feedback">{{ form.start_time.errors.0 }}</div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+              
+              <div class="datetime-col">
+                <label class="form-label">{% trans "Fin" %} *</label>
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <input type="date" name="{{ form.end_date.name }}" id="{{ form.end_date.id_for_label }}" class="form-control {% if form.end_date.errors %}is-invalid{% endif %}" value="{{ form.end_date.value|date:'Y-m-d'|default:'' }}" required>
+                    {% if form.end_date.errors %}
+                      <div class="invalid-feedback">{{ form.end_date.errors.0 }}</div>
+                    {% endif %}
+                  </div>
+                  <div class="col-md-6">
+                    <input type="time" name="{{ form.end_time.name }}" id="{{ form.end_time.id_for_label }}" class="form-control {% if form.end_time.errors %}is-invalid{% endif %}" value="{{ form.end_time.value|time:'H:i'|default:'' }}" {% if not form.all_day.value %}required{% endif %}>
+                    {% if form.end_time.errors %}
+                      <div class="invalid-feedback">{{ form.end_time.errors.0 }}</div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="all-day-field">
+              <div class="form-check">
+                <input type="checkbox" name="{{ form.all_day.name }}" id="{{ form.all_day.id_for_label }}" class="form-check-input" {% if form.all_day.value %}checked{% endif %}>
+                <label class="form-check-label" for="{{ form.all_day.id_for_label }}">
+                  {% trans "Événement sur toute la journée" %}
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Section Lieu -->
+          <div class="form-section">
+            <h3 class="form-section-title">{% trans "Lieu" %}</h3>
+            
+            <div class="mb-3">
+              <label for="{{ form.location.id_for_label }}" class="form-label">{% trans "Nom du lieu" %} *</label>
+              <input type="text" name="{{ form.location.name }}" id="{{ form.location.id_for_label }}" class="form-control {% if form.location.errors %}is-invalid{% endif %}" value="{{ form.location.value|default:'' }}" required>
+              {% if form.location.errors %}
+                <div class="invalid-feedback">{{ form.location.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="location-fields">
+              <div class="mb-3">
+                <label for="{{ form.address.id_for_label }}" class="form-label">{% trans "Adresse" %}</label>
+                <input type="text" name="{{ form.address.name }}" id="{{ form.address.id_for_label }}" class="form-control {% if form.address.errors %}is-invalid{% endif %}" value="{{ form.address.value|default:'' }}">
+                {% if form.address.errors %}
+                  <div class="invalid-feedback">{{ form.address.errors.0 }}</div>
+                {% endif %}
+              </div>
+              
+              <div class="mb-3">
+                <label for="{{ form.city.id_for_label }}" class="form-label">{% trans "Ville" %}</label>
+                <input type="text" name="{{ form.city.name }}" id="{{ form.city.id_for_label }}" class="form-control {% if form.city.errors %}is-invalid{% endif %}" value="{{ form.city.value|default:'' }}">
+                {% if form.city.errors %}
+                  <div class="invalid-feedback">{{ form.city.errors.0 }}</div>
+                {% endif %}
+              </div>
+              
+              <div class="mb-3">
+                <label for="{{ form.postal_code.id_for_label }}" class="form-label">{% trans "Code postal" %}</label>
+                <input type="text" name="{{ form.postal_code.name }}" id="{{ form.postal_code.id_for_label }}" class="form-control {% if form.postal_code.errors %}is-invalid{% endif %}" value="{{ form.postal_code.value|default:'' }}">
+                {% if form.postal_code.errors %}
+                  <div class="invalid-feedback">{{ form.postal_code.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="form-card">
+        <div class="form-header">
+          <h2 class="form-title">
+            <i class="fas fa-cog"></i> {% trans "Paramètres" %}
+          </h2>
+        </div>
+        <div class="form-body">
+          <!-- Section Visibilité -->
+          <div class="form-section">
+            <h3 class="form-section-title">{% trans "Visibilité" %}</h3>
+            
+            <div class="visibility-cards">
+              <div class="visibility-card {% if form.visibility.value == 'public' %}selected{% endif %}" data-visibility="public">
+                <div class="visibility-icon">
+                  <i class="fas fa-globe"></i>
+                </div>
+                <div class="visibility-name">{% trans "Public" %}</div>
+                <div class="visibility-description">{% trans "Visible par tous les utilisateurs" %}</div>
+              </div>
+              
+              <div class="visibility-card {% if form.visibility.value == 'members' %}selected{% endif %}" data-visibility="members">
+                <div class="visibility-icon">
+                  <i class="fas fa-users"></i>
+                </div>
+                <div class="visibility-name">{% trans "Membres" %}</div>
+                <div class="visibility-description">{% trans "Visible uniquement par les membres" %}</div>
+              </div>
+              
+              <div class="visibility-card {% if form.visibility.value == 'private' %}selected{% endif %}" data-visibility="private">
+                <div class="visibility-icon">
+                  <i class="fas fa-lock"></i>
+                </div>
+                <div class="visibility-name">{% trans "Privé" %}</div>
+                <div class="visibility-description">{% trans "Visible uniquement sur invitation" %}</div>
+              </div>
+            </div>
+            
+            <!-- Champ caché pour la visibilité -->
+            <input type="hidden" name="{{ form.visibility.name }}" id="{{ form.visibility.id_for_label }}" value="{{ form.visibility.value|default:'public' }}">
+            {% if form.visibility.errors %}
+              <div class="text-danger">{{ form.visibility.errors.0 }}</div>
+            {% endif %}
+            
+            <div class="form-check">
+              <input type="checkbox" name="{{ form.is_public.name }}" id="{{ form.is_public.id_for_label }}" class="form-check-input" {% if form.is_public.value %}checked{% endif %}>
+              <label class="form-check-label" for="{{ form.is_public.id_for_label }}">
+                {% trans "Afficher sur le site public" %}
+              </label>
+            </div>
+          </div>
+          
+          <!-- Section Inscription -->
+          <div class="form-section">
+            <h3 class="form-section-title">{% trans "Inscription" %}</h3>
+            
+            <div class="form-check mb-3">
+              <input type="checkbox" name="{{ form.registration_required.name }}" id="{{ form.registration_required.id_for_label }}" class="form-check-input" {% if form.registration_required.value %}checked{% endif %}>
+              <label class="form-check-label" for="{{ form.registration_required.id_for_label }}">
+                {% trans "Inscription requise" %}
+              </label>
+            </div>
+            
+            <div id="registrationFields" class="{% if not form.registration_required.value %}d-none{% endif %}">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="{{ form.max_participants.id_for_label }}" class="form-label">{% trans "Nombre maximum de participants" %}</label>
+                  <input type="number" name="{{ form.max_participants.name }}" id="{{ form.max_participants.id_for_label }}" class="form-control {% if form.max_participants.errors %}is-invalid{% endif %}" value="{{ form.max_participants.value|default:'' }}" min="1">
+                  {% if form.max_participants.errors %}
+                    <div class="invalid-feedback">{{ form.max_participants.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                
+                <div class="col-md-6">
+                  <label for="{{ form.price.id_for_label }}" class="form-label">{% trans "Prix (€)" %}</label>
+                  <input type="number" name="{{ form.price.name }}" id="{{ form.price.id_for_label }}" class="form-control {% if form.price.errors %}is-invalid{% endif %}" value="{{ form.price.value|default:'0' }}" min="0" step="0.01">
+                  {% if form.price.errors %}
+                    <div class="invalid-feedback">{{ form.price.errors.0 }}</div>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <div class="row g-3 mt-2">
+                <div class="col-md-6">
+                  <label for="{{ form.registration_deadline_date.id_for_label }}" class="form-label">{% trans "Date limite d'inscription" %}</label>
+                  <input type="date" name="{{ form.registration_deadline_date.name }}" id="{{ form.registration_deadline_date.id_for_label }}" class="form-control {% if form.registration_deadline_date.errors %}is-invalid{% endif %}" value="{{ form.registration_deadline_date.value|date:'Y-m-d'|default:'' }}">
+                  {% if form.registration_deadline_date.errors %}
+                    <div class="invalid-feedback">{{ form.registration_deadline_date.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                
+                <div class="col-md-6">
+                  <label for="{{ form.registration_deadline_time.id_for_label }}" class="form-label">{% trans "Heure limite d'inscription" %}</label>
+                  <input type="time" name="{{ form.registration_deadline_time.name }}" id="{{ form.registration_deadline_time.id_for_label }}" class="form-control {% if form.registration_deadline_time.errors %}is-invalid{% endif %}" value="{{ form.registration_deadline_time.value|time:'H:i'|default:'' }}">
+                  {% if form.registration_deadline_time.errors %}
+                    <div class="invalid-feedback">{{ form.registration_deadline_time.errors.0 }}</div>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <!-- Section Options -->
+              <div class="options-section mt-4">
+                <h4 class="h6 mb-3">{% trans "Options supplémentaires" %}</h4>
+                <p class="text-muted small mb-3">{% trans "Ajoutez des options que les participants pourront sélectionner lors de leur inscription." %}</p>
+                
+                <div id="optionsContainer" class="options-list">
+                  {% for option_form in option_formset.forms %}
+                    <div class="option-item">
+                      <button type="button" class="option-remove" title="{% trans 'Supprimer cette option' %}"><i class="fas fa-times"></i></button>
+                      
+                      {{ option_form.id }}
+                      
+                      <div class="row g-3">
+                        <div class="col-md-6">
+                          <label for="{{ option_form.name.id_for_label }}" class="form-label">{% trans "Nom de l'option" %}</label>
+                          <input type="text" name="{{ option_form.name.html_name }}" id="{{ option_form.name.id_for_label }}" class="form-control {% if option_form.name.errors %}is-invalid{% endif %}" value="{{ option_form.name.value|default:'' }}">
+                          {% if option_form.name.errors %}
+                            <div class="invalid-feedback">{{ option_form.name.errors.0 }}</div>
+                          {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6">
+                          <label for="{{ option_form.price.id_for_label }}" class="form-label">{% trans "Prix supplémentaire (€)" %}</label>
+                          <input type="number" name="{{ option_form.price.html_name }}" id="{{ option_form.price.id_for_label }}" class="form-control {% if option_form.price.errors %}is-invalid{% endif %}" value="{{ option_form.price.value|default:'0' }}" min="0" step="0.01">
+                          {% if option_form.price.errors %}
+                            <div class="invalid-feedback">{{ option_form.price.errors.0 }}</div>
+                          {% endif %}
+                        </div>
+                        
+                        <div class="col-12">
+                          <label for="{{ option_form.description.id_for_label }}" class="form-label">{% trans "Description" %}</label>
+                          <textarea name="{{ option_form.description.html_name }}" id="{{ option_form.description.id_for_label }}" class="form-control {% if option_form.description.errors %}is-invalid{% endif %}" rows="2">{{ option_form.description.value|default:'' }}</textarea>
+                          {% if option_form.description.errors %}
+                            <div class="invalid-feedback">{{ option_form.description.errors.0 }}</div>
+                          {% endif %}
+                        </div>
+                      </div>
+                      
+                      {% if option_form.DELETE %}
+                        <div class="d-none">
+                          {{ option_form.DELETE }}
+                        </div>
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+                </div>
+                
+                {{ option_formset.management_form }}
+                
+                <button type="button" id="addOptionBtn" class="add-option-btn mt-2">
+                  <i class="fas fa-plus me-1"></i> {% trans "Ajouter une option" %}
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Section Contact -->
+          <div class="form-section">
+            <h3 class="form-section-title">{% trans "Informations de contact" %}</h3>
+            
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="{{ form.contact_person.id_for_label }}" class="form-label">{% trans "Personne de contact" %}</label>
+                <select name="{{ form.contact_person.name }}" id="{{ form.contact_person.id_for_label }}" class="form-select {% if form.contact_person.errors %}is-invalid{% endif %}">
+                  <option value="">{% trans "Aucun" %}</option>
+                  {% for choice in form.contact_person.field.choices %}
+                    {% if choice.0 %}
+                      <option value="{{ choice.0 }}" {% if form.contact_person.value|stringformat:'s' == choice.0|stringformat:'s' %}selected{% endif %}>{{ choice.1 }}</option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+                {% if form.contact_person.errors %}
+                  <div class="invalid-feedback">{{ form.contact_person.errors.0 }}</div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6">
+                <label for="{{ form.contact_email.id_for_label }}" class="form-label">{% trans "Email de contact" %}</label>
+                <input type="email" name="{{ form.contact_email.name }}" id="{{ form.contact_email.id_for_label }}" class="form-control {% if form.contact_email.errors %}is-invalid{% endif %}" value="{{ form.contact_email.value|default:'' }}">
+                {% if form.contact_email.errors %}
+                  <div class="invalid-feedback">{{ form.contact_email.errors.0 }}</div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6">
+                <label for="{{ form.contact_phone.id_for_label }}" class="form-label">{% trans "Téléphone de contact" %}</label>
+                <input type="tel" name="{{ form.contact_phone.name }}" id="{{ form.contact_phone.id_for_label }}" class="form-control {% if form.contact_phone.errors %}is-invalid{% endif %}" value="{{ form.contact_phone.value|default:'' }}">
+                {% if form.contact_phone.errors %}
+                  <div class="invalid-feedback">{{ form.contact_phone.errors.0 }}</div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6">
+                <label for="{{ form.color.id_for_label }}" class="form-label">{% trans "Couleur de l'événement" %}</label>
+                <input type="color" name="{{ form.color.name }}" id="{{ form.color.id_for_label }}" class="form-control form-control-color w-100 {% if form.color.errors %}is-invalid{% endif %}" value="{{ form.color.value|default:'#3366ff' }}">
+                {% if form.color.errors %}
+                  <div class="invalid-feedback">{{ form.color.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-footer">
+          <a href="{% url 'competitions:events:event_list' %}" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-times me-1"></i> {% trans "Annuler" %}
+          </a>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i> 
+            {% if form.instance.pk %}
+              {% trans "Mettre à jour l'événement" %}
+            {% else %}
+              {% trans "Créer l'événement" %}
+            {% endif %}
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal de prévisualisation -->
+<div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="previewModalLabel">{% trans "Prévisualisation de l'événement" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="preview-banner" id="previewBanner">
+          <div class="preview-banner-overlay">
+            <span class="preview-type-badge" id="previewType">{% trans "Type" %}</span>
+            <h2 id="previewTitle">{% trans "Titre de l'événement" %}</h2>
+          </div>
+        </div>
+        <div class="preview-info-bar">
+          <div class="preview-info-item">
+            <div class="preview-info-icon">
+              <i class="fas fa-calendar-alt"></i>
+            </div>
+            <div id="previewDate">{% trans "Date" %}</div>
+          </div>
+          <div class="preview-info-item">
+            <div class="preview-info-icon">
+              <i class="fas fa-clock"></i>
+            </div>
+            <div id="previewTime">{% trans "Heure" %}</div>
+          </div>
+          <div class="preview-info-item">
+            <div class="preview-info-icon">
+              <i class="fas fa-map-marker-alt"></i>
+            </div>
+            <div id="previewLocation">{% trans "Lieu" %}</div>
+          </div>
+        </div>
+        <div class="p-3">
+          <h5>{% trans "Description" %}</h5>
+          <div id="previewDescription" class="mb-3">{% trans "Description de l'événement" %}</div>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">
+                  <h6 class="mb-0">{% trans "Informations" %}</h6>
+                </div>
+                <ul class="list-group list-group-flush">
+                  <li class="list-group-item d-flex justify-content-between">
+                    <span>{% trans "Organisation" %}</span>
+                    <span id="previewOrganization">-</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between">
+                    <span>{% trans "Visibilité" %}</span>
+                    <span id="previewVisibility">-</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between">
+                    <span>{% trans "Inscription" %}</span>
+                    <span id="previewRegistration">-</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between">
+                    <span>{% trans "Prix" %}</span>
+                    <span id="previewPrice">-</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">
+                  <h6 class="mb-0">{% trans "Contact" %}</h6>
+                </div>
+                <ul class="list-group list-group-flush">
+                  <li class="list-group-item d-flex justify-content-between">
+                    <span>{% trans "Personne" %}</span>
+                    <span id="previewContactPerson">-</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between">
+                    <span>{% trans "Email" %}</span>
+                    <span id="previewContactEmail">-</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between">
+                    <span>{% trans "Téléphone" %}</span>
+                    <span id="previewContactPhone">-</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Fermer" %}</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Sélection du type d'événement
+    const typeCards = document.querySelectorAll('.type-card');
+    const typeInput = document.getElementById('{{ form.event_type.id_for_label }}');
+    
+    typeCards.forEach(card => {
+      card.addEventListener('click', function() {
+        // Désélectionner tous les autres
+        typeCards.forEach(c => c.classList.remove('selected'));
+        
+        // Sélectionner celui-ci
+        this.classList.add('selected');
+        
+        // Mettre à jour le champ caché
+        typeInput.value = this.getAttribute('data-type');
+      });
+    });
+    
+    // Sélection de la visibilité
+    const visibilityCards = document.querySelectorAll('.visibility-card');
+    const visibilityInput = document.getElementById('{{ form.visibility.id_for_label }}');
+    
+    visibilityCards.forEach(card => {
+      card.addEventListener('click', function() {
+        // Désélectionner tous les autres
+        visibilityCards.forEach(c => c.classList.remove('selected'));
+        
+        // Sélectionner celui-ci
+        this.classList.add('selected');
+        
+        // Mettre à jour le champ caché
+        visibilityInput.value = this.getAttribute('data-visibility');
+      });
+    });
+    
+    // Afficher/masquer les champs d'inscription
+    const registrationRequiredCheckbox = document.getElementById('{{ form.registration_required.id_for_label }}');
+    const registrationFields = document.getElementById('registrationFields');
+    
+    registrationRequiredCheckbox.addEventListener('change', function() {
+      if (this.checked) {
+        registrationFields.classList.remove('d-none');
+      } else {
+        registrationFields.classList.add('d-none');
+      }
+    });
+    
+    // Afficher/masquer les champs d'heure selon "toute la journée"
+    const allDayCheckbox = document.getElementById('{{ form.all_day.id_for_label }}');
+    const startTimeInput = document.getElementById('{{ form.start_time.id_for_label }}');
+    const endTimeInput = document.getElementById('{{ form.end_time.id_for_label }}');
+    
+    allDayCheckbox.addEventListener('change', function() {
+      if (this.checked) {
+        startTimeInput.value = '';
+        endTimeInput.value = '';
+        startTimeInput.disabled = true;
+        endTimeInput.disabled = true;
+        startTimeInput.required = false;
+        endTimeInput.required = false;
+      } else {
+        startTimeInput.disabled = false;
+        endTimeInput.disabled = false;
+        startTimeInput.required = true;
+        endTimeInput.required = true;
+      }
+    });
+    
+    // Initialiser l'état des champs d'heure
+    if (allDayCheckbox.checked) {
+      startTimeInput.disabled = true;
+      endTimeInput.disabled = true;
+      startTimeInput.required = false;
+      endTimeInput.required = false;
+    }
+    
+    // Gestion des options supplémentaires (formset)
+    const optionsContainer = document.getElementById('optionsContainer');
+    const addOptionBtn = document.getElementById('addOptionBtn');
+    const totalFormsInput = document.querySelector('[name="{{ option_formset.management_form.TOTAL_FORMS.html_name }}"]');
+    
+    // Fonction pour mettre à jour les indices des formsets
+    function updateFormsetIndices() {
+      const optionItems = optionsContainer.querySelectorAll('.option-item');
+      totalFormsInput.value = optionItems.length;
+      
+      // Mettre à jour les indices dans les attributs name et id
+      optionItems.forEach((item, index) => {
+        const inputs = item.querySelectorAll('input, textarea, select');
+        inputs.forEach(input => {
+          const name = input.getAttribute('name');
+          if (name) {
+            const newName = name.replace(/form-\d+/, `form-${index}`);
+            input.setAttribute('name', newName);
+          }
+          
+          const id = input.getAttribute('id');
+          if (id) {
+            const newId = id.replace(/id_form-\d+/, `id_form-${index}`);
+            input.setAttribute('id', newId);
+          }
+        });
+        
+        // Mettre à jour les labels
+        const labels = item.querySelectorAll('label');
+        labels.forEach(label => {
+          const forAttr = label.getAttribute('for');
+          if (forAttr) {
+            const newFor = forAttr.replace(/id_form-\d+/, `id_form-${index}`);
+            label.setAttribute('for', newFor);
+          }
+        });
+      });
+    }
+    
+    // Fonction pour ajouter une nouvelle option
+    addOptionBtn.addEventListener('click', function() {
+      const optionItems = optionsContainer.querySelectorAll('.option-item');
+      const newIndex = optionItems.length;
+      
+      // Créer un nouvel élément d'option
+      const newOption = document.createElement('div');
+      newOption.className = 'option-item';
+      newOption.innerHTML = `
+        <button type="button" class="option-remove" title="{% trans 'Supprimer cette option' %}"><i class="fas fa-times"></i></button>
+        
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="id_form-${newIndex}-name" class="form-label">{% trans "Nom de l'option" %}</label>
+            <input type="text" name="form-${newIndex}-name" id="id_form-${newIndex}-name" class="form-control">
+          </div>
+          
+          <div class="col-md-6">
+            <label for="id_form-${newIndex}-price" class="form-label">{% trans "Prix supplémentaire (€)" %}</label>
+            <input type="number" name="form-${newIndex}-price" id="id_form-${newIndex}-price" class="form-control" value="0" min="0" step="0.01">
+          </div>
+          
+          <div class="col-12">
+            <label for="id_form-${newIndex}-description" class="form-label">{% trans "Description" %}</label>
+            <textarea name="form-${newIndex}-description" id="id_form-${newIndex}-description" class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+      `;
+      
+      // Ajouter au conteneur
+      optionsContainer.appendChild(newOption);
+      
+      // Mettre à jour le compteur de formulaires
+      updateFormsetIndices();
+      
+      // Ajouter l'événement de suppression
+      attachRemoveHandlers();
+    });
+    
+    // Fonction pour attacher les gestionnaires de suppression
+    function attachRemoveHandlers() {
+      const removeButtons = document.querySelectorAll('.option-remove');
+      removeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          const optionItem = this.closest('.option-item');
+          
+          // Vérifier s'il s'agit d'un élément existant avec un champ DELETE
+          const deleteCheckbox = optionItem.querySelector('input[name$="-DELETE"]');
+          if (deleteCheckbox) {
+            // Marquer comme supprimé plutôt que de supprimer du DOM
+            deleteCheckbox.checked = true;
+            optionItem.style.display = 'none';
+          } else {
+            // Supprimer directement du DOM pour les nouveaux éléments
+            optionItem.remove();
+          }
+          
+          // Mettre à jour les indices
+          updateFormsetIndices();
+        });
+      });
+    }
+    
+    // Attacher les gestionnaires initiaux
+    attachRemoveHandlers();
+    
+    // Prévisualisation
+    const previewModal = document.getElementById('previewModal');
+    
+    previewModal.addEventListener('show.bs.modal', function() {
+      // Récupérer les valeurs actuelles du formulaire
+      const title = document.getElementById('{{ form.title.id_for_label }}').value || "{% trans 'Titre de l\'événement' %}";
+      const description = document.getElementById('{{ form.description.id_for_label }}').value || "{% trans 'Description de l\'événement' %}";
+      const startDate = document.getElementById('{{ form.start_date.id_for_label }}').value;
+      const endDate = document.getElementById('{{ form.end_date.id_for_label }}').value;
+      const startTime = document.getElementById('{{ form.start_time.id_for_label }}').value;
+      const endTime = document.getElementById('{{ form.end_time.id_for_label }}').value;
+      const allDay = document.getElementById('{{ form.all_day.id_for_label }}').checked;
+      const location = document.getElementById('{{ form.location.id_for_label }}').value || "{% trans 'Lieu non spécifié' %}";
+      const price = parseFloat(document.getElementById('{{ form.price.id_for_label }}').value) || 0;
+      const organizationSelect = document.getElementById('{{ form.organization.id_for_label }}');
+      const organization = organizationSelect.options[organizationSelect.selectedIndex].text;
+      const contactPersonSelect = document.getElementById('{{ form.contact_person.id_for_label }}');
+      const contactPerson = contactPersonSelect.selectedIndex > 0 ? contactPersonSelect.options[contactPersonSelect.selectedIndex].text : "-";
+      const contactEmail = document.getElementById('{{ form.contact_email.id_for_label }}').value || "-";
+      const contactPhone = document.getElementById('{{ form.contact_phone.id_for_label }}').value || "-";
+      const registrationRequired = document.getElementById('{{ form.registration_required.id_for_label }}').checked;
+      
+      // Type d'événement
+      const eventType = document.getElementById('{{ form.event_type.id_for_label }}').value;
+      let eventTypeText = "";
+      let eventTypeClass = "";
+      
+      switch (eventType) {
+        case 'competition':
+          eventTypeText = "{% trans 'Compétition' %}";
+          eventTypeClass = "bg-warning";
+          break;
+        case 'training':
+          eventTypeText = "{% trans 'Entraînement' %}";
+          eventTypeClass = "bg-primary";
+          break;
+        case 'seminar':
+          eventTypeText = "{% trans 'Séminaire' %}";
+          eventTypeClass = "bg-purple";
+          break;
+        case 'exam':
+          eventTypeText = "{% trans 'Examen' %}";
+          eventTypeClass = "bg-danger";
+          break;
+        case 'meeting':
+          eventTypeText = "{% trans 'Réunion' %}";
+          eventTypeClass = "bg-secondary";
+          break;
+        case 'social':
+          eventTypeText = "{% trans 'Social' %}";
+          eventTypeClass = "bg-success";
+          break;
+        default:
+          eventTypeText = "{% trans 'Autre' %}";
+          eventTypeClass = "bg-info";
+      }
+      
+      // Visibilité
+      const visibility = document.getElementById('{{ form.visibility.id_for_label }}').value;
+      let visibilityText = "";
+      
+      switch (visibility) {
+        case 'public':
+          visibilityText = "{% trans 'Public' %}";
+          break;
+        case 'members':
+          visibilityText = "{% trans 'Membres uniquement' %}";
+          break;
+        case 'private':
+          visibilityText = "{% trans 'Privé' %}";
+          break;
+        default:
+          visibilityText = "{% trans 'Non spécifié' %}";
+      }
+      
+      // Formater les dates
+      let dateText = "";
+      if (startDate) {
+        const startDateObj = new Date(startDate);
+        const options = { day: 'numeric', month: 'long', year: 'numeric' };
+        dateText = startDateObj.toLocaleDateString('fr-FR', options);
+        
+        if (endDate && endDate !== startDate) {
+          const endDateObj = new Date(endDate);
+          dateText += " - " + endDateObj.toLocaleDateString('fr-FR', options);
+        }
+      } else {
+        dateText = "{% trans 'Date non spécifiée' %}";
+      }
+      
+      // Formater les heures
+      let timeText = "";
+      if (allDay) {
+        timeText = "{% trans 'Toute la journée' %}";
+      } else if (startTime) {
+        timeText = startTime;
+        if (endTime) {
+          timeText += " - " + endTime;
+        }
+      } else {
+        timeText = "{% trans 'Heure non spécifiée' %}";
+      }
+      
+      // Mettre à jour les éléments de prévisualisation
+      document.getElementById('previewTitle').textContent = title;
+      document.getElementById('previewType').textContent = eventTypeText;
+      document.getElementById('previewType').className = `preview-type-badge ${eventTypeClass}`;
+      document.getElementById('previewDate').textContent = dateText;
+      document.getElementById('previewTime').textContent = timeText;
+      document.getElementById('previewLocation').textContent = location;
+      document.getElementById('previewDescription').innerHTML = description.replace(/\n/g, '<br>');
+      document.getElementById('previewOrganization').textContent = organization;
+      document.getElementById('previewVisibility').textContent = visibilityText;
+      document.getElementById('previewRegistration').textContent = registrationRequired ? "{% trans 'Requise' %}" : "{% trans 'Non requise' %}";
+      document.getElementById('previewPrice').textContent = price > 0 ? `${price} €` : "{% trans 'Gratuit' %}";
+      document.getElementById('previewContactPerson').textContent = contactPerson;
+      document.getElementById('previewContactEmail').textContent = contactEmail;
+      document.getElementById('previewContactPhone').textContent = contactPhone;
+      
+      // Bannière
+      const bannerElem = document.getElementById('previewBanner');
+      const colorInput = document.getElementById('{{ form.color.id_for_label }}');
+      bannerElem.style.backgroundColor = colorInput.value || '#3366ff';
+    });
+    
+    // Éditeur de texte simplifié
+    function formatText(command) {
+      const textarea = document.getElementById('{{ form.description.id_for_label }}');
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selectedText = textarea.value.substring(start, end);
+      let replacement = '';
+      
+      switch (command) {
+        case 'bold':
+          replacement = `**${selectedText}**`;
+          break;
+        case 'italic':
+          replacement = `*${selectedText}*`;
+          break;
+        case 'header':
+          replacement = `## ${selectedText}`;
+          break;
+        case 'list':
+          replacement = `\n- ${selectedText.split('\n').join('\n- ')}`;
+          break;
+        case 'link':
+          const url = prompt('{% trans "Entrez l\'URL:" %}', 'https://');
+          if (url) {
+            replacement = `[${selectedText || '{% trans "lien" %}'}](${url})`;
+          } else {
+            return;
+          }
+          break;
+      }
+      
+      // Insérer le texte formaté
+      textarea.focus();
+      textarea.setRangeText(replacement, start, end, 'select');
+    }
+    
+    // Rendre la fonction disponible globalement
+    window.formatText = formatText;
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Configuration des catégories" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .progress-bar {
+        transition: width 0.7s ease-in-out;
+    }
+    
+    .card-category {
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 2px solid transparent;
+    }
+    
+    .card-category:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    
+    .card-category.selected {
+        border-color: var(--primary);
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    
+    .age-groups {
+        background-color: #f8f9fa;
+        border-radius: 0.25rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .onboarding-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+    
+    .onboarding-card {
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        animation: fadeIn 0.5s ease-out forwards;
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="onboarding-container">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="onboarding-header text-center mb-4">
+        <h1 class="mb-2">{% trans "Configuration des catégories" %}</h1>
+        <p class="text-muted">
+            {% trans "Configurez les catégories et tranches d'âge pour votre club" %}
+        </p>
+    </div>
+
+    <!-- Progress Tracker -->
+    <div class="progress-container mb-4">
+        <div class="progress-steps d-flex justify-content-between mb-1">
+            <span class="step completed">{% trans "Création" %}</span>
+            <span class="step completed">{% trans "Détails" %}</span>
+            <span class="step active">{% trans "Catégories" %}</span>
+            <span class="step">{% trans "Finalisation" %}</span>
+        </div>
+        <div class="progress" style="height: 10px;">
+            <div class="progress-bar" role="progressbar" style="width: 75%;" 
+                aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+    </div>
+    
+    <div class="onboarding-card">
+        <div class="mb-4">
+            <div class="d-flex align-items-center mb-3">
+                {% if club.logo %}
+                    <img src="{{ club.logo.url }}" alt="{{ club.name }}" class="me-3 rounded-circle" style="width: 60px; height: 60px; object-fit: cover;">
+                {% else %}
+                    <div class="rounded-circle bg-light d-flex align-items-center justify-content-center me-3" style="width: 60px; height: 60px;">
+                        <i class="fas fa-dojo fa-2x text-secondary"></i>
+                    </div>
+                {% endif %}
+                <div>
+                    <h3 class="h5 mb-0">{{ club.name }}</h3>
+                    <p class="text-muted mb-0 small">{{ club.city }}</p>
+                </div>
+            </div>
+            
+            <p class="lead">{% trans "Configurez les catégories et les tranches d'âge acceptées dans votre club." %}</p>
+        </div>
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <!-- Tranches d'âge -->
+            <h4 class="h5 mb-3">{% trans "Tranches d'âge acceptées" %}</h4>
+            <div class="age-groups">
+                <div class="row g-3">
+                    <div class="col-md-6 col-lg-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="accepts_children" id="accepts_children" {% if club.accepts_children %}checked{% endif %}>
+                            <label class="form-check-label" for="accepts_children">
+                                <i class="fas fa-child me-2"></i>{% trans "Enfants (4-11 ans)" %}
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="accepts_teenagers" id="accepts_teenagers" {% if club.accepts_teenagers %}checked{% endif %}>
+                            <label class="form-check-label" for="accepts_teenagers">
+                                <i class="fas fa-running me-2"></i>{% trans "Adolescents (12-17 ans)" %}
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="accepts_adults" id="accepts_adults" {% if club.accepts_adults %}checked{% endif %}>
+                            <label class="form-check-label" for="accepts_adults">
+                                <i class="fas fa-user me-2"></i>{% trans "Adultes (18-59 ans)" %}
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="accepts_seniors" id="accepts_seniors" {% if club.accepts_seniors %}checked{% endif %}>
+                            <label class="form-check-label" for="accepts_seniors">
+                                <i class="fas fa-user-tie me-2"></i>{% trans "Seniors (60+ ans)" %}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Catégories et grades -->
+            <h4 class="h5 mb-3">{% trans "Catégories et grades" %}</h4>
+            <p class="text-muted mb-3">
+                <i class="fas fa-info-circle me-2"></i>
+                {% trans "Sélectionnez les catégories de grades disponibles dans votre club (cliquez sur les cartes)" %}
+            </p>
+            
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-4">
+                {% for category in categories %}
+                    <div class="col">
+                        <div class="card h-100 card-category {% if category in club.categories.all %}selected{% endif %}" data-category-id="{{ category.id }}">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ category.nom }}</h5>
+                                <p class="card-text small text-muted">
+                                    {{ category.grade_min }} - {{ category.grade_max }}
+                                </p>
+                                <input type="checkbox" name="categories" value="{{ category.id }}" class="category-checkbox d-none" {% if category in club.categories.all %}checked{% endif %}>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            {% trans "Aucune catégorie n'est disponible. Veuillez contacter l'administrateur pour en ajouter." %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{% url 'onboarding:club_details' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>{% trans "Enregistrer et finaliser" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion de la sélection des catégories par carte
+        const categoryCards = document.querySelectorAll('.card-category');
+        
+        categoryCards.forEach(card => {
+            card.addEventListener('click', function() {
+                this.classList.toggle('selected');
+                const checkbox = this.querySelector('.category-checkbox');
+                checkbox.checked = !checkbox.checked;
+            });
+        });
+        
+        // Animation de la barre de progression au chargement
+        const progressBar = document.querySelector('.progress-bar');
+        progressBar.style.width = '0%';
+        
+        setTimeout(() => {
+            progressBar.style.width = '75%';
+        }, 300);
+    });
+</script>
+{% endblock %}

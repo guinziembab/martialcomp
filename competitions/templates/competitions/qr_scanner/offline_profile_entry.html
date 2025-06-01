@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Consulter un profil hors-ligne" %}{% endblock %}
+
+{% block extra_css %}
+{% include 'competitions/qr_scanner/include_offline_profile_css.html' %}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="profile-entry-card card shadow">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">{% trans "Consulter un profil hors-ligne" %}</h4>
+        </div>
+        
+        <div class="card-body">
+            <div class="qr-scan-area" id="qrScanArea">
+                <i class="fas fa-qrcode fa-3x mb-3 text-muted"></i>
+                <h5>{% trans "Scanner un QR Code de profil" %}</h5>
+                <p class="text-muted small">{% trans "Cliquez pour activer la caméra" %}</p>
+                <div id="qrScanner" style="display: none;"></div>
+                <button id="scanButton" class="btn btn-outline-primary mt-2">
+                    <i class="fas fa-camera"></i> {% trans "Scanner" %}
+                </button>
+            </div>
+            
+            <div class="or-divider">{% trans "OU" %}</div>
+            
+            <form method="POST" action="{% url 'competitions:qr:view_offline_profile' %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="tokenInput">{% trans "Saisir un token de profil" %}</label>
+                    <textarea id="tokenInput" name="token" class="form-control token-input" rows="5" 
+                              placeholder="{% trans 'Collez le token de profil ici...' %}"></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block mt-3">
+                    <i class="fas fa-search"></i> {% trans "Consulter le profil" %}
+                </button>
+            </form>
+            
+            <div class="instructions mt-4">
+                <h6>{% trans "Comment ça marche ?" %}</h6>
+                <p>{% trans "Cette page vous permet de consulter un profil de pratiquant en mode hors-ligne, sans avoir besoin d'accéder au serveur. Vous pouvez soit:" %}</p>
+                <ul>
+                    <li>{% trans "Scanner un QR code de profil avec votre appareil photo" %}</li>
+                    <li>{% trans "Saisir manuellement un token de profil qui vous a été fourni" %}</li>
+                </ul>
+                <p class="text-muted small">{% trans "Note: Les profils hors-ligne sont valables 30 jours après leur génération." %}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const scanButton = document.getElementById('scanButton');
+        const qrScanArea = document.getElementById('qrScanArea');
+        const qrScanner = document.getElementById('qrScanner');
+        let scanner = null;
+        
+        scanButton.addEventListener('click', function() {
+            if (scanner) {
+                stopScanner();
+                return;
+            }
+            
+            qrScanner.style.display = 'block';
+            scanButton.innerHTML = '<i class="fas fa-stop"></i> {% trans "Arrêter" %}';
+            
+            scanner = new Html5Qrcode("qrScanner");
+            scanner.start(
+                { facingMode: "environment" },
+                {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 }
+                },
+                onScanSuccess,
+                onScanFailure
+            );
+        });
+        
+        function stopScanner() {
+            if (scanner) {
+                scanner.stop().then(() => {
+                    console.log('Scanner stopped');
+                    qrScanner.style.display = 'none';
+                    scanButton.innerHTML = '<i class="fas fa-camera"></i> {% trans "Scanner" %}';
+                    scanner = null;
+                }).catch(err => {
+                    console.error('Failed to stop scanner', err);
+                });
+            }
+        }
+        
+        function onScanSuccess(decodedText, decodedResult) {
+            // Arrêter le scanner
+            stopScanner();
+            
+            // Vérifier si c'est une URL ou un token brut
+            if (decodedText.startsWith('http')) {
+                // C'est une URL, extraire le token s'il existe dans les paramètres
+                const url = new URL(decodedText);
+                const token = url.searchParams.get('token');
+                if (token) {
+                    document.getElementById('tokenInput').value = token;
+                } else {
+                    // Sinon, rediriger vers l'URL
+                    window.location.href = decodedText;
+                    return;
+                }
+            } else {
+                // C'est probablement un token brut
+                document.getElementById('tokenInput').value = decodedText;
+            }
+            
+            // Soumettre automatiquement le formulaire
+            document.querySelector('form').submit();
+        }
+        
+        function onScanFailure(error) {
+            // Ne rien faire, continuer à scanner
+        }
+    });
+</script>
+{% endblock %}

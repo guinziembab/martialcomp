@@ -1,0 +1,358 @@
+{% extends "grades/base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block page_title %}
+    {{ grade.name }} ({{ grade.discipline.name }})
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group">
+    <a href="{% url 'grades:grade_update' grade.id %}" class="btn btn-primary">
+        <i class="fas fa-edit me-2"></i> {% trans "Modifier" %}
+    </a>
+    <a href="{% url 'grades:requirement_create' %}?grade={{ grade.id }}" class="btn btn-outline-secondary">
+        <i class="fas fa-plus-circle me-2"></i> {% trans "Ajouter une exigence" %}
+    </a>
+    <div class="btn-group" role="group">
+        <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-ellipsis-v"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+                <a href="{% url 'grades:grade_delete' grade.id %}" class="dropdown-item text-danger">
+                    <i class="fas fa-trash me-2"></i> {% trans "Supprimer" %}
+                </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+                <button type="button" class="dropdown-item" onclick="toggleStatusForm()">
+                    {% if grade.is_active %}
+                        <i class="fas fa-toggle-off me-2"></i> {% trans "Désactiver" %}
+                    {% else %}
+                        <i class="fas fa-toggle-on me-2"></i> {% trans "Activer" %}
+                    {% endif %}
+                </button>
+            </li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block main_content %}
+    <!-- Formulaire caché pour changer le statut -->
+    <form id="status-form" action="{% url 'grades:grade_update' grade.id %}" method="post" class="d-none">
+        {% csrf_token %}
+        <input type="hidden" name="name" value="{{ grade.name }}">
+        <input type="hidden" name="discipline" value="{{ grade.discipline.id }}">
+        <input type="hidden" name="category" value="{{ grade.category.id|default:'' }}">
+        <input type="hidden" name="color" value="{{ grade.color }}">
+        <input type="hidden" name="color_code" value="{{ grade.color_code }}">
+        <input type="hidden" name="level" value="{{ grade.level }}">
+        <input type="hidden" name="min_age" value="{{ grade.min_age }}">
+        <input type="hidden" name="min_time_in_previous_grade" value="{{ grade.min_time_in_previous_grade }}">
+        <input type="hidden" name="is_dan_grade" value="{{ grade.is_dan_grade|yesno:'on,' }}">
+        <input type="hidden" name="requirements" value="{{ grade.requirements }}">
+        <input type="hidden" name="order" value="{{ grade.order }}">
+        <input type="hidden" name="is_active" value="{{ grade.is_active|yesno:',on' }}">
+        <button type="submit" id="status-submit-button"></button>
+    </form>
+
+    <!-- Vue d'ensemble du grade -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">{% trans "Informations générales" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>{% trans "Nom" %}:</strong>
+                            <p class="mb-1">{{ grade.name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>{% trans "Discipline" %}:</strong>
+                            <p class="mb-1">{{ grade.discipline.name }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>{% trans "Catégorie" %}:</strong>
+                            <p class="mb-1">{{ grade.category.name|default:"-" }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>{% trans "Couleur" %}:</strong>
+                            <p class="mb-1 d-flex align-items-center">
+                                <span class="grade-color-badge" style="background-color: {{ grade.color_code }}"></span>
+                                {{ grade.color }}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>{% trans "Niveau hiérarchique" %}:</strong>
+                            <p class="mb-1">{{ grade.level }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>{% trans "Âge minimum" %}:</strong>
+                            <p class="mb-1">{% if grade.min_age > 0 %}{{ grade.min_age }} {% trans "ans" %}{% else %}-{% endif %}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>{% trans "Temps dans le grade précédent" %}:</strong>
+                            <p class="mb-1">
+                                {% if grade.min_time_in_previous_grade > 0 %}
+                                    {{ grade.min_time_in_previous_grade }} {% trans "mois" %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>{% trans "Grade Dan/Dang" %}:</strong>
+                            <p class="mb-1">
+                                {% if grade.is_dan_grade %}
+                                    <span class="badge bg-dark">{% trans "Oui" %}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "Non" %}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <strong>{% trans "Exigences textuelles" %}:</strong>
+                            <p class="mb-0">{{ grade.requirements|default:"-"|linebreaks }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>
+                            {% if grade.is_active %}
+                                <span class="badge bg-success">{% trans "Actif" %}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{% trans "Inactif" %}</span>
+                            {% endif %}
+                        </span>
+                        
+                        <!-- Navigation entre grades -->
+                        <div class="btn-group">
+                            {% if previous_grade %}
+                                <a href="{% url 'grades:grade_detail' previous_grade.id %}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-chevron-left me-1"></i> 
+                                    {{ previous_grade.name }}
+                                </a>
+                            {% else %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled>
+                                    <i class="fas fa-chevron-left me-1"></i> 
+                                    {% trans "Précédent" %}
+                                </button>
+                            {% endif %}
+                            
+                            {% if next_grade %}
+                                <a href="{% url 'grades:grade_detail' next_grade.id %}" class="btn btn-sm btn-outline-secondary">
+                                    {{ next_grade.name }}
+                                    <i class="fas fa-chevron-right ms-1"></i>
+                                </a>
+                            {% else %}
+                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled>
+                                    {% trans "Suivant" %}
+                                    <i class="fas fa-chevron-right ms-1"></i>
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">{% trans "Statistiques" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-column">
+                        <div class="p-3 border-bottom">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>{% trans "Pratiquants actuels" %}</span>
+                                <span class="badge bg-primary rounded-pill">{{ practitioners.count }}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="p-3 border-bottom">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>{% trans "Exigences définies" %}</span>
+                                <span class="badge bg-info rounded-pill">{{ requirements.count }}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="p-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>{% trans "Position hiérarchique" %}</span>
+                                <span class="badge bg-secondary rounded-pill">{{ grade.level }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-light">
+                    <a href="#practitioners-section" class="btn btn-sm btn-outline-primary w-100">
+                        <i class="fas fa-users me-2"></i> {% trans "Voir les pratiquants" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Exigences du grade -->
+    <div class="card mb-4">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">{% trans "Exigences du grade" %}</h5>
+            <a href="{% url 'grades:requirement_create' %}?grade={{ grade.id }}" class="btn btn-sm btn-primary">
+                <i class="fas fa-plus-circle me-2"></i> {% trans "Ajouter" %}
+            </a>
+        </div>
+        <div class="card-body">
+            {% if requirements %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th style="width: 10%;">{% trans "Ordre" %}</th>
+                                <th style="width: 30%;">{% trans "Nom" %}</th>
+                                <th style="width: 40%;">{% trans "Description" %}</th>
+                                <th style="width: 10%;">{% trans "Obligatoire" %}</th>
+                                <th style="width: 10%;">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for requirement in requirements %}
+                                <tr>
+                                    <td>{{ requirement.order }}</td>
+                                    <td>{{ requirement.name }}</td>
+                                    <td>{{ requirement.description|truncatechars:100 }}</td>
+                                    <td>
+                                        {% if requirement.is_mandatory %}
+                                            <span class="badge bg-success">{% trans "Oui" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{% trans "Non" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'grades:requirement_update' requirement.id %}" class="btn btn-sm btn-outline-secondary" title="{% trans 'Modifier' %}">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'grades:requirement_delete' requirement.id %}" class="btn btn-sm btn-outline-danger" title="{% trans 'Supprimer' %}">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucune exigence n'a été définie pour ce grade." %}
+                    <div class="mt-3">
+                        <a href="{% url 'grades:requirement_create' %}?grade={{ grade.id }}" class="btn btn-primary">
+                            <i class="fas fa-plus-circle me-2"></i>
+                            {% trans "Ajouter une exigence" %}
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Pratiquants ayant ce grade -->
+    <div class="card mb-4" id="practitioners-section">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">{% trans "Pratiquants ayant ce grade" %} ({{ practitioners.count }})</h5>
+        </div>
+        <div class="card-body">
+            {% if practitioners %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Nom" %}</th>
+                                <th>{% trans "Club" %}</th>
+                                <th>{% trans "Date d'obtention" %}</th>
+                                <th>{% trans "Âge à l'obtention" %}</th>
+                                <th>{% trans "Décerné par" %}</th>
+                                <th>{% trans "Grade actuel" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pg in practitioners %}
+                                <tr>
+                                    <td>
+                                        {% if pg.practitioner.photo %}
+                                            <img src="{{ pg.practitioner.photo.url }}" alt="{{ pg.practitioner.full_name }}" 
+                                                class="rounded-circle me-2" style="width: 32px; height: 32px; object-fit: cover;">
+                                        {% else %}
+                                            <span class="avatar-placeholder rounded-circle me-2 text-center" 
+                                                style="width: 32px; height: 32px; line-height: 32px; background-color: #f8f9fa; display: inline-block;">
+                                                {{ pg.practitioner.first_name|first }}{{ pg.practitioner.last_name|first }}
+                                            </span>
+                                        {% endif %}
+                                        {{ pg.practitioner.full_name }}
+                                    </td>
+                                    <td>
+                                        {% if pg.practitioner.club %}
+                                            {{ pg.practitioner.club.name }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ pg.date_obtained|date:"d/m/Y" }}</td>
+                                    <td>
+                                        {% with days=pg.date_obtained|timeuntil:pg.practitioner.birth_date %}
+                                            {% if days %}
+                                                {{ days|slice:"0:-10" }} {% trans "ans" %}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                    <td>{{ pg.awarded_by|default:"-" }}</td>
+                                    <td>
+                                        {% if pg.is_current %}
+                                            <span class="badge bg-success">{% trans "Actuel" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{% trans "Précédent" %}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucun pratiquant n'a actuellement ce grade." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}
+
+{% block page_js %}
+<script>
+    function toggleStatusForm() {
+        document.getElementById('status-submit-button').click();
+    }
+</script>
+{% endblock %}

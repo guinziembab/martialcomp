@@ -1,0 +1,591 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Critères de notation" %} - {{ category.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .criteria-card {
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        margin-bottom: 1rem;
+    }
+    
+    .criteria-card:hover {
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        transform: translateY(-3px);
+    }
+    
+    .criteria-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid rgba(0,0,0,.125);
+        padding: 0.75rem 1.25rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .weight-badge {
+        background-color: #6c757d;
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+    }
+    
+    .criteria-body {
+        padding: 1.25rem;
+    }
+    
+    .criteria-description {
+        color: #6c757d;
+        margin-bottom: 1rem;
+    }
+    
+    .score-range {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+    
+    .score-range span {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    
+    .criteria-form {
+        background-color: rgba(0, 123, 255, 0.05);
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .drag-handle {
+        cursor: move;
+        color: #6c757d;
+    }
+    
+    .sortable-ghost {
+        opacity: 0.5;
+        background: #f8f9fa;
+    }
+    
+    .drag-list {
+        min-height: 20px;
+    }
+    
+    .no-criteria {
+        background-color: rgba(0, 0, 0, 0.03);
+        padding: 2rem;
+        text-align: center;
+        border-radius: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 mb-0">{% trans "Critères de notation" %}</h1>
+            <p class="text-muted">{{ category.name }} - {{ category.competition.title }}</p>
+        </div>
+        
+        <div class="btn-group">
+            <a href="{% url 'competitions:competitions:categories' category.competition.id %}" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour aux catégories" %}
+            </a>
+            {% if user_can_edit %}
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCriterionModal">
+                    <i class="fas fa-plus me-2"></i>{% trans "Ajouter un critère" %}
+                </button>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    {% trans "Informations de la catégorie" %}
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ category.name }}</h5>
+                    <p class="card-text">{{ category.description }}</p>
+                    
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <th scope="row">{% trans "Discipline" %}</th>
+                                <td>{{ category.discipline.name }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">{% trans "Type" %}</th>
+                                <td>{{ category.get_competition_type_display }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">{% trans "Âge" %}</th>
+                                <td>
+                                    {% if category.min_age and category.max_age %}
+                                        {{ category.min_age }} - {{ category.max_age }} {% trans "ans" %}
+                                    {% elif category.min_age %}
+                                        {% trans "À partir de" %} {{ category.min_age }} {% trans "ans" %}
+                                    {% elif category.max_age %}
+                                        {% trans "Jusqu'à" %} {{ category.max_age }} {% trans "ans" %}
+                                    {% else %}
+                                        {% trans "Tous âges" %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">{% trans "Genre" %}</th>
+                                <td>{{ category.get_gender_display }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            {% if scoring_config %}
+                <div class="card mt-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        {% trans "Configuration de notation" %}
+                        {% if user_can_edit %}
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editScoringConfigModal">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr>
+                                    <th scope="row">{% trans "Note minimale" %}</th>
+                                    <td>{{ scoring_config.min_score }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">{% trans "Note maximale" %}</th>
+                                    <td>{{ scoring_config.max_score }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">{% trans "Pas de notation" %}</th>
+                                    <td>{{ scoring_config.score_step }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">{% trans "Exclure notes extrêmes" %}</th>
+                                    <td>
+                                        {% if scoring_config.exclude_extreme_scores %}
+                                            <i class="fas fa-check text-success"></i>
+                                        {% else %}
+                                            <i class="fas fa-times text-danger"></i>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">{% trans "Modification des notes" %}</th>
+                                    <td>
+                                        {% if scoring_config.allow_score_modification %}
+                                            <i class="fas fa-check text-success"></i> {% trans "Autorisée" %}
+                                        {% else %}
+                                            <i class="fas fa-times text-danger"></i> {% trans "Non autorisée" %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">{% trans "Résultats en temps réel" %}</th>
+                                    <td>
+                                        {% if scoring_config.real_time_results %}
+                                            <i class="fas fa-check text-success"></i> {% trans "Activés" %}
+                                        {% else %}
+                                            <i class="fas fa-times text-danger"></i> {% trans "Désactivés" %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-lg-8">
+            {% if user_can_edit %}
+                <div class="alert alert-info mb-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Pour réorganiser les critères, faites glisser les éléments dans l'ordre souhaité." %}
+                </div>
+            {% endif %}
+            
+            {% if criteria %}
+                <div id="criteriaList" class="drag-list">
+                    {% for criterion in criteria %}
+                        <div class="card criteria-card" data-id="{{ criterion.id }}">
+                            <div class="criteria-header">
+                                <div class="d-flex align-items-center">
+                                    {% if user_can_edit %}
+                                        <i class="fas fa-grip-vertical drag-handle me-2"></i>
+                                    {% endif %}
+                                    <h5 class="mb-0">{{ criterion.name }}</h5>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <span class="weight-badge me-2">
+                                        <i class="fas fa-weight-hanging me-1"></i>{{ criterion.weight }}
+                                    </span>
+                                    {% if user_can_edit %}
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary" type="button" id="dropdownMenuButton{{ criterion.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton{{ criterion.id }}">
+                                                <li>
+                                                    <button type="button" class="dropdown-item edit-criterion" 
+                                                            data-id="{{ criterion.id }}"
+                                                            data-name="{{ criterion.name }}"
+                                                            data-description="{{ criterion.description }}"
+                                                            data-weight="{{ criterion.weight }}"
+                                                            data-min-score="{{ criterion.min_score }}"
+                                                            data-max-score="{{ criterion.max_score }}"
+                                                            data-step="{{ criterion.step }}">
+                                                        <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button type="button" class="dropdown-item text-danger delete-criterion" 
+                                                            data-id="{{ criterion.id }}"
+                                                            data-name="{{ criterion.name }}">
+                                                        <i class="fas fa-trash me-2"></i>{% trans "Supprimer" %}
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="criteria-body">
+                                {% if criterion.description %}
+                                    <div class="criteria-description">{{ criterion.description }}</div>
+                                {% endif %}
+                                <div class="score-range">
+                                    <span>{% trans "Min:" %} {{ criterion.min_score }}</span>
+                                    <span>{% trans "Max:" %} {{ criterion.max_score }}</span>
+                                    <span>{% trans "Pas:" %} {{ criterion.step }}</span>
+                                </div>
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar" role="progressbar" style="width: 100%;" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="no-criteria">
+                    <i class="fas fa-clipboard-list fa-3x mb-3 text-muted"></i>
+                    <h4>{% trans "Aucun critère défini" %}</h4>
+                    <p class="text-muted">
+                        {% trans "Cette catégorie n'a pas encore de critères de notation définis." %}
+                    </p>
+                    {% if user_can_edit %}
+                        <button type="button" class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#addCriterionModal">
+                            <i class="fas fa-plus me-2"></i>{% trans "Ajouter le premier critère" %}
+                        </button>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add Criterion Modal -->
+{% if user_can_edit %}
+    <div class="modal fade" id="addCriterionModal" tabindex="-1" aria-labelledby="addCriterionModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" action="{% url 'competitions:scoring:add_criterion' category.id %}">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="addCriterionModalLabel">{% trans "Ajouter un critère" %}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="criterionName" class="form-label">{% trans "Nom du critère" %}</label>
+                            <input type="text" class="form-control" id="criterionName" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="criterionDescription" class="form-label">{% trans "Description" %}</label>
+                            <textarea class="form-control" id="criterionDescription" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="criterionWeight" class="form-label">{% trans "Pondération" %}</label>
+                            <input type="number" class="form-control" id="criterionWeight" name="weight" value="1.0" step="0.1" min="0.1" max="10" required>
+                            <div class="form-text">{% trans "Valeur relative de ce critère par rapport aux autres" %}</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="criterionMinScore" class="form-label">{% trans "Score minimum" %}</label>
+                                    <input type="number" class="form-control" id="criterionMinScore" name="min_score" value="0" step="0.25" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="criterionMaxScore" class="form-label">{% trans "Score maximum" %}</label>
+                                    <input type="number" class="form-control" id="criterionMaxScore" name="max_score" value="10" step="0.25" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="criterionStep" class="form-label">{% trans "Pas" %}</label>
+                                    <input type="number" class="form-control" id="criterionStep" name="step" value="0.25" step="0.05" min="0.05" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                        <button type="submit" class="btn btn-primary">{% trans "Ajouter" %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Criterion Modal -->
+    <div class="modal fade" id="editCriterionModal" tabindex="-1" aria-labelledby="editCriterionModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="editCriterionForm" method="POST" action="">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editCriterionModalLabel">{% trans "Modifier le critère" %}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="editCriterionName" class="form-label">{% trans "Nom du critère" %}</label>
+                            <input type="text" class="form-control" id="editCriterionName" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editCriterionDescription" class="form-label">{% trans "Description" %}</label>
+                            <textarea class="form-control" id="editCriterionDescription" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editCriterionWeight" class="form-label">{% trans "Pondération" %}</label>
+                            <input type="number" class="form-control" id="editCriterionWeight" name="weight" step="0.1" min="0.1" max="10" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="editCriterionMinScore" class="form-label">{% trans "Score minimum" %}</label>
+                                    <input type="number" class="form-control" id="editCriterionMinScore" name="min_score" step="0.25" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="editCriterionMaxScore" class="form-label">{% trans "Score maximum" %}</label>
+                                    <input type="number" class="form-control" id="editCriterionMaxScore" name="max_score" step="0.25" required>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label for="editCriterionStep" class="form-label">{% trans "Pas" %}</label>
+                                    <input type="number" class="form-control" id="editCriterionStep" name="step" step="0.05" min="0.05" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                        <button type="submit" class="btn btn-primary">{% trans "Enregistrer" %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Criterion Modal -->
+    <div class="modal fade" id="deleteCriterionModal" tabindex="-1" aria-labelledby="deleteCriterionModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteCriterionModalLabel">{% trans "Supprimer le critère" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>{% trans "Êtes-vous sûr de vouloir supprimer le critère" %} <strong id="deleteCriterionName"></strong> ?</p>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        {% trans "Cette action est irréversible et supprimera toutes les notes associées à ce critère." %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                    <form id="deleteCriterionForm" method="POST" action="">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">{% trans "Supprimer" %}</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Scoring Configuration Modal -->
+    <div class="modal fade" id="editScoringConfigModal" tabindex="-1" aria-labelledby="editScoringConfigModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" action="{% url 'competitions:scoring:update_config' category.id %}">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editScoringConfigModalLabel">{% trans "Configuration de notation" %}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="minScore" class="form-label">{% trans "Note minimale" %}</label>
+                                    <input type="number" class="form-control" id="minScore" name="min_score" value="{{ scoring_config.min_score }}" step="0.5" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="maxScore" class="form-label">{% trans "Note maximale" %}</label>
+                                    <input type="number" class="form-control" id="maxScore" name="max_score" value="{{ scoring_config.max_score }}" step="0.5" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="scoreStep" class="form-label">{% trans "Pas de notation" %}</label>
+                            <input type="number" class="form-control" id="scoreStep" name="score_step" value="{{ scoring_config.score_step }}" step="0.05" min="0.05" max="1" required>
+                            <div class="form-text">{% trans "Valeur de l'incrément pour les scores (ex: 0.25 pour permettre 8.00, 8.25, 8.50...)" %}</div>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="excludeExtremeScores" name="exclude_extreme_scores" {% if scoring_config.exclude_extreme_scores %}checked{% endif %}>
+                            <label class="form-check-label" for="excludeExtremeScores">
+                                {% trans "Exclure les notes extrêmes (plus haute et plus basse)" %}
+                            </label>
+                            <div class="form-text">{% trans "Requiert au moins 3 juges" %}</div>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="allowTies" name="allow_ties" {% if scoring_config.allow_ties %}checked{% endif %}>
+                            <label class="form-check-label" for="allowTies">
+                                {% trans "Autoriser les ex-æquo en 3ème place" %}
+                            </label>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="allowScoreModification" name="allow_score_modification" {% if scoring_config.allow_score_modification %}checked{% endif %}>
+                            <label class="form-check-label" for="allowScoreModification">
+                                {% trans "Permettre aux juges de modifier leurs notes après soumission" %}
+                            </label>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="realTimeResults" name="real_time_results" {% if scoring_config.real_time_results %}checked{% endif %}>
+                            <label class="form-check-label" for="realTimeResults">
+                                {% trans "Afficher les résultats en temps réel" %}
+                            </label>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="trainingJudgesIncluded" name="training_judges_included" {% if scoring_config.training_judges_included %}checked{% endif %}>
+                            <label class="form-check-label" for="trainingJudgesIncluded">
+                                {% trans "Inclure les notes des juges en formation (à des fins de comparaison uniquement)" %}
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                        <button type="submit" class="btn btn-primary">{% trans "Enregistrer" %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if user_can_edit %}
+            // Initialize Sortable for drag-and-drop reordering
+            const criteriaList = document.getElementById('criteriaList');
+            if (criteriaList) {
+                const sortable = new Sortable(criteriaList, {
+                    handle: '.drag-handle',
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    onEnd: function(evt) {
+                        // Get the new order
+                        const items = criteriaList.querySelectorAll('.criteria-card');
+                        const newOrder = Array.from(items).map(item => item.dataset.id);
+                        
+                        // Send the new order to the server
+                        fetch('{% url "competitions:scoring:reorder_criteria" category.id %}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': '{{ csrf_token }}'
+                            },
+                            body: JSON.stringify({ criteria: newOrder })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                // Optionally show a success message
+                                console.log('Order updated successfully');
+                            } else {
+                                console.error('Error updating order:', data.message);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                        });
+                    }
+                });
+            }
+            
+            // Handle edit criterion
+            const editButtons = document.querySelectorAll('.edit-criterion');
+            editButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const id = this.dataset.id;
+                    const name = this.dataset.name;
+                    const description = this.dataset.description;
+                    const weight = this.dataset.weight;
+                    const minScore = this.dataset.minScore;
+                    const maxScore = this.dataset.maxScore;
+                    const step = this.dataset.step;
+                    
+                    document.getElementById('editCriterionName').value = name;
+                    document.getElementById('editCriterionDescription').value = description;
+                    document.getElementById('editCriterionWeight').value = weight;
+                    document.getElementById('editCriterionMinScore').value = minScore;
+                    document.getElementById('editCriterionMaxScore').value = maxScore;
+                    document.getElementById('editCriterionStep').value = step;
+                    
+                    document.getElementById('editCriterionForm').action = `/competitions/scoring/criteria/${id}/update/`;
+                    
+                    const modal = new bootstrap.Modal(document.getElementById('editCriterionModal'));
+                    modal.show();
+                });
+            });
+            
+            // Handle delete criterion
+            const deleteButtons = document.querySelectorAll('.delete-criterion');
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const id = this.dataset.id;
+                    const name = this.dataset.name;
+                    
+                    document.getElementById('deleteCriterionName').textContent = name;
+                    document.getElementById('deleteCriterionForm').action = `/competitions/scoring/criteria/${id}/delete/`;
+                    
+                    const modal = new bootstrap.Modal(document.getElementById('deleteCriterionModal'));
+                    modal.show();
+                });
+            });
+        {% endif %}
+    });
+</script>
+{% endblock %}

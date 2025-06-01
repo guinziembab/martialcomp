@@ -1,0 +1,162 @@
+{% extends 'shop/dashboard/shop_base.html' %}
+{% load i18n %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{% translate "Gestion de l'inventaire" %}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{% url 'shop:dashboard:club_product_create' %}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-plus-circle me-2"></i>{% translate "Ajouter un produit" %}
+            </a>
+            <a href="{% url 'shop:dashboard:club_products' %}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-list me-2"></i>{% translate "Tous les produits" %}
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Alert pour stock faible -->
+{% if low_stock_products %}
+<div class="alert alert-warning" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    {% translate "Vous avez" %} <strong>{{ low_stock_products.count }}</strong> {% translate "produits avec un stock faible (moins de 10 unités)." %}
+</div>
+{% endif %}
+
+<!-- Formulaire de mise à jour du stock -->
+<div class="card mb-4">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary">{% translate "Mise à jour du stock" %}</h6>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#helpModal">
+            <i class="bi bi-question-circle me-1"></i> {% translate "Aide" %}
+        </button>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% translate "Produit" %}</th>
+                            <th>{% translate "SKU" %}</th>
+                            <th class="text-center">{% translate "Stock actuel" %}</th>
+                            <th class="text-center">{% translate "Nouveau stock" %}</th>
+                            <th class="text-end">{% translate "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in products %}
+                        <tr class="{% if product.stock < 10 %}table-warning{% endif %}">
+                            <td>
+                                {{ product.name }}
+                                {% if product.is_featured %}<span class="badge bg-success">{% translate "Populaire" %}</span>{% endif %}
+                            </td>
+                            <td>{{ product.sku|default:"-" }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-{% if product.stock < 10 %}warning{% elif product.stock < 50 %}info{% else %}success{% endif %}">
+                                    {{ product.stock }}
+                                </span>
+                            </td>
+                            <td class="text-center" style="width: 150px;">
+                                <input type="hidden" name="product_id" value="{{ product.id }}">
+                                <input type="number" name="stock" class="form-control form-control-sm" value="{{ product.stock }}" min="0">
+                            </td>
+                            <td class="text-end">
+                                <a href="{% url 'shop:dashboard:club_product_edit' product.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="{% url 'shop:dashboard:club_product_detail' product.id %}" class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center py-3">
+                                {% translate "Aucun produit trouvé." %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-3 text-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save me-2"></i> {% translate "Mettre à jour le stock" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Informations sur le stock faible -->
+{% if low_stock_products %}
+<div class="card mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-warning">{% translate "Produits à stock faible" %}</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% translate "Produit" %}</th>
+                        <th class="text-center">{% translate "Stock" %}</th>
+                        <th class="text-center">{% translate "Ventes (30j)" %}</th>
+                        <th class="text-end">{% translate "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in low_stock_products %}
+                    <tr>
+                        <td>{{ product.name }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-warning text-dark">{{ product.stock }}</span>
+                        </td>
+                        <td class="text-center">{{ product.sales_last_30_days|default:"0" }}</td>
+                        <td class="text-end">
+                            <a href="{% url 'shop:dashboard:club_product_edit' product.id %}" class="btn btn-sm btn-primary">
+                                <i class="bi bi-pencil me-1"></i> {% translate "Éditer" %}
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal d'aide -->
+<div class="modal fade" id="helpModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% translate "Aide - Gestion de l'inventaire" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h6>{% translate "Comment utiliser cette page ?" %}</h6>
+                <ul>
+                    <li>{% translate "Modifiez les quantités en stock directement dans le tableau" %}</li>
+                    <li>{% translate "Cliquez sur 'Mettre à jour le stock' pour sauvegarder vos changements" %}</li>
+                    <li>{% translate "Les produits avec moins de 10 unités en stock sont marqués en jaune" %}</li>
+                </ul>
+                
+                <h6 class="mt-3">{% translate "Gestion efficace de l'inventaire" %}</h6>
+                <ul>
+                    <li>{% translate "Vérifiez régulièrement votre stock pour éviter les ruptures" %}</li>
+                    <li>{% translate "Tenez compte des ventes récentes pour anticiper les besoins" %}</li>
+                    <li>{% translate "Mettez à jour les stocks après chaque réception de marchandise" %}</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Fermer" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

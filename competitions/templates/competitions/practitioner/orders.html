@@ -1,0 +1,256 @@
+{% extends 'competitions/practitioner/base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Mes Commandes" %} | {% trans "Espace Pratiquant" %}{% endblock %}
+
+{% block dashboard_content %}
+<!-- Page Header -->
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fas fa-shopping-bag text-primary"></i> {% trans "Mes Commandes" %}
+    </h1>
+    <p class="page-subtitle">{% trans "Consultez et suivez vos commandes boutique" %}</p>
+</div>
+
+<!-- Order Statistics -->
+<div class="stats-grid">
+    <div class="stats-card">
+        <div class="stats-icon stats-competitions">
+            <i class="fas fa-shopping-cart"></i>
+        </div>
+        <div class="stats-value">{{ order_stats.total }}</div>
+        <div class="stats-label">{% trans "Total Commandes" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon stats-upcoming">
+            <i class="fas fa-clock"></i>
+        </div>
+        <div class="stats-value">{{ order_stats.pending }}</div>
+        <div class="stats-label">{% trans "En Attente" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon stats-podiums">
+            <i class="fas fa-truck"></i>
+        </div>
+        <div class="stats-value">{{ order_stats.shipped }}</div>
+        <div class="stats-label">{% trans "Expédiées" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon stats-memberships">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="stats-value">{{ order_stats.delivered }}</div>
+        <div class="stats-label">{% trans "Livrées" %}</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">{% trans "Filtrer par statut" %}</label>
+                <select name="status" class="form-select" onchange="this.form.submit()">
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>
+                        {% trans "Toutes les commandes" %}
+                    </option>
+                    <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>
+                        {% trans "En attente" %}
+                    </option>
+                    <option value="processing" {% if status_filter == 'processing' %}selected{% endif %}>
+                        {% trans "En préparation" %}
+                    </option>
+                    <option value="shipped" {% if status_filter == 'shipped' %}selected{% endif %}>
+                        {% trans "Expédiées" %}
+                    </option>
+                    <option value="delivered" {% if status_filter == 'delivered' %}selected{% endif %}>
+                        {% trans "Livrées" %}
+                    </option>
+                    <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>
+                        {% trans "Annulées" %}
+                    </option>
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Orders List -->
+<div class="card">
+    <div class="card-header bg-light">
+        <h5 class="mb-0">{% trans "Liste des commandes" %}</h5>
+    </div>
+    <div class="card-body">
+        {% if orders %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>{% trans "N° Commande" %}</th>
+                            <th>{% trans "Date" %}</th>
+                            <th>{% trans "Articles" %}</th>
+                            <th>{% trans "Total" %}</th>
+                            <th>{% trans "Statut" %}</th>
+                            <th>{% trans "Livraison" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in orders %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'competitions:practitioner:order_detail' order.id %}">
+                                    #{{ order.order_number }}
+                                </a>
+                            </td>
+                            <td>{{ order.created_at|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                {{ order.items.count }} {% trans "article(s)" %}
+                            </td>
+                            <td>{{ order.total|floatformat:2 }} €</td>
+                            <td>
+                                {% if order.status == 'pending' %}
+                                    <span class="badge bg-warning">{% trans "En attente" %}</span>
+                                {% elif order.status == 'processing' %}
+                                    <span class="badge bg-info">{% trans "En préparation" %}</span>
+                                {% elif order.status == 'shipped' %}
+                                    <span class="badge bg-primary">{% trans "Expédiée" %}</span>
+                                {% elif order.status == 'delivered' %}
+                                    <span class="badge bg-success">{% trans "Livrée" %}</span>
+                                {% elif order.status == 'cancelled' %}
+                                    <span class="badge bg-danger">{% trans "Annulée" %}</span>
+                                {% elif order.status == 'refunded' %}
+                                    <span class="badge bg-secondary">{% trans "Remboursée" %}</span>
+                                {% elif order.status == 'on_hold' %}
+                                    <span class="badge bg-warning">{% trans "En attente de paiement" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if order.tracking_number %}
+                                    <small class="text-muted">{{ order.tracking_number }}</small>
+                                {% else %}
+                                    <small class="text-muted">{% trans "Non disponible" %}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'competitions:practitioner:order_detail' order.id %}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i> {% trans "Détails" %}
+                                </a>
+                                {% if order.status == 'delivered' and order.days_since_order <= 30 %}
+                                    <a href="#" class="btn btn-sm btn-outline-warning">
+                                        <i class="fas fa-comments"></i> {% trans "Évaluer" %}
+                                    </a>
+                                {% endif %}
+                                {% if order.can_cancel %}
+                                    <button class="btn btn-sm btn-outline-danger" 
+                                            onclick="confirmCancelOrder('{{ order.id }}')">
+                                        <i class="fas fa-times"></i> {% trans "Annuler" %}
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination if needed -->
+            {% if is_paginated %}
+            <nav aria-label="{% trans 'Navigation de pagination' %}">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&status={{ status_filter }}">
+                                {% trans "Précédent" %}
+                            </a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}&status={{ status_filter }}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}&status={{ status_filter }}">
+                                {% trans "Suivant" %}
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle"></i> 
+                {% trans "Vous n'avez pas encore passé de commande." %}
+                <br>
+                <a href="{% url 'shop:catalog:product_list' %}" class="btn btn-primary mt-3">
+                    <i class="fas fa-shopping-cart"></i> {% trans "Parcourir la boutique" %}
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Cancel Order Modal -->
+<div class="modal fade" id="cancelOrderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Annuler la commande" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Êtes-vous sûr de vouloir annuler cette commande ?" %}</p>
+                <p class="text-muted">{% trans "Cette action est irréversible." %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "Fermer" %}
+                </button>
+                <form id="cancelOrderForm" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        {% trans "Confirmer l'annulation" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmCancelOrder(orderId) {
+    const modal = new bootstrap.Modal(document.getElementById('cancelOrderModal'));
+    const form = document.getElementById('cancelOrderForm');
+    form.action = `/competitions/practitioner/orders/${orderId}/cancel/`;
+    modal.show();
+}
+
+// Auto-refresh for order tracking
+{% if orders %}
+    const pendingOrders = {{ order_stats.pending|add:order_stats.processing }};
+    if (pendingOrders > 0) {
+        // Refresh page every 5 minutes to update order statuses
+        setTimeout(() => {
+            location.reload();
+        }, 300000);
+    }
+{% endif %}
+</script>
+{% endblock %}

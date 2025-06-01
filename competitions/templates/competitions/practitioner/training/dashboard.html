@@ -1,0 +1,154 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Tableau de bord - Entraînements" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4">{% trans "Mes Entraînements" %}</h1>
+    
+    <div class="row mb-4">
+        <!-- Statistiques rapides -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Cette semaine" %}</h5>
+                    <h2 class="mb-0 text-primary">{{ stats.week_sessions }}</h2>
+                    <small class="text-muted">{% trans "séances prévues" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Ce mois" %}</h5>
+                    <h2 class="mb-0 text-success">{{ stats.month_attendance }}</h2>
+                    <small class="text-muted">{% trans "présences" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Taux de présence" %}</h5>
+                    <h2 class="mb-0 text-info">{{ stats.attendance_rate }}%</h2>
+                    <small class="text-muted">{% trans "ce mois" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Programmes actifs" %}</h5>
+                    <h2 class="mb-0 text-warning">{{ stats.active_programs }}</h2>
+                    <small class="text-muted">{% trans "en cours" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Actions rapides -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Actions rapides" %}</h5>
+                    <div class="btn-group" role="group">
+                        <a href="{% url 'competitions:practitioner:training_schedule' %}" class="btn btn-primary">
+                            <i class="bi bi-calendar3"></i> {% trans "Voir le calendrier" %}
+                        </a>
+                        <a href="{% url 'competitions:practitioner:attendance_history' %}" class="btn btn-outline-primary">
+                            <i class="bi bi-check2-square"></i> {% trans "Historique des présences" %}
+                        </a>
+                        <a href="{% url 'competitions:practitioner:program_list' %}" class="btn btn-outline-primary">
+                            <i class="bi bi-list-ul"></i> {% trans "Programmes disponibles" %}
+                        </a>
+                        <a href="{% url 'competitions:practitioner:training_progress' %}" class="btn btn-outline-primary">
+                            <i class="bi bi-graph-up"></i> {% trans "Ma progression" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Prochaines séances -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Prochaines séances" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if upcoming_sessions %}
+                        <div class="list-group">
+                            {% for session in upcoming_sessions %}
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">{{ session.discipline.name }}</h6>
+                                    <small>{{ session.date|date:"d M" }}</small>
+                                </div>
+                                <p class="mb-1">
+                                    <i class="bi bi-clock"></i> {{ session.time }}
+                                    <br>
+                                    <i class="bi bi-person"></i> {{ session.instructor.get_full_name }}
+                                </p>
+                                {% if session.is_reserved %}
+                                    <span class="badge bg-success">{% trans "Réservé" %}</span>
+                                {% else %}
+                                    <a href="{% url 'competitions:practitioner:make_reservation' session.id %}" 
+                                       class="btn btn-sm btn-primary">
+                                        {% trans "Réserver" %}
+                                    </a>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">{% trans "Aucune séance prévue" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Programmes en cours -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Mes programmes" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if programs %}
+                        <div class="list-group">
+                            {% for program in programs %}
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">{{ program.name }}</h6>
+                                    <small>{{ program.progress }}%</small>
+                                </div>
+                                <div class="progress mb-2" style="height: 20px;">
+                                    <div class="progress-bar" role="progressbar" 
+                                         style="width: {{ program.progress }}%"
+                                         aria-valuenow="{{ program.progress }}" 
+                                         aria-valuemin="0" aria-valuemax="100">
+                                        {{ program.progress }}%
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    {{ program.sessions_completed }}/{{ program.total_sessions }} {% trans "séances complétées" %}
+                                </small>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">{% trans "Aucun programme en cours" %}</p>
+                        <a href="{% url 'competitions:practitioner:program_list' %}" class="btn btn-primary">
+                            {% trans "Découvrir les programmes" %}
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

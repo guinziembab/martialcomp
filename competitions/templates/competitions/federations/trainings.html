@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Formations de juges" %} | {{ federation.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .training-card {
+        transition: all 0.3s ease;
+        margin-bottom: 1rem;
+    }
+    
+    .training-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .status-badge {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+    }
+    
+    .status-planned {
+        background-color: #cfe2ff;
+        color: #084298;
+    }
+    
+    .status-ongoing {
+        background-color: #d1e7dd;
+        color: #0f5132;
+    }
+    
+    .status-completed {
+        background-color: #e2e3e5;
+        color: #41464b;
+    }
+    
+    .status-cancelled {
+        background-color: #f8d7da;
+        color: #842029;
+    }
+    
+    .stats-card {
+        transition: all 0.3s ease;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+    }
+    
+    .stats-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stats-number {
+        font-size: 1.8rem;
+        font-weight: bold;
+    }
+    
+    .type-badge {
+        border-radius: 20px;
+        font-size: 0.7rem;
+        padding: 0.15rem 0.5rem;
+        background-color: #e9ecef;
+        color: #495057;
+    }
+    
+    .type-technical {
+        background-color: #cff4fc;
+        color: #055160;
+    }
+    
+    .type-combat {
+        background-color: #f8d7da;
+        color: #842029;
+    }
+    
+    .type-rules {
+        background-color: #fff3cd;
+        color: #664d03;
+    }
+    
+    .type-certification {
+        background-color: #d1e7dd;
+        color: #0f5132;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-3 mb-4">
+            {% include "competitions/federations/_sidebar.html" with active="trainings" %}
+        </div>
+        
+        <div class="col-lg-9">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h2 class="h4 mb-0">{% trans "Formations de juges" %}</h2>
+                        <a href="{% url 'competitions:federations:create_training' federation.id %}" class="btn btn-light btn-sm">
+                            <i class="fas fa-plus-circle me-2"></i>{% trans "Nouvelle formation" %}
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <!-- Statistiques -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="stats-card bg-primary text-white p-3 text-center">
+                                <div class="stats-icon">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </div>
+                                <div class="stats-number">{{ stats.total_trainings }}</div>
+                                <div class="stats-label">{% trans "Total formations" %}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card bg-info text-white p-3 text-center">
+                                <div class="stats-icon">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="stats-number">{{ stats.total_participants }}</div>
+                                <div class="stats-label">{% trans "Participants" %}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card bg-success text-white p-3 text-center">
+                                <div class="stats-icon">
+                                    <i class="fas fa-play-circle"></i>
+                                </div>
+                                <div class="stats-number">{{ stats.planned_trainings }}</div>
+                                <div class="stats-label">{% trans "À venir" %}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card bg-secondary text-white p-3 text-center">
+                                <div class="stats-icon">
+                                    <i class="fas fa-check-circle"></i>
+                                </div>
+                                <div class="stats-number">{{ stats.completed_trainings }}</div>
+                                <div class="stats-label">{% trans "Terminées" %}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Filtres -->
+                    <div class="mb-4">
+                        <form method="get" class="row g-3 align-items-center">
+                            <div class="col-md-5">
+                                <label for="status" class="visually-hidden">{% trans "Statut" %}</label>
+                                <select name="status" id="status" class="form-select">
+                                    <option value="">{% trans "Tous les statuts" %}</option>
+                                    <option value="planned" {% if request.GET.status == 'planned' %}selected{% endif %}>{% trans "Planifiée" %}</option>
+                                    <option value="ongoing" {% if request.GET.status == 'ongoing' %}selected{% endif %}>{% trans "En cours" %}</option>
+                                    <option value="completed" {% if request.GET.status == 'completed' %}selected{% endif %}>{% trans "Terminée" %}</option>
+                                    <option value="cancelled" {% if request.GET.status == 'cancelled' %}selected{% endif %}>{% trans "Annulée" %}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <label for="type" class="visually-hidden">{% trans "Type" %}</label>
+                                <select name="type" id="type" class="form-select">
+                                    <option value="">{% trans "Tous les types" %}</option>
+                                    <option value="technical" {% if request.GET.type == 'technical' %}selected{% endif %}>{% trans "Technique" %}</option>
+                                    <option value="combat" {% if request.GET.type == 'combat' %}selected{% endif %}>{% trans "Combat" %}</option>
+                                    <option value="rules" {% if request.GET.type == 'rules' %}selected{% endif %}>{% trans "Règlement" %}</option>
+                                    <option value="certification" {% if request.GET.type == 'certification' %}selected{% endif %}>{% trans "Certification" %}</option>
+                                    <option value="refresher" {% if request.GET.type == 'refresher' %}selected{% endif %}>{% trans "Recyclage" %}</option>
+                                    <option value="other" {% if request.GET.type == 'other' %}selected{% endif %}>{% trans "Autre" %}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-filter me-2"></i>{% trans "Filtrer" %}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Liste des formations -->
+                    {% if trainings %}
+                        {% for training in trainings %}
+                            <div class="card mb-3 training-card">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h5 class="card-title">{{ training.title }}</h5>
+                                            <p class="card-text mb-1">
+                                                <i class="fas fa-calendar-alt text-secondary me-2"></i>
+                                                {{ training.start_date|date:"d/m/Y" }}
+                                                {% if training.end_date != training.start_date %}
+                                                - {{ training.end_date|date:"d/m/Y" }}
+                                                {% endif %}
+                                            </p>
+                                            <p class="card-text mb-2">
+                                                <i class="fas fa-map-marker-alt text-secondary me-2"></i>
+                                                {{ training.location }}
+                                            </p>
+                                            <div>
+                                                <span class="status-badge status-{{ training.status }}">
+                                                    {{ training.get_status_display }}
+                                                </span>
+                                                <span class="type-badge type-{{ training.training_type }} ms-2">
+                                                    {{ training.get_training_type_display }}
+                                                </span>
+                                                <span class="badge bg-secondary ms-2">
+                                                    {{ training.get_level_display }}
+                                                </span>
+                                                {% if training.registrations.count > 0 %}
+                                                <span class="badge bg-info ms-2">
+                                                    <i class="fas fa-users me-1"></i>{{ training.registrations.count }}
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownMenuButton{{ training.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <i class="fas fa-ellipsis-v"></i>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton{{ training.id }}">
+                                                    <li>
+                                                        <a class="dropdown-item" href="{% url 'competitions:federations:training_detail' federation.id training.id %}">
+                                                            <i class="fas fa-eye me-2"></i>{% trans "Voir les détails" %}
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a class="dropdown-item" href="{% url 'competitions:federations:edit_training' federation.id training.id %}">
+                                                            <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                                        </a>
+                                                    </li>
+                                                    {% if training.status == 'planned' %}
+                                                    <li>
+                                                        <a class="dropdown-item" href="{% url 'competitions:federations:start_training' federation.id training.id %}">
+                                                            <i class="fas fa-play-circle me-2"></i>{% trans "Démarrer" %}
+                                                        </a>
+                                                    </li>
+                                                    {% elif training.status == 'ongoing' %}
+                                                    <li>
+                                                        <a class="dropdown-item" href="{% url 'competitions:federations:complete_training' federation.id training.id %}">
+                                                            <i class="fas fa-check-circle me-2"></i>{% trans "Terminer" %}
+                                                        </a>
+                                                    </li>
+                                                    {% endif %}
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li>
+                                                        <a class="dropdown-item text-danger" href="{% url 'competitions:federations:delete_training' federation.id training.id %}">
+                                                            <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="text-end mt-3">
+                                        <a href="{% url 'competitions:federations:training_detail' federation.id training.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye me-1"></i>{% trans "Détails" %}
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>{% trans "Aucune formation trouvée." %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="card-footer">
+                    <div class="d-flex justify-content-end">
+                        <a href="{% url 'competitions:federations:create_training' federation.id %}" class="btn btn-primary">
+                            <i class="fas fa-plus-circle me-2"></i>{% trans "Nouvelle formation" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

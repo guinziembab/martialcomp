@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}Débogage CSRF{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+    <h1>Débogage CSRF</h1>
+    
+    <h2>Informations sur la requête</h2>
+    <p><strong>Method:</strong> {{ request.method }}</p>
+    <p><strong>Path:</strong> {{ request.path }}</p>
+    <p><strong>User:</strong> {{ request.user }}</p>
+    
+    <h2>Test du formulaire</h2>
+    {% if messages %}
+    <div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; margin-bottom: 20px; border-radius: 4px;">
+        {% for message in messages %}
+        <p style="color: #721c24; margin: 0;">{{ message }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <form method="post" action="">
+        {% csrf_token %}
+        <p>Ce formulaire soumet une requête POST à la même URL.</p>
+        <button type="submit" style="background-color: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;">
+            Tester la vérification CSRF
+        </button>
+    </form>
+    
+    <h2>Formulaire de connexion</h2>
+    <form method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+        <div style="margin-bottom: 15px;">
+            <label for="test_username" style="display: block; margin-bottom: 5px;">Nom d'utilisateur</label>
+            <input type="text" name="username" id="test_username" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+        </div>
+        <div style="margin-bottom: 15px;">
+            <label for="test_password" style="display: block; margin-bottom: 5px;">Mot de passe</label>
+            <input type="password" name="password" id="test_password" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+        </div>
+        <button type="submit" style="background-color: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;">
+            Tester connexion
+        </button>
+    </form>
+    
+    <h2>Inspection des cookies</h2>
+    <div id="cookie-info" style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin-top: 20px;">
+        <p>Contenu du cookie CSRF: <span id="csrf-cookie">Chargement...</span></p>
+    </div>
+    
+    <h2>En-têtes HTTP</h2>
+    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin-top: 20px;">
+        <p>En-tête X-CSRFToken: <span id="csrf-header">Non disponible côté client</span></p>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Afficher le cookie CSRF
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    const csrftoken = getCookie('csrftoken');
+    document.getElementById('csrf-cookie').textContent = csrftoken || 'Non trouvé';
+    
+    // Ajouter des détails sur tous les cookies
+    let cookieDetails = '';
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            cookieDetails += `<p>${cookies[i].trim()}</p>`;
+        }
+    } else {
+        cookieDetails = '<p>Aucun cookie trouvé</p>';
+    }
+    
+    document.getElementById('cookie-info').innerHTML += cookieDetails;
+});
+</script>
+{% endblock %}

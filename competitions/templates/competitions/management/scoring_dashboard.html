@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Tableau de bord de notation" %} - {{ competition.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Tableau de bord de notation" %}</h1>
+        <div class="btn-group">
+            <a href="{% url 'competitions:management:dashboard' competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au dashboard" %}
+            </a>
+            <a href="{% url 'competitions:management:generate_all_results' competition.id %}" class="btn btn-primary">
+                <i class="fas fa-calculator me-2"></i>{% trans "Calculer tous les résultats" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Information de la compétition -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{{ competition.title }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><i class="fas fa-calendar-alt me-2"></i>{% trans "Dates" %}: {{ competition.start_date|date:"d/m/Y" }}{% if competition.end_date and competition.end_date != competition.start_date %} - {{ competition.end_date|date:"d/m/Y" }}{% endif %}</p>
+                    <p class="mb-1"><i class="fas fa-map-marker-alt me-2"></i>{% trans "Lieu" %}: {{ competition.location }}</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="mb-1"><i class="fas fa-user-friends me-2"></i>{% trans "Catégories" %}: {{ categories|length }}</p>
+                    <p class="mb-0"><i class="fas fa-gavel me-2"></i>{% trans "Juges techniques" %}: {{ judges|length }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Catégories et leur statut de notation -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h3 class="h5 mb-0">{% trans "Catégories et progression" %}</h3>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th>{% trans "Critères" %}</th>
+                                    <th>{% trans "Performances" %}</th>
+                                    <th>{% trans "Progression" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for category in categories %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ category.name }}</strong>
+                                        <div class="small text-muted">{{ category.discipline.name }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ category.scoring_criteria_count }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <span class="me-2">{{ category.completed_performances_count }}/{{ category.performances_count }}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="progress" style="height: 8px; width: 100px">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ category.scoring_progress }}%"
+                                                aria-valuenow="{{ category.scoring_progress }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'competitions:management:category_scoring_setup' competition.id category.id %}" 
+                                               class="btn btn-outline-primary">
+                                                <i class="fas fa-cog me-1"></i>{% trans "Configurer" %}
+                                            </a>
+                                            <a href="{% url 'competitions:management:manage_performances' competition.id category.id %}" 
+                                               class="btn btn-outline-primary">
+                                                <i class="fas fa-users me-1"></i>{% trans "Performances" %}
+                                            </a>
+                                            <a href="{% url 'competitions:management:category_results' competition.id category.id %}" 
+                                               class="btn btn-outline-success">
+                                                <i class="fas fa-trophy me-1"></i>{% trans "Résultats" %}
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-3">
+                                        <p class="mb-0 text-muted">{% trans "Aucune catégorie trouvée pour cette compétition." %}</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Juges assignés -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h3 class="h5 mb-0">{% trans "Juges techniques assignés" %}</h3>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for judge in judges %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ judge.user.first_name }} {{ judge.user.last_name }}</strong>
+                                    <div class="small text-muted">{{ judge.category.name }}</div>
+                                </div>
+                                <a href="{% url 'competitions:management:judge_scoring_interface' competition.id judge.category.id judge.user.id %}" 
+                                   class="btn btn-sm btn-primary">
+                                    <i class="fas fa-gavel me-1"></i>{% trans "Interface" %}
+                                </a>
+                            </div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-center py-3">
+                            <p class="mb-0 text-muted">{% trans "Aucun juge technique assigné." %}</p>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Performances récentes -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h3 class="h5 mb-0">{% trans "Performances récentes" %}</h3>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for performance in recent_performances %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ performance.practitioner.full_name }}</strong>
+                                    <div class="small text-muted">{{ performance.category.name }}</div>
+                                </div>
+                                <div>
+                                    <span class="badge {% if performance.status == 'completed' %}bg-success{% elif performance.status == 'in_progress' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                        {{ performance.get_status_display }}
+                                    </span>
+                                </div>
+                            </div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-center py-3">
+                            <p class="mb-0 text-muted">{% trans "Aucune performance récente." %}</p>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

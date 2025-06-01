@@ -1,0 +1,591 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Planning des juges" %} - {{ competition.title }} - Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .schedule-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .schedule-header {
+        background-color: #f8f9fa;
+        border-radius: 10px 10px 0 0;
+        padding: 20px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .schedule-body {
+        padding: 20px;
+        background-color: #fff;
+        border-radius: 0 0 10px 10px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .schedule-tabs {
+        display: flex;
+        margin-bottom: 20px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .schedule-tab {
+        padding: 10px 20px;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    
+    .schedule-tab:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .schedule-tab.active {
+        border-bottom-color: #0d6efd;
+        color: #0d6efd;
+    }
+    
+    .schedule-date-container {
+        margin-bottom: 30px;
+        display: none;
+    }
+    
+    .schedule-date-container.active {
+        display: block;
+    }
+    
+    .schedule-date-header {
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .schedule-title {
+        margin-bottom: 5px;
+    }
+    
+    .schedule-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .schedule-card {
+        border-radius: 10px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        border: 1px solid #dee2e6;
+    }
+    
+    .schedule-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .schedule-card-header {
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .schedule-card-body {
+        padding: 15px;
+    }
+    
+    .schedule-time {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+    }
+    
+    .tatami-badge {
+        display: inline-block;
+        width: 30px;
+        height: 30px;
+        line-height: 30px;
+        text-align: center;
+        border-radius: 50%;
+        background-color: #6c757d;
+        color: white;
+        font-weight: 500;
+        margin-left: 5px;
+    }
+    
+    .assignment-list {
+        margin-top: 15px;
+    }
+    
+    .assignment-list-empty {
+        padding: 10px;
+        text-align: center;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        color: #6c757d;
+    }
+    
+    .assignment-item {
+        display: flex;
+        align-items: center;
+        padding: 8px;
+        border-radius: 5px;
+        transition: all 0.2s ease;
+        margin-bottom: 5px;
+    }
+    
+    .assignment-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .assignment-avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-right: 10px;
+    }
+    
+    .assignment-info {
+        flex-grow: 1;
+    }
+    
+    .assignment-name {
+        font-size: 0.9rem;
+        font-weight: 500;
+        line-height: 1.2;
+        margin-bottom: 3px;
+    }
+    
+    .assignment-role {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    .assignment-actions {
+        display: flex;
+        align-items: center;
+    }
+    
+    .assignment-action-btn {
+        border: none;
+        background: none;
+        color: #6c757d;
+        font-size: 0.8rem;
+        cursor: pointer;
+        padding: 5px;
+        transition: all 0.2s ease;
+    }
+    
+    .assignment-action-btn:hover {
+        color: #0d6efd;
+    }
+    
+    .assignment-badge {
+        padding: 3px 8px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 500;
+    }
+    
+    .assignment-badge.confirmed {
+        background-color: #d1e7dd;
+        color: #0f5132;
+    }
+    
+    .assignment-badge.pending {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    
+    .assignment-badge.completed {
+        background-color: #cff4fc;
+        color: #055160;
+    }
+    
+    .assignment-type-icon {
+        margin-right: 3px;
+    }
+    
+    .no-assignments {
+        text-align: center;
+        padding: 30px;
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .no-assignments-icon {
+        font-size: 48px;
+        color: #6c757d;
+        margin-bottom: 15px;
+    }
+    
+    .dropzone {
+        border: 2px dashed #dee2e6;
+        border-radius: 5px;
+        padding: 10px;
+        text-align: center;
+        color: #6c757d;
+        margin-top: 10px;
+        transition: all 0.3s ease;
+        min-height: 100px;
+    }
+    
+    .dropzone.hover {
+        border-color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    
+    .dropzone-info {
+        margin-top: 10px;
+        font-size: 0.8rem;
+    }
+    
+    .judge-card {
+        padding: 10px;
+        border-radius: 5px;
+        background-color: #fff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        margin-bottom: 5px;
+        cursor: move;
+        transition: all 0.2s ease;
+    }
+    
+    .judge-card:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .overview-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .overview-card {
+        border-radius: 10px;
+        background-color: #fff;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        text-align: center;
+    }
+    
+    .overview-value {
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+    
+    .overview-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .add-assignment-btn {
+        width: 100%;
+        margin-top: 10px;
+    }
+    
+    .breadcrumb-item + .breadcrumb-item::before {
+        content: "›";
+    }
+    
+    .info-popover {
+        cursor: pointer;
+        color: #6c757d;
+        transition: all 0.2s ease;
+    }
+    
+    .info-popover:hover {
+        color: #0d6efd;
+    }
+    
+    .judge-search-box {
+        margin-bottom: 10px;
+        position: relative;
+    }
+    
+    .judge-search-box .form-control {
+        padding-left: 35px;
+        border-radius: 20px;
+    }
+    
+    .judge-search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+    }
+    
+    .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        font-size: 0.85rem;
+    }
+    
+    .legend-color {
+        width: 15px;
+        height: 15px;
+        border-radius: 3px;
+        margin-right: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Fil d'Ariane -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:management:competition_detail' competition.id %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:management:judges_list' competition.id %}">{% trans "Juges" %}</a></li>
+            <li class="breadcrumb-item active">{% trans "Planning" %}</li>
+        </ol>
+    </nav>
+    
+    <!-- Messages d'alerte -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="schedule-container">
+        <!-- Titre et boutons d'action -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2 mb-0">{% trans "Planning des juges" %}</h1>
+            <div>
+                <div class="btn-group">
+                    <a href="{% url 'competitions:management:judges_list' competition.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la liste" %}
+                    </a>
+                    <a href="{% url 'competitions:management:export_judge_schedule' competition.id %}" class="btn btn-outline-primary">
+                        <i class="fas fa-file-export me-2"></i>{% trans "Exporter" %}
+                    </a>
+                    <a href="{% url 'competitions:management:bulk_judge_assignment' competition.id %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>{% trans "Ajouter des assignations" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Vue d'ensemble -->
+        <div class="form-card mb-4">
+            <div class="schedule-header">
+                <h2 class="h5 mb-0">{% trans "Vue d'ensemble" %}</h2>
+            </div>
+            
+            <div class="schedule-body">
+                <div class="overview-grid">
+                    <div class="overview-card">
+                        <div class="overview-value">{{ total_judges }}</div>
+                        <div class="overview-label">{% trans "Juges inscrits" %}</div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="overview-value">{{ total_assignments }}</div>
+                        <div class="overview-label">{% trans "Assignations" %}</div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="overview-value">{{ assignments_confirmed }}</div>
+                        <div class="overview-label">{% trans "Confirmées" %}</div>
+                    </div>
+                    <div class="overview-card">
+                        <div class="overview-value">{{ assignments_pending }}</div>
+                        <div class="overview-label">{% trans "En attente" %}</div>
+                    </div>
+                </div>
+                
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #d1e7dd;"></div>
+                        <span>{% trans "Confirmée" %}</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #fff3cd;"></div>
+                        <span>{% trans "En attente" %}</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #cff4fc;"></div>
+                        <span>{% trans "Terminée" %}</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #f8d7da;"></div>
+                        <span>{% trans "Annulée" %}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Planning par jour et tatami -->
+        <div class="form-card">
+            <div class="schedule-header">
+                <h2 class="h5 mb-0">{% trans "Planning par jour" %}</h2>
+            </div>
+            
+            <div class="schedule-body">
+                <!-- Onglets des jours -->
+                <div class="schedule-tabs">
+                    {% for day in competition_days %}
+                        <div class="schedule-tab {% if forloop.first %}active{% endif %}" data-date="{{ day|date:'Y-m-d' }}">
+                            {{ day|date:"l d/m" }}
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Contenu pour chaque jour -->
+                {% for day in competition_days %}
+                    <div class="schedule-date-container {% if forloop.first %}active{% endif %}" id="date-{{ day|date:'Y-m-d' }}">
+                        <div class="schedule-date-header">
+                            <h3 class="schedule-title">{{ day|date:"l d F Y" }}</h3>
+                            <p class="text-muted mb-0">
+                                {% blocktrans with count=day_assignments_count|get_item:day %}{{ count }} assignations pour cette journée{% endblocktrans %}
+                            </p>
+                        </div>
+                        
+                        {% if day_categories|get_item:day %}
+                            {% for tatami_num, categories in day_tatamis|get_item:day|items %}
+                                <h4 class="h6 mb-3">
+                                    {% trans "Tatami" %} {{ tatami_num }}
+                                    <span class="ms-2 badge bg-primary">{{ categories|length }} {% trans "catégories" %}</span>
+                                </h4>
+                                
+                                <div class="schedule-grid">
+                                    {% for category in categories %}
+                                        <div class="schedule-card">
+                                            <div class="schedule-card-header">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <h5 class="h6 mb-0">{{ category.name }}</h5>
+                                                    <span class="tatami-badge">{{ tatami_num }}</span>
+                                                </div>
+                                                <div class="small text-muted mt-1">{{ category.discipline.name }}</div>
+                                            </div>
+                                            
+                                            <div class="schedule-card-body">
+                                                <div class="schedule-time">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    {% if category.start_time and category.end_time %}
+                                                        {{ category.start_time|date:"H:i" }} - {{ category.end_time|date:"H:i" }}
+                                                    {% else %}
+                                                        {% trans "Horaire non défini" %}
+                                                    {% endif %}
+                                                </div>
+                                                
+                                                <!-- Juges assignés -->
+                                                <div class="assignment-list">
+                                                    {% if category.judge_assignments.all %}
+                                                        {% for assignment in category.judge_assignments.all %}
+                                                            <div class="assignment-item">
+                                                                {% if assignment.registration.practitioner.photo %}
+                                                                    <img src="{{ assignment.registration.practitioner.photo.url }}" alt="{{ assignment.registration.practitioner.full_name }}" class="assignment-avatar">
+                                                                {% else %}
+                                                                    <img src="{% static 'img/avatars/default.jpg' %}" alt="{{ assignment.registration.practitioner.full_name }}" class="assignment-avatar">
+                                                                {% endif %}
+                                                                
+                                                                <div class="assignment-info">
+                                                                    <div class="assignment-name">{{ assignment.registration.practitioner.full_name }}</div>
+                                                                    <div class="assignment-role">
+                                                                        <span class="assignment-type-icon">
+                                                                            {% if assignment.assignment_type == 'technical_judge' %}
+                                                                                <i class="fas fa-gavel"></i>
+                                                                            {% elif assignment.assignment_type == 'combat_referee' %}
+                                                                                <i class="fas fa-fist-raised"></i>
+                                                                            {% elif assignment.assignment_type == 'chief_judge' %}
+                                                                                <i class="fas fa-user-tie"></i>
+                                                                            {% elif assignment.assignment_type == 'timekeeper' %}
+                                                                                <i class="fas fa-stopwatch"></i>
+                                                                            {% else %}
+                                                                                <i class="fas fa-clipboard-list"></i>
+                                                                            {% endif %}
+                                                                        </span>
+                                                                        {{ assignment.get_assignment_type_display }}
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                <div>
+                                                                    <span class="assignment-badge {{ assignment.status }}">
+                                                                        {{ assignment.get_status_display }}
+                                                                    </span>
+                                                                </div>
+                                                                
+                                                                <div class="assignment-actions ms-2">
+                                                                    <button type="button" class="assignment-action-btn edit-assignment" data-assignment-id="{{ assignment.id }}" title="{% trans 'Modifier' %}">
+                                                                        <i class="fas fa-edit"></i>
+                                                                    </button>
+                                                                    <button type="button" class="assignment-action-btn remove-assignment" data-assignment-id="{{ assignment.id }}" title="{% trans 'Supprimer' %}">
+                                                                        <i class="fas fa-times"></i>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <div class="assignment-list-empty">
+                                                            {% trans "Aucun juge assigné" %}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                                
+                                                <!-- Bouton pour ajouter un juge -->
+                                                <a href="{% url 'competitions:management:add_judge_assignment' competition.id %}?category={{ category.id }}" class="btn btn-sm btn-outline-primary add-assignment-btn">
+                                                    <i class="fas fa-plus me-1"></i>{% trans "Ajouter un juge" %}
+                                                </a>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endfor %}
+                            
+                            <!-- Catégories sans tatami assigné -->
+                            {% if day_no_tatami|get_item:day %}
+                                <h4 class="h6 mb-3">
+                                    {% trans "Sans tatami assigné" %}
+                                    <span class="ms-2 badge bg-secondary">{{ day_no_tatami|get_item:day|length }} {% trans "catégories" %}</span>
+                                </h4>
+                                
+                                <div class="schedule-grid">
+                                    {% for category in day_no_tatami|get_item:day %}
+                                        <div class="schedule-card">
+                                            <div class="schedule-card-header">
+                                                <div>
+                                                    <h5 class="h6 mb-0">{{ category.name }}</h5>
+                                                    <div class="small text-muted mt-1">{{ category.discipline.name }}</div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="schedule-card-body">
+                                                <div class="schedule-time">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    {% if category.start_time and category.end_time %}
+                                                        {{ category.start_time|date:"H:i" }} - {{ category.end_time|date:"H:i" }}
+                                                    {% else %}
+                                                        {% trans "Horaire non défini" %}
+                                                    {% endif %}
+                                                </div>
+                                                
+                                                <!-- Juges assignés -->
+                                                <div class="assignment-list">
+                                                    {% if category.judge_assignments.all %}
+                                                        {% for assignment in category.judge_assignments.all %}
+                                                            <div class="assignment-item">
+                                                                {% if assignment.registration.practitioner.photo %}
+                                                                    <img src="{{ assignment.registration.practitioner.photo.url }}" alt="{{ assignment.registration.practitioner.full_name }}" class="assignment-avatar">
+                                                                {% else %}
+                                                                    <img src="{% static 'img/avatars/default.jpg' %}" alt="{{ assignment.registration.practitioner.full_name }}" class="assignment-avatar">
+                                                                {% endif %}
+                                                                
+                                                                <div class="assignment-info">
+                                                                    <div class="assignment-name">{{ assignment.registration.practitioner.full_name

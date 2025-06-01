@@ -1,0 +1,152 @@
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.models import User
+
+from organizations.models import Organization, OrganizationMember, OrganizationRole
+
+
+class JudgeTraining(models.Model):
+    """Modèle pour les formations de juges"""
+    
+    TRAINING_TYPES = [
+        ('technical', _('Technique')),
+        ('combat', _('Combat')),
+        ('rules', _('Règlement')),
+        ('certification', _('Certification')),
+        ('refresher', _('Recyclage')),
+        ('other', _('Autre')),
+    ]
+    
+    LEVEL_CHOICES = [
+        ('novice', _('Débutant')),
+        ('regional', _('Régional')),
+        ('national', _('National')),
+        ('international', _('International')),
+    ]
+    
+    STATUS_CHOICES = [
+        ('planned', _('Planifiée')),
+        ('ongoing', _('En cours')),
+        ('completed', _('Terminée')),
+        ('cancelled', _('Annulée')),
+    ]
+    
+    title = models.CharField(_("Titre"), max_length=255)
+    description = models.TextField(_("Description"), blank=True)
+    organization = models.ForeignKey('organizations.Organization',  
+        on_delete=models.CASCADE, 
+        related_name='trainings',
+        verbose_name=_("Fédération")
+    )
+    training_type = models.CharField(
+        _("Type de formation"), 
+        max_length=20, 
+        choices=TRAINING_TYPES,
+        default='technical'
+    )
+    level = models.CharField(
+        _("Niveau"), 
+        max_length=20, 
+        choices=LEVEL_CHOICES,
+        default='regional'
+    )
+    start_date = models.DateField(_("Date de début"))
+    end_date = models.DateField(_("Date de fin"))
+    location = models.CharField(_("Lieu"), max_length=255)
+    max_participants = models.PositiveIntegerField(_("Nombre maximum de participants"), default=20)
+    status = models.CharField(
+        _("Statut"), 
+        max_length=20, 
+        choices=STATUS_CHOICES,
+        default='planned'
+    )
+    instructor = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='training_as_instructor',
+        verbose_name=_("Formateur principal")
+    )
+    registration_deadline = models.DateField(_("Date limite d'inscription"), null=True, blank=True)
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+    
+    # Relations
+    disciplines = models.ManyToManyField(
+        'Discipline',
+        related_name='trainings',
+        verbose_name=_("Disciplines"),
+        blank=True
+    )
+    participants = models.ManyToManyField(
+        User,
+        through='JudgeTrainingRegistration',
+        related_name='judge_trainings',
+        verbose_name=_("Participants"),
+        blank=True
+    )
+    
+    class Meta:
+        verbose_name = _("Formation de juge")
+        verbose_name_plural = _("Formations de juge")
+        ordering = ['-start_date']
+    
+    def __str__(self):
+        return f"{self.title} ({self.get_training_type_display()})"
+    
+    @property
+    def is_active(self):
+        """Vérifie si la formation est active (planifiée ou en cours)."""
+        return self.status in ['planned', 'ongoing']
+    
+    @property
+    def registration_open(self):
+        """Vérifie si les inscriptions sont ouvertes."""
+        from django.utils import timezone
+        today = timezone.now().date()
+        if not self.registration_deadline:
+            return self.status == 'planned'
+        return self.status == 'planned' and today <= self.registration_deadline
+
+
+class JudgeTrainingRegistration(models.Model):
+    """Modèle pour les inscriptions aux formations de juges"""
+    
+    STATUS_CHOICES = [
+        ('pending', _('En attente')),
+        ('approved', _('Approuvée')),
+        ('rejected', _('Rejetée')),
+        ('cancelled', _('Annulée')),
+        ('completed', _('Terminée')),
+    ]
+    
+    training = models.ForeignKey(
+        JudgeTraining, 
+        on_delete=models.CASCADE, 
+        related_name='registrations',
+        verbose_name=_("Formation")
+    )
+    user = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='training_registrations',
+        verbose_name=_("Utilisateur")
+    )
+    status = models.CharField(
+        _("Statut"), 
+        max_length=20, 
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    registration_date = models.DateTimeField(_("Date d'inscription"), auto_now_add=True)
+    notes = models.TextField(_("Notes"), blank=True)
+    
+    class Meta:
+        verbose_name = _("Inscription à une formation")
+        verbose_name_plural = _("Inscriptions aux formations")
+        unique_together = ('training', 'user')
+        ordering = ['-registration_date']
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.training.title}"

@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Mettre à jour le grade" %} | {{ practitioner.full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .grade-card {
+        border-left: 4px solid;
+        transition: transform 0.2s;
+    }
+    .grade-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.12);
+    }
+    .current-grade {
+        background-color: #e8f4fc;
+        border-left: 4px solid #0d6efd;
+    }
+    .form-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="form-container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>{% trans "Mettre à jour le grade" %} - {{ practitioner.full_name }}</h1>
+            <a href="{% url 'grades:practitioner_history' practitioner_id=practitioner.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i> {% trans "Retour à l'historique" %}
+            </a>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">{% trans "Informations du pratiquant" %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>{% trans "Nom" %}:</strong> {{ practitioner.full_name }}</p>
+                        <p><strong>{% trans "Âge" %}:</strong> {{ practitioner.age }} {% trans "ans" %}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>{% trans "Club" %}:</strong> {{ practitioner.club.name }}</p>
+                        <p><strong>{% trans "Disciplines" %}:</strong> 
+                            {% for discipline in practitioner.disciplines.all %}
+                                {{ discipline.name }}{% if not forloop.last %}, {% endif %}
+                            {% empty %}
+                                {% trans "Aucune discipline" %}
+                            {% endfor %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">{% trans "Grade actuel" %}</h5>
+            </div>
+            <div class="card-body">
+                {% if current_grade %}
+                    <div class="card current-grade mb-0">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <h5 class="card-title">{{ current_grade.grade.name }}</h5>
+                                    <p class="text-muted">{{ current_grade.discipline.name }}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <p><strong>{% trans "Date d'obtention" %}:</strong> {{ current_grade.date_obtained|date:"d/m/Y" }}</p>
+                                    <p><strong>{% trans "Décerné par" %}:</strong> {{ current_grade.awarded_by|default:"Non spécifié" }}</p>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <a href="{% url 'grades:practitioner_history' practitioner_id=practitioner.id %}" class="btn btn-outline-primary">
+                                        <i class="fas fa-history me-2"></i> {% trans "Voir l'historique" %}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info mb-0">
+                        {% trans "Ce pratiquant n'a pas encore de grade attribué pour cette discipline." %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{% trans "Attribuer un nouveau grade" %}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="id_discipline" class="form-label">{% trans "Discipline" %}</label>
+                        <select name="discipline" id="id_discipline" class="form-select" required>
+                            <option value="">{% trans "Sélectionnez une discipline" %}</option>
+                            {% for discipline in practitioner.disciplines.all %}
+                                <option value="{{ discipline.id }}">{{ discipline.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">{% trans "Sélectionnez la discipline pour laquelle vous souhaitez attribuer un grade." %}</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="id_grade" class="form-label">{% trans "Grade" %}</label>
+                        <select name="grade" id="id_grade" class="form-select" required disabled>
+                            <option value="">{% trans "Sélectionnez d'abord une discipline" %}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="id_date_obtained" class="form-label">{% trans "Date d'obtention" %}</label>
+                                <input type="date" name="date_obtained" id="id_date_obtained" class="form-control" value="{{ today|date:'Y-m-d' }}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="id_awarded_by" class="form-label">{% trans "Décerné par" %}</label>
+                                <select name="awarded_by" id="id_awarded_by" class="form-select">
+                                    <option value="">{% trans "Sélectionnez un responsable" %}</option>
+                                    {% for certifier in certifiers %}
+                                        <option value="{{ certifier.get_full_name|default:certifier.username }}">
+                                            {{ certifier.get_full_name|default:certifier.username }} 
+                                            {% if certifier.profile.role == 'club_manager' %}
+                                                ({% trans "Responsable de club" %})
+                                            {% elif certifier.profile.role == 'federation_admin' %}
+                                                ({% trans "Responsable de fédération" %})
+                                            {% endif %}
+                                        </option>
+                                    {% endfor %}
+                                    <option value="other">{% trans "Autre..." %}</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Champ supplémentaire pour saisie libre si "Autre" est sélectionné -->
+                            <div class="mb-3" id="custom_awarded_by_container" style="display: none;">
+                                <label for="custom_awarded_by" class="form-label">{% trans "Précisez" %}</label>
+                                <input type="text" id="custom_awarded_by" class="form-control" placeholder="{% trans "Nom du certificateur" %}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="id_location" class="form-label">{% trans "Lieu d'obtention" %}</label>
+                                <input type="text" name="location" id="id_location" class="form-control">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="id_certificate_number" class="form-label">{% trans "Numéro de certificat" %}</label>
+                                <input type="text" name="certificate_number" id="id_certificate_number" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="id_certificate_file" class="form-label">{% trans "Certificat" %}</label>
+                        <input type="file" name="certificate_file" id="id_certificate_file" class="form-control">
+                        <div class="form-text">{% trans "Vous pouvez télécharger une copie du certificat (PDF, JPG ou PNG)." %}</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="id_notes" class="form-label">{% trans "Notes" %}</label>
+                        <textarea name="notes" id="id_notes" class="form-control" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input type="checkbox" name="is_current" id="id_is_current" class="form-check-input" checked>
+                        <label class="form-check-label" for="id_is_current">
+                            {% trans "Définir comme grade actuel" %}
+                        </label>
+                        <div class="form-text">{% trans "Décochez cette case si vous souhaitez simplement ajouter ce grade à l'historique sans en faire le grade actuel." %}</div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'grades:practitioner_history' practitioner_id=practitioner.id %}" class="btn btn-outline-secondary">
+                            {% trans "Annuler" %}
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i> {% trans "Enregistrer le grade" %}
+                        </button>
+                    </div>
+                    
+                    <!-- Champ caché pour stocker le paramètre next -->
+                    {% if next %}
+                        <input type="hidden" name="next" value="{{ next }}">
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Sélection des disciplines et grades
+        const disciplineSelect = document.getElementById('id_discipline');
+        const gradeSelect = document.getElementById('id_grade');
+        
+        if (disciplineSelect && gradeSelect) {
+            disciplineSelect.addEventListener('change', function() {
+                const disciplineId = this.value;
+                
+                if (disciplineId) {
+                    // Vider la liste des grades
+                    gradeSelect.innerHTML = '<option value="">{% trans "Chargement..." %}</option>';
+                    gradeSelect.disabled = true;
+                    
+                    // URL de l'API - nous utilisons l'URL correcte selon votre configuration
+                    const apiUrl = `/grades/api/grades-by-disciplines/?discipline_id=${disciplineId}`;
+                    
+                    // Appel AJAX pour récupérer les grades
+                    fetch(apiUrl)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Erreur réseau');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            // Réinitialiser le select
+                            gradeSelect.innerHTML = '<option value="">{% trans "Sélectionnez un grade" %}</option>';
+                            
+                            // Vérifier si nous avons des grades
+                            if (data.grades && data.grades.length > 0) {
+                                // Ajouter les options
+                                data.grades.forEach(grade => {
+                                    const option = document.createElement('option');
+                                    option.value = grade.id;
+                                    option.textContent = grade.name;
+                                    gradeSelect.appendChild(option);
+                                });
+                                gradeSelect.disabled = false;
+                            } else {
+                                gradeSelect.innerHTML = '<option value="">{% trans "Aucun grade disponible" %}</option>';
+                                gradeSelect.disabled = true;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Erreur:', error);
+                            // Message d'erreur
+                            gradeSelect.innerHTML = '<option value="">{% trans "Erreur lors du chargement des grades" %}</option>';
+                            gradeSelect.disabled = true;
+                        });
+                } else {
+                    // Aucune discipline sélectionnée
+                    gradeSelect.innerHTML = "<option value=''>{% trans 'Sélectionnez d\'abord une discipline' %}</option>";
+                    gradeSelect.disabled = true;
+                }
+            });
+        }
+        
+        // Gestion du champ "Décerné par" avec l'option "Autre"
+        const awardedBySelect = document.getElementById('id_awarded_by');
+        const customContainer = document.getElementById('custom_awarded_by_container');
+        const customInput = document.getElementById('custom_awarded_by');
+        
+        if (awardedBySelect && customContainer && customInput) {
+            awardedBySelect.addEventListener('change', function() {
+                if (this.value === 'other') {
+                    customContainer.style.display = 'block';
+                    customInput.focus();
+                } else {
+                    customContainer.style.display = 'none';
+                }
+            });
+            
+            // Gérer la soumission du formulaire pour utiliser la valeur personnalisée
+            const form = awardedBySelect.closest('form');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    if (awardedBySelect.value === 'other' && customInput.value.trim()) {
+                        // Empêcher la soumission par défaut
+                        e.preventDefault();
+                        
+                        // Créer un champ caché avec la valeur personnalisée
+                        const hiddenInput = document.createElement('input');
+                        hiddenInput.type = 'hidden';
+                        hiddenInput.name = 'awarded_by';
+                        hiddenInput.value = customInput.value.trim();
+                        
+                        // Ajouter le champ caché au formulaire
+                        form.appendChild(hiddenInput);
+                        
+                        // Soumettre le formulaire
+                        form.submit();
+                    }
+                });
+            }
+        }
+    });
+</script>
+{% endblock %}

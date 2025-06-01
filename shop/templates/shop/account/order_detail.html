@@ -1,0 +1,176 @@
+{% extends "shop/base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Détail de la commande" %} #{{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h1 class="mb-4">{% translate "Commande" %} #{{ order.order_number }}</h1>
+    
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">{% translate "Informations de commande" %}</h5>
+            <span class="badge bg-{{ order.status_color }}">{{ order.get_status_display }}</span>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>{% translate "Date de commande" %}:</strong> {{ order.created_at|date:"d/m/Y H:i" }}</p>
+                    <p><strong>{% translate "Méthode de paiement" %}:</strong> {{ order.get_payment_method_display }}</p>
+                    <p><strong>{% translate "Méthode de livraison" %}:</strong> {{ order.get_shipping_method_display }}</p>
+                    {% if order.tracking_number %}
+                    <p><strong>{% translate "Numéro de suivi" %}:</strong> {{ order.tracking_number }}</p>
+                    {% endif %}
+                    {% if order.estimated_delivery_date %}
+                    <p><strong>{% translate "Date de livraison estimée" %}:</strong> {{ order.estimated_delivery_date|date:"d/m/Y" }}</p>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    {% if order.is_paid %}
+                    <p><strong>{% translate "Payée le" %}:</strong> {{ order.paid_at|date:"d/m/Y" }}</p>
+                    {% endif %}
+                    {% if order.status == 'shipped' %}
+                    <p><strong>{% translate "Expédiée le" %}:</strong> {{ order.shipped_at|date:"d/m/Y" }}</p>
+                    {% endif %}
+                    {% if order.status == 'delivered' %}
+                    <p><strong>{% translate "Livrée le" %}:</strong> {{ order.delivered_at|date:"d/m/Y" }}</p>
+                    {% endif %}
+                    {% if order.status == 'cancelled' %}
+                    <p><strong>{% translate "Annulée le" %}:</strong> {{ order.cancelled_at|date:"d/m/Y" }}</p>
+                    {% endif %}
+                    {% if order.invoice_number %}
+                    <p><strong>{% translate "Facture" %}:</strong> {{ order.invoice_number }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">{% translate "Adresses" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>{% translate "Adresse de livraison" %}</h6>
+                    {% if order.shipping_address %}
+                    <address>
+                        {{ order.shipping_address.full_name }}<br>
+                        {{ order.shipping_address.address_line1 }}<br>
+                        {% if order.shipping_address.address_line2 %}
+                        {{ order.shipping_address.address_line2 }}<br>
+                        {% endif %}
+                        {{ order.shipping_address.postal_code }} {{ order.shipping_address.city }}<br>
+                        {{ order.shipping_address.country }}
+                    </address>
+                    {% else %}
+                    <p>{% translate "Non spécifiée" %}</p>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    <h6>{% translate "Adresse de facturation" %}</h6>
+                    {% if order.billing_address %}
+                    <address>
+                        {{ order.billing_address.full_name }}<br>
+                        {{ order.billing_address.address_line1 }}<br>
+                        {% if order.billing_address.address_line2 %}
+                        {{ order.billing_address.address_line2 }}<br>
+                        {% endif %}
+                        {{ order.billing_address.postal_code }} {{ order.billing_address.city }}<br>
+                        {{ order.billing_address.country }}
+                    </address>
+                    {% else %}
+                    <p>{% translate "Identique à l'adresse de livraison" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">{% translate "Articles commandés" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>{% translate "Produit" %}</th>
+                            <th>{% translate "Prix unitaire" %}</th>
+                            <th>{% translate "Quantité" %}</th>
+                            <th>{% translate "Total" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in order_items %}
+                        <tr>
+                            <td>
+                                {{ item.product_name }}
+                                {% if item.variation_description %}
+                                <small class="text-muted d-block">{{ item.variation_description }}</small>
+                                {% endif %}
+                            </td>
+                            <td>{{ item.price }} €</td>
+                            <td>{{ item.quantity }}</td>
+                            <td>{{ item.total }} €</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="text-end"><strong>{% translate "Sous-total" %}</strong></td>
+                            <td>{{ order.subtotal }} €</td>
+                        </tr>
+                        {% if order.shipping_cost > 0 %}
+                        <tr>
+                            <td colspan="3" class="text-end">{% translate "Frais de livraison" %}</td>
+                            <td>{{ order.shipping_cost }} €</td>
+                        </tr>
+                        {% endif %}
+                        {% if order.discount_amount > 0 %}
+                        <tr>
+                            <td colspan="3" class="text-end">{% translate "Remise" %}</td>
+                            <td>-{{ order.discount_amount }} €</td>
+                        </tr>
+                        {% endif %}
+                        {% if order.tax_amount > 0 %}
+                        <tr>
+                            <td colspan="3" class="text-end">{% translate "TVA" %}</td>
+                            <td>{{ order.tax_amount }} €</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td colspan="3" class="text-end"><strong>{% translate "Total" %}</strong></td>
+                            <td><strong>{{ order.total }} €</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    {% if order.customer_notes %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">{% translate "Notes" %}</h5>
+        </div>
+        <div class="card-body">
+            <p>{{ order.customer_notes|linebreaks }}</p>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="d-flex justify-content-between mt-4">
+        <a href="{% url 'shop:account:order_list' %}" class="btn btn-outline-primary">
+            {% translate "Retour à mes commandes" %}
+        </a>
+        {% if order.invoice_pdf %}
+        <a href="{% url 'shop:account:order_invoice' order_id=order.id %}" class="btn btn-primary">
+            {% translate "Télécharger la facture" %}
+        </a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Podium" %} - {{ category.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    {% if is_fullscreen %}
+    body {
+        overflow: hidden;
+        background-color: #000;
+        color: #fff;
+    }
+    .container-fluid {
+        padding: 0;
+        margin: 0;
+        height: 100vh;
+        width: 100vw;
+    }
+    .podium-container {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    {% endif %}
+    
+    .podium {
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        margin: 2rem 0;
+        position: relative;
+    }
+    
+    .podium-place {
+        text-align: center;
+        margin: 0 10px;
+        transition: all 0.5s ease;
+    }
+    
+    .podium-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        position: relative;
+        border-radius: 10px 10px 0 0;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .podium-gold .podium-block {
+        background: linear-gradient(180deg, #FFD700 0%, #FFC400 100%);
+        height: 260px;
+        width: 200px;
+        z-index: 3;
+    }
+    
+    .podium-silver .podium-block {
+        background: linear-gradient(180deg, #C0C0C0 0%, #A9A9A9 100%);
+        height: 200px;
+        width: 180px;
+        z-index: 2;
+    }
+    
+    .podium-bronze .podium-block {
+        background: linear-gradient(180deg, #CD7F32 0%, #A86A2D 100%);
+        height: 160px;
+        width: 180px;
+        z-index: 1;
+    }
+    
+    .podium-number {
+        position: absolute;
+        bottom: 10px;
+        font-size: 3rem;
+        font-weight: bold;
+        color: rgba(255,255,255,0.7);
+    }
+    
+    .podium-person {
+        position: absolute;
+        bottom: 100%;
+        left: 0;
+        right: 0;
+        text-align: center;
+        padding: 10px;
+    }
+    
+    .podium-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        border: 3px solid #fff;
+        margin-bottom: 10px;
+        object-fit: cover;
+        box-shadow: 0 0 20px rgba(0,0,0,0.2);
+        background-color: #f8f9fa;
+    }
+    
+    .podium-info {
+        background-color: #fff;
+        border-radius: 10px;
+        padding: 10px;
+        width: 180px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        min-height: 80px;
+    }
+    
+    .podium-name {
+        font-weight: bold;
+        font-size: 1.1rem;
+        margin-bottom: 5px;
+        color: #333;
+    }
+    
+    .podium-club {
+        font-size: 0.85rem;
+        color: #666;
+        margin-bottom: 5px;
+    }
+    
+    .podium-score {
+        font-size: 1.2rem;
+        font-weight: bold;
+    }
+    
+    .medal-gold {
+        color: #FFC400;
+    }
+    
+    .medal-silver {
+        color: #A9A9A9;
+    }
+    
+    .medal-bronze {
+        color: #A86A2D;
+    }
+    
+    .competition-info {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    @media (max-width: 767px) {
+        .podium-gold .podium-block {
+            height: 200px;
+            width: 120px;
+        }
+        
+        .podium-silver .podium-block {
+            height: 160px;
+            width: 100px;
+        }
+        
+        .podium-bronze .podium-block {
+            height: 120px;
+            width: 100px;
+        }
+        
+        .podium-avatar {
+            width: 80px;
+            height: 80px;
+        }
+        
+        .podium-info {
+            width: 120px;
+            min-height: 70px;
+        }
+        
+        .podium-name {
+            font-size: 0.9rem;
+        }
+        
+        .podium-club {
+            font-size: 0.75rem;
+        }
+        
+        .podium-score {
+            font-size: 1rem;
+        }
+    }
+    
+    /* Animation */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .animated {
+        animation-duration: 1s;
+        animation-fill-mode: both;
+    }
+    
+    .fadeInUp {
+        animation-name: fadeInUp;
+    }
+    
+    .delay-1 {
+        animation-delay: 0.5s;
+    }
+    
+    .delay-2 {
+        animation-delay: 1s;
+    }
+    
+    .delay-3 {
+        animation-delay: 1.5s;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    {% if not is_fullscreen %}
+    <div class="d-flex justify-content-between align-items-center my-4">
+        <h1 class="h2">{% trans "Podium" %}</h1>
+        <div class="btn-group">
+            <a href="{% url 'competitions:management:category_results' competition.id category.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour aux résultats" %}
+            </a>
+            <a href="{% url 'competitions:management:podium_view' competition.id category.id %}?fullscreen=1" class="btn btn-primary">
+                <i class="fas fa-expand me-2"></i>{% trans "Mode plein écran" %}
+            </a>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="podium-container">
+        <div class="competition-info {% if is_fullscreen %}text-white{% endif %}">
+            <h2 class="display-5">{{ competition.title }}</h2>
+            <h3 class="h4">{{ category.name }}</h3>
+        </div>
+        
+        <div class="podium">
+            <!-- 2ème place (Argent) -->
+            {% for rank in podium %}
+                {% if rank.rank == 2 %}
+                <div class="podium-place podium-silver animated fadeInUp delay-2">
+                    <div class="podium-person">
+                        <div class="podium-avatar-container">
+                            {% if rank.practitioner.photo %}
+                            <img src="{{ rank.practitioner.photo.url }}" alt="{{ rank.practitioner.full_name }}" class="podium-avatar">
+                            {% else %}
+                            <div class="podium-avatar d-flex justify-content-center align-items-center">
+                                <i class="fas fa-user fa-3x text-muted"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="podium-info">
+                            <div class="podium-name">{{ rank.practitioner.full_name }}</div>
+                            {% if rank.practitioner.club %}
+                            <div class="podium-club">{{ rank.practitioner.club.name }}</div>
+                            {% endif %}
+                            <div class="podium-score medal-silver">
+                                <i class="fas fa-medal me-1"></i>{{ rank.final_score|floatformat:2 }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="podium-block">
+                        <div class="podium-number">2</div>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+            
+            <!-- 1ère place (Or) -->
+            {% for rank in podium %}
+                {% if rank.rank == 1 %}
+                <div class="podium-place podium-gold animated fadeInUp delay-1">
+                    <div class="podium-person">
+                        <div class="podium-avatar-container">
+                            {% if rank.practitioner.photo %}
+                            <img src="{{ rank.practitioner.photo.url }}" alt="{{ rank.practitioner.full_name }}" class="podium-avatar">
+                            {% else %}
+                            <div class="podium-avatar d-flex justify-content-center align-items-center">
+                                <i class="fas fa-user fa-3x text-muted"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="podium-info">
+                            <div class="podium-name">{{ rank.practitioner.full_name }}</div>
+                            {% if rank.practitioner.club %}
+                            <div class="podium-club">{{ rank.practitioner.club.name }}</div>
+                            {% endif %}
+                            <div class="podium-score medal-gold">
+                                <i class="fas fa-medal me-1"></i>{{ rank.final_score|floatformat:2 }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="podium-block">
+                        <div class="podium-number">1</div>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+            
+            <!-- 3ème place (Bronze) -->
+            {% for rank in podium %}
+                {% if rank.rank == 3 %}
+                <div class="podium-place podium-bronze animated fadeInUp delay-3">
+                    <div class="podium-person">
+                        <div class="podium-avatar-container">
+                            {% if rank.practitioner.photo %}
+                            <img src="{{ rank.practitioner.photo.url }}" alt="{{ rank.practitioner.full_name }}" class="podium-avatar">
+                            {% else %}
+                            <div class="podium-avatar d-flex justify-content-center align-items-center">
+                                <i class="fas fa-user fa-3x text-muted"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="podium-info">
+                            <div class="podium-name">{{ rank.practitioner.full_name }}</div>
+                            {% if rank.practitioner.club %}
+                            <div class="podium-club">{{ rank.practitioner.club.name }}</div>
+                            {% endif %}
+                            <div class="podium-score medal-bronze">
+                                <i class="fas fa-medal me-1"></i>{{ rank.final_score|floatformat:2 }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="podium-block">
+                        <div class="podium-number">3</div>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        
+        {% if is_fullscreen %}
+        <div class="text-center mt-4">
+            <p class="text-white-50">{% trans "Appuyez sur la touche Echap pour quitter le mode plein écran" %}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if is_fullscreen %}
+        // Sortir du mode plein écran avec la touche Echap
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                window.location.href = "{% url 'competitions:management:podium_view' competition.id category.id %}";
+            }
+        });
+        {% endif %}
+    });
+</script>
+{% endblock %}

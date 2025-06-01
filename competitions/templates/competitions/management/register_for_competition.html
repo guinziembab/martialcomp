@@ -1,0 +1,695 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Inscription à la compétition" %} - Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .registration-form {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .competition-info-card {
+        border-radius: 10px;
+        overflow: hidden;
+        border: none;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+    
+    .competition-info-card:hover {
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    }
+    
+    .competition-header {
+        padding: 20px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .competition-body {
+        padding: 20px;
+    }
+    
+    .competition-meta-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    
+    .competition-meta-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+    }
+    
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .form-section h4 {
+        margin-bottom: 20px;
+        color: #495057;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 10px;
+    }
+    
+    .help-text {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-top: 5px;
+    }
+    
+    .required-field::after {
+        content: "*";
+        color: #dc3545;
+        margin-left: 4px;
+    }
+    
+    .category-checkbox {
+        margin-bottom: 15px;
+    }
+    
+    .category-checkbox .form-check-label {
+        font-weight: 500;
+    }
+    
+    .category-checkbox .category-details {
+        padding-left: 28px;
+        margin-top: 5px;
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    
+    .qualification-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        margin-right: 5px;
+        margin-bottom: 5px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        background-color: #e9ecef;
+    }
+    
+    .availability-slot {
+        padding: 10px;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        margin-bottom: 10px;
+    }
+    
+    .slot-day {
+        font-weight: 600;
+    }
+    
+    .time-slot-checkboxes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 10px;
+    }
+    
+    .time-slot-checkbox {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 20px;
+        padding: 5px 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .time-slot-checkbox:hover {
+        background-color: #e9ecef;
+    }
+    
+    .time-slot-checkbox.selected {
+        background-color: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+    }
+    
+    .tos-container {
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 15px;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        background-color: #f8f9fa;
+        font-size: 0.9rem;
+        margin-bottom: 15px;
+    }
+    
+    .breadcrumb-item + .breadcrumb-item::before {
+        content: "›";
+    }
+    
+    .badge-discipline {
+        background-color: #e9ecef;
+        color: #495057;
+        font-weight: 500;
+        padding: 6px 10px;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Fil d'Ariane -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:dashboard:referee' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:judge:upcoming_competitions' %}">{% trans "Compétitions à venir" %}</a></li>
+            <li class="breadcrumb-item active">{% trans "Inscription à la compétition" %}</li>
+        </ol>
+    </nav>
+    
+    <!-- Messages de succès/erreur -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="registration-form">
+        <!-- Titre de la page -->
+        <div class="text-center mb-4">
+            <h1 class="h2">{% trans "Inscription comme juge" %}</h1>
+            <p class="text-muted">
+                {% trans "Complétez ce formulaire pour vous inscrire en tant que juge pour cette compétition." %}
+            </p>
+        </div>
+        
+        <!-- Informations sur la compétition -->
+        <div class="competition-info-card mb-4">
+            <div class="competition-header">
+                <h3>{{ competition.title }}</h3>
+                
+                <div class="d-flex flex-wrap mt-3">
+                    {% for discipline in competition.disciplines.all %}
+                        <span class="badge-discipline">{{ discipline.name }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="competition-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="competition-meta-item">
+                            <div class="competition-meta-icon">
+                                <i class="fas fa-calendar-alt"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small">{% trans "Date" %}</div>
+                                <div>{{ competition.start_date|date:"d/m/Y" }}
+                                    {% if competition.start_date != competition.end_date %}
+                                        - {{ competition.end_date|date:"d/m/Y" }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="competition-meta-item">
+                            <div class="competition-meta-icon">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small">{% trans "Lieu" %}</div>
+                                <div>{{ competition.location }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="competition-meta-item">
+                            <div class="competition-meta-icon">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small">{% trans "Organisateur" %}</div>
+                                <div>{{ competition.organizer }}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="competition-meta-item">
+                            <div class="competition-meta-icon">
+                                <i class="fas fa-clipboard-list"></i>
+                            </div>
+                            <div>
+                                <div class="text-muted small">{% trans "Statut des inscriptions" %}</div>
+                                <div>
+                                    {% if competition.registration_open %}
+                                        <span class="text-success">
+                                            <i class="fas fa-check-circle me-1"></i>{% trans "Inscriptions ouvertes" %}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-danger">
+                                            <i class="fas fa-times-circle me-1"></i>{% trans "Inscriptions fermées" %}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Formulaire d'inscription -->
+        <form method="post" id="registration-form" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="competition_id" value="{{ competition.id }}">
+            
+            <!-- Section des informations de base -->
+            <div class="form-section">
+                <h4>{% trans "Informations personnelles" %}</h4>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="{{ form.first_name.id_for_label }}" class="form-label required-field">
+                            {% trans "Prénom" %}
+                        </label>
+                        {{ form.first_name }}
+                        <div class="help-text">{{ form.first_name.help_text }}</div>
+                        {% if form.first_name.errors %}
+                            <div class="invalid-feedback d-block">{{ form.first_name.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="{{ form.last_name.id_for_label }}" class="form-label required-field">
+                            {% trans "Nom" %}
+                        </label>
+                        {{ form.last_name }}
+                        <div class="help-text">{{ form.last_name.help_text }}</div>
+                        {% if form.last_name.errors %}
+                            <div class="invalid-feedback d-block">{{ form.last_name.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="{{ form.email.id_for_label }}" class="form-label required-field">
+                            {% trans "Email" %}
+                        </label>
+                        {{ form.email }}
+                        <div class="help-text">{{ form.email.help_text }}</div>
+                        {% if form.email.errors %}
+                            <div class="invalid-feedback d-block">{{ form.email.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="{{ form.phone.id_for_label }}" class="form-label required-field">
+                            {% trans "Téléphone" %}
+                        </label>
+                        {{ form.phone }}
+                        <div class="help-text">{{ form.phone.help_text }}</div>
+                        {% if form.phone.errors %}
+                            <div class="invalid-feedback d-block">{{ form.phone.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Section des qualifications -->
+            <div class="form-section">
+                <h4>{% trans "Qualifications" %}</h4>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="{{ form.qualification_level.id_for_label }}" class="form-label required-field">
+                            {% trans "Niveau de qualification" %}
+                        </label>
+                        {{ form.qualification_level }}
+                        <div class="help-text">{{ form.qualification_level.help_text }}</div>
+                        {% if form.qualification_level.errors %}
+                            <div class="invalid-feedback d-block">{{ form.qualification_level.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="{{ form.years_experience.id_for_label }}" class="form-label required-field">
+                            {% trans "Années d'expérience" %}
+                        </label>
+                        {{ form.years_experience }}
+                        <div class="help-text">{{ form.years_experience.help_text }}</div>
+                        {% if form.years_experience.errors %}
+                            <div class="invalid-feedback d-block">{{ form.years_experience.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label for="{{ form.assignment_types.id_for_label }}" class="form-label required-field">
+                            {% trans "Types d'assignations préférés" %}
+                        </label>
+                        {{ form.assignment_types }}
+                        <div class="help-text">{{ form.assignment_types.help_text }}</div>
+                        {% if form.assignment_types.errors %}
+                            <div class="invalid-feedback d-block">{{ form.assignment_types.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <label for="{{ form.qualifications.id_for_label }}" class="form-label">
+                            {% trans "Informations sur vos qualifications" %}
+                        </label>
+                        {{ form.qualifications }}
+                        <div class="help-text">{{ form.qualifications.help_text }}</div>
+                        {% if form.qualifications.errors %}
+                            <div class="invalid-feedback d-block">{{ form.qualifications.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Section des catégories -->
+            <div class="form-section">
+                <h4>{% trans "Catégories pour lesquelles vous souhaitez juger" %}</h4>
+                
+                {% if available_categories %}
+                    <div class="mb-3">
+                        <p class="text-muted mb-3">
+                            {% trans "Sélectionnez les catégories pour lesquelles vous souhaitez être juge. Vous pouvez en sélectionner plusieurs." %}
+                        </p>
+                        
+                        <div id="categories-container">
+                            {% for category in available_categories %}
+                                <div class="category-checkbox">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="categories" value="{{ category.id }}" id="category-{{ category.id }}" 
+                                            {% if category.id in preselected_categories %}checked{% endif %}>
+                                        <label class="form-check-label" for="category-{{ category.id }}">
+                                            {{ category.name }}
+                                        </label>
+                                    </div>
+                                    <div class="category-details">
+                                        <div class="mb-1">
+                                            <span class="text-muted">{% trans "Discipline:" %}</span> {{ category.discipline.name }}
+                                        </div>
+                                        {% if category.age_min or category.age_max %}
+                                            <div class="mb-1">
+                                                <span class="text-muted">{% trans "Âge:" %}</span>
+                                                {% if category.age_min and category.age_max %}
+                                                    {{ category.age_min }} - {{ category.age_max }} {% trans "ans" %}
+                                                {% elif category.age_min %}
+                                                    {% trans "À partir de" %} {{ category.age_min }} {% trans "ans" %}
+                                                {% elif category.age_max %}
+                                                    {% trans "Jusqu'à" %} {{ category.age_max }} {% trans "ans" %}
+                                                {% endif %}
+                                            </div>
+                                        {% endif %}
+                                        {% if category.required_qualifications %}
+                                            <div>
+                                                <span class="text-muted">{% trans "Qualifications requises:" %}</span>
+                                                <div class="d-inline-block">
+                                                    {% for qualification in category.required_qualifications %}
+                                                        <span class="qualification-badge">{{ qualification }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="my-3">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="select-all-categories">{% trans "Tout sélectionner" %}</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="deselect-all-categories">{% trans "Tout désélectionner" %}</button>
+                        </div>
+                        
+                        {% if form.categories.errors %}
+                            <div class="invalid-feedback d-block">{{ form.categories.errors }}</div>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Aucune catégorie disponible pour cette compétition." %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Section des disponibilités -->
+            <div class="form-section">
+                <h4>{% trans "Disponibilités" %}</h4>
+                
+                <p class="text-muted mb-3">
+                    {% trans "Indiquez vos disponibilités pour chaque jour de la compétition." %}
+                </p>
+                
+                <div id="availability-container">
+                    {% for day in competition_days %}
+                        <div class="availability-slot">
+                            <div class="slot-day">{{ day|date:"l d/m/Y" }}</div>
+                            
+                            <div class="time-slot-checkboxes" data-day="{{ day|date:'Y-m-d' }}">
+                                <div class="time-slot-checkbox" data-period="morning">
+                                    <input type="checkbox" name="availability" value="{{ day|date:'Y-m-d' }}_morning" id="slot-{{ day|date:'Y-m-d' }}-morning" class="d-none">
+                                    <span>{% trans "Matin" %}</span>
+                                </div>
+                                <div class="time-slot-checkbox" data-period="afternoon">
+                                    <input type="checkbox" name="availability" value="{{ day|date:'Y-m-d' }}_afternoon" id="slot-{{ day|date:'Y-m-d' }}-afternoon" class="d-none">
+                                    <span>{% trans "Après-midi" %}</span>
+                                </div>
+                                <div class="time-slot-checkbox" data-period="evening">
+                                    <input type="checkbox" name="availability" value="{{ day|date:'Y-m-d' }}_evening" id="slot-{{ day|date:'Y-m-d' }}-evening" class="d-none">
+                                    <span>{% trans "Soir" %}</span>
+                                </div>
+                                <div class="time-slot-checkbox" data-period="full">
+                                    <input type="checkbox" name="availability" value="{{ day|date:'Y-m-d' }}_full" id="slot-{{ day|date:'Y-m-d' }}-full" class="d-none">
+                                    <span>{% trans "Journée entière" %}</span>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                {% if form.availability.errors %}
+                    <div class="invalid-feedback d-block">{{ form.availability.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <!-- Section des informations supplémentaires -->
+            <div class="form-section">
+                <h4>{% trans "Informations supplémentaires" %}</h4>
+                
+                <div class="mb-3">
+                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                        {% trans "Notes ou demandes particulières" %}
+                    </label>
+                    {{ form.notes }}
+                    <div class="help-text">{{ form.notes.help_text }}</div>
+                    {% if form.notes.errors %}
+                        <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="accommodation_needed" id="id_accommodation_needed">
+                    <label class="form-check-label" for="id_accommodation_needed">
+                        {% trans "J'ai besoin d'un hébergement" %}
+                    </label>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="transportation_needed" id="id_transportation_needed">
+                    <label class="form-check-label" for="id_transportation_needed">
+                        {% trans "J'ai besoin d'un transport" %}
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Section des conditions d'utilisation -->
+            <div class="form-section">
+                <h4>{% trans "Conditions d'utilisation" %}</h4>
+                
+                <div class="tos-container mb-3">
+                    <h5>{% trans "Conditions d'inscription pour les juges" %}</h5>
+                    <p>
+                        {% trans "En vous inscrivant en tant que juge, vous acceptez les conditions suivantes:" %}
+                    </p>
+                    <ol>
+                        <li>{% trans "Respecter les règles et règlements de la compétition." %}</li>
+                        <li>{% trans "Être présent aux horaires indiqués pour les briefings de juges." %}</li>
+                        <li>{% trans "Respecter l'éthique et l'impartialité dans toutes vos décisions de jugement." %}</li>
+                        <li>{% trans "Porter une tenue appropriée selon les indications de l'organisateur." %}</li>
+                        <li>{% trans "Ne pas prendre part aux jugements impliquant vos propres élèves ou des membres de votre famille." %}</li>
+                        <li>{% trans "Informer l'organisateur au plus tôt en cas d'empêchement." %}</li>
+                    </ol>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="accept_terms" id="id_accept_terms" required>
+                    <label class="form-check-label required-field" for="id_accept_terms">
+                        {% trans "J'accepte les conditions d'utilisation" %}
+                    </label>
+                    {% if form.accept_terms.errors %}
+                        <div class="invalid-feedback d-block">{{ form.accept_terms.errors }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="accept_data_usage" id="id_accept_data_usage" required>
+                    <label class="form-check-label required-field" for="id_accept_data_usage">
+                        {% trans "J'accepte que mes données personnelles soient utilisées pour la gestion de cette compétition" %}
+                    </label>
+                    {% if form.accept_data_usage.errors %}
+                        <div class="invalid-feedback d-block">{{ form.accept_data_usage.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Boutons de soumission -->
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{% url 'competitions:judge:upcoming_competitions' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Annuler" %}
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-paper-plane me-2"></i>{% trans "Soumettre ma candidature" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Styliser les select avec des classes Bootstrap
+        const formSelects = document.querySelectorAll('select');
+        formSelects.forEach(select => {
+            select.classList.add('form-select');
+        });
+        
+        // Styliser les textareas avec des classes Bootstrap
+        const formTextareas = document.querySelectorAll('textarea');
+        formTextareas.forEach(textarea => {
+            textarea.classList.add('form-control');
+            textarea.setAttribute('rows', '4');
+        });
+        
+        // Styliser les inputs avec des classes Bootstrap
+        const formInputs = document.querySelectorAll('input:not([type="checkbox"]):not([type="radio"])');
+        formInputs.forEach(input => {
+            input.classList.add('form-control');
+        });
+        
+        // Gestion des catégories
+        const selectAllBtn = document.getElementById('select-all-categories');
+        const deselectAllBtn = document.getElementById('deselect-all-categories');
+        
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', function() {
+                const checkboxes = document.querySelectorAll('input[name="categories"]');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+            });
+        }
+        
+        if (deselectAllBtn) {
+            deselectAllBtn.addEventListener('click', function() {
+                const checkboxes = document.querySelectorAll('input[name="categories"]');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+            });
+        }
+        
+        // Gestion des créneaux de disponibilité
+        const timeSlots = document.querySelectorAll('.time-slot-checkbox');
+        
+        timeSlots.forEach(slot => {
+            slot.addEventListener('click', function() {
+                const checkbox = this.querySelector('input[type="checkbox"]');
+                checkbox.checked = !checkbox.checked;
+                
+                if (checkbox.checked) {
+                    this.classList.add('selected');
+                } else {
+                    this.classList.remove('selected');
+                }
+                
+                // Si "Journée entière" est sélectionné, désélectionner les autres
+                const day = this.parentElement.getAttribute('data-day');
+                const period = this.getAttribute('data-period');
+                
+                if (period === 'full' && checkbox.checked) {
+                    // Désélectionner matin, après-midi et soir
+                    const otherSlots = document.querySelectorAll(`.time-slot-checkbox[data-day="${day}"]:not([data-period="full"])`);
+                    otherSlots.forEach(otherSlot => {
+                        otherSlot.classList.remove('selected');
+                        otherSlot.querySelector('input[type="checkbox"]').checked = false;
+                    });
+                } else if (period !== 'full' && checkbox.checked) {
+                    // Désélectionner "Journée entière"
+                    const fullDaySlot = document.querySelector(`.time-slot-checkbox[data-day="${day}"][data-period="full"]`);
+                    if (fullDaySlot) {
+                        fullDaySlot.classList.remove('selected');
+                        fullDaySlot.querySelector('input[type="checkbox"]').checked = false;
+                    }
+                }
+            });
+        });
+        
+        // Validation du formulaire
+        const form = document.getElementById('registration-form');
+        
+        if (form) {
+            form.addEventListener('submit', function(event) {
+                let valid = true;
+                
+                // Vérifier si au moins une catégorie est sélectionnée
+                const categoriesSelected = document.querySelectorAll('input[name="categories"]:checked').length > 0;
+                if (!categoriesSelected) {
+                    valid = false;
+                    alert('{% trans "Veuillez sélectionner au moins une catégorie." %}');
+                }
+                
+                // Vérifier si au moins une disponibilité est sélectionnée
+                const availabilitiesSelected = document.querySelectorAll('input[name="availability"]:checked').length > 0;
+                if (!availabilitiesSelected) {
+                    valid = false;
+                    alert('{% trans "Veuillez indiquer au moins une disponibilité." %}');
+                }
+                
+                // Vérifier si les conditions sont acceptées
+                const termsAccepted = document.getElementById('id_accept_terms').checked;
+                const dataAccepted = document.getElementById('id_accept_data_usage').checked;
+                
+                if (!termsAccepted || !dataAccepted) {
+                    valid = false;
+                    alert('{% trans "Vous devez accepter les conditions d\'utilisation et l\'utilisation de vos données personnelles." %}');
+                }
+                
+                if (!valid) {
+                    event.preventDefault();
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

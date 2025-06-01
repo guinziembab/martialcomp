@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Réorganiser les performances" %} - {{ category.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Réorganiser les performances" %}</h1>
+        <a href="{% url 'competitions:management:manage_performances' competition.id category.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour aux performances" %}
+        </a>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h5 mb-0">{{ category.name }} - {{ competition.title }}</h2>
+                </div>
+                <div class="card-body">
+                    <p class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Glissez et déposez les performances pour modifier leur ordre de passage." %}
+                    </p>
+
+                    <div id="performanceList" class="list-group mb-4">
+                        {% for performance in performances %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center" data-id="{{ performance.id }}">
+                            <div class="d-flex align-items-center">
+                                <div class="drag-handle me-3 text-muted">
+                                    <i class="fas fa-grip-vertical"></i>
+                                </div>
+                                <div>
+                                    <strong>{{ performance.practitioner.full_name }}</strong>
+                                    {% if performance.practitioner.club %}
+                                    <div class="small text-muted">{{ performance.practitioner.club.name }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <span class="badge {% if performance.status == 'completed' %}bg-success{% elif performance.status == 'in_progress' %}bg-warning{% elif performance.status == 'disqualified' %}bg-danger{% else %}bg-secondary{% endif %} me-2">
+                                    {{ performance.get_status_display }}
+                                </span>
+                                <span class="badge bg-primary">{{ performance.performance_order }}</span>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {% trans "Aucune performance à réorganiser." %}
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button id="saveOrderBtn" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>{% trans "Enregistrer l'ordre" %}
+                        </button>
+                        <a href="{% url 'competitions:management:manage_performances' competition.id category.id %}" class="btn btn-outline-secondary">
+                            {% trans "Annuler" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialiser Sortable.js
+        var el = document.getElementById('performanceList');
+        var sortable = Sortable.create(el, {
+            handle: '.drag-handle',
+            animation: 150,
+            onEnd: function(evt) {
+                // Mettre à jour les badges de position
+                updateOrderIndicators();
+            }
+        });
+
+        // Mettre à jour les indicateurs d'ordre
+        function updateOrderIndicators() {
+            const items = document.querySelectorAll('#performanceList .list-group-item');
+            items.forEach((item, index) => {
+                const badge = item.querySelector('.badge.bg-primary');
+                badge.textContent = index + 1;
+            });
+        }
+
+        // Sauvegarder l'ordre
+        document.getElementById('saveOrderBtn').addEventListener('click', function() {
+            const items = document.querySelectorAll('#performanceList .list-group-item');
+            const performanceOrders = [];
+
+            items.forEach((item, index) => {
+                performanceOrders.push({
+                    id: item.dataset.id,
+                    order: index + 1
+                });
+            });
+
+            // Envoyer les données au serveur
+            fetch('{% url "competitions:management:reorder_performances" competition.id category.id %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ performanceOrders: performanceOrders })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Rediriger vers la page de performances
+                    window.location.href = "{% url 'competitions:management:manage_performances' competition.id category.id %}";
+                } else {
+                    alert('{% trans "Une erreur est survenue lors de la sauvegarde." %}');
+                    console.error(data.message);
+                }
+            })
+            .catch(error => {
+                alert('{% trans "Une erreur est survenue lors de la sauvegarde." %}');
+                console.error(error);
+            });
+        });
+    });
+</script>
+{% endblock %}

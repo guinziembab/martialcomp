@@ -1,0 +1,116 @@
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.models import User
+from .mixins import AdministratorMixin
+
+
+class Club(AdministratorMixin, models.Model):
+    """
+    Modèle représentant un club d'arts martiaux.
+    """
+    # Informations de base
+    name = models.CharField(_("Nom"), max_length=100)
+    address = models.CharField(_("Adresse"), max_length=255, blank=True)
+    city = models.CharField(_("Ville"), max_length=100, blank=True)
+    postal_code = models.CharField(_("Code postal"), max_length=20, blank=True)
+    
+    # Contacts
+    contact_phone = models.CharField(_("Téléphone"), max_length=20, blank=True)
+    contact_email = models.EmailField(_("Email"), blank=True)
+    website = models.URLField(_("Site web"), blank=True)
+    
+    # Description et médias
+    description = models.TextField(_("Description"), blank=True)
+    logo = models.ImageField(_("Logo"), upload_to='clubs/logos/', null=True, blank=True)
+    banner = models.ImageField(_("Bannière"), upload_to='clubs/banners/', null=True, blank=True)
+    
+    # Relations
+    owner = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='owned_clubs',
+        verbose_name=_("Propriétaire")
+    )
+    disciplines = models.ManyToManyField(
+        'Discipline', 
+        blank=True, 
+        related_name='clubs',
+        verbose_name=_("Disciplines")
+    )
+    main_discipline = models.ForeignKey(
+        'Discipline', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='main_clubs',
+        verbose_name=_("Discipline principale")
+    )
+    federation = models.ForeignKey(
+        'Federation', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='clubs',
+        verbose_name=_("Fédération")
+    )
+    
+    # Équipements et installations
+    has_equipment = models.BooleanField(_("Équipement d'entraînement"), default=False)
+    has_changing_rooms = models.BooleanField(_("Vestiaires"), default=False)
+    has_showers = models.BooleanField(_("Douches"), default=False)
+    has_parking = models.BooleanField(_("Parking"), default=False)
+    
+    # Tranches d'âge acceptées
+    accepts_children = models.BooleanField(_("Accepte les enfants (4-11 ans)"), default=True)
+    accepts_teenagers = models.BooleanField(_("Accepte les adolescents (12-17 ans)"), default=True)
+    accepts_adults = models.BooleanField(_("Accepte les adultes (18-59 ans)"), default=True)
+    accepts_seniors = models.BooleanField(_("Accepte les seniors (60+ ans)"), default=True)
+    
+    # Autres informations
+    training_hours = models.TextField(_("Horaires d'entraînement"), blank=True, null=True)
+    is_active = models.BooleanField(_("Actif"), default=True)
+    
+    # Suivi des modifications
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True, null=True)
+    
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        verbose_name = _("Club")
+        verbose_name_plural = _("Clubs")
+        ordering = ['name']
+
+
+class ClubTeam(models.Model):
+    """
+    Modèle représentant une équipe d'un club participant à une compétition.
+    """
+    name = models.CharField(_("Nom de l'équipe"), max_length=100)
+    club = models.ForeignKey(
+        Club, 
+        on_delete=models.CASCADE, 
+        related_name='teams', 
+        verbose_name=_("Club")
+    )
+    competition = models.ForeignKey(
+        'competitions.Competition', 
+        on_delete=models.CASCADE, 
+        related_name='club_teams', 
+        verbose_name=_("Compétition")
+    )
+    members = models.ManyToManyField(
+        User, 
+        related_name='club_teams', 
+        verbose_name=_("Membres")
+    )
+
+    def __str__(self):
+        return f"{self.name} - {self.club.name}"
+
+    class Meta:
+        verbose_name = _("Équipe de club")
+        verbose_name_plural = _("Équipes de club")

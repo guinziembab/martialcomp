@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ category_schedule.category.name }} - {% trans "Planning" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .category-header {
+        background-color: {% if category_schedule.category.color %}{{ category_schedule.category.color }}{% else %}#f8f9fa{% endif %};
+        padding: 20px;
+        border-radius: 8px 8px 0 0;
+        margin-bottom: 0;
+    }
+    
+    .category-info {
+        background-color: #fff;
+        padding: 20px;
+        border: 1px solid #dee2e6;
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        margin-bottom: 30px;
+    }
+    
+    .info-item {
+        margin-bottom: 10px;
+    }
+    
+    .info-label {
+        font-weight: bold;
+        color: #6c757d;
+    }
+    
+    .match-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 15px;
+        transition: all 0.3s ease;
+    }
+    
+    .match-card:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+    
+    .match-header {
+        background-color: #f8f9fa;
+        padding: 10px 15px;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .match-body {
+        padding: 15px;
+    }
+    
+    .match-participants {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .participant {
+        text-align: center;
+        flex: 1;
+    }
+    
+    .participant-name {
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .participant-club {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    .match-score {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 0 20px;
+    }
+    
+    .score-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        padding: 0 10px;
+    }
+    
+    .vs-indicator {
+        color: #adb5bd;
+        font-weight: bold;
+    }
+    
+    .match-status {
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+    }
+    
+    .judges-list {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #dee2e6;
+    }
+    
+    .time-slots-container {
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .time-slot {
+        padding: 10px 15px;
+        margin-bottom: 10px;
+        border-left: 4px solid #007bff;
+        background-color: #f8f9fa;
+        border-radius: 0 4px 4px 0;
+    }
+    
+    .time-slot-time {
+        font-weight: bold;
+    }
+    
+    .time-slot-type {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-left: 10px;
+    }
+    
+    .participants-list {
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .participant-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .participant-item:last-child {
+        border-bottom: none;
+    }
+    
+    .participant-photo {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        overflow: hidden;
+        margin-right: 15px;
+    }
+    
+    .participant-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .participant-info {
+        flex: 1;
+    }
+    
+    .bracket-container {
+        overflow-x: auto;
+        margin-bottom: 30px;
+    }
+    
+    .bracket {
+        min-width: 800px;
+    }
+    
+    @media (max-width: 768px) {
+        .match-participants {
+            flex-direction: column;
+        }
+        
+        .participant {
+            margin-bottom: 10px;
+        }
+        
+        .match-score {
+            margin: 10px 0;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:public:index' competition.pk %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:public:schedule' competition.pk %}">{% trans "Planning" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ category_schedule.category.name }}</li>
+        </ol>
+    </nav>
+    
+    <!-- Informations de la catégorie -->
+    <div class="category-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1 class="h3 mb-0">{{ category_schedule.category.name }}</h1>
+            <span class="badge bg-{% if category_schedule.status == 'pending' %}warning{% elif category_schedule.status == 'in_progress' %}primary{% elif category_schedule.status == 'completed' %}success{% else %}secondary{% endif %}">
+                {{ category_schedule.get_status_display }}
+            </span>
+        </div>
+    </div>
+    
+    <div class="category-info">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="info-item">
+                    <span class="info-label">{% trans "Tatami" %}:</span>
+                    <span>{{ category_schedule.tatami.name }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">{% trans "Heure de début" %}:</span>
+                    <span>{{ category_schedule.start_time|date:"H:i" }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">{% trans "Heure de fin estimée" %}:</span>
+                    <span>{{ category_schedule.estimated_end_time|date:"H:i" }}</span>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="info-item">
+                    <span class="info-label">{% trans "Participants" %}:</span>
+                    <span>{{ category_schedule.participants_count }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">{% trans "Matchs" %}:</span>
+                    <span>{{ category_schedule.match_count }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">{% trans "Type de compétition" %}:</span>
+                    <span>{{ category_schedule.category.competition_type.name }}</span>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                {% if category_schedule.notes %}
+                <div class="info-item">
+                    <span class="info-label">{% trans "Notes" %}:</span>
+                    <p class="mb-0">{{ category_schedule.notes }}</p>
+                </div>
+                {% endif %}
+                
+                {% if category_schedule.category.rules %}
+                <div class="info-item">
+                    <span class="info-label">{% trans "Règles" %}:</span>
+                    <p class="mb-0">{{ category_schedule.category.rules }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Créneaux horaires -->
+            {% if time_slots %}
+            <div class="time-slots-container">
+                <h2 class="h5 mb-3">{% trans "Créneaux horaires" %}</h2>
+                
+                {% for slot in time_slots %}
+                <div class="time-slot">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="time-slot-time">{{ slot.start_time|date:"H:i" }} - {{ slot.end_time|date:"H:i" }}</span>
+                            <span class="time-slot-type">{{ slot.get_match_type_display }}</span>
+                        </div>
+                        {% if slot.match %}
+                        <span class="badge bg-{% if slot.match.status == 'pending' %}warning{% elif slot.match.status == 'in_progress' %}primary{% elif slot.match.status == 'completed' %}success{% else %}secondary{% endif %}">
+                            {{ slot.match.get_status_display }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    
+                    {% if slot.notes %}
+                    <div class="small text-muted mt-1">{{ slot.notes }}</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            
+            <!-- Tableau des matchs -->
+            <div class="bracket-container">
+                <h2 class="h5 mb-3">{% trans "Tableau des matchs" %}</h2>
+                
+                {% if bracket_data %}
+                <div class="bracket">
+                    <!-- Contenu du tableau (à implémenter selon la structure) -->
+                    <img src="{% static 'img/bracket_placeholder.png' %}" alt="{% trans "Tableau de la compétition" %}" class="img-fluid">
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    {% trans "Le tableau des matchs n'est pas encore disponible." %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- Liste des matchs -->
+            <h2 class="h5 mb-3">{% trans "Matchs" %}</h2>
+            
+            {% if matches %}
+                {% for match in matches %}
+                <div class="match-card">
+                    <div class="match-header">
+                        <div>
+                            <span class="badge bg-secondary">#{{ match.number }}</span>
+                            {% if match.match_type %}
+                            <span class="ms-2">{{ match.get_match_type_display }}</span>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <span class="match-status bg-{% if match.status == 'pending' %}warning{% elif match.status == 'in_progress' %}primary{% elif match.status == 'completed' %}success{% else %}secondary{% endif %}">
+                                {{ match.get_status_display }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="match-body">
+                        <div class="match-participants">
+                            <div class="participant">
+                                {% if match.participant1 %}
+                                <div class="participant-name">{{ match.participant1.full_name }}</div>
+                                <div class="participant-club">{{ match.participant1.club.name }}</div>
+                                {% else %}
+                                <div class="participant-name text-muted">{% trans "À déterminer" %}</div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="match-score">
+                                {% if match.status == 'completed' %}
+                                <div class="score-value">{{ match.score_participant1 }}</div>
+                                <div class="vs-indicator">:</div>
+                                <div class="score-value">{{ match.score_participant2 }}</div>
+                                {% else %}
+                                <div class="vs-indicator">VS</div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="participant">
+                                {% if match.participant2 %}
+                                <div class="participant-name">{{ match.participant2.full_name }}</div>
+                                <div class="participant-club">{{ match.participant2.club.name }}</div>
+                                {% else %}
+                                <div class="participant-name text-muted">{% trans "À déterminer" %}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        {% if match.start_time %}
+                        <div class="text-center mt-3 small text-muted">
+                            <i class="far fa-clock me-1"></i>
+                            {{ match.start_time|date:"H:i" }}
+                            {% if match.tatami %}
+                            - {{ match.tatami.name }}
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if match.judges.exists %}
+                        <div class="judges-list">
+                            <div class="small text-muted mb-1">{% trans "Juges" %}:</div>
+                            <div class="d-flex flex-wrap">
+                                {% for judge in match.judges.all %}
+                                <span class="badge bg-light text-dark me-1 mb-1">{{ judge.full_name }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="alert alert-info">
+                {% trans "Aucun match n'est encore planifié pour cette catégorie." %}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Liste des participants -->
+            <div class="participants-list">
+                <h2 class="h5 mb-3">{% trans "Participants" %} ({{ participants|length }})</h2>
+                
+                {% if participants %}
+                    {% for participant in participants %}
+                    <div class="participant-item">
+                        <div class="participant-photo">
+                            {% if participant.photo %}
+                            <img src="{{ participant.photo.url }}" alt="{{ participant.full_name }}">
+                            {% else %}
+                            <img src="{% static 'img/default_avatar.png' %}" alt="{{ participant.full_name }}">
+                            {% endif %}
+                        </div>
+                        <div class="participant-info">
+                            <div class="fw-bold">{{ participant.full_name }}</div>
+                            <div class="small text-muted">{{ participant.club.name }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="alert alert-info">
+                    {% trans "Aucun participant n'est encore inscrit dans cette catégorie." %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Juges assignés -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">{% trans "Juges assignés" %}</h2>
+                </div>
+                <div class="card-body">
+                    {% if judges %}
+                    <ul class="list-group list-group-flush">
+                        {% for judge in judges %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <div>{{ judge.full_name }}</div>
+                                <small class="text-muted">{{ judge.get_role_display }}</small>
+                            </div>
+                            {% if judge.federation %}
+                            <span class="badge bg-secondary">{{ judge.federation.name }}</span>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div class="alert alert-info mb-0">
+                        {% trans "Aucun juge n'est encore assigné à cette catégorie." %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Actions -->
+    <div class="d-flex justify-content-between mt-4">
+        <a href="{% url 'competitions:public:schedule' competition.pk %}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-1"></i> {% trans "Retour au planning" %}
+        </a>
+        
+        <div>
+            <button type="button" class="btn btn-outline-success" id="shareButton">
+                <i class="fas fa-share-alt me-1"></i> {% trans "Partager" %}
+            </button>
+            
+            <button type="button" class="btn btn-outline-secondary ms-2" id="printButton">
+                <i class="fas fa-print me-1"></i> {% trans "Imprimer" %}
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Impression
+        const printButton = document.getElementById('printButton');
+        printButton.addEventListener('click', function() {
+            window.print();
+        });
+        
+        // Partage
+        const shareButton = document.getElementById('shareButton');
+        shareButton.addEventListener('click', function() {
+            if (navigator.share) {
+                navigator.share({
+                    title: '{{ category_schedule.category.name }} - {{ competition.title }}',
+                    text: '{% trans "Planning de la catégorie" %} {{ category_schedule.category.name }}',
+                    url: window.location.href
+                })
+                .catch(err => {
+                    console.error('Erreur lors du partage:', err);
+                });
+            } else {
+                // Fallback pour les navigateurs qui ne supportent pas l'API Web Share
+                const url = window.location.href;
+                const tempInput = document.createElement('input');
+                document.body.appendChild(tempInput);
+                tempInput.value = url;
+                tempInput.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempInput);
+                
+                alert('{% trans "Lien copié dans le presse-papier" %}');
+            }
+        });
+    });
+</script>
+{% endblock %}

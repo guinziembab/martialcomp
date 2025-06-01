@@ -1,0 +1,154 @@
+{% comment %}
+Formulaire pour la planification des juges dans une compétition
+Ce template est utilisé comme un formulaire partiel dans judge_schedule.html
+{% endcomment %}
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0">
+            <i class="fas fa-gavel me-2"></i>{% trans "Assignation des juges" %}
+        </h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{% url 'competitions:judge:assign_judges' %}" id="judgeAssignmentForm">
+            {% csrf_token %}
+            
+            <!-- Champs cachés pour les valeurs de base -->
+            <input type="hidden" name="competition_id" value="{{ competition.id }}">
+            <input type="hidden" name="redirect_url" value="{{ request.path }}">
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="category" class="form-label fw-bold">{% trans "Catégorie" %} <span class="text-danger">*</span></label>
+                    <select name="category" id="category" class="form-select" required>
+                        <option value="">{% trans "Sélectionnez une catégorie" %}</option>
+                        {% for category in categories %}
+                            <option value="{{ category.id }}" data-discipline="{{ category.competition_type.discipline.id }}">
+                                {{ category.name }} ({{ category.competition_type.name }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">{% trans "Sélectionnez la catégorie pour laquelle vous souhaitez assigner des juges" %}</div>
+                </div>
+                <div class="col-md-6">
+                    <label for="assignment_type" class="form-label fw-bold">{% trans "Type d'assignation" %} <span class="text-danger">*</span></label>
+                    <select name="assignment_type" id="assignment_type" class="form-select" required>
+                        <option value="">{% trans "Sélectionnez un type" %}</option>
+                        <option value="technical_judge">{% trans "Juge Technique" %}</option>
+                        <option value="combat_referee">{% trans "Arbitre Combat" %}</option>
+                        <option value="chief_judge">{% trans "Juge en Chef" %}</option>
+                        <option value="timekeeper">{% trans "Chronométreur" %}</option>
+                        <option value="scorekeeper">{% trans "Marqueur" %}</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="judge_id" class="form-label fw-bold">{% trans "Juge" %} <span class="text-danger">*</span></label>
+                    <select name="judge_id" id="judge_id" class="form-select" required>
+                        <option value="">{% trans "Sélectionnez un juge" %}</option>
+                        {% for judge in available_judges %}
+                            <option value="{{ judge.id }}" 
+                                    data-qualifications="{% for qual in judge.qualifications.all %}{{ qual.qualification_type }},{% endfor %}"
+                                    data-disciplines="{% for disc in judge.practitioner.disciplines.all %}{{ disc.id }},{% endfor %}">
+                                {{ judge.practitioner.full_name }} ({{ judge.get_qualification_level_display }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="tatami" class="form-label fw-bold">{% trans "Tatami" %}</label>
+                    <input type="number" name="tatami" id="tatami" class="form-control" min="1" max="20">
+                </div>
+                <div class="col-md-4">
+                    <label for="status" class="form-label fw-bold">{% trans "Statut" %}</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="pending">{% trans "En attente" %}</option>
+                        <option value="confirmed">{% trans "Confirmé" %}</option>
+                        <option value="declined">{% trans "Refusé" %}</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="start_time" class="form-label fw-bold">{% trans "Heure de début" %}</label>
+                    <input type="datetime-local" name="start_time" id="start_time" class="form-control">
+                </div>
+                <div class="col-md-6">
+                    <label for="end_time" class="form-label fw-bold">{% trans "Heure de fin" %}</label>
+                    <input type="datetime-local" name="end_time" id="end_time" class="form-control">
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="notes" class="form-label fw-bold">{% trans "Notes" %}</label>
+                <textarea name="notes" id="notes" rows="3" class="form-control"></textarea>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>{% trans "Annuler" %}
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>{% trans "Assigner le juge" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Script pour filtrer les juges en fonction des qualifications et catégories -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const categorySelect = document.getElementById('category');
+    const assignmentTypeSelect = document.getElementById('assignment_type');
+    const judgeSelect = document.getElementById('judge_id');
+    
+    // Fonction pour filtrer les juges selon la catégorie et le type d'assignation
+    function filterJudges() {
+        const selectedCategory = categorySelect.options[categorySelect.selectedIndex];
+        const disciplineId = selectedCategory ? selectedCategory.dataset.discipline : null;
+        const assignmentType = assignmentTypeSelect.value;
+        
+        // Masquer tous les juges d'abord
+        Array.from(judgeSelect.options).forEach(option => {
+            if (option.value === '') return; // Ignorer l'option vide
+            
+            let shouldShow = true;
+            
+            // Filtrer par qualification (seulement pour les types qui l'exigent)
+            if (assignmentType && assignmentType !== '') {
+                const qualifications = option.dataset.qualifications.split(',');
+                if (!qualifications.includes(assignmentType)) {
+                    shouldShow = false;
+                }
+            }
+            
+            // Filtrer par discipline (si une catégorie est sélectionnée)
+            if (disciplineId && disciplineId !== '') {
+                const disciplines = option.dataset.disciplines.split(',');
+                if (!disciplines.includes(disciplineId)) {
+                    shouldShow = false;
+                }
+            }
+            
+            // Masquer ou afficher l'option
+            option.hidden = !shouldShow;
+        });
+        
+        // Réinitialiser la sélection si l'option sélectionnée n'est plus visible
+        if (judgeSelect.selectedIndex > 0 && judgeSelect.options[judgeSelect.selectedIndex].hidden) {
+            judgeSelect.value = '';
+        }
+    }
+    
+    // Attacher les événements aux sélecteurs
+    categorySelect.addEventListener('change', filterJudges);
+    assignmentTypeSelect.addEventListener('change', filterJudges);
+    
+    // Appliquer les filtres au chargement
+    filterJudges();
+});
+</script>

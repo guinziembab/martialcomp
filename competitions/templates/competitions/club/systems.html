@@ -1,0 +1,671 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Systèmes de Grades" %} | {{ club.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .discipline-card {
+        transition: all 0.3s ease;
+        margin-bottom: 1rem;
+    }
+    
+    .discipline-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .grades-container {
+        max-height: 300px;
+        overflow-y: auto;
+        border-radius: 0.25rem;
+        border: 1px solid #dee2e6;
+        padding: 1rem;
+        background-color: #f8f9fa;
+    }
+    
+    .grade-badge {
+        display: inline-block;
+        padding: 0.35em 0.65em;
+        font-size: 0.85em;
+        font-weight: 500;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.25rem;
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .grade-circle {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        vertical-align: middle;
+        border: 1px solid rgba(0, 0, 0, 0.2);
+    }
+    
+    .grade-white { background-color: #FFFFFF; }
+    .grade-yellow { background-color: #FFFF00; }
+    .grade-orange { background-color: #FFA500; }
+    .grade-green { background-color: #008000; color: white; }
+    .grade-blue { background-color: #0000FF; color: white; }
+    .grade-brown { background-color: #A52A2A; color: white; }
+    .grade-black { background-color: #000000; color: white; }
+    .grade-red { background-color: #FF0000; color: white; }
+    .grade-purple { background-color: #800080; color: white; }
+    
+    .grade-system-section {
+        margin-bottom: 2rem;
+    }
+    
+    .system-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .system-header h2 {
+        margin-bottom: 0;
+    }
+    
+    .system-card {
+        transition: all 0.3s ease;
+        margin-bottom: 1rem;
+    }
+    
+    .system-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .placeholder-message {
+        text-align: center;
+        padding: 3rem 0;
+        color: #6c757d;
+    }
+    
+    .placeholder-message i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="mb-4">
+        <a href="{% url 'competitions:club:grades_dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+        </a>
+    </div>
+    
+    <h1 class="mb-4">
+        <i class="fas fa-cog me-2 text-danger"></i>
+        {% trans "Systèmes de Grades" %}
+    </h1>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-3">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- Systèmes de grades avancés (si disponibles) -->
+    {% if advanced_grades_available %}
+        <div class="grade-system-section">
+            <div class="system-header">
+                <h2 class="h3">{% trans "Systèmes de grades par discipline" %}</h2>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createSystemModal">
+                    <i class="fas fa-plus-circle me-2"></i>{% trans "Nouveau système" %}
+                </button>
+            </div>
+            
+            <div class="row">
+                {% for system in grade_systems %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card system-card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">{{ system.name }}</h5>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#editSystemModal" 
+                                            data-system-id="{{ system.id }}">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#deleteSystemModal" 
+                                            data-system-id="{{ system.id }}"
+                                            data-system-name="{{ system.name }}">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <span class="badge bg-info">{{ system.discipline.name }}</span>
+                                    {% if system.is_default %}
+                                        <span class="badge bg-success">{% trans "Par défaut" %}</span>
+                                    {% endif %}
+                                </div>
+                                
+                                <h6>{% trans "Catégories et grades" %}</h6>
+                                <div class="grades-container">
+                                    {% for category in system.categories.all %}
+                                        <div class="mb-3">
+                                            <h6 class="text-muted">{{ category.name }}</h6>
+                                            <div>
+                                                {% for grade in category.grades.all %}
+                                                    <span class="grade-badge bg-light text-dark">
+                                                        {% if "Blanche" in grade.name %}
+                                                            <span class="grade-circle grade-white"></span>
+                                                        {% elif "Jaune" in grade.name %}
+                                                            <span class="grade-circle grade-yellow"></span>
+                                                        {% elif "Orange" in grade.name %}
+                                                            <span class="grade-circle grade-orange"></span>
+                                                            {% elif "Verte" in grade.name %}
+                                                            <span class="grade-circle grade-green"></span>
+                                                        {% elif "Bleue" in grade.name %}
+                                                            <span class="grade-circle grade-blue"></span>
+                                                        {% elif "Marron" in grade.name %}
+                                                            <span class="grade-circle grade-brown"></span>
+                                                        {% elif "Noire" in grade.name %}
+                                                            <span class="grade-circle grade-black"></span>
+                                                        {% elif "Rouge" in grade.name %}
+                                                            <span class="grade-circle grade-red"></span>
+                                                        {% else %}
+                                                            <span class="grade-circle"></span>
+                                                        {% endif %}
+                                                        {{ grade.name }}
+                                                    </span>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    {% empty %}
+                                        <p class="text-muted text-center py-3">{% trans "Aucune catégorie ou grade défini." %}</p>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="card-footer">
+                                <a href="{% url 'competitions:club:edit_grade_system' system_id=system.id %}" class="btn btn-sm btn-outline-primary w-100">
+                                    <i class="fas fa-cogs me-2"></i>{% trans "Gérer les grades" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="col-12">
+                        <div class="placeholder-message">
+                            <i class="fas fa-info-circle"></i>
+                            <p>{% trans "Aucun système de grade n'est configuré pour le moment." %}</p>
+                            <button type="button" class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#createSystemModal">
+                                <i class="fas fa-plus-circle me-2"></i>{% trans "Créer mon premier système de grades" %}
+                            </button>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% else %}
+        <!-- Anciennes catégories de grades (compatibilité) -->
+        <div class="grade-system-section">
+            <div class="system-header">
+                <h2 class="h3">{% trans "Catégories de grades par discipline" %}</h2>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCategoryModal">
+                    <i class="fas fa-plus-circle me-2"></i>{% trans "Nouvelle catégorie" %}
+                </button>
+            </div>
+            
+            <div class="row">
+                {% for discipline in disciplines %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card discipline-card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ discipline.name }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="grades-container">
+                                    {% for category in grade_categories %}
+                                        {% if category.discipline.id == discipline.id %}
+                                            <div class="mb-3">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <h6>{{ category.nom }}</h6>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                                data-bs-toggle="modal" 
+                                                                data-bs-target="#editCategoryModal" 
+                                                                data-category-id="{{ category.id }}">
+                                                            <i class="fas fa-edit"></i>
+                                                        </button>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                                data-bs-toggle="modal" 
+                                                                data-bs-target="#deleteCategoryModal" 
+                                                                data-category-id="{{ category.id }}"
+                                                                data-category-name="{{ category.nom }}">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    {% if category.grade_min %}
+                                                        <span class="grade-badge bg-light text-dark">
+                                                            {% if "Blanche" in category.grade_min %}
+                                                                <span class="grade-circle grade-white"></span>
+                                                            {% elif "Jaune" in category.grade_min %}
+                                                                <span class="grade-circle grade-yellow"></span>
+                                                            {% elif "Orange" in category.grade_min %}
+                                                                <span class="grade-circle grade-orange"></span>
+                                                            {% elif "Verte" in category.grade_min %}
+                                                                <span class="grade-circle grade-green"></span>
+                                                            {% elif "Bleue" in category.grade_min %}
+                                                                <span class="grade-circle grade-blue"></span>
+                                                            {% elif "Marron" in category.grade_min %}
+                                                                <span class="grade-circle grade-brown"></span>
+                                                            {% elif "Noire" in category.grade_min %}
+                                                                <span class="grade-circle grade-black"></span>
+                                                            {% elif "Rouge" in category.grade_min %}
+                                                                <span class="grade-circle grade-red"></span>
+                                                            {% else %}
+                                                                <span class="grade-circle"></span>
+                                                            {% endif %}
+                                                            {{ category.grade_min }}
+                                                        </span>
+                                                    {% endif %}
+                                                    
+                                                    {% if category.grade_max and category.grade_max != category.grade_min %}
+                                                        <span class="grade-badge bg-light text-dark">
+                                                            {% if "Blanche" in category.grade_max %}
+                                                                <span class="grade-circle grade-white"></span>
+                                                            {% elif "Jaune" in category.grade_max %}
+                                                                <span class="grade-circle grade-yellow"></span>
+                                                            {% elif "Orange" in category.grade_max %}
+                                                                <span class="grade-circle grade-orange"></span>
+                                                            {% elif "Verte" in category.grade_max %}
+                                                                <span class="grade-circle grade-green"></span>
+                                                            {% elif "Bleue" in category.grade_max %}
+                                                                <span class="grade-circle grade-blue"></span>
+                                                            {% elif "Marron" in category.grade_max %}
+                                                                <span class="grade-circle grade-brown"></span>
+                                                            {% elif "Noire" in category.grade_max %}
+                                                                <span class="grade-circle grade-black"></span>
+                                                            {% elif "Rouge" in category.grade_max %}
+                                                                <span class="grade-circle grade-red"></span>
+                                                            {% else %}
+                                                                <span class="grade-circle"></span>
+                                                            {% endif %}
+                                                            {{ category.grade_max }}
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    {% empty %}
+                                        <p class="text-muted text-center py-3">{% trans "Aucune catégorie définie pour cette discipline." %}</p>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="card-footer">
+                                <button type="button" class="btn btn-sm btn-outline-primary w-100" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#createCategoryModal"
+                                        data-discipline-id="{{ discipline.id }}">
+                                    <i class="fas fa-plus-circle me-2"></i>{% trans "Ajouter une catégorie" %}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Aucune discipline n'est disponible. Veuillez d'abord créer des disciplines." %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- Message pour la migration vers le système avancé -->
+        <div class="alert alert-warning">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle me-3 fa-2x"></i>
+                <div>
+                    <h4 class="alert-heading">{% trans "Nouveau système de grades disponible bientôt!" %}</h4>
+                    <p class="mb-0">
+                        {% trans "Un système de grades plus avancé sera bientôt disponible, avec la possibilité de définir des grades personnalisés par discipline et de suivre leur progression." %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+    
+    <!-- Modals pour le système avancé -->
+    {% if advanced_grades_available %}
+        <!-- Modal pour créer un système -->
+        <div class="modal fade" id="createSystemModal" tabindex="-1" aria-labelledby="createSystemModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="post" action="{% url 'competitions:club:create_grade_system' %}">
+                        {% csrf_token %}
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="createSystemModalLabel">{% trans "Nouveau système de grades" %}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="system_name" class="form-label">{% trans "Nom du système" %}</label>
+                                <input type="text" class="form-control" id="system_name" name="name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="system_discipline" class="form-label">{% trans "Discipline" %}</label>
+                                <select class="form-select" id="system_discipline" name="discipline" required>
+                                    <option value="">{% trans "Sélectionner une discipline" %}</option>
+                                    {% for discipline in disciplines %}
+                                        <option value="{{ discipline.id }}">{{ discipline.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="system_is_default" name="is_default">
+                                    <label class="form-check-label" for="system_is_default">
+                                        {% trans "Définir comme système par défaut pour cette discipline" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                            <button type="submit" class="btn btn-primary">{% trans "Créer" %}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal pour modifier un système -->
+        <div class="modal fade" id="editSystemModal" tabindex="-1" aria-labelledby="editSystemModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="post" action="{% url 'competitions:club:edit_grade_system' system_id=0 %}" id="editSystemForm">
+                        {% csrf_token %}
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="editSystemModalLabel">{% trans "Modifier le système de grades" %}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="edit_system_name" class="form-label">{% trans "Nom du système" %}</label>
+                                <input type="text" class="form-control" id="edit_system_name" name="name" required>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="edit_system_is_default" name="is_default">
+                                    <label class="form-check-label" for="edit_system_is_default">
+                                        {% trans "Définir comme système par défaut pour cette discipline" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                            <button type="submit" class="btn btn-primary">{% trans "Enregistrer" %}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal pour supprimer un système -->
+        <div class="modal fade" id="deleteSystemModal" tabindex="-1" aria-labelledby="deleteSystemModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="post" action="{% url 'competitions:club:delete_grade_system' system_id=0 %}" id="deleteSystemForm">
+                        {% csrf_token %}
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title" id="deleteSystemModalLabel">{% trans "Supprimer le système de grades" %}</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>{% trans "Êtes-vous sûr de vouloir supprimer le système de grades" %} <strong id="deleteSystemName"></strong> ?</p>
+                            <p class="text-danger">{% trans "Cette action est irréversible et supprimera toutes les catégories et grades associés." %}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                            <button type="submit" class="btn btn-danger">{% trans "Supprimer" %}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <!-- Modals pour le système de catégories simple -->
+        <!-- Modal pour créer une catégorie -->
+        <div class="modal fade" id="createCategoryModal" tabindex="-1" aria-labelledby="createCategoryModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="post" action="{% url 'competitions:club:create_grade_category' %}">
+                        {% csrf_token %}
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="createCategoryModalLabel">{% trans "Nouvelle catégorie de grade" %}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="category_name" class="form-label">{% trans "Nom de la catégorie" %}</label>
+                                <input type="text" class="form-control" id="category_name" name="nom" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="category_discipline" class="form-label">{% trans "Discipline" %}</label>
+                                <select class="form-select" id="category_discipline" name="discipline" required>
+                                    <option value="">{% trans "Sélectionner une discipline" %}</option>
+                                    {% for discipline in disciplines %}
+                                        <option value="{{ discipline.id }}">{{ discipline.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="category_grade_min" class="form-label">{% trans "Grade minimum" %}</label>
+                                <input type="text" class="form-control" id="category_grade_min" name="grade_min" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="category_grade_max" class="form-label">{% trans "Grade maximum" %}</label>
+                                <input type="text" class="form-control" id="category_grade_max" name="grade_max" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="category_order" class="form-label">{% trans "Ordre d'affichage" %}</label>
+                                <input type="number" class="form-control" id="category_order" name="order" value="0" min="0">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                            <button type="submit" class="btn btn-primary">{% trans "Créer" %}</button>
+                        </div>
+                        <!-- Champ caché pour pré-remplir la discipline -->
+                        <input type="hidden" id="preselected_discipline" name="preselected_discipline" value="">
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal pour modifier une catégorie -->
+        <div class="modal fade" id="editCategoryModal" tabindex="-1" aria-labelledby="editCategoryModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="post" action="{% url 'competitions:club:edit_grade_category' category_id=0 %}" id="editCategoryForm">
+                        {% csrf_token %}
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="editCategoryModalLabel">{% trans "Modifier la catégorie de grade" %}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="edit_category_name" class="form-label">{% trans "Nom de la catégorie" %}</label>
+                                <input type="text" class="form-control" id="edit_category_name" name="nom" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit_category_grade_min" class="form-label">{% trans "Grade minimum" %}</label>
+                                <input type="text" class="form-control" id="edit_category_grade_min" name="grade_min" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit_category_grade_max" class="form-label">{% trans "Grade maximum" %}</label>
+                                <input type="text" class="form-control" id="edit_category_grade_max" name="grade_max" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="edit_category_order" class="form-label">{% trans "Ordre d'affichage" %}</label>
+                                <input type="number" class="form-control" id="edit_category_order" name="order" min="0">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                            <button type="submit" class="btn btn-primary">{% trans "Enregistrer" %}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal pour supprimer une catégorie -->
+        <div class="modal fade" id="deleteCategoryModal" tabindex="-1" aria-labelledby="deleteCategoryModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="post" action="{% url 'competitions:club:delete_grade_category' category_id=0 %}" id="deleteCategoryForm">
+                        {% csrf_token %}
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title" id="deleteCategoryModalLabel">{% trans "Supprimer la catégorie de grade" %}</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>{% trans "Êtes-vous sûr de vouloir supprimer la catégorie" %} <strong id="deleteCategoryName"></strong> ?</p>
+                            <p class="text-danger">{% trans "Cette action est irréversible." %}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                            <button type="submit" class="btn btn-danger">{% trans "Supprimer" %}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestionnaires pour les modals du système avancé
+        {% if advanced_grades_available %}
+            // Modal d'édition d'un système
+            const editSystemModal = document.getElementById('editSystemModal');
+            if (editSystemModal) {
+                editSystemModal.addEventListener('show.bs.modal', function(event) {
+                    const button = event.relatedTarget;
+                    const systemId = button.getAttribute('data-system-id');
+                    const form = document.getElementById('editSystemForm');
+                    
+                    // Mettre à jour l'action du formulaire
+                    form.action = form.action.replace('/0/', `/${systemId}/`);
+                    
+                    // Charger les données du système via AJAX
+                    fetch(`{% url 'competitions:club:get_grade_system_data' system_id=0 %}`.replace('0', systemId))
+                        .then(response => response.json())
+                        .then(data => {
+                            document.getElementById('edit_system_name').value = data.name;
+                            document.getElementById('edit_system_is_default').checked = data.is_default;
+                        })
+                        .catch(error => {
+                            console.error('Erreur lors du chargement des données:', error);
+                        });
+                });
+            }
+            
+            // Modal de suppression d'un système
+            const deleteSystemModal = document.getElementById('deleteSystemModal');
+            if (deleteSystemModal) {
+                deleteSystemModal.addEventListener('show.bs.modal', function(event) {
+                    const button = event.relatedTarget;
+                    const systemId = button.getAttribute('data-system-id');
+                    const systemName = button.getAttribute('data-system-name');
+                    const form = document.getElementById('deleteSystemForm');
+                    
+                    // Mettre à jour l'action du formulaire
+                    form.action = form.action.replace('/0/', `/${systemId}/`);
+                    
+                    // Afficher le nom du système
+                    document.getElementById('deleteSystemName').textContent = systemName;
+                });
+            }
+        {% else %}
+            // Modal de création de catégorie
+            const createCategoryModal = document.getElementById('createCategoryModal');
+            if (createCategoryModal) {
+                createCategoryModal.addEventListener('show.bs.modal', function(event) {
+                    const button = event.relatedTarget;
+                    const disciplineId = button.getAttribute('data-discipline-id');
+                    
+                    if (disciplineId) {
+                        // Pré-sélectionner la discipline
+                        document.getElementById('category_discipline').value = disciplineId;
+                        document.getElementById('preselected_discipline').value = disciplineId;
+                    }
+                });
+            }
+            
+            // Modal d'édition de catégorie
+            const editCategoryModal = document.getElementById('editCategoryModal');
+            if (editCategoryModal) {
+                editCategoryModal.addEventListener('show.bs.modal', function(event) {
+                    const button = event.relatedTarget;
+                    const categoryId = button.getAttribute('data-category-id');
+                    const form = document.getElementById('editCategoryForm');
+                    
+                    // Mettre à jour l'action du formulaire
+                    form.action = form.action.replace('/0/', `/${categoryId}/`);
+                    
+                    // Charger les données de la catégorie via AJAX
+                    fetch(`{% url 'competitions:club:get_grade_category_data' category_id=0 %}`.replace('0', categoryId))
+                        .then(response => response.json())
+                        .then(data => {
+                            document.getElementById('edit_category_name').value = data.nom;
+                            document.getElementById('edit_category_grade_min').value = data.grade_min;
+                            document.getElementById('edit_category_grade_max').value = data.grade_max;
+                            document.getElementById('edit_category_order').value = data.order;
+                        })
+                        .catch(error => {
+                            console.error('Erreur lors du chargement des données:', error);
+                        });
+                });
+            }
+            
+            // Modal de suppression de catégorie
+            const deleteCategoryModal = document.getElementById('deleteCategoryModal');
+            if (deleteCategoryModal) {
+                deleteCategoryModal.addEventListener('show.bs.modal', function(event) {
+                    const button = event.relatedTarget;
+                    const categoryId = button.getAttribute('data-category-id');
+                    const categoryName = button.getAttribute('data-category-name');
+                    const form = document.getElementById('deleteCategoryForm');
+                    
+                    // Mettre à jour l'action du formulaire
+                    form.action = form.action.replace('/0/', `/${categoryId}/`);
+                    
+                    // Afficher le nom de la catégorie
+                    document.getElementById('deleteCategoryName').textContent = categoryName;
+                });
+            }
+        {% endif %}
+    });
+</script>
+{% endblock %}

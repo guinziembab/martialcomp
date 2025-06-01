@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Suivi de mes candidatures" %} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-card {
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+        overflow: hidden;
+    }
+    
+    .status-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+    }
+    
+    .status-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    
+    .status-pending {
+        background-color: rgba(255, 193, 7, 0.1);
+        border-left: 4px solid #ffc107;
+    }
+    
+    .status-approved {
+        background-color: rgba(40, 167, 69, 0.1);
+        border-left: 4px solid #28a745;
+    }
+    
+    .status-rejected {
+        background-color: rgba(220, 53, 69, 0.1);
+        border-left: 4px solid #dc3545;
+    }
+    
+    .status-expired {
+        background-color: rgba(108, 117, 125, 0.1);
+        border-left: 4px solid #6c757d;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 0.35em 0.65em;
+        font-size: 0.75em;
+        font-weight: 700;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.25rem;
+    }
+    
+    .badge-pending {
+        color: #856404;
+        background-color: #fff3cd;
+    }
+    
+    .badge-approved {
+        color: #155724;
+        background-color: #d4edda;
+    }
+    
+    .badge-rejected {
+        color: #721c24;
+        background-color: #f8d7da;
+    }
+    
+    .badge-expired {
+        color: #383d41;
+        background-color: #e2e3e5;
+    }
+    
+    .timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+    
+    .timeline:before {
+        content: '';
+        position: absolute;
+        left: 10px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background-color: #e9ecef;
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-bottom: 1.5rem;
+    }
+    
+    .timeline-item:last-child {
+        padding-bottom: 0;
+    }
+    
+    .timeline-dot {
+        position: absolute;
+        left: -30px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background-color: #dc3545;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 0.7rem;
+    }
+    
+    .timeline-content {
+        padding: 0.5rem 0;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        background-color: #f8f9fa;
+        border-radius: 10px;
+    }
+    
+    .empty-icon {
+        font-size: 3rem;
+        color: #dee2e6;
+        margin-bottom: 1rem;
+    }
+    
+    .disciplines-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+    
+    .discipline-tag {
+        background-color: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+        border-radius: 20px;
+        padding: 0.25rem 0.75rem;
+        font-size: 0.875rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2 mb-0">{% trans "Suivi de mes candidatures de juge" %}</h1>
+        
+        <a href="{% url 'competitions:technical_scoring:judge_dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+        </a>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    {% if applications %}
+        <div class="mb-4">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                {% trans "Cette page affiche l'historique de vos candidatures de juge. Vous pouvez consulter l'état de chaque candidature et leurs détails." %}
+            </div>
+        </div>
+        
+        {% for application in applications %}
+            <div class="status-card mb-4 {% if application.status == 'pending' %}status-pending{% elif application.status == 'approved' %}status-approved{% elif application.status == 'rejected' %}status-rejected{% else %}status-expired{% endif %}">
+                <div class="status-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="h5 mb-0">{% trans "Candidature" %} #{{ application.id }}</h2>
+                        <p class="text-muted mb-0 small">
+                            <i class="fas fa-calendar-alt me-1"></i> {{ application.submission_date|date:"d/m/Y H:i" }}
+                        </p>
+                    </div>
+                    <div>
+                        <span class="status-badge {% if application.status == 'pending' %}badge-pending{% elif application.status == 'approved' %}badge-approved{% elif application.status == 'rejected' %}badge-rejected{% else %}badge-expired{% endif %}">
+                            {% if application.status == 'pending' %}
+                                <i class="fas fa-clock me-1"></i> {% trans "En attente" %}
+                            {% elif application.status == 'approved' %}
+                                <i class="fas fa-check-circle me-1"></i> {% trans "Approuvée" %}
+                            {% elif application.status == 'rejected' %}
+                                <i class="fas fa-times-circle me-1"></i> {% trans "Refusée" %}
+                            {% else %}
+                                <i class="fas fa-exclamation-circle me-1"></i> {% trans "Expirée" %}
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h3 class="h6 mb-3">{% trans "Informations de base" %}</h3>
+                            <p class="mb-2">
+                                <strong>{% trans "Niveau de qualification" %}:</strong> 
+                                {% if application.qualification_level == 'novice' %}
+                                    {% trans "Novice" %}
+                                {% elif application.qualification_level == 'regional' %}
+                                    {% trans "Régional" %}
+                                {% elif application.qualification_level == 'national' %}
+                                    {% trans "National" %}
+                                {% elif application.qualification_level == 'international' %}
+                                    {% trans "International" %}
+                                {% else %}
+                                    {{ application.qualification_level|default:"-" }}
+                                {% endif %}
+                            </p>
+                            <p class="mb-2">
+                                <strong>{% trans "Années d'expérience" %}:</strong> 
+                                {{ application.years_experience|default:"0" }}
+                            </p>
+                            <p class="mb-3">
+                                <strong>{% trans "Disciplines" %}:</strong>
+                                {% if application.disciplines.all %}
+                                    <div class="disciplines-list">
+                                        {% for discipline in application.disciplines.all %}
+                                            <span class="discipline-tag">{{ discipline.name }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">{% trans "Aucune discipline spécifiée" %}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h3 class="h6 mb-3">{% trans "Documents et certifications" %}</h3>
+                            <p class="mb-2">
+                                <strong>{% trans "CV" %}:</strong> 
+                                {% if application.resume %}
+                                    <a href="{{ application.resume.url }}" target="_blank" class="ms-2">
+                                        <i class="fas fa-file-alt me-1"></i>{% trans "Voir le document" %}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">{% trans "Non fourni" %}</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-2">
+                                <strong>{% trans "Certification" %}:</strong> 
+                                {% if application.certification_document %}
+                                    <a href="{{ application.certification_document.url }}" target="_blank" class="ms-2">
+                                        <i class="fas fa-file-certificate me-1"></i>{% trans "Voir le document" %}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">{% trans "Non fournie" %}</span>
+                                {% endif %}
+                            </p>
+                            <p class="mb-3">
+                                <strong>{% trans "Certifications" %}:</strong> 
+                                {% if application.certifications %}
+                                    {{ application.certifications }}
+                                {% else %}
+                                    <span class="text-muted">{% trans "Non spécifiées" %}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-3">
+                    
+                    <h3 class="h6 mb-3">{% trans "Message à l'organisateur" %}</h3>
+                    <p class="mb-4">
+                        {% if application.message %}
+                            {{ application.message|linebreaks }}
+                        {% else %}
+                            <span class="text-muted">{% trans "Aucun message" %}</span>
+                        {% endif %}
+                    </p>
+                    
+                    {% if application.status == 'rejected' and application.rejection_reason %}
+                        <div class="alert alert-danger mt-3">
+                            <h4 class="h6 mb-2">{% trans "Motif du refus" %}</h4>
+                            <p class="mb-0">{{ application.rejection_reason }}</p>
+                        </div>
+                    {% endif %}
+                    
+                    {% if application.notes %}
+                        <div class="alert alert-secondary mt-3">
+                            <h4 class="h6 mb-2">{% trans "Notes supplémentaires" %}</h4>
+                            <p class="mb-0">{{ application.notes }}</p>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="timeline mt-4">
+                        <h3 class="h6 mb-3">{% trans "Historique" %}</h3>
+                        
+                        <div class="timeline-item">
+                            <div class="timeline-dot">
+                                <i class="fas fa-paper-plane"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h4 class="h6 mb-0">{% trans "Candidature soumise" %}</h4>
+                                <p class="text-muted small mb-0">{{ application.submission_date|date:"d/m/Y H:i" }}</p>
+                            </div>
+                        </div>
+                        
+                        {% if application.status != 'pending' %}
+                            <div class="timeline-item">
+                                <div class="timeline-dot">
+                                    {% if application.status == 'approved' %}
+                                        <i class="fas fa-check"></i>
+                                    {% elif application.status == 'rejected' %}
+                                        <i class="fas fa-times"></i>
+                                    {% else %}
+                                        <i class="fas fa-ban"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="timeline-content">
+                                    <h4 class="h6 mb-0">
+                                        {% if application.status == 'approved' %}
+                                            {% trans "Candidature approuvée" %}
+                                        {% elif application.status == 'rejected' %}
+                                            {% trans "Candidature refusée" %}
+                                        {% else %}
+                                            {% trans "Candidature expirée" %}
+                                        {% endif %}
+                                    </h4>
+                                    <p class="text-muted small mb-0">{{ application.updated_at|date:"d/m/Y H:i" }}</p>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if application.status == 'pending' %}
+                        <div class="text-end mt-4">
+                            <form method="post" action="{% url 'competitions:technical_scoring:judge_applications_status' %}" style="display: inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="cancel_application">
+                                <input type="hidden" name="application_id" value="{{ application.id }}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger" onclick="return confirm('{% trans "Êtes-vous sûr de vouloir annuler cette candidature ?" %}')">
+                                    <i class="fas fa-times-circle me-1"></i> {% trans "Annuler ma candidature" %}
+                                </button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">
+                <i class="fas fa-clipboard-list"></i>
+            </div>
+            <h2 class="h4 mb-3">{% trans "Aucune candidature" %}</h2>
+            <p class="text-muted mb-4">{% trans "Vous n'avez soumis aucune candidature pour devenir juge." %}</p>
+            <a href="{% url 'competitions:technical_scoring:apply_as_judge' %}" class="btn btn-primary">
+                <i class="fas fa-plus-circle me-2"></i>{% trans "Postuler comme juge" %}
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

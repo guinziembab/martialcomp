@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Import/Export de données" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .import-export-card {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+    
+    .import-export-card:hover {
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        transform: translateY(-5px);
+    }
+    
+    .card-icon {
+        font-size: 3rem;
+        margin-bottom: 1.5rem;
+        color: #dc3545;
+    }
+    
+    .steps-container {
+        counter-reset: step-counter;
+        margin-top: 2rem;
+    }
+    
+    .step {
+        position: relative;
+        padding-left: 3rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .step::before {
+        content: counter(step-counter);
+        counter-increment: step-counter;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 2rem;
+        height: 2rem;
+        background-color: #dc3545;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+    }
+    
+    .template-btn {
+        text-decoration: none;
+        color: #dc3545;
+        transition: all 0.2s ease;
+    }
+    
+    .template-btn:hover {
+        color: #c82333;
+        text-decoration: underline;
+    }
+    
+    .custom-file-input:lang(fr) ~ .custom-file-label::after {
+        content: "Parcourir";
+    }
+    
+    .file-upload-container {
+        border: 2px dashed #dee2e6;
+        border-radius: 10px;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+    
+    .file-upload-container:hover {
+        border-color: #dc3545;
+    }
+    
+    .file-upload-container .upload-icon {
+        font-size: 3rem;
+        color: #6c757d;
+        margin-bottom: 1rem;
+    }
+    
+    .file-format-info {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1.5rem;
+    }
+    
+    .format-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #495057;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h1 class="mb-4">{% trans "Import/Export de données" %}</h1>
+    
+    <div class="alert alert-info mb-4">
+        <div class="d-flex">
+            <div class="me-3">
+                <i class="fas fa-info-circle fa-2x"></i>
+            </div>
+            <div>
+                <h5 class="alert-heading">{% trans "Gestion des données de votre club" %}</h5>
+                <p class="mb-0">
+                    {% trans "Cette page vous permet d'importer et d'exporter les données de votre club au format Excel. Vous pouvez ainsi gérer facilement vos pratiquants et optimiser votre organisation." %}
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="row row-cols-1 row-cols-md-2 g-4 mb-5">
+        <!-- Carte Export -->
+        <div class="col">
+            <div class="card h-100 import-export-card">
+                <div class="card-body text-center p-4">
+                    <div class="card-icon">
+                        <i class="fas fa-file-export"></i>
+                    </div>
+                    <h3 class="h4 mb-3">{% trans "Exporter les données" %}</h3>
+                    <p class="mb-4">
+                        {% trans "Téléchargez toutes les données de vos pratiquants au format Excel pour les consulter hors ligne ou les modifier dans un tableur." %}
+                    </p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <button type="submit" name="export" class="btn btn-primary btn-lg">
+                            <i class="fas fa-download me-2"></i>{% trans "Exporter en Excel" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Carte Import -->
+        <div class="col">
+            <div class="card h-100 import-export-card">
+                <div class="card-body text-center p-4">
+                    <div class="card-icon">
+                        <i class="fas fa-file-import"></i>
+                    </div>
+                    <h3 class="h4 mb-3">{% trans "Importer des données" %}</h3>
+                    <p class="mb-4">
+                        {% trans "Importez de nouveaux pratiquants ou mettez à jour les existants en uploadant un fichier Excel au format approprié." %}
+                    </p>
+                    <a href="#import-section" class="btn btn-outline-primary btn-lg">
+                        <i class="fas fa-upload me-2"></i>{% trans "Commencer l'import" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Section d'importation -->
+    <div id="import-section" class="card mb-5">
+        <div class="card-header bg-light">
+            <h2 class="h4 mb-0">{% trans "Importation de données" %}</h2>
+        </div>
+        <div class="card-body">
+            <div class="steps-container">
+                <div class="step">
+                    <h3 class="h5">{% trans "Téléchargez le modèle" %}</h3>
+                    <p>
+                        {% trans "Utilisez notre modèle Excel pour vous assurer que vos données sont au bon format." %}
+                        <a href="#" class="template-btn" download>
+                            <i class="fas fa-file-excel me-1"></i>{% trans "Télécharger le modèle" %}
+                        </a>
+                    </p>
+                </div>
+                
+                <div class="step">
+                    <h3 class="h5">{% trans "Remplissez le fichier" %}</h3>
+                    <p>
+                        {% trans "Complétez le fichier Excel avec les informations de vos pratiquants. Veillez à respecter le format des colonnes." %}
+                    </p>
+                </div>
+                
+                <div class="step">
+                    <h3 class="h5">{% trans "Importez le fichier" %}</h3>
+                    <p>
+                        {% trans "Uploadez votre fichier Excel complété pour importer les données dans le système." %}
+                    </p>
+                    
+                    <form method="post" enctype="multipart/form-data" class="mt-4">
+                        {% csrf_token %}
+                        <div class="file-upload-container">
+                            <div class="upload-icon">
+                                <i class="fas fa-file-upload"></i>
+                            </div>
+                            <h4 class="h5 mb-3">{% trans "Déposez votre fichier ici" %}</h4>
+                            <div class="custom-file mb-3">
+                                <input type="file" class="custom-file-input" id="excel_file" name="excel_file" accept=".xlsx, .xls">
+                                <label class="custom-file-label" for="excel_file">{% trans "Choisir un fichier..." %}</label>
+                            </div>
+                            <small class="text-muted d-block mb-3">{% trans "Formats acceptés: .xlsx, .xls" %}</small>
+                            <button type="submit" name="import" class="btn btn-primary">
+                                <i class="fas fa-upload me-2"></i>{% trans "Importer les données" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="file-format-info">
+                <div class="format-title">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "Structure attendue du fichier Excel" %}
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <ul class="mb-0">
+                            <li><strong>{% trans "Colonne A:" %}</strong> {% trans "Nom" %}</li>
+                            <li><strong>{% trans "Colonne B:" %}</strong> {% trans "Prénom" %}</li>
+                            <li><strong>{% trans "Colonne C:" %}</strong> {% trans "Date de naissance (AAAA-MM-JJ)" %}</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <ul class="mb-0">
+                            <li><strong>{% trans "Colonne D:" %}</strong> {% trans "Grade" %}</li>
+                            <li><strong>{% trans "Colonne E:" %}</strong> {% trans "Email" %}</li>
+                            <li><strong>{% trans "Colonne F:" %}</strong> {% trans "Numéro de licence" %}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="d-flex justify-content-between">
+        <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+        </a>
+        
+        <a href="{% url 'competitions:club:practitioners' %}" class="btn btn-outline-primary">
+            <i class="fas fa-users me-2"></i>{% trans "Gérer les pratiquants" %}
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion du changement de nom de fichier pour l'upload
+        const fileInput = document.getElementById('excel_file');
+        if (fileInput) {
+            fileInput.addEventListener('change', function(e) {
+                const fileName = e.target.files[0] ? e.target.files[0].name : '{% trans "Choisir un fichier..." %}';
+                const label = document.querySelector('.custom-file-label');
+                if (label) {
+                    label.textContent = fileName;
+                }
+            });
+        }
+        
+        // Animation de défilement doux pour l'ancre #import-section
+        document.querySelectorAll('a[href="#import-section"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Importation de Grades" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .import-container {
+        max-width: 800px;
+        margin: 0 auto;
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+    }
+    
+    .import-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        color: #212529;
+    }
+    
+    .upload-area {
+        border: 2px dashed #ced4da;
+        border-radius: 8px;
+        padding: 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .upload-area:hover, .upload-area.dragover {
+        border-color: #dc3545;
+        background-color: rgba(220, 53, 69, 0.05);
+    }
+    
+    .upload-icon {
+        font-size: 3rem;
+        color: #6c757d;
+        margin-bottom: 1rem;
+    }
+    
+    .upload-text {
+        font-size: 1.1rem;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+    }
+    
+    .upload-subtext {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    
+    .file-input {
+        display: none;
+    }
+    
+    .json-preview {
+        max-height: 300px;
+        overflow-y: auto;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        font-family: monospace;
+        margin-top: 1rem;
+    }
+    
+    .import-stats {
+        background-color: #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .help-card {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+    }
+    
+    .example-json {
+        background-color: #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        font-family: monospace;
+        font-size: 0.9rem;
+        max-height: 200px;
+        overflow-y: auto;
+        margin-top: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="import-container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>{% trans "Importation de Grades" %}</h1>
+        </div>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <div class="import-section">
+            <h2 class="section-title">
+                <i class="fas fa-file-import me-2"></i>{% trans "Importer des grades" %}
+            </h2>
+            
+            <form method="post" enctype="multipart/form-data" id="import-form">
+                {% csrf_token %}
+                
+                <div class="upload-area" id="upload-area">
+                    <div class="upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <div class="upload-text">{% trans "Glissez-déposez votre fichier JSON ici" %}</div>
+                    <div class="upload-subtext">{% trans "ou cliquez pour sélectionner un fichier" %}</div>
+                    <input type="file" name="grades_file" id="grades-file" class="file-input" accept=".json">
+                </div>
+                
+                <div class="text-center mt-3 mb-3 d-none" id="file-info">
+                    <i class="fas fa-file-code me-2"></i>
+                    <span id="file-name"></span>
+                    <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="remove-file">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="json-preview d-none" id="json-preview">
+                    <!-- Le contenu JSON sera affiché ici -->
+                </div>
+                
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary" id="import-button" disabled>
+                        <i class="fas fa-file-import me-2"></i>{% trans "Importer les grades" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="help-card">
+            <h3 class="h5 mb-3">{% trans "Format du fichier JSON" %}</h3>
+            <p>{% trans "Le fichier JSON doit contenir un tableau de grades avec les propriétés suivantes :" %}</p>
+            
+            <ul>
+                <li><code>name</code> : {% trans "Nom du grade (obligatoire)" %}</li>
+                <li><code>discipline</code> : {% trans "Nom de la discipline (obligatoire)" %}</li>
+                <li><code>color</code> : {% trans "Couleur du grade (ex. 'Noir', 'Marron')" %}</li>
+                <li><code>color_code</code> : {% trans "Code hexadécimal de la couleur (ex. '#000000')" %}</li>
+                <li><code>level</code> : {% trans "Niveau numérique du grade (ordre)" %}</li>
+                <li><code>min_age</code> : {% trans "Âge minimum requis" %}</li>
+                <li><code>category</code> : {% trans "Catégorie du grade (ex. 'Dan', 'Kyu')" %}</li>
+            </ul>
+            
+            <div class="example-json">
+<pre>{
+  "grades": [
+    {
+      "name": "Ceinture Noire 1er Dan",
+      "discipline": "Karaté",
+      "color": "Noir",
+      "color_code": "#000000",
+      "level": 10,
+      "min_age": 16,
+      "category": "Dan"
+    },
+    {
+      "name": "Ceinture Marron",
+      "discipline": "Karaté",
+      "color": "Marron",
+      "color_code": "#8B4513",
+      "level": 9,
+      "min_age": 14,
+      "category": "Kyu"
+    }
+  ]
+}</pre>
+            </div>
+            
+            <div class="alert alert-info mt-3">
+                <i class="fas fa-info-circle me-2"></i>
+                {% trans "Note : Si une discipline n'existe pas, elle sera automatiquement créée. Si une catégorie n'existe pas, elle sera créée avec des valeurs par défaut." %}
+            </div>
+        </div>
+        
+        <div class="mt-4 text-center">
+            <a href="{% url 'grades:grade_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la liste des grades" %}
+            </a>
+            
+            <a href="{% url 'grades:export_grades' %}" class="btn btn-outline-success ms-2">
+                <i class="fas fa-file-export me-2"></i>{% trans "Exporter les grades" %}
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('grades-file');
+        const fileInfo = document.getElementById('file-info');
+        const fileName = document.getElementById('file-name');
+        const removeFileButton = document.getElementById('remove-file');
+        const jsonPreview = document.getElementById('json-preview');
+        const importButton = document.getElementById('import-button');
+        
+        // Événements pour le glisser-déposer
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefault, false);
+        });
+        
+        function preventDefault(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, function() {
+                uploadArea.classList.add('dragover');
+            }, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, function() {
+                uploadArea.classList.remove('dragover');
+            }, false);
+        });
+        
+        // Gérer le dépôt de fichier
+        uploadArea.addEventListener('drop', function(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFileChange();
+            }
+        }, false);
+        
+        // Gérer le clic sur la zone d'upload
+        uploadArea.addEventListener('click', function() {
+            fileInput.click();
+        });
+        
+        // Gérer le changement de fichier
+        fileInput.addEventListener('change', handleFileChange);
+        
+        // Gérer la suppression du fichier
+        removeFileButton.addEventListener('click', function() {
+            fileInput.value = '';
+            fileInfo.classList.add('d-none');
+            jsonPreview.classList.add('d-none');
+            jsonPreview.innerHTML = '';
+            importButton.disabled = true;
+        });
+        
+        function handleFileChange() {
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                
+                // Vérifier si le fichier est un JSON
+                if (!file.name.endsWith('.json')) {
+                    alert("{% trans 'Veuillez sélectionner un fichier JSON valide.' %}");
+                    fileInput.value = '';
+                    return;
+                }
+                
+                // Afficher les informations du fichier
+                fileName.textContent = file.name;
+                fileInfo.classList.remove('d-none');
+                
+                // Lire le fichier et afficher un aperçu
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        const formattedJson = JSON.stringify(json, null, 2);
+                        jsonPreview.innerHTML = `<pre>${formattedJson}</pre>`;
+                        jsonPreview.classList.remove('d-none');
+                        importButton.disabled = false;
+                    } catch (error) {
+                        {% trans 'Le fichier sélectionné n\'est pas un JSON valide.' as error_message %}
+                        alert("{{ error_message }}");
+                        fileInput.value = '';
+                        fileInfo.classList.add('d-none');
+                        jsonPreview.classList.add('d-none');
+                        jsonPreview.innerHTML = '';
+                        importButton.disabled = true;
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                fileInfo.classList.add('d-none');
+                jsonPreview.classList.add('d-none');
+                jsonPreview.innerHTML = '';
+                importButton.disabled = true;
+            }
+        }
+    });
+</script>
+{% endblock %}

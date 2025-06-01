@@ -1,0 +1,237 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% translate "Mes Transactions" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h3 mb-0">{% translate "Historique des Transactions" %}</h2>
+        <a href="{% url 'competitions:practitioner:finance_dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> {% translate "Retour au tableau de bord" %}
+        </a>
+    </div>
+
+    <!-- Résumé -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4 class="text-success mb-0">{{ total_credit|floatformat:2 }} €</h4>
+                    <small class="text-muted">{% translate "Total Crédit" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4 class="text-danger mb-0">{{ total_debit|floatformat:2 }} €</h4>
+                    <small class="text-muted">{% translate "Total Débit" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4 class="text-primary mb-0">{{ balance|floatformat:2 }} €</h4>
+                    <small class="text-muted">{% translate "Solde Actuel" %}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h4 class="text-info mb-0">{{ transaction_count|default:0 }}</h4>
+                    <small class="text-muted">{% translate "Nombre de Transactions" %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtres -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label for="type" class="form-label">{% translate "Type" %}</label>
+                    <select class="form-select" id="type" name="type">
+                        <option value="">{% translate "Tous" %}</option>
+                        <option value="credit">{% translate "Crédit" %}</option>
+                        <option value="debit">{% translate "Débit" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="category" class="form-label">{% translate "Catégorie" %}</label>
+                    <select class="form-select" id="category" name="category">
+                        <option value="">{% translate "Toutes" %}</option>
+                        <option value="membership">{% translate "Cotisation" %}</option>
+                        <option value="competition">{% translate "Compétition" %}</option>
+                        <option value="training">{% translate "Formation" %}</option>
+                        <option value="shop">{% translate "Boutique" %}</option>
+                        <option value="other">{% translate "Autre" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="date_from" class="form-label">{% translate "Date début" %}</label>
+                    <input type="date" class="form-control" id="date_from" name="date_from">
+                </div>
+                <div class="col-md-3">
+                    <label for="date_to" class="form-label">{% translate "Date fin" %}</label>
+                    <input type="date" class="form-control" id="date_to" name="date_to">
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search"></i> {% translate "Filtrer" %}
+                    </button>
+                    <a href="{% url 'competitions:practitioner:transaction_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i> {% translate "Réinitialiser" %}
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Liste des transactions -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">{% translate "Détail des Transactions" %}</h5>
+        </div>
+        <div class="card-body">
+            {% if transactions %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% translate "Date" %}</th>
+                                <th>{% translate "Description" %}</th>
+                                <th>{% translate "Catégorie" %}</th>
+                                <th>{% translate "Référence" %}</th>
+                                <th class="text-end">{% translate "Débit" %}</th>
+                                <th class="text-end">{% translate "Crédit" %}</th>
+                                <th class="text-end">{% translate "Solde" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in transactions %}
+                            <tr>
+                                <td>{{ transaction.transaction_date|date:"d/m/Y H:i" }}</td>
+                                <td>{{ transaction.description }}</td>
+                                <td>
+                                    {% if transaction.category == 'membership' %}
+                                        <span class="badge bg-primary">{% translate "Cotisation" %}</span>
+                                    {% elif transaction.category == 'competition' %}
+                                        <span class="badge bg-info">{% translate "Compétition" %}</span>
+                                    {% elif transaction.category == 'training' %}
+                                        <span class="badge bg-warning">{% translate "Formation" %}</span>
+                                    {% elif transaction.category == 'shop' %}
+                                        <span class="badge bg-success">{% translate "Boutique" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{% translate "Autre" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ transaction.reference|default:"-" }}</td>
+                                <td class="text-end text-danger">
+                                    {% if transaction.type == 'debit' %}
+                                        -{{ transaction.amount|floatformat:2 }} €
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="text-end text-success">
+                                    {% if transaction.type == 'credit' %}
+                                        +{{ transaction.amount|floatformat:2 }} €
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">{{ transaction.balance|floatformat:2 }} €</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if page_obj %}
+                <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                    {% translate "Précédent" %}
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for num in page_obj.paginator.page_range %}
+                            <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                            </li>
+                        {% endfor %}
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                    {% translate "Suivant" %}
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-exchange-alt fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">{% translate "Aucune transaction trouvée" %}</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="mt-4">
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="exportTransactions('excel')">
+                <i class="fas fa-file-excel"></i> {% translate "Exporter Excel" %}
+            </button>
+            <button class="btn btn-primary" onclick="exportTransactions('pdf')">
+                <i class="fas fa-file-pdf"></i> {% translate "Exporter PDF" %}
+            </button>
+            <button class="btn btn-primary" onclick="printTransactions()">
+                <i class="fas fa-print"></i> {% translate "Imprimer" %}
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function exportTransactions(format) {
+    const params = new URLSearchParams(window.location.search);
+    params.append('export', format);
+    window.location.href = window.location.pathname + '?' + params.toString();
+}
+
+function printTransactions() {
+    window.print();
+}
+</script>
+
+<style>
+.table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+.badge {
+    padding: 0.5em 0.75em;
+}
+
+@media print {
+    .btn-group, .card .card-header, .pagination {
+        display: none !important;
+    }
+}
+</style>
+{% endblock %}

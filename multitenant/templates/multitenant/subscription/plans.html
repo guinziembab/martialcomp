@@ -1,0 +1,357 @@
+{% extends "multitenant/base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% translate "Plans d'abonnement" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .plans-container {
+    padding: 30px 0;
+  }
+  .billing-toggle {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 40px;
+    background-color: #f5f5f5;
+    border-radius: 50px;
+    padding: 5px;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .billing-option {
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 50px;
+    text-align: center;
+    flex: 1;
+  }
+  .billing-option.active {
+    background-color: #4CAF50;
+    color: white;
+    font-weight: bold;
+  }
+  .savings-badge {
+    font-size: 12px;
+    background-color: #E8F5E9;
+    color: #2E7D32;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .plan-cards {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 30px;
+  }
+  .plan-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 30px;
+    background-color: #fff;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+    width: 300px;
+  }
+  .plan-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+  }
+  .plan-card.current {
+    border-color: #4CAF50;
+    border-width: 2px;
+  }
+  .plan-card.selected {
+    border-color: #2196F3;
+    border-width: 2px;
+  }
+  .plan-name {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .plan-price {
+    font-size: 36px;
+    font-weight: bold;
+    text-align: center;
+    margin: 20px 0;
+  }
+  .plan-price .period {
+    font-size: 16px;
+    font-weight: normal;
+    color: #757575;
+  }
+  .annual-note {
+    font-size: 14px;
+    color: #757575;
+    text-align: center;
+    margin-top: 5px;
+  }
+  .feature-list {
+    margin: 20px 0;
+  }
+  .feature-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .feature-icon {
+    color: #4CAF50;
+    margin-right: 10px;
+  }
+  .plan-button {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    text-align: center;
+    border-radius: 4px;
+    margin-top: 20px;
+    cursor: pointer;
+    font-weight: bold;
+    border: none;
+  }
+  .select-button {
+    background-color: #2196F3;
+    color: white;
+  }
+  .current-button {
+    background-color: #4CAF50;
+    color: white;
+  }
+  .disabled-button {
+    background-color: #e0e0e0;
+    color: #757575;
+    cursor: not-allowed;
+  }
+  .promo-code-section {
+    margin-top: 50px;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .promo-result {
+    margin-top: 15px;
+    padding: 15px;
+    border-radius: 4px;
+  }
+  .promo-success {
+    background-color: #E8F5E9;
+    color: #2E7D32;
+  }
+  .promo-error {
+    background-color: #FFEBEE;
+    color: #C62828;
+  }
+  .highlighted-feature {
+    background-color: #FFF9C4;
+    font-weight: bold;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="plans-container">
+  <h1 class="text-center mb-4">{% translate "Choisissez votre plan" %}</h1>
+  
+  {% if highlighted_feature %}
+  <div class="alert alert-info text-center">
+    {% translate "Cette fonctionnalité nécessite un plan supérieur. Consultez les options ci-dessous." %}
+  </div>
+  {% endif %}
+  
+  <!-- Sélecteur de cycle de facturation -->
+  <div class="billing-toggle">
+    <div class="billing-option {% if billing_cycle == 'monthly' %}active{% endif %}" id="monthly-option">
+      {% translate "Mensuel" %}
+    </div>
+    <div class="billing-option {% if billing_cycle == 'annually' %}active{% endif %}" id="annually-option">
+      {% translate "Annuel" %}
+      <span class="savings-badge">-20%</span>
+    </div>
+  </div>
+  
+  <!-- Cartes des plans -->
+  <div class="plan-cards">
+    {% for tier in subscription_tiers %}
+    <div class="plan-card {% if active_subscription.tier.id == tier.id %}current{% endif %}" data-tier-id="{{ tier.id }}">
+      <div class="plan-name">{{ tier.name }}</div>
+      <p class="text-center">{{ tier.description }}</p>
+      
+      <div class="plan-price">
+        {% if billing_cycle == 'monthly' %}
+          {{ tier.price_monthly }} €<span class="period">/ {% translate "mois" %}</span>
+        {% else %}
+          {{ tier.price_annually|divide:12|floatformat:2 }} €<span class="period">/ {% translate "mois" %}</span>
+          <div class="annual-note">{{ tier.price_annually }} € {% translate "facturé annuellement" %}</div>
+        {% endif %}
+      </div>
+      
+      <div class="feature-list">
+        <div class="feature-item">
+          <i class="fas fa-check feature-icon"></i>
+          <span>{% translate "Utilisateurs" %}: {{ tier.max_users }}</span>
+        </div>
+        <div class="feature-item">
+          <i class="fas fa-check feature-icon"></i>
+          <span>{% translate "Compétitions" %}: {{ tier.max_competitions }}</span>
+        </div>
+        <div class="feature-item">
+          <i class="fas fa-check feature-icon"></i>
+          <span>{% translate "Stockage" %}: {{ tier.max_storage_gb }} GB</span>
+        </div>
+        
+        {% for feature_key, enabled in tier.features.items %}
+          <div class="feature-item {% if highlighted_feature == feature_key %}highlighted-feature{% endif %}">
+            {% if enabled %}
+              <i class="fas fa-check feature-icon"></i>
+            {% else %}
+              <i class="fas fa-times text-danger"></i>
+            {% endif %}
+            <span>{% translate feature_key %}</span>
+          </div>
+        {% endfor %}
+      </div>
+      
+      {% if active_subscription.tier.id == tier.id %}
+        <button class="plan-button current-button" disabled>
+          {% translate "Plan actuel" %}
+        </button>
+      {% else %}
+        <button class="plan-button select-button select-plan-btn" data-tier-id="{{ tier.id }}">
+          {% translate "Sélectionner" %}
+        </button>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  
+  <!-- Code promotionnel -->
+  <div class="promo-code-section">
+    <h3>{% translate "Vous avez un code promotionnel ?" %}</h3>
+    <div class="input-group">
+      <input type="text" id="promo-code-input" class="form-control" placeholder="{% translate 'Entrez votre code' %}">
+      <div class="input-group-append">
+        <button class="btn btn-outline-primary" id="validate-promo-btn">
+          {% translate "Valider" %}
+        </button>
+      </div>
+    </div>
+    <div id="promo-result" class="promo-result" style="display: none;"></div>
+  </div>
+  
+  <!-- Formulaire de souscription -->
+  <div class="mt-5">
+    <form id="subscribe-form" method="post" action="{% url 'multitenant:subscribe' %}" class="text-center">
+      {% csrf_token %}
+      <input type="hidden" name="tier_id" id="selected-tier-id">
+      <input type="hidden" name="billing_cycle" id="selected-billing-cycle" value="{{ billing_cycle }}">
+      <input type="hidden" name="promo_code" id="applied-promo-code">
+      
+      <button type="submit" class="btn btn-primary btn-lg" id="subscribe-btn" disabled>
+        {% translate "S'abonner" %}
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Sélecteur de cycle de facturation
+    const monthlyOption = document.getElementById('monthly-option');
+    const annuallyOption = document.getElementById('annually-option');
+    const billingCycleInput = document.getElementById('selected-billing-cycle');
+    
+    monthlyOption.addEventListener('click', function() {
+      monthlyOption.classList.add('active');
+      annuallyOption.classList.remove('active');
+      billingCycleInput.value = 'monthly';
+      window.location.href = "{% url 'multitenant:subscription_plans' %}?billing_cycle=monthly";
+    });
+    
+    annuallyOption.addEventListener('click', function() {
+      annuallyOption.classList.add('active');
+      monthlyOption.classList.remove('active');
+      billingCycleInput.value = 'annually';
+      window.location.href = "{% url 'multitenant:subscription_plans' %}?billing_cycle=annually";
+    });
+    
+    // Sélection du plan
+    const planCards = document.querySelectorAll('.plan-card');
+    const selectButtons = document.querySelectorAll('.select-plan-btn');
+    const selectedTierInput = document.getElementById('selected-tier-id');
+    const subscribeBtn = document.getElementById('subscribe-btn');
+    
+    selectButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        const tierId = this.getAttribute('data-tier-id');
+        
+        // Réinitialiser toutes les cartes
+        planCards.forEach(card => {
+          card.classList.remove('selected');
+        });
+        
+        // Sélectionner cette carte
+        const selectedCard = document.querySelector(`.plan-card[data-tier-id="${tierId}"]`);
+        selectedCard.classList.add('selected');
+        
+        // Mettre à jour le formulaire
+        selectedTierInput.value = tierId;
+        subscribeBtn.disabled = false;
+      });
+    });
+    
+    // Validation du code promotionnel
+    const promoInput = document.getElementById('promo-code-input');
+    const validatePromoBtn = document.getElementById('validate-promo-btn');
+    const promoResult = document.getElementById('promo-result');
+    const appliedPromoInput = document.getElementById('applied-promo-code');
+    
+    validatePromoBtn.addEventListener('click', function() {
+      const code = promoInput.value.trim();
+      const tierId = selectedTierInput.value;
+      const billingCycle = billingCycleInput.value;
+      
+      if (!code) return;
+      
+      if (!tierId) {
+        promoResult.innerHTML = "{% translate 'Veuillez d\\'abord sélectionner un plan.' %}";
+        promoResult.className = "promo-result promo-error";
+        promoResult.style.display = "block";
+        return;
+      }
+      
+      // Appel AJAX pour valider le code
+      fetch(`{% url 'multitenant:validate_promo_code' %}?code=${code}&tier_id=${tierId}&billing_cycle=${billingCycle}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.valid) {
+            promoResult.innerHTML = `
+              <strong>{% translate 'Code valide!' %}</strong><br>
+              ${data.description}<br>
+              {% translate 'Réduction' %}: ${data.discount_value}${data.discount_type === 'percentage' ? '%' : '€'}
+            `;
+            promoResult.className = "promo-result promo-success";
+            appliedPromoInput.value = code;
+          } else {
+            promoResult.innerHTML = `<strong>{% translate 'Code invalide' %}</strong><br>${data.reason}`;
+            promoResult.className = "promo-result promo-error";
+            appliedPromoInput.value = "";
+          }
+          promoResult.style.display = "block";
+        })
+        .catch(error => {
+          promoResult.innerHTML = "{% translate 'Erreur lors de la validation du code.' %}";
+          promoResult.className = "promo-result promo-error";
+          promoResult.style.display = "block";
+        });
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,535 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Support" %} | {% trans "Espace Pratiquant" %}{% endblock %}
+
+{% block dashboard_content %}
+<!-- Page Header -->
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fas fa-life-ring text-primary"></i> {% trans "Support" %}
+    </h1>
+    <p class="page-subtitle">{% trans "Obtenez de l'aide et consultez vos demandes de support" %}</p>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+    <div class="stats-card">
+        <div class="stats-icon stats-competitions">
+            <i class="fas fa-ticket-alt"></i>
+        </div>
+        <div class="stats-value">{{ stats.total }}</div>
+        <div class="stats-label">{% trans "Total demandes" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon stats-upcoming">
+            <i class="fas fa-spinner"></i>
+        </div>
+        <div class="stats-value">{{ stats.open }}</div>
+        <div class="stats-label">{% trans "En cours" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon stats-podiums">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="stats-value">{{ stats.resolved }}</div>
+        <div class="stats-label">{% trans "Résolues" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon stats-memberships">
+            <i class="fas fa-clock"></i>
+        </div>
+        <div class="stats-value">{{ stats.average_response_time }}</div>
+        <div class="stats-label">{% trans "Temps de réponse" %}</div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>{% trans "Vos demandes de support" %}</h4>
+    <a href="{% url 'competitions:practitioner:create_ticket' %}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> {% trans "Nouvelle demande" %}
+    </a>
+</div>
+
+<!-- Filter Tabs -->
+<ul class="nav nav-tabs mb-4" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#all" type="button" role="tab">
+            {% trans "Toutes" %} <span class="badge bg-secondary">{{ stats.total }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="open-tab" data-bs-toggle="tab" data-bs-target="#open" type="button" role="tab">
+            {% trans "En cours" %} <span class="badge bg-warning">{{ stats.open }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="resolved-tab" data-bs-toggle="tab" data-bs-target="#resolved" type="button" role="tab">
+            {% trans "Résolues" %} <span class="badge bg-success">{{ stats.resolved }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="closed-tab" data-bs-toggle="tab" data-bs-target="#closed" type="button" role="tab">
+            {% trans "Fermées" %} <span class="badge bg-secondary">{{ stats.closed }}</span>
+        </button>
+    </li>
+</ul>
+
+<!-- Tickets Table -->
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="all" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                {% if tickets %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "ID" %}</th>
+                                    <th>{% trans "Sujet" %}</th>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th>{% trans "Priorité" %}</th>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th>{% trans "Date" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ticket in tickets %}
+                                    <tr>
+                                        <td>#{{ ticket.id }}</td>
+                                        <td>
+                                            <a href="{% url 'competitions:practitioner:ticket_detail' ticket.id %}">
+                                                {{ ticket.subject }}
+                                            </a>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ ticket.get_category_display }}</span>
+                                        </td>
+                                        <td>
+                                            {% if ticket.priority == 'urgent' %}
+                                                <span class="badge bg-danger">{% trans "Urgent" %}</span>
+                                            {% elif ticket.priority == 'high' %}
+                                                <span class="badge bg-warning">{% trans "Élevée" %}</span>
+                                            {% elif ticket.priority == 'normal' %}
+                                                <span class="badge bg-info">{% trans "Normale" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{% trans "Faible" %}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if ticket.status == 'open' %}
+                                                <span class="badge bg-warning">{% trans "Ouvert" %}</span>
+                                            {% elif ticket.status == 'in_progress' %}
+                                                <span class="badge bg-info">{% trans "En cours" %}</span>
+                                            {% elif ticket.status == 'resolved' %}
+                                                <span class="badge bg-success">{% trans "Résolu" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{% trans "Fermé" %}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+                                        <td>
+                                            <a href="{% url 'competitions:practitioner:ticket_detail' ticket.id %}" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i> {% trans "Voir" %}
+                                            </a>
+                                            {% if ticket.status in 'open,in_progress' %}
+                                                <button class="btn btn-sm btn-outline-danger" 
+                                                        onclick="closeTicket('{{ ticket.id }}')">
+                                                    <i class="fas fa-times"></i> {% trans "Fermer" %}
+                                                </button>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if page_obj %}
+                        <nav aria-label="Page navigation" class="mt-4">
+                            <ul class="pagination justify-content-center">
+                                {% if page_obj.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                            {% trans "Précédent" %}
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                
+                                {% for num in page_obj.paginator.page_range %}
+                                    <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                    </li>
+                                {% endfor %}
+                                
+                                {% if page_obj.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                            {% trans "Suivant" %}
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-ticket-alt fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">{% trans "Aucune demande de support" %}</p>
+                        <a href="{% url 'competitions:practitioner:create_ticket' %}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> {% trans "Créer une demande" %}
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Open Tickets Tab -->
+    <div class="tab-pane fade" id="open" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                {% if open_tickets %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "ID" %}</th>
+                                    <th>{% trans "Sujet" %}</th>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th>{% trans "Priorité" %}</th>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th>{% trans "Date" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ticket in open_tickets %}
+                                    <tr>
+                                        <td>#{{ ticket.id }}</td>
+                                        <td>
+                                            <a href="{% url 'competitions:practitioner:ticket_detail' ticket.id %}">
+                                                {{ ticket.subject }}
+                                            </a>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ ticket.get_category_display }}</span>
+                                        </td>
+                                        <td>
+                                            {% if ticket.priority == 'urgent' %}
+                                                <span class="badge bg-danger">{% trans "Urgent" %}</span>
+                                            {% elif ticket.priority == 'high' %}
+                                                <span class="badge bg-warning">{% trans "Élevée" %}</span>
+                                            {% elif ticket.priority == 'normal' %}
+                                                <span class="badge bg-info">{% trans "Normale" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{% trans "Faible" %}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if ticket.status == 'open' %}
+                                                <span class="badge bg-warning">{% trans "Ouvert" %}</span>
+                                            {% elif ticket.status == 'in_progress' %}
+                                                <span class="badge bg-info">{% trans "En cours" %}</span>
+                                            {% elif ticket.status == 'resolved' %}
+                                                <span class="badge bg-success">{% trans "Résolu" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{% trans "Fermé" %}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+                                        <td>
+                                            <a href="{% url 'competitions:practitioner:ticket_detail' ticket.id %}" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i> {% trans "Voir" %}
+                                            </a>
+                                            {% if ticket.status in 'open,in_progress' %}
+                                                <button class="btn btn-sm btn-outline-danger" 
+                                                        onclick="closeTicket('{{ ticket.id }}')">
+                                                    <i class="fas fa-times"></i> {% trans "Fermer" %}
+                                                </button>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                        <p class="text-muted">{% trans "Aucune demande en cours" %}</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Resolved Tickets Tab -->
+    <div class="tab-pane fade" id="resolved" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                {% if resolved_tickets %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "ID" %}</th>
+                                    <th>{% trans "Sujet" %}</th>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th>{% trans "Priorité" %}</th>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th>{% trans "Date" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ticket in resolved_tickets %}
+                                    <tr>
+                                        <td>#{{ ticket.id }}</td>
+                                        <td>
+                                            <a href="{% url 'competitions:practitioner:ticket_detail' ticket.id %}">
+                                                {{ ticket.subject }}
+                                            </a>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ ticket.get_category_display }}</span>
+                                        </td>
+                                        <td>
+                                            {% if ticket.priority == 'urgent' %}
+                                                <span class="badge bg-danger">{% trans "Urgent" %}</span>
+                                            {% elif ticket.priority == 'high' %}
+                                                <span class="badge bg-warning">{% trans "Élevée" %}</span>
+                                            {% elif ticket.priority == 'normal' %}
+                                                <span class="badge bg-info">{% trans "Normale" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{% trans "Faible" %}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-success">{% trans "Résolu" %}</span>
+                                        </td>
+                                        <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+                                        <td>
+                                            <a href="{% url 'competitions:practitioner:ticket_detail' ticket.id %}" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i> {% trans "Voir" %}
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">{% trans "Aucune demande résolue" %}</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Closed Tickets Tab -->
+    <div class="tab-pane fade" id="closed" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                {% if closed_tickets %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "ID" %}</th>
+                                    <th>{% trans "Sujet" %}</th>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th>{% trans "Priorité" %}</th>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th>{% trans "Date" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ticket in closed_tickets %}
+                                    <tr>
+                                        <td>#{{ ticket.id }}</td>
+                                        <td>
+                                            <a href="{% url 'competitions:practitioner:ticket_detail' ticket.id %}">
+                                                {{ ticket.subject }}
+                                            </a>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ ticket.get_category_display }}</span>
+                                        </td>
+                                        <td>
+                                            {% if ticket.priority == 'urgent' %}
+                                                <span class="badge bg-danger">{% trans "Urgent" %}</span>
+                                            {% elif ticket.priority == 'high' %}
+                                                <span class="badge bg-warning">{% trans "Élevée" %}</span>
+                                            {% elif ticket.priority == 'normal' %}
+                                                <span class="badge bg-info">{% trans "Normale" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{% trans "Faible" %}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{% trans "Fermé" %}</span>
+                                        </td>
+                                        <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+                                        <td>
+                                            <a href="{% url 'competitions:practitioner:ticket_detail' ticket.id %}" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i> {% trans "Voir" %}
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">{% trans "Aucune demande fermée" %}</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- FAQ Section -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">{% trans "FAQ - Questions fréquentes" %}</h5>
+    </div>
+    <div class="card-body">
+        <div class="accordion" id="faqAccordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                            data-bs-target="#faq1" aria-expanded="false">
+                        {% trans "Comment créer une nouvelle demande de support ?" %}
+                    </button>
+                </h2>
+                <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body">
+                        {% trans "Cliquez sur le bouton 'Nouvelle demande' en haut de cette page. Remplissez le formulaire avec le sujet de votre problème, sélectionnez la catégorie appropriée et décrivez votre problème en détail." %}
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                            data-bs-target="#faq2" aria-expanded="false">
+                        {% trans "Quel est le délai de réponse moyen ?" %}
+                    </button>
+                </h2>
+                <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body">
+                        {% trans "Notre équipe répond généralement dans les 24-48 heures ouvrées. Pour les demandes urgentes, le délai de réponse est généralement de 4-8 heures." %}
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                            data-bs-target="#faq3" aria-expanded="false">
+                        {% trans "Comment suivre l'état de ma demande ?" %}
+                    </button>
+                </h2>
+                <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body">
+                        {% trans "Vous pouvez suivre l'état de votre demande directement depuis cette page. Les mises à jour vous seront également envoyées par email." %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function closeTicket(ticketId) {
+    if (confirm("{% trans 'Êtes-vous sûr de vouloir fermer cette demande ?' %}")) {
+        // Implémenter l'appel API pour fermer le ticket
+        location.reload();
+    }
+}
+
+// Auto-refresh pour les tickets ouverts
+setInterval(function() {
+    if (document.getElementById('open-tab').classList.contains('active')) {
+        location.reload();
+    }
+}, 60000); // Rafraîchir toutes les minutes
+</script>
+
+<style>
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stats-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.stats-icon {
+    display: inline-flex;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.stats-competitions {
+    background-color: #e3f2fd;
+    color: #1976d2;
+}
+
+.stats-upcoming {
+    background-color: #fff3e0;
+    color: #f57c00;
+}
+
+.stats-podiums {
+    background-color: #e8f5e9;
+    color: #388e3c;
+}
+
+.stats-memberships {
+    background-color: #fce4ec;
+    color: #c2185b;
+}
+
+.stats-value {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.stats-label {
+    color: #666;
+    font-size: 0.875rem;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: #e7f3ff;
+}
+</style>
+{% endblock %}

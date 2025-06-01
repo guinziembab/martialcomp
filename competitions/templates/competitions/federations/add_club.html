@@ -1,0 +1,449 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Ajouter un club" %} | {{ federation.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+    }
+    
+    .form-section-title i {
+        margin-right: 0.75rem;
+        color: #dc3545;
+    }
+    
+    .nav-tabs .nav-link.active {
+        font-weight: 600;
+        border-bottom: 3px solid #dc3545;
+    }
+    
+    .discipline-label {
+        display: block;
+        padding: 0.5rem;
+        border-radius: 5px;
+        background-color: #f8f9fa;
+        margin-bottom: 0.5rem;
+        transition: all 0.2s ease;
+    }
+    
+    .discipline-label:hover {
+        background-color: #e9ecef;
+    }
+    
+    .discipline-checkbox {
+        margin-right: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- En-tête de la page -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">{% trans "Ajouter un club à" %} {{ federation.name }}</h1>
+        <a href="{% url 'competitions:federations:manage_clubs' federation_id=federation.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la liste" %}
+        </a>
+    </div>
+    
+    <!-- Onglets pour choisir entre club existant ou nouveau club -->
+    <ul class="nav nav-tabs mb-4" id="clubTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="new-club-tab" data-bs-toggle="tab" data-bs-target="#new-club" type="button" role="tab" aria-controls="new-club" aria-selected="true">
+                <i class="fas fa-plus-circle me-2"></i>{% trans "Créer un nouveau club" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="existing-club-tab" data-bs-toggle="tab" data-bs-target="#existing-club" type="button" role="tab" aria-controls="existing-club" aria-selected="false">
+                <i class="fas fa-link me-2"></i>{% trans "Affilier un club existant" %}
+            </button>
+        </li>
+    </ul>
+    
+    <div class="tab-content" id="clubTabsContent">
+        <!-- Onglet pour créer un nouveau club -->
+        <div class="tab-pane fade show active" id="new-club" role="tabpanel" aria-labelledby="new-club-tab">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- Informations générales -->
+                        <div class="form-section">
+                            <div class="form-section-title">
+                                <i class="fas fa-info-circle"></i>
+                                {% trans "Informations générales" %}
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="{{ form.name.id_for_label }}" class="form-label required">
+                                        {% trans "Nom du club" %}
+                                    </label>
+                                    {{ form.name }}
+                                    {% if form.name.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.name.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label for="{{ form.main_discipline.id_for_label }}" class="form-label">
+                                        {% trans "Discipline principale" %}
+                                    </label>
+                                    {{ form.main_discipline }}
+                                    {% if form.main_discipline.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.main_discipline.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.description.id_for_label }}" class="form-label">
+                                    {% trans "Description" %}
+                                </label>
+                                {{ form.description }}
+                                {% if form.description.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.description.errors }}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">{% trans "Une brève description de votre club et de ses activités." %}</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.logo.id_for_label }}" class="form-label">
+                                    {% trans "Logo du club" %}
+                                </label>
+                                {{ form.logo }}
+                                {% if form.logo.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.logo.errors }}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">{% trans "Format recommandé : carré, 200x200 pixels minimum." %}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Coordonnées -->
+                        <div class="form-section">
+                            <div class="form-section-title">
+                                <i class="fas fa-map-marker-alt"></i>
+                                {% trans "Coordonnées" %}
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.address.id_for_label }}" class="form-label">
+                                    {% trans "Adresse" %}
+                                </label>
+                                {{ form.address }}
+                                {% if form.address.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.address.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <label for="{{ form.city.id_for_label }}" class="form-label">
+                                        {% trans "Ville" %}
+                                    </label>
+                                    {{ form.city }}
+                                    {% if form.city.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.city.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <label for="{{ form.postal_code.id_for_label }}" class="form-label">
+                                        {% trans "Code postal" %}
+                                    </label>
+                                    {{ form.postal_code }}
+                                    {% if form.postal_code.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.postal_code.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="{{ form.contact_phone.id_for_label }}" class="form-label">
+                                        {% trans "Téléphone" %}
+                                    </label>
+                                    {{ form.contact_phone }}
+                                    {% if form.contact_phone.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.contact_phone.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <label for="{{ form.contact_email.id_for_label }}" class="form-label">
+                                        {% trans "Email" %}
+                                    </label>
+                                    {{ form.contact_email }}
+                                    {% if form.contact_email.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.contact_email.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.website.id_for_label }}" class="form-label">
+                                    {% trans "Site web" %}
+                                </label>
+                                {{ form.website }}
+                                {% if form.website.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.website.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Disciplines -->
+                        <div class="form-section">
+                            <div class="form-section-title">
+                                <i class="fas fa-fist-raised"></i>
+                                {% trans "Disciplines pratiquées" %}
+                            </div>
+                            
+                            <div class="row">
+                                {% for discipline in form.disciplines.field.queryset %}
+                                    <div class="col-md-4 mb-2">
+                                        <label class="discipline-label">
+                                            <input type="checkbox" name="{{ form.disciplines.name }}" value="{{ discipline.id }}" class="discipline-checkbox">
+                                            {{ discipline.name }}
+                                        </label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% if form.disciplines.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.disciplines.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Équipements et tranches d'âge -->
+                        <div class="form-section">
+                            <div class="form-section-title">
+                                <i class="fas fa-cogs"></i>
+                                {% trans "Équipements et public" %}
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <p class="mb-2">{% trans "Équipement disponible" %}</p>
+                                    <div class="form-check mb-2">
+                                        {{ form.has_equipment }}
+                                        <label class="form-check-label" for="{{ form.has_equipment.id_for_label }}">
+                                            {% trans "Équipement d'entraînement" %}
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        {{ form.has_changing_rooms }}
+                                        <label class="form-check-label" for="{{ form.has_changing_rooms.id_for_label }}">
+                                            {% trans "Vestiaires" %}
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        {{ form.has_showers }}
+                                        <label class="form-check-label" for="{{ form.has_showers.id_for_label }}">
+                                            {% trans "Douches" %}
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        {{ form.has_parking }}
+                                        <label class="form-check-label" for="{{ form.has_parking.id_for_label }}">
+                                            {% trans "Parking" %}
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <p class="mb-2">{% trans "Tranches d'âge acceptées" %}</p>
+                                    <div class="form-check mb-2">
+                                        {{ form.accepts_children }}
+                                        <label class="form-check-label" for="{{ form.accepts_children.id_for_label }}">
+                                            {% trans "Enfants (4-11 ans)" %}
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        {{ form.accepts_teenagers }}
+                                        <label class="form-check-label" for="{{ form.accepts_teenagers.id_for_label }}">
+                                            {% trans "Adolescents (12-17 ans)" %}
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        {{ form.accepts_adults }}
+                                        <label class="form-check-label" for="{{ form.accepts_adults.id_for_label }}">
+                                            {% trans "Adultes (18-59 ans)" %}
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        {{ form.accepts_seniors }}
+                                        <label class="form-check-label" for="{{ form.accepts_seniors.id_for_label }}">
+                                            {% trans "Seniors (60+ ans)" %}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.training_hours.id_for_label }}" class="form-label">
+                                    {% trans "Horaires d'entraînement" %}
+                                </label>
+                                {{ form.training_hours }}
+                                {% if form.training_hours.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.training_hours.errors }}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">{% trans "Exemple : Lundi: 18h-20h, Mardi: 19h-21h, etc." %}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'competitions:federations:manage_clubs' federation_id=federation.id %}" class="btn btn-outline-secondary">
+                                {% trans "Annuler" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus-circle me-2"></i>{% trans "Créer et affilier le club" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Onglet pour affilier un club existant -->
+        <div class="tab-pane fade" id="existing-club" role="tabpanel" aria-labelledby="existing-club-tab">
+            <div class="card">
+                <div class="card-body">
+                    {% if unaffiliated_clubs %}
+                        <form method="post">
+                            {% csrf_token %}
+                            
+                            <div class="mb-4">
+                                <label for="existing_club" class="form-label">{% trans "Sélectionnez un club à affilier" %}</label>
+                                <select name="existing_club" id="existing_club" class="form-select">
+                                    <option value="">{% trans "Choisir un club..." %}</option>
+                                    {% for club in unaffiliated_clubs %}
+                                        <option value="{{ club.id }}">{{ club.name }} {% if club.city %}({{ club.city }}){% endif %}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">{% trans "Seuls les clubs non affiliés à une fédération sont affichés." %}</div>
+                            </div>
+                            
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <a href="{% url 'competitions:federations:manage_clubs' federation_id=federation.id %}" class="btn btn-outline-secondary">
+                                    {% trans "Annuler" %}
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-link me-2"></i>{% trans "Affilier le club" %}
+                                </button>
+                            </div>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Aucun club non affilié n'est disponible." %}
+                        </div>
+                        <p>{% trans "Tous les clubs existants sont déjà affiliés à une fédération." %}</p>
+                        <p>{% trans "Vous pouvez créer un nouveau club en utilisant l'onglet 'Créer un nouveau club'." %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Validation du formulaire
+        const form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function(event) {
+                let isValid = true;
+                
+                // Validation du nom du club
+                const nameField = document.getElementById('{{ form.name.id_for_label }}');
+                if (nameField && !nameField.value.trim()) {
+                    addError(nameField, "{% trans 'Le nom du club est requis' %}");
+                    isValid = false;
+                } else if (nameField) {
+                    removeError(nameField);
+                }
+                
+                if (!isValid) {
+                    event.preventDefault();
+                }
+            });
+        }
+        
+        // Fonctions pour afficher/masquer les erreurs
+        function addError(field, message) {
+            if (!field) return;
+            
+            // Supprimer les erreurs existantes
+            removeError(field);
+            
+            // Ajouter la classe d'erreur
+            field.classList.add('is-invalid');
+            
+            // Créer le message d'erreur
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'invalid-feedback d-block';
+            errorDiv.textContent = message;
+            field.parentNode.appendChild(errorDiv);
+        }
+        
+        function removeError(field) {
+            if (!field) return;
+            
+            field.classList.remove('is-invalid');
+            const errorDiv = field.parentNode.querySelector('.invalid-feedback');
+            if (errorDiv) {
+                errorDiv.parentNode.removeChild(errorDiv);
+            }
+        }
+    });
+</script>
+{% endblock %}

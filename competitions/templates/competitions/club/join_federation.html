@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Rejoindre une fédération" %} | {{ club.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h4 mb-0">{% trans "Rejoindre une fédération" %}</h2>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <!-- Information -->
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Rejoindre une fédération vous permet de participer à ses compétitions et de bénéficier de ses ressources. Une demande d'affiliation sera soumise à la fédération pour approbation." %}
+                    </div>
+                    
+                    <!-- Statut actuel de l'affiliation -->
+                    {% if club.federation %}
+                        <div class="alert alert-success mb-4">
+                            <i class="fas fa-check-circle me-2"></i>
+                            {% trans "Votre club est actuellement affilié à la fédération" %} <strong>{{ club.federation.name }}</strong>.
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Recherche de fédérations -->
+                    <form method="get" class="mb-4">
+                        <div class="input-group">
+                            <input type="text" name="q" class="form-control" placeholder="{% trans 'Rechercher une fédération...' %}" value="{{ search_query }}">
+                            <button type="submit" class="btn btn-outline-secondary">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <!-- Fédérations recommandées -->
+                    {% if recommended_federations %}
+                        <h3 class="h5 mb-3">{% trans "Fédérations recommandées" %}</h3>
+                        <div class="row row-cols-1 row-cols-md-2 g-4 mb-4">
+                            {% for federation in recommended_federations %}
+                                <div class="col">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <div class="d-flex align-items-center mb-3">
+                                                {% if federation.logo %}
+                                                    <img src="{{ federation.logo.url }}" alt="{{ federation.name }}" class="me-3" style="width: 50px; height: 50px; object-fit: cover;">
+                                                {% else %}
+                                                    <div class="bg-light rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                        <i class="fas fa-building text-secondary"></i>
+                                                    </div>
+                                                {% endif %}
+                                                <h5 class="card-title mb-0">{{ federation.name }}</h5>
+                                            </div>
+                                            <p class="card-text text-muted small mb-2">
+                                                <i class="fas fa-map-marker-alt me-1"></i> {{ federation.country }}
+                                                {% if federation.city %}, {{ federation.city }}{% endif %}
+                                            </p>
+                                            {% if federation.disciplines.all %}
+                                                <div class="mb-3">
+                                                    {% for discipline in federation.disciplines.all|slice:":3" %}
+                                                        <span class="badge bg-primary me-1">{{ discipline.name }}</span>
+                                                    {% endfor %}
+                                                    {% if federation.disciplines.count > 3 %}
+                                                        <span class="badge bg-secondary">+{{ federation.disciplines.count|add:"-3" }}</span>
+                                                    {% endif %}
+                                                </div>
+                                            {% endif %}
+                                            <form method="post" class="mt-3">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="federation" value="{{ federation.id }}">
+                                                <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+                                                    <i class="fas fa-handshake me-2"></i>{% trans "Demander l'affiliation" %}
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Toutes les fédérations -->
+                    <h3 class="h5 mb-3">{% if search_query %}{% trans "Résultats de la recherche" %}{% else %}{% trans "Toutes les fédérations" %}{% endif %}</h3>
+                    {% if federations %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>{% trans "Nom" %}</th>
+                                        <th>{% trans "Pays" %}</th>
+                                        <th>{% trans "Disciplines" %}</th>
+                                        <th>{% trans "Actions" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for federation in federations %}
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    {% if federation.logo %}
+                                                        <img src="{{ federation.logo.url }}" alt="{{ federation.name }}" class="me-2" style="width: 30px; height: 30px; object-fit: cover;">
+                                                    {% else %}
+                                                        <div class="bg-light rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">
+                                                            <i class="fas fa-building text-secondary small"></i>
+                                                        </div>
+                                                    {% endif %}
+                                                    {{ federation.name }}
+                                                </div>
+                                            </td>
+                                            <td>{{ federation.country }}</td>
+                                            <td>
+                                                {% for discipline in federation.disciplines.all|slice:":2" %}
+                                                    <span class="badge bg-primary me-1">{{ discipline.name }}</span>
+                                                {% endfor %}
+                                                {% if federation.disciplines.count > 2 %}
+                                                    <span class="badge bg-secondary">+{{ federation.disciplines.count|add:"-2" }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <form method="post">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="federation" value="{{ federation.id }}">
+                                                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                                                        <i class="fas fa-handshake me-1"></i>{% trans "Affilier" %}
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {% if search_query %}
+                                {% trans "Aucune fédération trouvée pour cette recherche." %}
+                            {% else %}
+                                {% trans "Aucune fédération disponible pour le moment." %}
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    
+                    <div class="mt-4">
+                        <a href="{% url 'competitions:club:dashboard' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

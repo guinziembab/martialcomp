@@ -1,0 +1,248 @@
+{% extends "multitenant/base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% translate "Historique d'utilisation" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .usage-history {
+    padding: 20px;
+  }
+  .filter-form {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+  }
+  .usage-table {
+    margin-top: 20px;
+  }
+  .billed-badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+  }
+  .billed-true {
+    background-color: #E8F5E9;
+    color: #2E7D32;
+  }
+  .billed-false {
+    background-color: #FFF3E0;
+    color: #E65100;
+  }
+  .summary-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+  .summary-title {
+    margin-bottom: 15px;
+    font-size: 18px;
+    font-weight: bold;
+  }
+  .summary-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #2196F3;
+  }
+  .export-btn {
+    margin-bottom: 20px;
+  }
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="usage-history">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>{% translate "Historique d'utilisation" %}</h1>
+    
+    <a href="{% url 'multitenant:subscription_dashboard' %}" class="btn btn-outline-primary">
+      <i class="fas fa-arrow-left"></i> {% translate "Retour au tableau de bord" %}
+    </a>
+  </div>
+  
+  <!-- Filtres -->
+  <div class="filter-form">
+    <form method="get" class="row">
+      <div class="col-md-3">
+        <div class="form-group">
+          <label for="feature_id">{% translate "Fonctionnalité" %}</label>
+          <select name="feature_id" id="feature_id" class="form-control">
+            <option value="">{% translate "Toutes les fonctionnalités" %}</option>
+            {% for feature in features %}
+              <option value="{{ feature.id }}" {% if selected_feature == feature.id|stringformat:"i" %}selected{% endif %}>
+                {{ feature.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="form-group">
+          <label for="start_date">{% translate "Date de début" %}</label>
+          <input type="text" name="start_date" id="start_date" class="form-control datepicker" value="{{ start_date }}">
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="form-group">
+          <label for="end_date">{% translate "Date de fin" %}</label>
+          <input type="text" name="end_date" id="end_date" class="form-control datepicker" value="{{ end_date }}">
+        </div>
+      </div>
+      
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-filter"></i> {% translate "Filtrer" %}
+        </button>
+        <a href="{% url 'multitenant:feature_usage_history' %}" class="btn btn-outline-secondary ml-2">
+          <i class="fas fa-redo"></i> {% translate "Réinitialiser" %}
+        </a>
+      </div>
+    </form>
+  </div>
+  
+  <!-- Résumé -->
+  <div class="row">
+    <div class="col-md-4">
+      <div class="summary-card">
+        <div class="summary-title">{% translate "Total utilisations" %}</div>
+        <div class="summary-value">{{ usages.count }}</div>
+      </div>
+    </div>
+    
+    <div class="col-md-4">
+      <div class="summary-card">
+        <div class="summary-title">{% translate "Coût total" %}</div>
+        <div class="summary-value">{{ total_cost|floatformat:2 }} €</div>
+      </div>
+    </div>
+    
+    <div class="col-md-4">
+      <div class="summary-card">
+        <div class="summary-title">{% translate "Non facturé" %}</div>
+        <div class="summary-value">{{ unbilled_cost|floatformat:2 }} €</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Bouton d'exportation -->
+  <div class="export-btn">
+    <a href="?{{ request.GET.urlencode }}&export=csv" class="btn btn-success">
+      <i class="fas fa-download"></i> {% translate "Exporter en CSV" %}
+    </a>
+  </div>
+  
+  <!-- Tableau des utilisations -->
+  <div class="usage-table">
+    {% if usages %}
+      <div class="table-responsive">
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>{% translate "Fonctionnalité" %}</th>
+              <th>{% translate "Date d'utilisation" %}</th>
+              <th>{% translate "Quantité" %}</th>
+              <th>{% translate "Prix unitaire" %}</th>
+              <th>{% translate "Total" %}</th>
+              <th>{% translate "Statut" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for usage in usages %}
+            <tr>
+              <td>{{ usage.feature.name }}</td>
+              <td>{{ usage.usage_date|date:"d/m/Y H:i" }}</td>
+              <td>{{ usage.quantity }}</td>
+              <td>{{ usage.feature.price_per_unit }} €</td>
+              <td>{{ usage.quantity|multiply:usage.feature.price_per_unit }} €</td>
+              <td>
+                <span class="billed-badge billed-{{ usage.billed|lower }}">
+                  {% if usage.billed %}
+                    {% translate "Facturé" %}
+                  {% else %}
+                    {% translate "Non facturé" %}
+                  {% endif %}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Pagination -->
+      {% if usages.has_other_pages %}
+      <nav aria-label="{% translate 'Navigation des pages' %}">
+        <ul class="pagination justify-content-center">
+          {% if usages.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                &laquo; {% translate "Premier" %}
+              </a>
+            </li>
+            <li class="page-item">
+              <a class="page-link" href="?page={{ usages.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                {% translate "Précédent" %}
+              </a>
+            </li>
+          {% endif %}
+          
+          {% for i in usages.paginator.page_range %}
+            {% if usages.number == i %}
+              <li class="page-item active">
+                <span class="page-link">{{ i }}</span>
+              </li>
+            {% elif i > usages.number|add:'-3' and i < usages.number|add:'3' %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ i }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                  {{ i }}
+                </a>
+              </li>
+            {% endif %}
+          {% endfor %}
+          
+          {% if usages.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ usages.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                {% translate "Suivant" %}
+              </a>
+            </li>
+            <li class="page-item">
+              <a class="page-link" href="?page={{ usages.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                {% translate "Dernier" %} &raquo;
+              </a>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+      
+    {% else %}
+      <div class="alert alert-info">
+        {% translate "Aucune utilisation trouvée pour les critères sélectionnés." %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialiser les sélecteurs de date
+    flatpickr(".datepicker", {
+      dateFormat: "Y-m-d",
+      allowInput: true
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Compétitions disponibles" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .competition-card {
+        transition: all 0.3s ease;
+    }
+    .competition-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+    }
+    .competition-status {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 1;
+    }
+    .competition-image {
+        height: 140px;
+        object-fit: cover;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2 mb-0">{% trans "Compétitions disponibles" %}</h1>
+        <div class="d-flex">
+            <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-tachometer-alt me-2"></i>{% trans "Tableau de bord" %}
+            </a>
+            <!-- URL corrigée avec le namespace complet -->
+            <a href="{% url 'competitions:club:registrations_list' %}" class="btn btn-outline-primary">
+                <i class="fas fa-clipboard-list me-2"></i>{% trans "Inscriptions" %}
+            </a>
+        </div>
+    </div>
+    
+    <!-- Filtres et recherche -->
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" name="q" placeholder="{% trans "Rechercher..." %}" value="{{ request.GET.q }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select name="discipline" class="form-select">
+                        <option value="">{% trans "Toutes les disciplines" %}</option>
+                        {% for discipline in disciplines %}
+                            <option value="{{ discipline.id }}" {% if request.GET.discipline == discipline.id|stringformat:"i" %}selected{% endif %}>{{ discipline.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="period" class="form-select">
+                        <option value="">{% trans "Toutes les périodes" %}</option>
+                        <option value="upcoming" {% if request.GET.period == 'upcoming' %}selected{% endif %}>{% trans "À venir" %}</option>
+                        <option value="ongoing" {% if request.GET.period == 'ongoing' %}selected{% endif %}>{% trans "En cours" %}</option>
+                        <option value="past" {% if request.GET.period == 'past' %}selected{% endif %}>{% trans "Passées" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">{% trans "Filtrer" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- Liste des compétitions -->
+    {% if competitions %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for competition in competitions %}
+                <div class="col">
+                    <div class="card h-100 border-0 shadow-sm competition-card">
+                        {% if competition.status == 'published' %}
+                            <span class="competition-status badge bg-success">{% trans "Publiée" %}</span>
+                        {% elif competition.status == 'ongoing' %}
+                            <span class="competition-status badge bg-primary">{% trans "En cours" %}</span>
+                        {% elif competition.status == 'completed' %}
+                            <span class="competition-status badge bg-secondary">{% trans "Terminée" %}</span>
+                        {% endif %}
+                        
+                        <img src="{% if competition.logo %}{{ competition.logo.url }}{% else %}{% static 'img/competition-default.jpg' %}{% endif %}" class="competition-image" alt="{{ competition.title }}">
+                        
+                        <div class="card-body">
+                            <h5 class="card-title">{{ competition.title }}</h5>
+                            <p class="card-text text-muted mb-1">
+                                <i class="fas fa-calendar-alt me-1"></i> {{ competition.start_date|date:"d/m/Y" }}
+                                {% if competition.end_date != competition.start_date %}
+                                    - {{ competition.end_date|date:"d/m/Y" }}
+                                {% endif %}
+                            </p>
+                            <p class="card-text text-muted mb-1">
+                                <i class="fas fa-map-marker-alt me-1"></i> {{ competition.city }}
+                            </p>
+                            {% if competition.discipline %}
+                                <span class="badge bg-primary mt-2">{{ competition.discipline.name }}</span>
+                            {% endif %}
+                            
+                            <hr>
+                            
+                            <div class="d-flex justify-content-between align-items-center">
+                                {% if competition.registrations.exists %}
+                                    <span class="text-muted">{{ competition.registrations.count }} {% trans "inscrits" %}</span>
+                                {% else %}
+                                    <span class="text-muted">{% trans "Aucun inscrit" %}</span>
+                                {% endif %}
+                                
+                                <div class="btn-group">
+                                    <a href="{% url 'competitions:competitions:detail' pk=competition.pk %}" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-info-circle me-1"></i>{% trans "Détails" %}
+                                    </a>
+                                    <!-- URL corrigée pour l'inscription d'un pratiquant -->
+                                    <a href="{% url 'competitions:club:register_practitioner' competition_id=competition.id %}" class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-user-plus me-1"></i>{% trans "Inscrire" %}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-white">
+                            <small class="text-muted">
+                                {% if competition.registration_deadline %}
+                                    <i class="fas fa-clock me-1"></i>{% trans "Inscriptions jusqu'au" %} {{ competition.registration_deadline|date:"d/m/Y" }}
+                                {% else %}
+                                    <i class="fas fa-clock me-1"></i>{% trans "Inscriptions ouvertes" %}
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination -->
+        {% if is_paginated %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.period %}&period={{ request.GET.period }}{% endif %}">
+                                <i class="fas fa-angle-double-left"></i>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.period %}&period={{ request.GET.period }}{% endif %}">
+                                <i class="fas fa-angle-left"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.period %}&period={{ request.GET.period }}{% endif %}">
+                                    {{ num }}
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.period %}&period={{ request.GET.period }}{% endif %}">
+                                <i class="fas fa-angle-right"></i>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.period %}&period={{ request.GET.period }}{% endif %}">
+                                <i class="fas fa-angle-double-right"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center py-5">
+                <img src="{% static 'img/empty-state.svg' %}" alt="Aucune compétition" class="mb-3" style="max-width: 200px;">
+                <h3 class="h4 text-muted mb-3">{% trans "Aucune compétition disponible" %}</h3>
+                <p class="text-muted mb-4">{% trans "Aucune compétition ne correspond à vos critères de recherche." %}</p>
+                <a href="{% url 'competitions:club:available_competitions' %}" class="btn btn-primary">
+                    <i class="fas fa-sync me-2"></i>{% trans "Réinitialiser les filtres" %}
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

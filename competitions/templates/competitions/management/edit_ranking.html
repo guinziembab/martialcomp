@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Modifier le classement" %} - {{ competition.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Titre et navigation -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Modifier le classement" %}</h1>
+        <a href="{% url 'competitions:management:category_results' competition.id ranking.category.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour aux résultats" %}
+        </a>
+    </div>
+
+    <!-- Carte principale -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{% trans "Modifier le classement de" %} {{ ranking.practitioner.full_name }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h3 class="h6 mb-3">{% trans "Informations sur le participant" %}</h3>
+                            <div class="d-flex align-items-center mb-3">
+                                {% if ranking.practitioner.photo %}
+                                    <img src="{{ ranking.practitioner.photo.url }}" alt="{{ ranking.practitioner.full_name }}" 
+                                        class="rounded-circle me-3" width="60" height="60">
+                                {% else %}
+                                    <div class="rounded-circle bg-secondary text-white d-flex justify-content-center align-items-center me-3" 
+                                        style="width: 60px; height: 60px;">
+                                        <i class="fas fa-user fa-lg"></i>
+                                    </div>
+                                {% endif %}
+                                <div>
+                                    <h4 class="h5 mb-1">{{ ranking.practitioner.full_name }}</h4>
+                                    {% if ranking.practitioner.club %}
+                                        <p class="mb-0 text-muted">{{ ranking.practitioner.club.name }}</p>
+                                    {% else %}
+                                        <p class="mb-0 text-muted">{% trans "Sans club" %}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {% trans "Catégorie" %}
+                                    <span class="badge bg-primary">{{ ranking.category.name }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {% trans "Discipline" %}
+                                    <span class="badge bg-secondary">{{ ranking.category.competition_type.name }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {% trans "Rang actuel" %}
+                                    <span class="badge bg-success">{{ ranking.rank }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {% trans "Score actuel" %}
+                                    <span class="badge bg-info">{{ ranking.final_score }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {% trans "Ex-aequo" %}
+                                    <span class="badge {% if ranking.is_tie %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {% if ranking.is_tie %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}
+                                    </span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h3 class="h6 mb-3">{% trans "Modifier le classement" %}</h3>
+                            <form method="POST" action="{% url 'competitions:management:edit_ranking' competition.id ranking.id %}">
+                                {% csrf_token %}
+                                
+                                <!-- Champ rang -->
+                                <div class="mb-3">
+                                    <label for="rank" class="form-label">{% trans "Rang" %} <span class="text-danger">*</span></label>
+                                    <input type="number" class="form-control" id="rank" name="rank" 
+                                           value="{{ ranking.rank }}" min="1" required>
+                                    <div class="form-text">{% trans "Position du pratiquant dans le classement." %}</div>
+                                </div>
+                                
+                                <!-- Champ score -->
+                                <div class="mb-3">
+                                    <label for="final_score" class="form-label">{% trans "Score final" %} <span class="text-danger">*</span></label>
+                                    <input type="number" class="form-control" id="final_score" name="final_score" 
+                                           value="{{ ranking.final_score }}" step="0.01" min="0" required>
+                                    <div class="form-text">{% trans "Score final calculé pour ce pratiquant." %}</div>
+                                </div>
+                                
+                                <!-- Champ ex-aequo -->
+                                <div class="mb-3 form-check">
+                                    <input type="checkbox" class="form-check-input" id="is_tie" name="is_tie" 
+                                           {% if ranking.is_tie %}checked{% endif %}>
+                                    <label class="form-check-label" for="is_tie">{% trans "Ex-aequo" %}</label>
+                                    <div class="form-text">{% trans "Cochez si ce pratiquant est ex-aequo avec un autre à ce rang." %}</div>
+                                </div>
+
+                                <!-- Avertissement -->
+                                <div class="alert alert-warning mb-4">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    {% trans "Attention : la modification manuelle du classement peut créer des incohérences avec les scores calculés automatiquement." %}
+                                </div>
+                                
+                                <div class="d-flex justify-content-between">
+                                    <a href="{% url 'competitions:management:category_results' competition.id ranking.category.id %}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-times me-2"></i>{% trans "Annuler" %}
+                                    </a>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-2"></i>{% trans "Enregistrer" %}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Autres pratiquants -->
+            <h3 class="h5 mb-3">{% trans "Autres pratiquants dans cette catégorie" %}</h3>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{% trans "Rang" %}</th>
+                            <th>{% trans "Nom" %}</th>
+                            <th>{% trans "Club" %}</th>
+                            <th>{% trans "Score" %}</th>
+                            <th>{% trans "Ex-aequo" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for other_ranking in ranking.category.rankings.all %}
+                            {% if other_ranking.id != ranking.id %}
+                                <tr>
+                                    <td>{{ other_ranking.rank }}</td>
+                                    <td>{{ other_ranking.practitioner.full_name }}</td>
+                                    <td>
+                                        {% if other_ranking.practitioner.club %}
+                                            {{ other_ranking.practitioner.club.name }}
+                                        {% else %}
+                                            <span class="text-muted">{% trans "Sans club" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ other_ranking.final_score }}</td>
+                                    <td>
+                                        {% if other_ranking.is_tie %}
+                                            <span class="badge bg-success">{% trans "Oui" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{% trans "Non" %}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Validation du formulaire
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(event) {
+            const rankInput = document.getElementById('rank');
+            const scoreInput = document.getElementById('final_score');
+            
+            // Validation du rang
+            if (parseInt(rankInput.value) < 1) {
+                event.preventDefault();
+                alert("{% trans 'Le rang doit être un nombre positif.' %}");
+                rankInput.focus();
+                return false;
+            }
+            
+            // Validation du score
+            if (parseFloat(scoreInput.value) < 0) {
+                event.preventDefault();
+                alert("{% trans 'Le score ne peut pas être négatif.' %}");
+                scoreInput.focus();
+                return false;
+            }
+        });
+    });
+</script>
+{% endblock %}

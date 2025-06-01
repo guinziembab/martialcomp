@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Suivi des demandes" %} | {{ club.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h4 mb-0">{% trans "Suivi des demandes" %} - {{ club.name }}</h2>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <h3 class="h5 mb-3">{% trans "Demandes d'affiliation" %}</h3>
+                    
+                    {% if affiliation_requests %}
+                        <div class="table-responsive mb-4">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>{% trans "Fédération" %}</th>
+                                        <th>{% trans "Date de demande" %}</th>
+                                        <th>{% trans "Statut" %}</th>
+                                        <th>{% trans "Dernière mise à jour" %}</th>
+                                        <th>{% trans "Actions" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for request in affiliation_requests %}
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    {% if request.federation.logo %}
+                                                        <img src="{{ request.federation.logo.url }}" alt="{{ request.federation.name }}" class="me-2" style="width: 30px; height: 30px; object-fit: cover;">
+                                                    {% else %}
+                                                        <div class="bg-light rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">
+                                                            <i class="fas fa-building text-secondary small"></i>
+                                                        </div>
+                                                    {% endif %}
+                                                    {{ request.federation.name }}
+                                                </div>
+                                            </td>
+                                            <td>{{ request.created_at|date:"d/m/Y H:i" }}</td>
+                                            <td>
+                                                {% if request.status == 'pending' %}
+                                                    <span class="badge bg-warning">{% trans "En attente" %}</span>
+                                                {% elif request.status == 'approved' %}
+                                                    <span class="badge bg-success">{% trans "Approuvée" %}</span>
+                                                {% elif request.status == 'rejected' %}
+                                                    <span class="badge bg-danger">{% trans "Rejetée" %}</span>
+                                                {% elif request.status == 'cancelled' %}
+                                                    <span class="badge bg-secondary">{% trans "Annulée" %}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ request.updated_at|date:"d/m/Y H:i" }}</td>
+                                            <td>
+                                                {% if request.status == 'pending' %}
+                                                    <form method="post" class="d-inline">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="request_id" value="{{ request.id }}">
+                                                        <input type="hidden" name="action" value="cancel">
+                                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                            <i class="fas fa-times me-1"></i>{% trans "Annuler" %}
+                                                        </button>
+                                                    </form>
+                                                {% elif request.status == 'approved' %}
+                                                    <span class="text-success">
+                                                        <i class="fas fa-check me-1"></i>{% trans "Acceptée" %}
+                                                    </span>
+                                                {% elif request.status == 'rejected' %}
+                                                    <span class="text-danger">
+                                                        <i class="fas fa-times me-1"></i>{% trans "Rejetée" %}
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info mb-4">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Aucune demande d'affiliation n'a été effectuée pour le moment." %}
+                        </div>
+                    {% endif %}
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'competitions:club:dashboard' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+                        </a>
+                        <a href="{% url 'competitions:club:join_federation' %}" class="btn btn-primary">
+                            <i class="fas fa-handshake me-2"></i>{% trans "Rejoindre une fédération" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

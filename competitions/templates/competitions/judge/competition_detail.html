@@ -1,0 +1,681 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ competition.title }} | {% trans "Juge" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .competition-header {
+        background-size: cover;
+        background-position: center;
+        padding: 60px 0;
+        position: relative;
+        margin-bottom: 30px;
+    }
+    .competition-header::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+    }
+    .competition-header-content {
+        position: relative;
+        color: white;
+    }
+    .nav-pills .nav-link {
+        border-radius: 50px;
+        padding: 8px 20px;
+        margin-right: 5px;
+    }
+    .nav-pills .nav-link.active {
+        background-color: #0d6efd;
+    }
+    .category-card {
+        transition: all 0.3s ease;
+    }
+    .category-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+    }
+    .schedule-card {
+        border-left: 4px solid #0d6efd;
+    }
+    .assignment-type-technical {
+        border-color: #17a2b8;
+    }
+    .assignment-type-combat {
+        border-color: #dc3545;
+    }
+    .assignment-type-chief {
+        border-color: #6610f2;
+    }
+    .assignment-type-timekeeper {
+        border-color: #fd7e14;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- En-tête de la compétition -->
+<div class="competition-header" style="background-image: url('{% if competition.logo %}{{ competition.logo.url }}{% else %}{% static 'img/competition-default.jpg' %}{% endif %}');">
+    <div class="container">
+        <div class="competition-header-content">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 mb-0">{{ competition.title }}</h1>
+                    <p class="lead mb-0">
+                        <i class="fas fa-calendar-alt me-2"></i>{{ competition.start_date|date:"d/m/Y" }}
+                        {% if competition.end_date != competition.start_date %}
+                            - {{ competition.end_date|date:"d/m/Y" }}
+                        {% endif %}
+                        <i class="fas fa-map-marker-alt ms-3 me-2"></i>{{ competition.city }}
+                    </p>
+                </div>
+                <span class="badge bg-primary p-2">
+                    {% if registration.is_technical_judge %}
+                        <i class="fas fa-clipboard-check me-1"></i>{% trans "Juge Technique" %}
+                    {% endif %}
+                    {% if registration.is_combat_referee %}
+                        {% if registration.is_technical_judge %} / {% endif %}
+                        <i class="fas fa-gavel me-1"></i>{% trans "Arbitre Combat" %}
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- Onglets -->
+    <ul class="nav nav-pills mb-4">
+        <li class="nav-item">
+            <a class="nav-link active" id="assignments-tab" data-bs-toggle="tab" href="#assignments" role="tab">
+                <i class="fas fa-tasks me-2"></i>{% trans "Mes affectations" %}
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="schedule-tab" data-bs-toggle="tab" href="#schedule" role="tab">
+                <i class="fas fa-calendar-alt me-2"></i>{% trans "Planning" %}
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="categories-tab" data-bs-toggle="tab" href="#categories" role="tab">
+                <i class="fas fa-layer-group me-2"></i>{% trans "Catégories" %}
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="general-tab" data-bs-toggle="tab" href="#general" role="tab">
+                <i class="fas fa-info-circle me-2"></i>{% trans "Informations générales" %}
+            </a>
+        </li>
+    </ul>
+    
+    <div class="tab-content">
+        <!-- Onglet Affectations -->
+        <div class="tab-pane fade show active" id="assignments" role="tabpanel">
+            <h2 class="h4 mb-4">{% trans "Mes affectations" %}</h2>
+            
+            {% if assignments %}
+                <div class="row">
+                    {% for assignment in assignments %}
+                        <div class="col-md-6 mb-4">
+                            <div class="card border-0 shadow-sm h-100 category-card">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <h5 class="card-title mb-0">{{ assignment.category.name }}</h5>
+                                        {% if assignment.assignment_type == 'technical_judge' %}
+                                            <span class="badge bg-info">{% trans "Juge Technique" %}</span>
+                                        {% elif assignment.assignment_type == 'combat_referee' %}
+                                            <span class="badge bg-danger">{% trans "Arbitre Combat" %}</span>
+                                        {% elif assignment.assignment_type == 'chief_judge' %}
+                                            <span class="badge bg-primary">{% trans "Juge en Chef" %}</span>
+                                        {% elif assignment.assignment_type == 'timekeeper' %}
+                                            <span class="badge bg-warning text-dark">{% trans "Chronométreur" %}</span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <ul class="list-group list-group-flush mb-3">
+                                        {% if assignment.date %}
+                                            <li class="list-group-item px-0">
+                                                <i class="fas fa-calendar-day me-2 text-muted"></i>{{ assignment.date|date:"d F Y" }}
+                                            </li>
+                                        {% endif %}
+                                        {% if assignment.start_time %}
+                                            <li class="list-group-item px-0">
+                                                <i class="fas fa-clock me-2 text-muted"></i>{{ assignment.start_time|time:"H:i" }} - {{ assignment.end_time|time:"H:i" }}
+                                            </li>
+                                        {% endif %}
+                                        {% if assignment.location %}
+                                            <li class="list-group-item px-0">
+                                                <i class="fas fa-map-marker-alt me-2 text-muted"></i>{{ assignment.location }}
+                                            </li>
+                                        {% endif %}
+                                    </ul>
+                                    
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        {% if assignment.competition_type %}
+                                            <div class="badge bg-secondary">{{ assignment.competition_type.name }}</div>
+                                        {% endif %}
+                                        
+                                        <div class="btn-group">
+                                            {% if assignment.scoring_url %}
+                                                <a href="{{ assignment.scoring_url }}" class="btn btn-sm btn-primary">
+                                                    <i class="fas fa-star me-1"></i>{% trans "Notation" %}
+                                                </a>
+                                            {% endif %}
+                                            <a href="{% url 'competitions:category_detail' assignment.category.id %}" class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-info-circle me-1"></i>{% trans "Détails" %}
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Instructions pour les juges -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">{% trans "Instructions aux juges" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info mb-3">
+                            <i class="fas fa-info-circle me-2"></i>{% trans "Assurez-vous d'être présent à votre poste au moins 15 minutes avant le début de votre première affectation." %}
+                        </div>
+                        
+                        <h6 class="mb-2">{% trans "Pour les juges techniques" %}:</h6>
+                        <ul>
+                            <li>{% trans "Utilisez l'application de notation pour enregistrer les scores." %}</li>
+                            <li>{% trans "Évaluez la précision technique, l'équilibre, la puissance et le rythme d'exécution." %}</li>
+                            <li>{% trans "Les scores doivent être attribués entre 0 et 10 points." %}</li>
+                            <li>{% trans "En cas de problème technique, notifiez immédiatement le juge en chef." %}</li>
+                        </ul>
+                        
+                        <h6 class="mb-2">{% trans "Pour les arbitres de combat" %}:</h6>
+                        <ul>
+                            <li>{% trans "Assurez-vous que les compétiteurs portent l'équipement de protection requis." %}</li>
+                            <li>{% trans "Appliquez strictement les règles de sécurité." %}</li>
+                            <li>{% trans "Utilisez les signaux manuels officiels pour communiquer vos décisions." %}</li>
+                            <li>{% trans "En cas de blessure, suivez le protocole médical établi." %}</li>
+                        </ul>
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "Vous n'avez pas encore d'affectations pour cette compétition." %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Onglet Planning -->
+        <div class="tab-pane fade" id="schedule" role="tabpanel">
+            <h2 class="h4 mb-4">{% trans "Planning de la compétition" %}</h2>
+            
+            {% if competition_days %}
+                <ul class="nav nav-tabs mb-4">
+                    {% for day in competition_days %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if forloop.first %}active{% endif %}" data-bs-toggle="tab" href="#day-{{ forloop.counter }}">
+                                {{ day|date:"D d/m" }}
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+                
+                <div class="tab-content">
+                    {% for day in competition_days %}
+                        <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="day-{{ forloop.counter }}">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="list-group mb-4" id="time-slots-{{ forloop.counter }}" role="tablist">
+                                        {% for time_slot in day_schedules|get_item:day %}
+                                            <a class="list-group-item list-group-item-action {% if forloop.first %}active{% endif %}" data-bs-toggle="list" href="#slot-{{ forloop.parentloop.counter }}-{{ forloop.counter }}" role="tab">
+                                                {{ time_slot.start_time|time:"H:i" }} - {{ time_slot.end_time|time:"H:i" }}
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="col-md-9">
+                                    <div class="tab-content">
+                                        {% for time_slot in day_schedules|get_item:day %}
+                                            <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="slot-{{ forloop.parentloop.counter }}-{{ forloop.counter }}" role="tabpanel">
+                                                <h5 class="mb-3">{{ time_slot.start_time|time:"H:i" }} - {{ time_slot.end_time|time:"H:i" }}</h5>
+                                                
+                                                {% if time_slot.events %}
+                                                    <div class="row">
+                                                        {% for event in time_slot.events %}
+                                                            <div class="col-md-6 mb-3">
+                                                                <div class="card h-100 schedule-card {% if event.assignment_type == 'technical_judge' %}assignment-type-technical{% elif event.assignment_type == 'combat_referee' %}assignment-type-combat{% elif event.assignment_type == 'chief_judge' %}assignment-type-chief{% elif event.assignment_type == 'timekeeper' %}assignment-type-timekeeper{% endif %}">
+                                                                    <div class="card-body">
+                                                                        <h6 class="card-title mb-0">{{ event.title }}</h6>
+                                                                        <p class="text-muted mb-2">{{ event.subtitle }}</p>
+                                                                        
+                                                                        <div class="d-flex justify-content-between align-items-center">
+                                                                            <span class="badge bg-secondary">{{ event.location }}</span>
+                                                                            {% if event.is_assigned %}
+                                                                                <span class="badge bg-success">{% trans "Vous êtes affecté" %}</span>
+                                                                            {% endif %}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% else %}
+                                                    <div class="alert alert-light">
+                                                        <i class="fas fa-info-circle me-2"></i>{% trans "Aucun événement programmé pour ce créneau horaire." %}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "Le planning détaillé de la compétition n'est pas encore disponible." %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Onglet Catégories -->
+        <div class="tab-pane fade" id="categories" role="tabpanel">
+            <h2 class="h4 mb-4">{% trans "Catégories de la compétition" %}</h2>
+            
+            {% if competition_types %}
+                <ul class="nav nav-tabs mb-4">
+                    {% for competition_type in competition_types %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if forloop.first %}active{% endif %}" data-bs-toggle="tab" href="#type-{{ competition_type.id }}">
+                                {{ competition_type.name }}
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+                
+                <div class="tab-content">
+                    {% for competition_type in competition_types %}
+                        <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="type-{{ competition_type.id }}">
+                            {% if categories_by_type|get_item:competition_type %}
+                                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                                    {% for category in categories_by_type|get_item:competition_type %}
+                                        <div class="col">
+                                            <div class="card h-100 border-0 shadow-sm category-card">
+                                                <div class="card-body">
+                                                    <h5 class="card-title">{{ category.name }}</h5>
+                                                    <ul class="list-group list-group-flush mb-3">
+                                                        {% if category.min_age or category.max_age %}
+                                                            <li class="list-group-item px-0">
+                                                                <i class="fas fa-birthday-cake me-2 text-muted"></i>
+                                                                {% if category.min_age and category.max_age %}
+                                                                    {{ category.min_age }} - {{ category.max_age }} {% trans "ans" %}
+                                                                {% elif category.min_age %}
+                                                                    {% trans "À partir de" %} {{ category.min_age }} {% trans "ans" %}
+                                                                {% elif category.max_age %}
+                                                                    {% trans "Jusqu'à" %} {{ category.max_age }} {% trans "ans" %}
+                                                                {% endif %}
+                                                            </li>
+                                                        {% endif %}
+                                                        
+                                                        {% if category.min_weight or category.max_weight %}
+                                                            <li class="list-group-item px-0">
+                                                                <i class="fas fa-weight me-2 text-muted"></i>
+                                                                {% if category.min_weight and category.max_weight %}
+                                                                    {{ category.min_weight }} - {{ category.max_weight }} kg
+                                                                {% elif category.min_weight %}
+                                                                    {% trans "À partir de" %} {{ category.min_weight }} kg
+                                                                {% elif category.max_weight %}
+                                                                    {% trans "Jusqu'à" %} {{ category.max_weight }} kg
+                                                                {% endif %}
+                                                            </li>
+                                                        {% endif %}
+                                                        
+                                                        {% if category.min_grade or category.max_grade %}
+                                                            <li class="list-group-item px-0">
+                                                                <i class="fas fa-award me-2 text-muted"></i>
+                                                                {% if category.min_grade and category.max_grade %}
+                                                                    {{ category.min_grade }} - {{ category.max_grade }}
+                                                                {% elif category.min_grade %}
+                                                                    {% trans "À partir de" %} {{ category.min_grade }}
+                                                                {% elif category.max_grade %}
+                                                                    {% trans "Jusqu'à" %} {{ category.max_grade }}
+                                                                {% endif %}
+                                                            </li>
+                                                        {% endif %}
+                                                        
+                                                        <li class="list-group-item px-0">
+                                                            <i class="fas fa-venus-mars me-2 text-muted"></i>
+                                                            {% if category.gender == 'male' %}
+                                                                {% trans "Hommes" %}
+                                                            {% elif category.gender == 'female' %}
+                                                                {% trans "Femmes" %}
+                                                            {% else %}
+                                                                {% trans "Mixte" %}
+                                                            {% endif %}
+                                                        </li>
+                                                    </ul>
+                                                    
+                                                    <div class="text-end">
+                                                        {% if category.id in my_assigned_categories %}
+                                                            <span class="badge bg-success me-2">
+                                                                <i class="fas fa-check me-1"></i>{% trans "Vous êtes affecté" %}
+                                                            </span>
+                                                        {% endif %}
+                                                        <a href="{% url 'competitions:category_detail' category.id %}" class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-eye me-1"></i>{% trans "Détails" %}
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="alert alert-light">
+                                    <i class="fas fa-info-circle me-2"></i>{% trans "Aucune catégorie définie pour ce type de compétition." %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "Aucune catégorie n'a encore été définie pour cette compétition." %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Onglet Informations générales -->
+        <div class="tab-pane fade" id="general" role="tabpanel">
+            <h2 class="h4 mb-4">{% trans "Informations générales" %}</h2>
+            
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title mb-3">{% trans "À propos de la compétition" %}</h5>
+                            <p>{{ competition.description|linebreaks|default:_("Aucune description fournie.") }}</p>
+                            
+                            <h6 class="mt-4 mb-2">{% trans "Types de compétition" %}</h6>
+                            <div class="mb-3">
+                                {% for competition_type in competition.competition_types.all %}
+                                    <span class="badge bg-primary me-1 mb-1">{{ competition_type.name }}</span>
+                                {% empty %}
+                                    <span class="text-muted">{% trans "Aucun type spécifié" %}</span>
+                                {% endfor %}
+                            </div>
+                            
+                            <h6 class="mb-2">{% trans "Discipline" %}</h6>
+                            <div class="mb-3">
+                                {% if competition.discipline %}
+                                    <span class="badge bg-secondary me-1">{{ competition.discipline.name }}</span>
+                                {% else %}
+                                    <span class="text-muted">{% trans "Non spécifiée" %}</span>
+                                {% endif %}
+                            </div>
+                            
+                            <h6 class="mb-2">{% trans "Organisateur" %}</h6>
+                            <p class="mb-3">
+                                {% if competition.organizer %}
+                                    {{ competition.organizer.name }}
+                                {% else %}
+                                    <span class="text-muted">{% trans "Non spécifié" %}</span>
+                                {% endif %}
+                            </p>
+                            
+                            <h6 class="mb-2">{% trans "Contact" %}</h6>
+                            <p class="mb-0">
+                                {% if competition.contact_email %}
+                                    <i class="fas fa-envelope me-2 text-muted"></i>{{ competition.contact_email }}
+                                {% endif %}
+                                {% if competition.contact_phone %}
+                                    <br><i class="fas fa-phone me-2 text-muted"></i>{{ competition.contact_phone }}
+                                {% endif %}
+                                {% if not competition.contact_email and not competition.contact_phone %}
+                                    <span class="text-muted">{% trans "Aucune information de contact fournie" %}</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Règlement de la compétition -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">{% trans "Règlement de la compétition" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if competition.rules %}
+                                {{ competition.rules|linebreaks }}
+                            {% else %}
+                                <div class="alert alert-light">
+                                    <i class="fas fa-info-circle me-2"></i>{% trans "Le règlement détaillé de la compétition n'est pas disponible." %}
+                                </div>
+                            {% endif %}
+                            
+                            {% if competition.rules_file %}
+                                <div class="mt-3">
+                                    <a href="{{ competition.rules_file.url }}" class="btn btn-outline-primary" target="_blank">
+                                        <i class="fas fa-file-pdf me-2"></i>{% trans "Télécharger le règlement complet" %}
+                                    </a>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <!-- Informations pratiques -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">{% trans "Informations pratiques" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <span><i class="fas fa-calendar-alt me-2 text-muted"></i>{% trans "Dates" %}</span>
+                                        <span class="text-end">
+                                            {{ competition.start_date|date:"d/m/Y" }}
+                                            {% if competition.end_date != competition.start_date %}
+                                                - {{ competition.end_date|date:"d/m/Y" }}
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </li>
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <span><i class="fas fa-map-marker-alt me-2 text-muted"></i>{% trans "Lieu" %}</span>
+                                        <span class="text-end">{{ competition.address }}</span>
+                                    </div>
+                                </li>
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <span><i class="fas fa-clock me-2 text-muted"></i>{% trans "Horaires" %}</span>
+                                        <span class="text-end">
+                                            {% if competition.start_time %}
+                                                {{ competition.start_time|time:"H:i" }} - {{ competition.end_time|time:"H:i" }}
+                                            {% else %}
+                                                {% trans "Non spécifiés" %}
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </li>
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <span><i class="fas fa-users me-2 text-muted"></i>{% trans "Participants" %}</span>
+                                        <span class="text-end">{{ participant_count|default:"0" }}</span>
+                                    </div>
+                                </li>
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <span><i class="fas fa-layer-group me-2 text-muted"></i>{% trans "Catégories" %}</span>
+                                        <span class="text-end">{{ category_count|default:"0" }}</span>
+                                    </div>
+                                </li>
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <span><i class="fas fa-gavel me-2 text-muted"></i>{% trans "Arbitres/Juges" %}</span>
+                                        <span class="text-end">{{ judge_count|default:"0" }}</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Statut des inscriptions -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">{% trans "Statut des inscriptions" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if registration_open %}
+                                <div class="alert alert-success mb-3">
+                                    <i class="fas fa-check-circle me-2"></i>{% trans "Les inscriptions sont ouvertes" %}
+                                </div>
+                                <p class="mb-2">
+                                    <i class="fas fa-calendar-alt me-2 text-muted"></i>
+                                    <strong>{% trans "Date limite" %}:</strong>
+                                    {% if registration_deadline %}
+                                        {{ registration_deadline|date:"d/m/Y" }}
+                                    {% else %}
+                                        {% trans "Non spécifiée" %}
+                                    {% endif %}
+                                </p>
+                            {% else %}
+                                <div class="alert alert-warning mb-3">
+                                    <i class="fas fa-exclamation-circle me-2"></i>{% trans "Les inscriptions sont fermées" %}
+                                </div>
+                            {% endif %}
+                            
+                            <p class="mb-0">
+                                <i class="fas fa-info-circle me-2 text-muted"></i>
+                                {% if registration_status %}
+                                    {{ registration_status }}
+                                {% else %}
+                                    {% trans "Contactez l'organisateur pour plus d'informations sur les inscriptions." %}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Carte interactive du lieu -->
+                    {% if competition.address %}
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0">{% trans "Localisation" %}</h5>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="ratio ratio-16x9">
+                                    <iframe src="https://maps.google.com/maps?q={{ competition.address|urlencode }}&t=&z=13&ie=UTF8&iwloc=&output=embed" 
+                                            width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy"></iframe>
+                                </div>
+                                <div class="p-3">
+                                    <a href="https://maps.google.com/?q={{ competition.address|urlencode }}" class="btn btn-sm btn-outline-secondary w-100" target="_blank">
+                                        <i class="fas fa-directions me-2"></i>{% trans "Obtenir des directions" %}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Documents de la compétition -->
+            {% if competition_documents %}
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">{% trans "Documents de la compétition" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                            {% for document in competition_documents %}
+                                <div class="col">
+                                    <div class="card h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title">{{ document.name }}</h6>
+                                            <p class="card-text small text-muted">{{ document.description|truncatechars:100 }}</p>
+                                        </div>
+                                        <div class="card-footer bg-transparent border-0">
+                                            <a href="{{ document.file.url }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                                <i class="fas fa-download me-2"></i>{% trans "Télécharger" %}
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Bouton de retour en haut de page -->
+<button id="back-to-top" class="btn btn-primary rounded-circle position-fixed bottom-0 end-0 m-4" style="display: none; z-index: 1000;">
+    <i class="fas fa-arrow-up"></i>
+</button>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialiser les tooltips Bootstrap
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    });
+    
+    // Bouton de retour en haut de page
+    const backToTop = document.getElementById('back-to-top');
+    
+    window.addEventListener('scroll', function() {
+        if (window.pageYOffset > 300) {
+            backToTop.style.display = 'block';
+        } else {
+            backToTop.style.display = 'none';
+        }
+    });
+    
+    backToTop.addEventListener('click', function() {
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    });
+    
+    // Maintenir l'onglet actif après le rechargement de la page
+    document.addEventListener('DOMContentLoaded', function() {
+        const activeTab = localStorage.getItem('activeCompetitionTab');
+        
+        if (activeTab) {
+            const tabElement = document.querySelector(`a[href="${activeTab}"]`);
+            if (tabElement) {
+                const tabInstance = new bootstrap.Tab(tabElement);
+                tabInstance.show();
+            }
+        }
+        
+        // Stocker l'onglet actif lors du changement
+        const tabElements = document.querySelectorAll('a[data-bs-toggle="tab"]');
+        tabElements.forEach(function(tabElement) {
+            tabElement.addEventListener('shown.bs.tab', function(e) {
+                localStorage.setItem('activeCompetitionTab', e.target.getAttribute('href'));
+            });
+        });
+    });
+</script>
+{% endblock %}

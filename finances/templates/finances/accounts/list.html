@@ -1,0 +1,157 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Comptes financiers" %}{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">{% trans "Comptes financiers" %}</h1>
+        <div>
+            {% if permissions.can_create_account %}
+            <a href="{% url 'finances:account_create' %}" class="btn btn-success">
+                <i class="fas fa-plus-circle"></i> {% trans "Nouveau compte" %}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Vue d'ensemble des comptes -->
+    <div class="row">
+        {% for account in accounts %}
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-{{ account.get_color_class }} shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-{{ account.get_color_class }} text-uppercase mb-1">
+                                {{ account.name }}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ account.current_balance|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-{{ account.get_icon_class }} fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-end">
+                    <a href="{% url 'finances:account_detail' account.id %}" class="btn btn-sm btn-info mx-1">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                    {% if permissions.can_edit_account %}
+                    <a href="{% url 'finances:account_update' account.id %}" class="btn btn-sm btn-primary mx-1">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                    {% endif %}
+                    {% if permissions.can_delete_account %}
+                    <a href="{% url 'finances:account_delete' account.id %}" class="btn btn-sm btn-danger mx-1">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-university fa-4x text-gray-300 mb-3"></i>
+                    <h4 class="text-gray-700">{% trans "Aucun compte financier trouvé" %}</h4>
+                    <p class="text-muted">
+                        {% trans "Vous n'avez pas encore créé de compte financier. Pour suivre vos transactions financières, vous devez d'abord créer un compte." %}
+                    </p>
+                    {% if permissions.can_create_account %}
+                    <a href="{% url 'finances:account_create' %}" class="btn btn-primary mt-3">
+                        <i class="fas fa-plus-circle"></i> {% trans "Créer mon premier compte" %}
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Tableau détaillé des comptes -->
+    {% if accounts %}
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Liste des comptes financiers" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="accountsTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Nom" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Catégorie" %}</th>
+                            <th>{% trans "Solde actuel" %}</th>
+                            <th>{% trans "Solde initial" %}</th>
+                            <th>{% trans "Date de création" %}</th>
+                            <th>{% trans "Dernière mise à jour" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for account in accounts %}
+                        <tr>
+                            <td>{{ account.name }}</td>
+                            <td>{{ account.get_account_type_display }}</td>
+                            <td>
+                                {% if account.category %}
+                                <span class="badge rounded-pill" style="background-color: {{ account.category.color|default:'#6c757d' }}; color: white;">
+                                    {{ account.category.name }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">{% trans "Non catégorisé" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="{% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ account.current_balance|floatformat:2 }} €
+                            </td>
+                            <td>{{ account.initial_balance|floatformat:2 }} €</td>
+                            <td>{{ account.created_at|date:"d/m/Y" }}</td>
+                            <td>{{ account.updated_at|date:"d/m/Y" }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'finances:account_detail' account.id %}" class="btn btn-info" title="{% trans 'Voir' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if permissions.can_edit_account %}
+                                    <a href="{% url 'finances:account_update' account.id %}" class="btn btn-primary" title="{% trans 'Modifier' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if permissions.can_delete_account %}
+                                    <a href="{% url 'finances:account_delete' account.id %}" class="btn btn-danger" title="{% trans 'Supprimer' %}">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        $('#accountsTable').DataTable({
+            language: {
+                url: '//cdn.datatables.net/plug-ins/1.10.24/i18n/French.json'
+            },
+            order: [[3, 'desc']]  // Trier par solde actuel par défaut
+        });
+    });
+</script>
+{% endblock %}

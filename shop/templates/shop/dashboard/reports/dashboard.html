@@ -1,0 +1,456 @@
+{% extends 'shop/dashboard/shop_base.html' %}
+{% load i18n %}
+
+{% block dashboard_title %}{% trans "Rapports de ventes" %}{% endblock %}
+
+{% block dashboard_actions %}
+<div class="btn-group">
+    <a href="{% url 'shop:dashboard_report_products' %}" class="btn btn-outline-primary">
+        <i class="fas fa-box me-2"></i> {% trans "Produits" %}
+    </a>
+    <a href="{% url 'shop:dashboard_report_categories' %}" class="btn btn-outline-primary">
+        <i class="fas fa-tags me-2"></i> {% trans "Catégories" %}
+    </a>
+    <a href="{% url 'shop:dashboard_report_customers' %}" class="btn btn-outline-primary">
+        <i class="fas fa-users me-2"></i> {% trans "Clients" %}
+    </a>
+</div>
+{% endblock %}
+
+{% block dashboard_content %}
+<!-- Date range selector -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-auto">
+                <label for="period" class="form-label">{% trans "Période" %}</label>
+                <select class="form-select" id="period" name="period" onchange="periodChanged(this.value)">
+                    <option value="7" {% if period == '7' %}selected{% endif %}>{% trans "7 derniers jours" %}</option>
+                    <option value="30" {% if period == '30' %}selected{% endif %}>{% trans "30 derniers jours" %}</option>
+                    <option value="90" {% if period == '90' %}selected{% endif %}>{% trans "90 derniers jours" %}</option>
+                    <option value="month" {% if period == 'month' %}selected{% endif %}>{% trans "Ce mois" %}</option>
+                    <option value="year" {% if period == 'year' %}selected{% endif %}>{% trans "Cette année" %}</option>
+                    <option value="custom" {% if period == 'custom' %}selected{% endif %}>{% trans "Personnalisé" %}</option>
+                </select>
+            </div>
+            
+            <div class="col-auto date-range {% if period != 'custom' %}d-none{% endif %}">
+                <label for="start_date" class="form-label">{% trans "Du" %}</label>
+                <input type="date" class="form-control" id="start_date" name="start_date" 
+                       value="{{ start_date|date:'Y-m-d' }}">
+            </div>
+            
+            <div class="col-auto date-range {% if period != 'custom' %}d-none{% endif %}">
+                <label for="end_date" class="form-label">{% trans "Au" %}</label>
+                <input type="date" class="form-control" id="end_date" name="end_date" 
+                       value="{{ end_date|date:'Y-m-d' }}">
+            </div>
+            
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-filter me-2"></i> {% trans "Filtrer" %}
+                </button>
+            </div>
+            
+            <div class="col-auto ms-auto">
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" 
+                            id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-file-export me-2"></i> {% trans "Exporter" %}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="exportDropdown">
+                        <li>
+                            <a class="dropdown-item" href="{% url 'shop:dashboard_export_report' 'products' %}?start_date={{ start_date|date:'Y-m-d' }}&end_date={{ end_date|date:'Y-m-d' }}">
+                                {% trans "Exporter les produits (CSV)" %}
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="{% url 'shop:dashboard_export_report' 'categories' %}?start_date={{ start_date|date:'Y-m-d' }}&end_date={{ end_date|date:'Y-m-d' }}">
+                                {% trans "Exporter les catégories (CSV)" %}
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary cards -->
+<div class="row">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            {% trans "Chiffre d'affaires" %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ sales_summary.total_sales_display }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-euro-sign fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            {% trans "Commandes" %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ sales_summary.total_orders }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-shopping-cart fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            {% trans "Panier moyen" %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ sales_summary.avg_order_value_display }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-calculator fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            {% trans "Articles vendus" %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ sales_summary.items_sold }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-box fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sales chart -->
+<div class="row">
+    <div class="col-xl-8 col-lg-7 mb-4">
+        <div class="card">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold">{% trans "Évolution des ventes" %}</h6>
+            </div>
+            <div class="card-body">
+                <div style="height: 300px;">
+                    <canvas id="salesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-4 col-lg-5 mb-4">
+        <div class="card">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold">{% trans "Répartition par catégorie" %}</h6>
+            </div>
+            <div class="card-body">
+                <div style="height: 300px;">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Products and payment methods -->
+<div class="row">
+    <div class="col-xl-8 col-lg-7 mb-4">
+        <div class="card">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold">{% trans "Produits les plus vendus" %}</h6>
+                <a href="{% url 'shop:dashboard_report_products' %}" class="btn btn-sm btn-primary">
+                    {% trans "Voir tout" %}
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% trans "Produit" %}</th>
+                                <th class="text-center">{% trans "Quantité" %}</th>
+                                <th class="text-end">{% trans "Chiffre d'affaires" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in top_products %}
+                            <tr>
+                                <td>{{ product.product_name }}</td>
+                                <td class="text-center">{{ product.total_quantity }}</td>
+                                <td class="text-end">{{ product.total_revenue }} €</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center py-3">
+                                    {% trans "Aucune donnée disponible pour cette période" %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-4 col-lg-5 mb-4">
+        <div class="card">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold">{% trans "Méthodes de paiement" %}</h6>
+            </div>
+            <div class="card-body">
+                <div style="height: 250px;">
+                    <canvas id="paymentMethodChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Handle date range visibility
+    function periodChanged(value) {
+        const dateRangeFields = document.querySelectorAll('.date-range');
+        if (value === 'custom') {
+            dateRangeFields.forEach(field => field.classList.remove('d-none'));
+        } else {
+            dateRangeFields.forEach(field => field.classList.add('d-none'));
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Sales chart
+        const salesChartCtx = document.getElementById('salesChart').getContext('2d');
+        const salesChart = new Chart(salesChartCtx, {
+            type: 'line',
+            data: {
+                labels: {{ chart_labels|safe }},
+                datasets: [{
+                    label: '{% trans "Chiffre d\'affaires (€)" %}',
+                    data: {{ sales_data|safe }},
+                    borderColor: 'rgba(78, 115, 223, 1)',
+                    backgroundColor: 'rgba(78, 115, 223, 0.1)',
+                    pointRadius: 3,
+                    pointBackgroundColor: 'rgba(78, 115, 223, 1)',
+                    pointBorderColor: 'rgba(78, 115, 223, 1)',
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: 'rgba(78, 115, 223, 1)',
+                    pointHoverBorderColor: 'rgba(78, 115, 223, 1)',
+                    pointHitRadius: 10,
+                    pointBorderWidth: 2,
+                    tension: 0.3,
+                    fill: true,
+                    yAxisID: 'y',
+                },
+                {
+                    label: '{% trans "Commandes" %}',
+                    data: {{ orders_data|safe }},
+                    borderColor: 'rgba(28, 200, 138, 1)',
+                    backgroundColor: 'rgba(28, 200, 138, 0)',
+                    pointRadius: 3,
+                    pointBackgroundColor: 'rgba(28, 200, 138, 1)',
+                    pointBorderColor: 'rgba(28, 200, 138, 1)',
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: 'rgba(28, 200, 138, 1)',
+                    pointHoverBorderColor: 'rgba(28, 200, 138, 1)',
+                    pointHitRadius: 10,
+                    pointBorderWidth: 2,
+                    tension: 0.3,
+                    borderDash: [5, 5],
+                    yAxisID: 'y1',
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        left: 10,
+                        right: 25,
+                        top: 25,
+                        bottom: 0
+                    }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        position: 'left',
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)',
+                        },
+                        ticks: {
+                            maxTicksLimit: 5,
+                            padding: 10,
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false, // only want the grid lines for one axis to show up
+                        },
+                        ticks: {
+                            maxTicksLimit: 5,
+                            padding: 10,
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)',
+                        },
+                        ticks: {
+                            maxTicksLimit: 7,
+                            padding: 10,
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                    },
+                    tooltip: {
+                        backgroundColor: "rgb(255,255,255)",
+                        bodyColor: "#858796",
+                        titleMarginBottom: 10,
+                        titleColor: '#6e707e',
+                        titleFontSize: 14,
+                        borderColor: '#dddfeb',
+                        borderWidth: 1,
+                        padding: 15,
+                        displayColors: false,
+                        intersect: false,
+                        mode: 'index',
+                    }
+                }
+            }
+        });
+        
+        // Category chart
+        const categoryChartCtx = document.getElementById('categoryChart').getContext('2d');
+        const categoryChart = new Chart(categoryChartCtx, {
+            type: 'doughnut',
+            data: {
+                labels: {{ category_labels|safe }},
+                datasets: [{
+                    data: {{ category_data|safe }},
+                    backgroundColor: [
+                        '#4e73df',
+                        '#1cc88a',
+                        '#36b9cc',
+                        '#f6c23e',
+                        '#e74a3b',
+                        '#5a5c69',
+                        '#7380e2',
+                        '#2fde99',
+                        '#47cada',
+                        '#f7d14f'
+                    ],
+                    hoverBackgroundColor: [
+                        '#2e59d9',
+                        '#17a673',
+                        '#2c9faf',
+                        '#dda20a',
+                        '#be2617',
+                        '#3a3b45',
+                        '#4a5bd4',
+                        '#1bbf7d',
+                        '#2d9db0',
+                        '#d9b618'
+                    ],
+                    hoverBorderColor: "rgba(234, 236, 244, 1)",
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                    },
+                    tooltip: {
+                        backgroundColor: "rgb(255,255,255)",
+                        bodyColor: "#858796",
+                        borderColor: '#dddfeb',
+                        borderWidth: 1,
+                        padding: 15,
+                        displayColors: false,
+                    }
+                },
+                cutout: '70%'
+            }
+        });
+        
+        // Payment method chart
+        const paymentMethodChartCtx = document.getElementById('paymentMethodChart').getContext('2d');
+        const paymentMethodChart = new Chart(paymentMethodChartCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ payment_method_labels|safe }},
+                datasets: [{
+                    label: '{% trans "Montant (€)" %}',
+                    data: {{ payment_method_data|safe }},
+                    backgroundColor: [
+                        'rgba(78, 115, 223, 0.8)',
+                        'rgba(28, 200, 138, 0.8)',
+                        'rgba(54, 185, 204, 0.8)',
+                        'rgba(246, 194, 62, 0.8)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)',
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,648 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    #scanner-container {
+        position: relative;
+        width: 100%;
+        height: 0;
+        padding-bottom: 75%; /* 4:3 Aspect Ratio */
+        overflow: hidden;
+        border-radius: 10px;
+        background-color: #000;
+        margin-bottom: 1rem;
+    }
+    
+    #scanner {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+    }
+    
+    .scan-crosshair {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80%;
+        height: 80%;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        border-radius: 10px;
+        z-index: 10;
+        pointer-events: none;
+    }
+    
+    .scan-crosshair::before, .scan-crosshair::after {
+        content: '';
+        position: absolute;
+        background-color: rgba(255, 255, 255, 0.5);
+    }
+    
+    .scan-crosshair::before {
+        width: 100%;
+        height: 2px;
+        top: 50%;
+        left: 0;
+        transform: translateY(-50%);
+    }
+    
+    .scan-crosshair::after {
+        width: 2px;
+        height: 100%;
+        left: 50%;
+        top: 0;
+        transform: translateX(-50%);
+    }
+    
+    .scan-options {
+        margin-bottom: 2rem;
+    }
+    
+    .scan-result {
+        display: none;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-top: 1.5rem;
+    }
+    
+    .practitioner-details {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .practitioner-photo {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-right: 1rem;
+    }
+    
+    .practitioner-info {
+        flex: 1;
+    }
+    
+    .result-valid {
+        background-color: #d4edda;
+        border-left: 5px solid #28a745;
+    }
+    
+    .result-invalid {
+        background-color: #f8d7da;
+        border-left: 5px solid #dc3545;
+    }
+    
+    .result-message {
+        padding: 0.5rem;
+        margin-top: 1rem;
+        border-radius: 5px;
+    }
+    
+    .result-valid .result-message {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .result-invalid .result-message {
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .scan-history-link {
+        text-align: center;
+        margin-top: 2rem;
+    }
+    
+    @media (max-width: 768px) {
+        .scan-options .col-md-4 {
+            margin-bottom: 1rem;
+        }
+    }
+    
+    .offline-mode-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background-color: #fd7e14;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        z-index: 20;
+    }
+    
+    .mode-switch {
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="text-center">{% trans "Scanner QR Code" %}</h1>
+            <p class="text-center text-muted">
+                {% trans "Utilisez cette page pour scanner les QR codes des pratiquants." %}
+            </p>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-body">
+                    <div class="mode-switch text-center">
+                        <div class="btn-group" role="group">
+                            <button id="online-mode" class="btn btn-primary active">
+                                <i class="fas fa-wifi me-2"></i>{% trans "Mode en ligne" %}
+                            </button>
+                            <button id="offline-mode" class="btn btn-outline-primary">
+                                <i class="fas fa-signal-slash me-2"></i>{% trans "Mode hors-ligne" %}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="scanner-container">
+                        <div id="scanner"></div>
+                        <div class="scan-crosshair"></div>
+                        <div id="offline-badge" class="offline-mode-badge" style="display: none;">
+                            <i class="fas fa-signal-slash me-1"></i>{% trans "Hors-ligne" %}
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mb-3">
+                        <button id="start-scan" class="btn btn-primary me-2">
+                            <i class="fas fa-play me-2"></i>{% trans "Démarrer" %}
+                        </button>
+                        <button id="stop-scan" class="btn btn-secondary" disabled>
+                            <i class="fas fa-stop me-2"></i>{% trans "Arrêter" %}
+                        </button>
+                    </div>
+                    
+                    <div class="scan-options">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="scan-type">{% trans "Type de scan" %}</label>
+                                    <select id="scan-type" class="form-select">
+                                        {% for value, label in scan_types %}
+                                            <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-8">
+                                <div id="competition-select" class="form-group" style="display: none;">
+                                    <label for="competition-id">{% trans "Compétition" %}</label>
+                                    <select id="competition-id" class="form-select">
+                                        <option value="">{% trans "Sélectionner une compétition" %}</option>
+                                        {% for competition in competitions %}
+                                            <option value="{{ competition.id }}">{{ competition.name }} ({{ competition.start_date|date:"d/m/Y" }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <div id="training-select" class="form-group" style="display: none;">
+                                    <label for="training-id">{% trans "Session d'entraînement" %}</label>
+                                    <select id="training-id" class="form-select">
+                                        <option value="">{% trans "Sélectionner une session" %}</option>
+                                        {% for session in training_sessions %}
+                                            <option value="{{ session.id }}">{{ session.training_slot.name }} ({{ session.date|date:"d/m/Y" }} {{ session.training_slot.start_time }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <div id="event-select" class="form-group" style="display: none;">
+                                    <label for="event-id">{% trans "Événement" %}</label>
+                                    <select id="event-id" class="form-select">
+                                        <option value="">{% trans "Sélectionner un événement" %}</option>
+                                        {% for event in events %}
+                                            <option value="{{ event.id }}">{{ event.name }} ({{ event.start_date|date:"d/m/Y" }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="scan-result" class="scan-result">
+                        <h4 class="result-title">{% trans "Résultat du scan" %}</h4>
+                        
+                        <div class="practitioner-details">
+                            <img id="practitioner-photo" class="practitioner-photo" src="" alt="">
+                            <div class="practitioner-info">
+                                <h5 id="practitioner-name"></h5>
+                                <p id="practitioner-club"></p>
+                                <p id="practitioner-license"></p>
+                            </div>
+                        </div>
+                        
+                        <div id="result-message" class="result-message"></div>
+                        
+                        <div class="d-grid gap-2 mt-3">
+                            <button id="scan-another" class="btn btn-primary">
+                                <i class="fas fa-qrcode me-2"></i>{% trans "Scanner un autre QR Code" %}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="offline-storage-info" style="display: none;" class="mt-4 p-3 bg-light rounded">
+                        <h5><i class="fas fa-database me-2"></i>{% trans "Stockage hors-ligne" %}</h5>
+                        <p id="offline-scan-count">{% trans "Scans en attente de synchronisation:" %} 0</p>
+                        <button id="sync-scans" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-sync me-2"></i>{% trans "Synchroniser" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="scan-history-link">
+                <a href="{% url 'competitions:qr:history' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-history me-2"></i>{% trans "Historique des scans" %}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Ajouter la bibliothèque de scanner QR -->
+<script src="https://unpkg.com/html5-qrcode@2.0.9/dist/html5-qrcode.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const scannerContainer = document.getElementById('scanner');
+        const startScanBtn = document.getElementById('start-scan');
+        const stopScanBtn = document.getElementById('stop-scan');
+        const scanResult = document.getElementById('scan-result');
+        const scanAnotherBtn = document.getElementById('scan-another');
+        const scanType = document.getElementById('scan-type');
+        const competitionSelect = document.getElementById('competition-select');
+        const trainingSelect = document.getElementById('training-select');
+        const eventSelect = document.getElementById('event-select');
+        const competitionId = document.getElementById('competition-id');
+        const trainingId = document.getElementById('training-id');
+        const eventId = document.getElementById('event-id');
+        const onlineMode = document.getElementById('online-mode');
+        const offlineMode = document.getElementById('offline-mode');
+        const offlineBadge = document.getElementById('offline-badge');
+        const offlineStorageInfo = document.getElementById('offline-storage-info');
+        const offlineScanCount = document.getElementById('offline-scan-count');
+        const syncScansBtn = document.getElementById('sync-scans');
+        
+        let html5QrCode;
+        let isScanning = false;
+        let isOfflineMode = false;
+        let offlineScans = [];
+        
+        // Vérifier si des scans hors-ligne sont stockés
+        function checkOfflineScans() {
+            const storedScans = localStorage.getItem('offlineScans');
+            if (storedScans) {
+                try {
+                    offlineScans = JSON.parse(storedScans);
+                    offlineScanCount.textContent = `{% trans "Scans en attente de synchronisation:" %} ${offlineScans.length}`;
+                } catch (error) {
+                    console.error('Erreur lors de la lecture des scans hors-ligne:', error);
+                    offlineScans = [];
+                }
+            }
+        }
+        
+        // Initialiser le scanner
+        function initScanner() {
+            html5QrCode = new Html5Qrcode("scanner");
+        }
+        
+        // Gérer l'affichage des sélecteurs selon le type de scan
+        function updateSelectors() {
+            const type = scanType.value;
+            competitionSelect.style.display = 'none';
+            trainingSelect.style.display = 'none';
+            eventSelect.style.display = 'none';
+            
+            if (type === 'competition') {
+                competitionSelect.style.display = 'block';
+            } else if (type === 'training') {
+                trainingSelect.style.display = 'block';
+            } else if (type === 'event') {
+                eventSelect.style.display = 'block';
+            }
+        }
+        
+        // Démarrer le scanner
+        function startScanner() {
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            html5QrCode.start(
+                { facingMode: "environment" },
+                config,
+                onScanSuccess,
+                onScanError
+            )
+            .then(() => {
+                isScanning = true;
+                startScanBtn.disabled = true;
+                stopScanBtn.disabled = false;
+            })
+            .catch(err => {
+                console.error('Error starting scanner:', err);
+                alert('{% trans "Erreur lors du démarrage du scanner. Veuillez vérifier que vous avez autorisé l\'accès à la caméra." %}');
+            });
+        }
+        
+        // Arrêter le scanner
+        function stopScanner() {
+            if (isScanning) {
+                html5QrCode.stop()
+                .then(() => {
+                    isScanning = false;
+                    startScanBtn.disabled = false;
+                    stopScanBtn.disabled = true;
+                })
+                .catch(err => console.error('Error stopping scanner:', err));
+            }
+        }
+        
+        // Callback en cas de scan réussi
+        function onScanSuccess(decodedText, decodedResult) {
+            stopScanner();
+            processQrCode(decodedText);
+        }
+        
+        // Callback en cas d'erreur de scan
+        function onScanError(error) {
+            // Ignorer les erreurs courantes de scan
+            if (error !== 'QR code parse error, error = Scanner error: Scanning failed to complete.') {
+                console.warn('QR scan error:', error);
+            }
+        }
+        
+        // Traiter le code QR scanné
+        function processQrCode(qrCode) {
+            // Déterminer les données à envoyer
+            const type = scanType.value;
+            let eventIdValue = null;
+            
+            if (type === 'competition') {
+                eventIdValue = competitionId.value;
+            } else if (type === 'training') {
+                eventIdValue = trainingId.value;
+            } else if (type === 'event') {
+                eventIdValue = eventId.value;
+            }
+            
+            // Vérifier si on est en mode hors-ligne
+            if (isOfflineMode) {
+                processOfflineScan(qrCode, type, eventIdValue);
+            } else {
+                // Mode en ligne - appel API
+                const data = {
+                    qr_code: qrCode,
+                    scan_type: type,
+                    location: window.location.hostname
+                };
+                
+                if (eventIdValue) {
+                    if (type === 'competition') data.competition_id = eventIdValue;
+                    if (type === 'training') data.training_session_id = eventIdValue;
+                    if (type === 'event') data.event_id = eventIdValue;
+                }
+                
+                fetch('{% url "competitions:qr:process_scan" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayScanResult(data);
+                    } else {
+                        displayScanError(data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error processing QR code:', error);
+                    displayScanError('{% trans "Erreur lors du traitement du QR code. Veuillez réessayer." %}');
+                });
+            }
+        }
+        
+        // Traiter le scan en mode hors-ligne
+        function processOfflineScan(qrCode, scanType, eventId) {
+            // En mode hors-ligne, on suppose que le QR code est un token
+            const data = {
+                token: qrCode,
+                scan_type: scanType,
+                event_id: eventId
+            };
+            
+            // Appel à l'API hors-ligne simulée
+            try {
+                // Stocker le scan pour synchronisation ultérieure
+                const scan = {
+                    id: generateUUID(),
+                    token: qrCode,
+                    scan_type: scanType,
+                    event_id: eventId,
+                    timestamp: Math.floor(Date.now() / 1000),
+                    location: window.location.hostname
+                };
+                
+                // Ajouter à la liste des scans hors-ligne
+                offlineScans.push(scan);
+                localStorage.setItem('offlineScans', JSON.stringify(offlineScans));
+                offlineScanCount.textContent = `{% trans "Scans en attente de synchronisation:" %} ${offlineScans.length}`;
+                
+                // Simuler un résultat pour l'affichage
+                const mockResult = {
+                    success: true,
+                    valid: true,
+                    message: "{% trans 'Scan validé en mode hors-ligne' %}",
+                    offline: true,
+                    practitioner: {
+                        name: "{% trans 'Pratiquant (Validé hors-ligne)' %}",
+                        club: "{% trans 'Mode hors-ligne' %}",
+                        license_number: "{% trans 'Vérification hors-ligne' %}",
+                        is_federation_validated: false
+                    }
+                };
+                
+                displayScanResult(mockResult);
+            } catch (error) {
+                console.error('Error processing offline QR code:', error);
+                displayScanError('{% trans "Erreur lors du traitement du QR code hors-ligne." %}');
+            }
+        }
+        
+        // Synchroniser les scans hors-ligne
+        function syncOfflineScans() {
+            if (offlineScans.length === 0) {
+                alert('{% trans "Aucun scan à synchroniser." %}');
+                return;
+            }
+            
+            fetch('{% url "competitions:qr:sync_offline_scans" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({ scans: offlineScans })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`{% trans "Synchronisation réussie:" %} ${data.synced} {% trans "scans synchronisés," %} ${data.ignored} {% trans "ignorés." %}`);
+                    // Vider les scans synchronisés
+                    offlineScans = [];
+                    localStorage.setItem('offlineScans', JSON.stringify(offlineScans));
+                    offlineScanCount.textContent = `{% trans "Scans en attente de synchronisation:" %} 0`;
+                } else {
+                    alert(`{% trans "Erreur lors de la synchronisation:" %} ${data.message}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error syncing scans:', error);
+                alert('{% trans "Erreur lors de la synchronisation. Veuillez réessayer." %}');
+            });
+        }
+        
+        // Afficher le résultat du scan
+        function displayScanResult(data) {
+            const practitionerPhoto = document.getElementById('practitioner-photo');
+            const practitionerName = document.getElementById('practitioner-name');
+            const practitionerClub = document.getElementById('practitioner-club');
+            const practitionerLicense = document.getElementById('practitioner-license');
+            const resultMessage = document.getElementById('result-message');
+            
+            // Mettre à jour les détails du pratiquant
+            if (data.practitioner.photo) {
+                practitionerPhoto.src = data.practitioner.photo;
+                practitionerPhoto.style.display = 'block';
+            } else {
+                practitionerPhoto.style.display = 'none';
+            }
+            
+            practitionerName.textContent = data.practitioner.name;
+            practitionerClub.textContent = data.practitioner.club || '{% trans "Club non spécifié" %}';
+            practitionerLicense.textContent = `{% trans "Licence:" %} ${data.practitioner.license_number || 'N/A'}`;
+            
+            // Définir le style en fonction de la validité
+            scanResult.className = data.valid ? 'scan-result result-valid' : 'scan-result result-invalid';
+            resultMessage.textContent = data.message || (data.valid ? '{% trans "Scan valide" %}' : '{% trans "Scan invalide" %}');
+            resultMessage.className = data.valid ? 'result-message result-valid' : 'result-message result-invalid';
+            
+            // Afficher le résultat
+            scanResult.style.display = 'block';
+        }
+        
+        // Afficher une erreur de scan
+        function displayScanError(message) {
+            const practitionerPhoto = document.getElementById('practitioner-photo');
+            const practitionerName = document.getElementById('practitioner-name');
+            const practitionerClub = document.getElementById('practitioner-club');
+            const practitionerLicense = document.getElementById('practitioner-license');
+            const resultMessage = document.getElementById('result-message');
+            
+            // Masquer la photo
+            practitionerPhoto.style.display = 'none';
+            
+            // Mettre à jour les détails
+            practitionerName.textContent = '{% trans "Erreur" %}';
+            practitionerClub.textContent = '';
+            practitionerLicense.textContent = '';
+            
+            // Définir le style
+            scanResult.className = 'scan-result result-invalid';
+            resultMessage.textContent = message;
+            resultMessage.className = 'result-message result-invalid';
+            
+            // Afficher le résultat
+            scanResult.style.display = 'block';
+        }
+        
+        // Générer un UUID pour les scans hors-ligne
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+        
+        // Obtenir le token CSRF
+        function getCsrfToken() {
+            return document.querySelector('[name=csrfmiddlewaretoken]').value;
+        }
+        
+        // Basculer entre mode en ligne et hors-ligne
+        function toggleOfflineMode(offline) {
+            isOfflineMode = offline;
+            
+            if (offline) {
+                onlineMode.classList.remove('active');
+                onlineMode.classList.remove('btn-primary');
+                onlineMode.classList.add('btn-outline-primary');
+                
+                offlineMode.classList.add('active');
+                offlineMode.classList.add('btn-primary');
+                offlineMode.classList.remove('btn-outline-primary');
+                
+                offlineBadge.style.display = 'block';
+                offlineStorageInfo.style.display = 'block';
+            } else {
+                onlineMode.classList.add('active');
+                onlineMode.classList.add('btn-primary');
+                onlineMode.classList.remove('btn-outline-primary');
+                
+                offlineMode.classList.remove('active');
+                offlineMode.classList.remove('btn-primary');
+                offlineMode.classList.add('btn-outline-primary');
+                
+                offlineBadge.style.display = 'none';
+                offlineStorageInfo.style.display = 'none';
+            }
+        }
+        
+        // Initialiser
+        initScanner();
+        updateSelectors();
+        checkOfflineScans();
+        
+        // Event listeners
+        startScanBtn.addEventListener('click', startScanner);
+        stopScanBtn.addEventListener('click', stopScanner);
+        scanAnotherBtn.addEventListener('click', function() {
+            scanResult.style.display = 'none';
+            startScanner();
+        });
+        
+        scanType.addEventListener('change', updateSelectors);
+        
+        onlineMode.addEventListener('click', function() {
+            toggleOfflineMode(false);
+        });
+        
+        offlineMode.addEventListener('click', function() {
+            toggleOfflineMode(true);
+        });
+        
+        syncScansBtn.addEventListener('click', syncOfflineScans);
+    });
+</script>
+{% endblock %}

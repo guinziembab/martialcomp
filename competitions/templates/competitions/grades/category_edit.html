@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Gérer les grades" %} - {{ category.name }} | MartialComp{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{% trans "Gérer les grades" %} - {{ category.name }}</h1>
+        <div>
+            <a href="{% url 'competitions:grades:system_detail' system.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au système" %}
+            </a>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="card">
+        <div class="card-header" 
+             {% if category.color_hex %}style="background-color: {{ category.color_hex }}; color: #fff;"{% endif %}>
+            <h5 class="mb-0">{{ category.name }} - {{ system.name }} ({{ system.discipline.name }})</h5>
+        </div>
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                
+                {{ formset.management_form }}
+                
+                <div id="grades-formset">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Niveau" %}</th>
+                                    <th>{% trans "Nom" %}</th>
+                                    <th>{% trans "Ordre" %}</th>
+                                    <th>{% trans "Couleur" %}</th>
+                                    <th>{% trans "Description" %}</th>
+                                    <th>{% trans "Accessible" %}</th>
+                                    <th>{% trans "Supprimer" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for grade_form in formset %}
+                                    <tr class="grade-form">
+                                        {% for hidden in grade_form.hidden_fields %}
+                                            {{ hidden }}
+                                        {% endfor %}
+                                        
+                                        <td>
+                                            {{ grade_form.level }}
+                                            {% if grade_form.level.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {{ grade_form.level.errors }}
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {{ grade_form.name }}
+                                            {% if grade_form.name.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {{ grade_form.name.errors }}
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {{ grade_form.order }}
+                                            {% if grade_form.order.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {{ grade_form.order.errors }}
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {{ grade_form.color }}
+                                            {% if grade_form.color.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {{ grade_form.color.errors }}
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {{ grade_form.description }}
+                                            {% if grade_form.description.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {{ grade_form.description.errors }}
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {{ grade_form.accessible_to_clubs }}
+                                            {% if grade_form.accessible_to_clubs.errors %}
+                                                <div class="invalid-feedback d-block">
+                                                    {{ grade_form.accessible_to_clubs.errors }}
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {{ grade_form.DELETE }}
+                                            <label for="{{ grade_form.DELETE.id_for_label }}" class="form-check-label text-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </label>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <button type="button" id="add-grade" class="btn btn-outline-success">
+                        <i class="fas fa-plus-circle me-1"></i>{% trans "Ajouter un grade" %}
+                    </button>
+                </div>
+                
+                <div class="d-flex justify-content-end mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>{% trans "Enregistrer les grades" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Configuration du formset dynamique pour les grades
+        const gradesTable = document.querySelector('#grades-formset tbody');
+        const addGradeButton = document.getElementById('add-grade');
+        const totalFormsInput = document.getElementById('id_form-TOTAL_FORMS');
+        
+        // Fonction pour ajouter un nouveau grade
+        function addGrade() {
+            const formCount = parseInt(totalFormsInput.value);
+            const newRow = gradesTable.querySelector('tr.grade-form').cloneNode(true);
+            
+            // Mettre à jour les index dans tous les attributs
+            const inputs = newRow.querySelectorAll('input, select, textarea');
+            
+            inputs.forEach(input => {
+                // Mise à jour des attributs name, id, for
+                input.name = input.name.replace(/form-\d+-/, `form-${formCount}-`);
+                input.id = input.id.replace(/form-\d+-/, `form-${formCount}-`);
+                
+                // Effacer les valeurs, sauf pour les champs hidden
+                if (input.type !== 'hidden') {
+                    if (input.type === 'checkbox') {
+                        input.checked = false;
+                    } else {
+                        input.value = '';
+                    }
+                }
+            });
+            
+            // Mise à jour des labels
+            const labels = newRow.querySelectorAll('label');
+            labels.forEach(label => {
+                if (label.htmlFor) {
+                    label.htmlFor = label.htmlFor.replace(/form-\d+-/, `form-${formCount}-`);
+                }
+            });
+            
+            // Ajouter le nouveau formulaire
+            gradesTable.appendChild(newRow);
+            
+            // Mettre à jour le nombre total de formulaires
+            totalFormsInput.value = formCount + 1;
+        }
+        
+        // Ajouter un écouteur d'événement sur le bouton d'ajout
+        if (addGradeButton) {
+            addGradeButton.addEventListener('click', addGrade);
+        }
+    });
+</script>
+{% endblock %}

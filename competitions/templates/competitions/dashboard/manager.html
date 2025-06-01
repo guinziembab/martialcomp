@@ -1,0 +1,1117 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Tableau de bord Manager" %} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Variables de couleur et configuration de base */
+  :root {
+    --primary: #0d6efd;
+    --primary-light: #e6f0ff;
+    --primary-dark: #0a58ca;
+    --secondary: #6c757d;
+    --success: #28a745;
+    --info: #17a2b8;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --light: #f8f9fa;
+    --dark: #343a40;
+    --gray-100: #f8f9fa;
+    --gray-200: #e9ecef;
+    --gray-300: #dee2e6;
+    --gray-800: #343a40;
+    --sidebar-width: 280px;
+    --sidebar-width-collapsed: 80px;
+    --card-border-radius: 12px;
+    --btn-border-radius: 6px;
+    --transition-speed: 0.3s;
+  }
+  
+  /* Structure principale */
+  body {
+    background-color: #f5f7fa;
+    overflow-x: hidden;
+  }
+
+  .dashboard-container {
+    display: flex;
+    min-height: calc(100vh - 56px);
+  }
+  
+  /* Barre latérale moderne */
+  .sidebar {
+    width: var(--sidebar-width);
+    background: linear-gradient(to bottom, var(--dark) 0%, #1c3a70 100%);
+    color: white;
+    position: fixed;
+    top: 56px;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    padding: 0;
+    overflow-y: auto;
+    transition: all var(--transition-speed);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Contenu principal */
+  .main-content {
+    flex: 1;
+    padding: 2rem;
+    margin-left: var(--sidebar-width);
+    transition: all var(--transition-speed);
+    max-width: 100%;
+  }
+  
+  /* Menu de navigation */
+  .nav-link {
+    padding: 0.8rem 1.5rem;
+    color: rgba(255, 255, 255, 0.8);
+    border-left: 3px solid transparent;
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    transition: all var(--transition-speed);
+  }
+  
+  .nav-link:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-left: 3px solid var(--primary);
+    transform: translateX(4px);
+  }
+  
+  .nav-link.active {
+    color: white;
+    background-color: var(--primary);
+    border-left: 3px solid white;
+    font-weight: 500;
+    box-shadow: 0 0 10px rgba(13, 110, 253, 0.3);
+  }
+  
+  .nav-link i {
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+  }
+  
+  .sidebar-heading {
+    padding: 1rem 1.5rem 0.5rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+  }
+  
+  /* Profil utilisateur */
+  .user-profile {
+    padding: 1.5rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.1);
+    transition: all var(--transition-speed);
+  }
+  
+  .user-avatar {
+    width: 70px;
+    height: 70px;
+    background-color: var(--primary);
+    border-radius: 50%;
+    margin: 0 auto 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    transition: all var(--transition-speed);
+  }
+  
+  .user-avatar:hover {
+    transform: scale(1.05);
+  }
+  
+  /* Cards modernes */
+  .dashboard-card {
+    border-radius: var(--card-border-radius);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.5rem;
+    background-color: white;
+    border: none;
+    transition: all var(--transition-speed);
+    overflow: hidden;
+  }
+  
+  .dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Cartes de statistiques */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  .card-stats {
+    padding: 1.75rem;
+    text-align: center;
+    border-radius: var(--card-border-radius);
+    height: 100%;
+  }
+  
+  .stats-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.07);
+    transition: all var(--transition-speed);
+  }
+  
+  .card-stats:hover .stats-icon {
+    transform: scale(1.1) rotate(5deg);
+  }
+  
+  /* Couleurs des icônes de stats */
+  .stats-competitions {
+    background-color: rgba(13, 110, 253, 0.1);
+    color: #0d6efd;
+  }
+  
+  .stats-registrations {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+  
+  .stats-ongoing {
+    background-color: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+  }
+  
+  .stats-tasks {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+  }
+  
+  .stats-value {
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: var(--dark);
+    transition: all var(--transition-speed);
+  }
+  
+  .stats-label {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    color: var(--secondary);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  
+  /* Actions rapides */
+  .action-card {
+    border-radius: var(--card-border-radius);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    transition: all var(--transition-speed);
+    border: none;
+    background-color: white;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .action-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+  
+  .action-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background-color: var(--primary);
+  }
+  
+  .action-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 1.75rem;
+    background-color: var(--primary-light);
+    color: var(--primary);
+    transition: all var(--transition-speed);
+  }
+  
+  .action-card:hover .action-icon {
+    transform: scale(1.1);
+    background-color: var(--primary);
+    color: white;
+  }
+  
+  /* Competition Cards */
+  .competition-card {
+    border-radius: var(--card-border-radius);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: all var(--transition-speed);
+    border: none;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .competition-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+  
+  .competition-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 5px;
+  }
+  
+  .competition-card.draft::before {
+    background-color: var(--secondary);
+  }
+  
+  .competition-card.published::before {
+    background-color: var(--primary);
+  }
+  
+  .competition-card.ongoing::before {
+    background-color: var(--success);
+  }
+  
+  .competition-card.completed::before {
+    background-color: var(--info);
+  }
+  
+  .competition-card.cancelled::before {
+    background-color: var(--danger);
+  }
+  
+  /* Notifications et alertes */
+  .notification-badge {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background-color: var(--danger);
+    color: white;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  
+  .alert-custom {
+    border-radius: var(--card-border-radius);
+    border: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  }
+  
+  /* Activité récente */
+  .activity-timeline {
+    position: relative;
+    padding-left: 30px;
+  }
+  
+  .activity-item {
+    position: relative;
+    padding-bottom: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .activity-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: -22px;
+    top: 8px;
+    bottom: -8px;
+    width: 2px;
+    background-color: var(--gray-300);
+  }
+  
+  .activity-dot {
+    position: absolute;
+    left: -30px;
+    top: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 3px solid white;
+    background-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.2);
+  }
+  
+  .activity-time {
+    font-size: 0.8rem;
+    color: var(--secondary);
+    margin-bottom: 0.25rem;
+    display: block;
+  }
+  
+  /* Flottant d'action */
+  .floating-action-button {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: var(--primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 20px rgba(13, 110, 253, 0.3);
+    cursor: pointer;
+    transition: all var(--transition-speed);
+    z-index: 1000;
+  }
+  
+  .floating-action-button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 30px rgba(13, 110, 253, 0.4);
+  }
+  
+  /* Mode responsive */
+  @media (max-width: 992px) {
+    .sidebar {
+      width: var(--sidebar-width-collapsed);
+      text-align: center;
+    }
+    
+    .main-content {
+      margin-left: var(--sidebar-width-collapsed);
+    }
+    
+    .user-profile {
+      padding: 1rem 0.5rem;
+    }
+    
+    .user-avatar {
+      width: 50px;
+      height: 50px;
+    }
+    
+    .nav-link {
+      justify-content: center;
+      padding: 0.8rem 0.5rem;
+    }
+    
+    .nav-link i {
+      margin-right: 0;
+    }
+    
+    .sidebar-heading, 
+    .nav-item span, 
+    .user-profile h5, 
+    .user-profile p, 
+    .user-profile .badge {
+      display: none;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .sidebar {
+      transform: translateX(-100%);
+      width: var(--sidebar-width);
+    }
+    
+    .sidebar.active {
+      transform: translateX(0);
+    }
+    
+    .sidebar-heading, 
+    .nav-item span, 
+    .user-profile h5, 
+    .user-profile p, 
+    .user-profile .badge {
+      display: block;
+    }
+    
+    .nav-link {
+      justify-content: flex-start;
+      padding: 0.8rem 1.5rem;
+    }
+    
+    .nav-link i {
+      margin-right: 12px;
+    }
+    
+    .main-content {
+      margin-left: 0;
+    }
+    
+    .toggle-sidebar {
+      display: block;
+    }
+    
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+  <!-- Barre latérale -->
+  <div class="sidebar">
+    <!-- Profil utilisateur -->
+    <div class="user-profile text-center">
+      <div class="user-avatar">
+        <i class="fas fa-user-tie fa-lg text-white"></i>
+      </div>
+      <h5 class="mb-1 text-white">{{ user.get_full_name|default:user.username }}</h5>
+      <p class="mb-2 text-white-50 small">{% trans "Gestionnaire d'événements" %}</p>
+      <span class="badge bg-primary">{{ profile.role|title|default:"Manager" }}</span>
+    </div>
+    
+    <!-- Menu principal -->
+    <nav class="mt-3">
+      <div class="sidebar-heading">{% trans "Général" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="{% url 'competitions:dashboard:manager' %}" class="nav-link active">
+            <i class="fas fa-tachometer-alt"></i> <span>{% trans "Tableau de bord" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:competitions:list' %}" class="nav-link">
+            <i class="fas fa-trophy"></i> <span>{% trans "Mes compétitions" %}</span>
+          </a>
+        </li>
+      </ul>
+      
+      <div class="sidebar-heading">{% trans "Gestion" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="{% url 'competitions:competitions:list' %}" class="nav-link">
+            <i class="fas fa-clipboard-list"></i> <span>{% trans "Inscriptions" %}</span>
+            {% if urgent_tasks|length > 0 %}
+              <span class="badge rounded-pill bg-warning ms-auto">{{ urgent_tasks|length }}</span>
+            {% endif %}
+          </a>
+        </li>
+        <li class="nav-item">
+          {% if default_federation %}
+          <a href="{% url 'competitions:federations:clubs' default_federation.id %}" class="nav-link">
+            <i class="fas fa-building"></i> <span>{% trans "Clubs participants" %}</span>
+          </a>
+          {% else %}
+          <a href="{% url 'competitions:federations:list' %}" class="nav-link">
+            <i class="fas fa-building"></i> <span>{% trans "Clubs participants" %}</span>
+          </a>
+          {% endif %}
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:club:judges_list' %}" class="nav-link">
+            <i class="fas fa-gavel"></i> <span>{% trans "Juges & Arbitres" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:dashboard:combat' %}" class="nav-link">
+            <i class="fas fa-fist-raised"></i> <span>{% trans "Module Combat" %}</span>
+            {% if combat_stats.total_combats|default:0 > 0 %}
+              <span class="badge rounded-pill bg-danger ms-auto">{{ combat_stats.total_combats }}</span>
+            {% endif %}
+          </a>
+        </li>
+      </ul>
+      
+      <div class="sidebar-heading">{% trans "Outils" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="{% url 'competitions:competitions:list' %}?status=ongoing" class="nav-link">
+            <i class="fas fa-broadcast-tower"></i> <span>{% trans "Diffusion live" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:competitions:list' %}?view=stats" class="nav-link">
+            <i class="fas fa-chart-bar"></i> <span>{% trans "Rapports & Stats" %}</span>
+          </a>
+        </li>
+      </ul>
+      
+      <div class="sidebar-heading mt-4">{% trans "Compte" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          {% if user.profile %}
+          <a href="{% url 'competitions:dashboard:index' %}" class="nav-link">
+            <i class="fas fa-user-circle"></i> <span>{% trans "Mon profil" %}</span>
+          </a>
+          {% else %}
+          <a href="{% url 'login' %}" class="nav-link">
+            <i class="fas fa-user-circle"></i> <span>{% trans "Mon profil" %}</span>
+          </a>
+          {% endif %}
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'logout' %}" class="nav-link text-danger">
+            <i class="fas fa-sign-out-alt"></i> <span>{% trans "Déconnexion" %}</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+
+  <!-- Contenu principal -->
+  <div class="main-content">
+    <!-- En-tête avec actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h1 class="h3 mb-0">{% trans "Tableau de bord Manager" %}</h1>
+        <p class="text-muted mb-0">
+          {% trans "Vue d'ensemble de vos activités de gestion" %}
+          {% if profile %}
+          <span class="badge bg-primary ms-2">{{ profile.role|title }}</span>
+          {% endif %}
+          <span class="badge bg-light text-dark border ms-1">{{ total_managed_competitions|default:"0" }} {% trans "compétitions" %}</span>
+        </p>
+      </div>
+      <div class="d-flex gap-2">
+        <button id="toggleSidebarBtn" class="btn btn-light me-2 d-md-none">
+          <i class="fas fa-bars"></i>
+        </button>
+        <div class="dropdown">
+          <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="fas fa-plus me-1"></i> {% trans "Actions rapides" %}
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'competitions:competitions:create' %}">
+              <i class="fas fa-trophy me-2 text-primary"></i> {% trans "Nouvelle compétition" %}
+            </a></li>
+            {% if default_federation %}
+            <li><a class="dropdown-item" href="{% url 'competitions:federations:clubs' default_federation.id %}">
+              <i class="fas fa-building me-2 text-success"></i> {% trans "Voir les clubs" %}
+            </a></li>
+            {% else %}
+            <li><a class="dropdown-item" href="{% url 'competitions:federations:list' %}">
+              <i class="fas fa-building me-2 text-success"></i> {% trans "Voir les clubs" %}
+            </a></li>
+            {% endif %}
+            <li><a class="dropdown-item" href="{% url 'competitions:club:judges_list' %}">
+              <i class="fas fa-gavel me-2 text-info"></i> {% trans "Gérer les juges" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'competitions:dashboard:combat' %}">
+              <i class="fas fa-fist-raised me-2 text-danger"></i> {% trans "Module Combat" %}
+            </a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Messages d'alerte -->
+    {% if messages %}
+      <div class="messages mb-4">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+            <i class="fas {% if message.tags == 'success' %}fa-check-circle{% elif message.tags == 'error' %}fa-exclamation-circle{% elif message.tags == 'warning' %}fa-exclamation-triangle{% else %}fa-info-circle{% endif %} me-2"></i>
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    
+    <!-- Tâches urgentes -->
+    {% if urgent_tasks %}
+    <div class="alert alert-warning alert-custom mb-4 shadow-sm">
+      <div class="d-flex align-items-center">
+        <div class="alert-icon me-3">
+          <i class="fas fa-exclamation-triangle fa-2x"></i>
+        </div>
+        <div class="flex-grow-1">
+          <h5 class="alert-heading mb-1">{% trans "Actions requises" %}</h5>
+          <p class="mb-0">{% trans "Vous avez" %} <strong>{{ urgent_tasks|length }}</strong> {% trans "tâche" %}{% if urgent_tasks|length > 1 %}s{% endif %} {% trans "urgente" %}{% if urgent_tasks|length > 1 %}s{% endif %} {% trans "nécessitant votre attention." %}</p>
+        </div>
+        <div class="ms-auto">
+          <button class="btn btn-outline-warning btn-sm" data-bs-toggle="collapse" data-bs-target="#urgent-tasks" aria-expanded="false">
+            <i class="fas fa-list me-1"></i>
+            {% trans "Voir les tâches" %}
+          </button>
+        </div>
+      </div>
+      <div class="collapse mt-3" id="urgent-tasks">
+        <hr class="my-3">
+        <div class="list-group list-group-flush">
+          {% for task in urgent_tasks %}
+          <div class="list-group-item bg-transparent px-0 border-0">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <i class="fas fa-arrow-right text-{{ task.priority|default:'warning' }} me-2"></i>
+                {{ task.task }}
+              </div>
+              <a href="{{ task.url_complete }}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-arrow-right me-1"></i>
+                {% trans "Traiter" %}
+              </a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    
+    <!-- Statistiques principales -->
+    <div class="stats-grid mb-4">
+      <div class="dashboard-card card-stats">
+        <div class="stats-icon stats-competitions">
+          <i class="fas fa-trophy"></i>
+        </div>
+        <div class="stats-value">{{ total_managed_competitions|default:"0" }}</div>
+        <div class="stats-label">{% trans "Total compétitions" %}</div>
+        <div class="mt-3">
+          <a href="{% url 'competitions:competitions:list' %}" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-eye me-1"></i> {% trans "Voir" %}
+          </a>
+          <a href="{% url 'competitions:competitions:create' %}" class="btn btn-sm btn-outline-success ms-1">
+            <i class="fas fa-plus me-1"></i> {% trans "Créer" %}
+          </a>
+        </div>
+      </div>
+      
+      <div class="dashboard-card card-stats">
+        <div class="stats-icon stats-registrations">
+          <i class="fas fa-users"></i>
+        </div>
+        <div class="stats-value">{{ recent_registrations|length|default:"0" }}</div>
+        <div class="stats-label">{% trans "Inscriptions" %}</div>
+        <div class="mt-3">
+          <a href="{% url 'competitions:competitions:list' %}?view=registrations" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-clipboard-list me-1"></i> {% trans "Gérer" %}
+          </a>
+        </div>
+      </div>
+      
+      <div class="dashboard-card card-stats">
+        <div class="stats-icon stats-ongoing">
+          <i class="fas fa-sync-alt"></i>
+        </div>
+        <div class="stats-value">{{ competition_statuses.ongoing|default:"0" }}</div>
+        <div class="stats-label">{% trans "En cours" %}</div>
+        <div class="mt-3">
+          <a href="{% url 'competitions:competitions:list' %}?status=ongoing" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-broadcast-tower me-1"></i> {% trans "Diffuser" %}
+          </a>
+        </div>
+      </div>
+      
+      <div class="dashboard-card card-stats">
+        <div class="stats-icon stats-tasks">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="stats-value">{{ urgent_tasks|length|default:"0" }}</div>
+        <div class="stats-label">{% trans "Tâches urgentes" %}</div>
+        <div class="mt-3">
+          {% if urgent_tasks|length > 0 %}
+          <button class="btn btn-sm btn-warning" data-bs-toggle="collapse" data-bs-target="#urgent-tasks" aria-expanded="false">
+            <i class="fas fa-list me-1"></i> {% trans "Voir" %}
+          </button>
+          {% else %}
+          <span class="badge bg-success p-2">{% trans "Tout est à jour" %}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Compétitions actives et activités récentes -->
+    <div class="row g-4 mb-4">
+      <div class="col-lg-8">
+        <div class="dashboard-card">
+          <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+            <h5 class="card-title mb-0 fw-semibold">
+              <i class="fas fa-trophy text-primary me-2"></i>
+              {% trans "Compétitions actives" %}
+            </h5>
+            <a href="{% url 'competitions:competitions:list' %}" class="btn btn-sm btn-outline-primary">
+              <i class="fas fa-eye me-1"></i>
+              {% trans "Voir tout" %}
+            </a>
+          </div>
+          
+          <div class="card-body p-0">
+            {% if active_competitions_stats %}
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th class="ps-4">{% trans "Compétition" %}</th>
+                    <th>{% trans "Date" %}</th>
+                    <th>{% trans "Lieu" %}</th>
+                    <th>{% trans "Inscriptions" %}</th>
+                    <th>{% trans "Statut" %}</th>
+                    <th class="text-end pe-4">{% trans "Actions" %}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for stat in active_competitions_stats %}
+                  <tr>
+                    <td class="ps-4">
+                      <div>
+                        <h6 class="mb-0">{{ stat.competition.title }}</h6>
+                        <small class="text-muted">{{ stat.competition.discipline.name }}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="text-nowrap">{{ stat.competition.start_date|date:"d M Y" }}</span>
+                      {% if stat.days_until_start < 7 %}
+                      <span class="badge bg-warning ms-1 rounded-pill">{{ stat.days_until_start }}j</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ stat.competition.city|default:stat.competition.venue_name }}</td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-light text-dark border">{{ stat.total_registrations }}</span>
+                        {% if stat.pending_registrations > 0 %}
+                        <span class="badge bg-warning text-dark">{{ stat.pending_registrations }} {% trans "en attente" %}</span>
+                        {% endif %}
+                      </div>
+                    </td>
+                    <td>
+                      <span class="badge bg-{% if stat.competition.status == 'published' %}primary{% elif stat.competition.status == 'ongoing' %}success{% elif stat.competition.status == 'completed' %}secondary{% else %}warning{% endif %}">
+                        {{ stat.competition.get_status_display }}
+                      </span>
+                    </td>
+                    <td class="text-end pe-4">
+                      <div class="btn-group">
+                        <a href="{% url 'competitions:competitions:detail' stat.competition.pk %}" 
+                          class="btn btn-sm btn-outline-secondary" 
+                          data-bs-toggle="tooltip" 
+                          title="{% trans 'Voir les détails' %}">
+                          <i class="fas fa-eye"></i>
+                        </a>
+                        <a href="{% url 'competitions:competitions:update' stat.competition.pk %}" 
+                          class="btn btn-sm btn-outline-secondary"
+                          data-bs-toggle="tooltip" 
+                          title="{% trans 'Modifier' %}">
+                          <i class="fas fa-pencil-alt"></i>
+                        </a>
+                        <a href="{% url 'competitions:competitions:manage_registrations' stat.competition.id %}" 
+                          class="btn btn-sm btn-outline-secondary"
+                          data-bs-toggle="tooltip" 
+                          title="{% trans 'Gérer les inscriptions' %}">
+                          <i class="fas fa-users"></i>
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+              <i class="fas fa-trophy fa-3x text-muted mb-3"></i>
+              <h5>{% trans "Aucune compétition active" %}</h5>
+              <p class="text-muted mb-3">{% trans "Vous n'avez aucune compétition active en ce moment." %}</p>
+              <a href="{% url 'competitions:competitions:create' %}" class="btn btn-primary">
+                <i class="fas fa-plus-circle me-1"></i>
+                {% trans "Créer une compétition" %}
+              </a>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-lg-4">
+        <div class="dashboard-card h-100">
+          <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+            <h5 class="card-title mb-0 fw-semibold">
+              <i class="fas fa-history text-primary me-2"></i>
+              {% trans "Activité récente" %}
+            </h5>
+          </div>
+          
+          <div class="card-body p-0">
+            {% if recent_registrations %}
+            <div class="list-group list-group-flush">
+              {% for reg in recent_registrations %}
+              <div class="list-group-item p-3">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <h6 class="mb-1">{{ reg.practitioner.full_name }}</h6>
+                    <p class="mb-1 text-muted small">{{ reg.competition.title }}</p>
+                    <small class="text-muted">{{ reg.registration_date|timesince }}</small>
+                  </div>
+                  <span class="badge bg-{% if reg.status == 'pending' %}warning{% elif reg.status == 'approved' %}success{% elif reg.status == 'rejected' %}danger{% else %}secondary{% endif %}">
+                    {{ reg.get_status_display }}
+                  </span>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+              <i class="fas fa-history fa-3x text-muted mb-3"></i>
+              <h5>{% trans "Aucune activité récente" %}</h5>
+              <p class="text-muted">{% trans "Les inscriptions récentes apparaîtront ici." %}</p>
+            </div>
+            {% endif %}
+          </div>
+          
+          {% if recent_registrations %}
+          <div class="card-footer bg-light text-center py-2">
+            <a href="{% url 'competitions:competitions:list' %}?view=registrations" class="text-decoration-none">
+              <small>{% trans "Voir toutes les inscriptions" %}</small>
+              <i class="fas fa-arrow-right ms-1"></i>
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Graphiques et statistiques -->
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <div class="dashboard-card">
+          <div class="card-header bg-white py-3">
+            <h5 class="card-title mb-0 fw-semibold">
+              <i class="fas fa-chart-line text-primary me-2"></i>
+              {% trans "Évolution des inscriptions (12 derniers mois)" %}
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="chart-area">
+              <canvas id="registrationsChart" height="300"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-lg-4">
+        <div class="dashboard-card h-100">
+          <div class="card-header bg-white py-3">
+            <h5 class="card-title mb-0 fw-semibold">
+              <i class="fas fa-chart-pie text-primary me-2"></i>
+              {% trans "Répartition des compétitions" %}
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="chart-pie" style="height: 280px;">
+              <canvas id="statusPieChart"></canvas>
+            </div>
+            <div class="mt-4">
+              <div class="d-flex justify-content-between mb-2">
+                <span><i class="fas fa-circle text-primary me-2"></i>{% trans "Publiées" %}</span>
+                <strong>{{ competition_statuses.published|default:0 }}</strong>
+              </div>
+              <div class="d-flex justify-content-between mb-2">
+                <span><i class="fas fa-circle text-success me-2"></i>{% trans "En cours" %}</span>
+                <strong>{{ competition_statuses.ongoing|default:0 }}</strong>
+              </div>
+              <div class="d-flex justify-content-between mb-2">
+                <span><i class="fas fa-circle text-info me-2"></i>{% trans "Complétées" %}</span>
+                <strong>{{ competition_statuses.completed|default:0 }}</strong>
+              </div>
+              <div class="d-flex justify-content-between">
+                <span><i class="fas fa-circle text-warning me-2"></i>{% trans "Brouillons" %}</span>
+                <strong>{{ competition_statuses.draft|default:0 }}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Bouton d'action flottant -->
+    <div class="floating-action-button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="fas fa-plus"></i>
+    </div>
+    <ul class="dropdown-menu dropdown-menu-end shadow-lg" style="position: fixed; bottom: 6rem; right: 2rem;">
+      <li><h6 class="dropdown-header">{% trans "Actions rapides" %}</h6></li>
+      <li><a class="dropdown-item" href="{% url 'competitions:competitions:create' %}">
+        <i class="fas fa-trophy text-primary me-2"></i> {% trans "Nouvelle compétition" %}
+      </a></li>
+      <li><a class="dropdown-item" href="{% url 'competitions:competitions:list' %}">
+        <i class="fas fa-list-ul text-success me-2"></i> {% trans "Liste des compétitions" %}
+      </a></li>
+      <li><a class="dropdown-item" href="{% url 'competitions:club:judges_list' %}">
+        <i class="fas fa-gavel text-info me-2"></i> {% trans "Gérer les juges" %}
+      </a></li>
+      {% if active_competitions_stats %}
+      <li><hr class="dropdown-divider"></li>
+      <li><h6 class="dropdown-header">{% trans "Compétitions actives" %}</h6></li>
+      {% for stat in active_competitions_stats|slice:":3" %}
+      <li><a class="dropdown-item" href="{% url 'competitions:competitions:detail' stat.competition.id %}">
+        <i class="fas fa-trophy me-2"></i> {{ stat.competition.title|truncatechars:25 }}
+      </a></li>
+      {% endfor %}
+      {% endif %}
+    </ul>
+  </div>
+</div>
+
+{% block extra_js %}
+<script>
+  // Fonction pour gérer le basculement de la barre latérale
+  document.addEventListener('DOMContentLoaded', function() {
+    const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+    const sidebar = document.querySelector('.sidebar');
+    
+    if (toggleSidebarBtn) {
+      toggleSidebarBtn.addEventListener('click', function() {
+        sidebar.classList.toggle('active');
+      });
+    }
+    
+    // Fermer la barre latérale quand on clique à l'extérieur (sur mobile)
+    document.addEventListener('click', function(event) {
+      const isClickInsideSidebar = sidebar.contains(event.target);
+      const isClickOnToggleBtn = toggleSidebarBtn && toggleSidebarBtn.contains(event.target);
+      
+      if (!isClickInsideSidebar && !isClickOnToggleBtn && window.innerWidth < 768 && sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+      }
+    });
+    
+    // Activer les tooltips
+    if (typeof bootstrap !== 'undefined') {
+      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+      var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+      });
+    }
+    
+    // Initialiser les graphiques
+    if (typeof Chart !== 'undefined') {
+      // Graphique d'évolution des inscriptions
+      var ctx = document.getElementById('registrationsChart');
+      if (ctx) {
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aou', 'Sep', 'Oct', 'Nov', 'Déc'],
+            datasets: [{
+              label: 'Inscriptions',
+              data: [
+                {{ monthly_registrations.0|default:0 }}, 
+                {{ monthly_registrations.1|default:0 }}, 
+                {{ monthly_registrations.2|default:0 }}, 
+                {{ monthly_registrations.3|default:0 }},
+                {{ monthly_registrations.4|default:0 }}, 
+                {{ monthly_registrations.5|default:0 }}, 
+                {{ monthly_registrations.6|default:0 }}, 
+                {{ monthly_registrations.7|default:0 }},
+                {{ monthly_registrations.8|default:0 }}, 
+                {{ monthly_registrations.9|default:0 }}, 
+                {{ monthly_registrations.10|default:0 }}, 
+                {{ monthly_registrations.11|default:0 }}
+              ],
+              borderColor: '#0d6efd',
+              backgroundColor: 'rgba(13, 110, 253, 0.1)',
+              borderWidth: 2,
+              pointBackgroundColor: '#0d6efd',
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              fill: true,
+              tension: 0.4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                mode: 'index',
+                intersect: false,
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                padding: 10,
+                cornerRadius: 4
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: {
+                  drawBorder: false,
+                  color: 'rgba(0, 0, 0, 0.05)'
+                },
+                ticks: {
+                  stepSize: 10
+                }
+              },
+              x: {
+                grid: {
+                  display: false
+                }
+              }
+            }
+          }
+        });
+      }
+      
+      // Graphique de répartition des compétitions
+      var ctxPie = document.getElementById('statusPieChart');
+      if (ctxPie) {
+        new Chart(ctxPie, {
+          type: 'doughnut',
+          data: {
+            labels: ['Publiées', 'En cours', 'Complétées', 'Brouillons'],
+            datasets: [{
+              data: [
+                {{ competition_statuses.published|default:0 }},
+                {{ competition_statuses.ongoing|default:0 }},
+                {{ competition_statuses.completed|default:0 }},
+                {{ competition_statuses.draft|default:0 }}
+              ],
+              backgroundColor: [
+                '#0d6efd',
+                '#28a745',
+                '#17a2b8',
+                '#ffc107'
+              ],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                padding: 10,
+                cornerRadius: 4
+              }
+            }
+          }
+        });
+      }
+    }
+  });
+</script>
+{% endblock %}
+{% endblock %}

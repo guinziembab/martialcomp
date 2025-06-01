@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load i18n %}
+
+{% block head %}
+    <!-- Styles de base -->
+    <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/fontawesome.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    
+    <!-- Styles spécifiques au tenant -->
+    {% if tenant %}
+        {% with 'css/tenants/'|add:tenant.schema_name|add:'/style.css' as tenant_css %}
+            {% if tenant_css|file_exists %}
+                <link rel="stylesheet" href="{% static tenant_css %}">
+            {% endif %}
+        {% endwith %}
+        
+        <!-- Variables CSS personnalisées pour le tenant -->
+        <style>
+            :root {
+                {% if tenant.primary_color %}
+                --primary-color: {{ tenant.primary_color }};
+                {% endif %}
+                
+                {% if tenant.secondary_color %}
+                --secondary-color: {{ tenant.secondary_color }};
+                {% endif %}
+                
+                {% if tenant.accent_color %}
+                --accent-color: {{ tenant.accent_color }};
+                {% endif %}
+                
+                {% if tenant.text_color %}
+                --text-color: {{ tenant.text_color }};
+                {% endif %}
+                
+                {% if tenant.background_color %}
+                --background-color: {{ tenant.background_color }};
+                {% endif %}
+            }
+            
+            {% if tenant.custom_css %}
+                {{ tenant.custom_css|safe }}
+            {% endif %}
+        </style>
+    {% endif %}
+    
+    {% block extra_head %}{% endblock %}
+    
+    <!-- Favicon spécifique au tenant -->
+    {% if tenant and tenant.favicon %}
+        <link rel="icon" href="{{ tenant.favicon.url }}" type="image/x-icon">
+    {% else %}
+        <link rel="icon" href="{% static 'img/favicon.ico' %}" type="image/x-icon">
+    {% endif %}
+    
+    <title>
+        {% if tenant %}{{ tenant.name }}{% else %}MartialComp{% endif %} 
+        {% block title %}{% endblock %}
+    </title>
+{% endblock %}
+
+{% block navigation %}
+    <nav class="navbar navbar-expand-lg {% if tenant and tenant.navbar_class %}{{ tenant.navbar_class }}{% else %}navbar-dark bg-primary{% endif %}">
+        <div class="container">
+            <!-- Logo spécifique au tenant -->
+            <a class="navbar-brand" href="{% url 'home' %}">
+                {% if tenant and tenant.logo %}
+                    <img src="{{ tenant.logo.url }}" alt="{{ tenant.name }}" height="30">
+                {% else %}
+                    <img src="{% static 'img/logo.png' %}" alt="MartialComp" height="30">
+                {% endif %}
+                {% if tenant and tenant.display_name_in_navbar %}
+                    <span class="ml-2">{{ tenant.name }}</span>
+                {% endif %}
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarMain">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarMain">
+                <ul class="navbar-nav mr-auto">
+                    <!-- Éléments de menu communs -->
+                    <li class="nav-item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+                        <a class="nav-link" href="{% url 'home' %}">{% trans "Accueil" %}</a>
+                    </li>
+                    
+                    <li class="nav-item {% if 'competitions' in request.path %}active{% endif %}">
+                        <a class="nav-link" href="{% url 'competitions:list' %}">{% trans "Compétitions" %}</a>
+                    </li>
+                    
+                    <!-- Menu spécifique au tenant -->
+                    {% if tenant and tenant.features.custom_menu.is_enabled %}
+                        {% for item in tenant.menu_items.all %}
+                            <li class="nav-item {% if item.url in request.path %}active{% endif %}">
+                                <a class="nav-link" href="{{ item.url }}">{{ item.title }}</a>
+                            </li>
+                        {% endfor %}
+                    {% endif %}
+                </ul>
+                
+                <!-- Menu utilisateur -->
+                <ul class="navbar-nav ml-auto">
+                    {% if user.is_authenticated %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" 
+                               data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                {{ user.get_full_name|default:user.username }}
+                            </a>
+                            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="userDropdown">
+                                <a class="dropdown-item" href="{% url 'dashboard' %}">
+                                    <i class="fas fa-tachometer-alt mr-2"></i> {% trans "Tableau de bord" %}
+                                </a>
+                                
+                                <a class="dropdown-item" href="{% url 'profile' %}">
+                                    <i class="fas fa-user mr-2"></i> {% trans "Profil" %}
+                                </a>
+                                
+                                {% if user.is_staff %}
+                                    <a class="dropdown-item" href="{% url 'admin:index' %}">
+                                        <i class="fas fa-cogs mr-2"></i> {% trans "Administration" %}
+                                    </a>
+                                {% endif %}
+                                
+                                <div class="dropdown-divider"></div>
+                                <a class="dropdown-item" href="{% url 'logout' %}">
+                                    <i class="fas fa-sign-out-alt mr-2"></i> {% trans "Déconnexion" %}
+                                </a>
+                            </div>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'login' %}">{% trans "Connexion" %}</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'register' %}">{% trans "Inscription" %}</a>
+                        </li>
+                    {% endif %}
+                    
+                    <!-- Sélecteur de langue -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="languageDropdown" role="button" 
+                           data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="fas fa-globe"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="languageDropdown">
+                            {% get_current_language as CURRENT_LANGUAGE %}
+                            {% get_available_languages as AVAILABLE_LANGUAGES %}
+                            {% for lang_code, lang_name in AVAILABLE_LANGUAGES %}
+                                <a class="dropdown-item {% if lang_code == CURRENT_LANGUAGE %}active{% endif %}" 
+                                   href="{% url 'set_language' %}?language={{ lang_code }}">
+                                    {{ lang_name }}
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+{% endblock %}
+
+{% block footer %}
+    <footer class="footer mt-auto py-3 {% if tenant and tenant.footer_class %}{{ tenant.footer_class }}{% else %}bg-dark text-white{% endif %}">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4">
+                    <!-- Logo et info du tenant dans le footer -->
+                    {% if tenant and tenant.logo %}
+                        <img src="{{ tenant.logo.url }}" alt="{{ tenant.name }}" height="40" class="mb-3">
+                    {% else %}
+                        <img src="{% static 'img/logo.png' %}" alt="MartialComp" height="40" class="mb-3">
+                    {% endif %}
+                    
+                    <p>
+                        {% if tenant and tenant.footer_text %}
+                            {{ tenant.footer_text|safe }}
+                        {% else %}
+                            {% trans "Plateforme de gestion des compétitions d'arts martiaux." %}
+                        {% endif %}
+                    </p>
+                </div>
+                
+                <div class="col-md-4">
+                    <!-- Liens rapides -->
+                    <h5>{% trans "Liens rapides" %}</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="{% url 'home' %}" class="text-light">{% trans "Accueil" %}</a></li>
+                        <li><a href="{% url 'competitions:list' %}" class="text-light">{% trans "Compétitions" %}</a></li>
+                        <li><a href="{% url 'contact' %}" class="text-light">{% trans "Contact" %}</a></li>
+                        <li><a href="{% url 'about' %}" class="text-light">{% trans "À propos" %}</a></li>
+                    </ul>
+                </div>
+                
+                <div class="col-md-4">
+                    <!-- Contact ou réseaux sociaux -->
+                    <h5>{% trans "Contact" %}</h5>
+                    <address>
+                        {% if tenant and tenant.address %}
+                            {{ tenant.address|linebreaks }}
+                        {% endif %}
+                        
+                        {% if tenant and tenant.email %}
+                            <strong>Email:</strong> <a href="mailto:{{ tenant.email }}" class="text-light">{{ tenant.email }}</a><br>
+                        {% endif %}
+                        
+                        {% if tenant and tenant.phone %}
+                            <strong>Tel:</strong> {{ tenant.phone }}
+                        {% endif %}
+                    </address>
+                    
+                    <!-- Réseaux sociaux du tenant -->
+                    {% if tenant and tenant.social_links %}
+                        <div class="social-links mt-3">
+                            {% for link in tenant.social_links.all %}
+                                <a href="{{ link.url }}" target="_blank" class="text-light mr-3" title="{{ link.name }}">
+                                    <i class="{{ link.icon_class }}"></i>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="row mt-3">
+                <div class="col-12 text-center">
+                    <p class="mb-0">
+                        &copy; {% now "Y" %} 
+                        {% if tenant %}{{ tenant.name }}{% else %}MartialComp{% endif %}. 
+                        {% trans "Tous droits réservés." %}
+                        
+                        <!-- Lien Powered by MartialComp si c'est un tenant -->
+                        {% if tenant and not tenant.white_label %}
+                            <span class="ml-2">{% trans "Propulsé par" %} <a href="https://martialcomp.com" class="text-light">MartialComp</a></span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </footer>
+{% endblock %}
+
+{% block scripts %}
+    <!-- Scripts communs -->
+    <script src="{% static 'js/jquery.min.js' %}"></script>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/main.js' %}"></script>
+    
+    <!-- Scripts spécifiques au tenant -->
+    {% if tenant %}
+        {% with 'js/tenants/'|add:tenant.schema_name|add:'/main.js' as tenant_js %}
+            {% if tenant_js|file_exists %}
+                <script src="{% static tenant_js %}"></script>
+            {% endif %}
+        {% endwith %}
+        
+        {% if tenant.custom_js %}
+            <script>
+                {{ tenant.custom_js|safe }}
+            </script>
+        {% endif %}
+    {% endif %}
+    
+    {% block extra_scripts %}{% endblock %}
+    
+    <!-- Google Analytics spécifique au tenant -->
+    {% if tenant and tenant.analytics_id %}
+        <script async src="https://www.googletagmanager.com/gtag/js?id={{ tenant.analytics_id }}"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '{{ tenant.analytics_id }}');
+        </script>
+    {% endif %}
+{% endblock %}

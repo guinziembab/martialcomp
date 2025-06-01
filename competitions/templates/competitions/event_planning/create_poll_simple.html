@@ -1,0 +1,548 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Créer un sondage" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h2 class="h4 mb-0">
+                {% if event %}
+                    {% translate "Créer un sondage pour" %} {{ event.title }}
+                {% else %}
+                    {% translate "Créer un nouveau sondage" %}
+                {% endif %}
+            </h2>
+            <a href="{% url 'competitions:event_planning:poll_list' %}" class="btn btn-sm btn-light">
+                <i class="fas fa-arrow-left"></i> {% translate "Retour" %}
+            </a>
+        </div>
+        <div class="card-body">
+            <form method="post" id="pollForm" class="needs-validation" novalidate>
+                {% csrf_token %}
+                
+                <!-- Erreurs générales du formulaire -->
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in form.non_field_errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- Erreurs générales du formset -->
+                {% if formset.non_form_errors %}
+                <div class="alert alert-danger">
+                    {% for error in formset.non_form_errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- Section 1: Informations générales -->
+                <section class="mb-4">
+                    <h3 class="h5 border-bottom pb-2 mb-3">{% translate "Informations générales" %}</h3>
+                    
+                    <div class="row">
+                        <!-- Organisation -->
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.organization.id_for_label }}" class="form-label">
+                                {% translate "Organisation" %} <span class="text-danger">*</span>
+                            </label>
+                            {% if organizations.count == 1 %}
+                                {{ form.organization }}
+                                <p class="form-text">{{ organizations.first.name }}</p>
+                            {% else %}
+                                <select name="organization" id="{{ form.organization.id_for_label }}" 
+                                        class="form-select{% if form.organization.errors %} is-invalid{% endif %}" required>
+                                    <option value="">{% translate "Sélectionner une organisation" %}</option>
+                                    {% for org in organizations %}
+                                        <option value="{{ org.id }}" 
+                                                {% if form.organization.value|stringformat:"i" == org.id|stringformat:"i" %}selected{% endif %}>
+                                            {{ org.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            {% endif %}
+                            {% if form.organization.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.organization.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Type d'événement -->
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.event_type.id_for_label }}" class="form-label">
+                                {% translate "Type d'événement" %}
+                            </label>
+                            {{ form.event_type }}
+                            {% if form.event_type.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.event_type.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <div class="form-text">{% translate "Choisissez le type d'événement que vous prévoyez d'organiser." %}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Titre -->
+                        <div class="col-md-12 mb-3">
+                            <label for="{{ form.title.id_for_label }}" class="form-label">
+                                {% translate "Titre" %} <span class="text-danger">*</span>
+                            </label>
+                            {{ form.title }}
+                            {% if form.title.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.title.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Description -->
+                        <div class="col-md-12 mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">
+                                {% translate "Description" %}
+                            </label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.description.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Date d'expiration -->
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.expires_at_date.id_for_label }}" class="form-label">
+                                {% translate "Date d'expiration" %}
+                            </label>
+                            {{ form.expires_at_date }}
+                            {% if form.expires_at_date.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.expires_at_date.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <div class="form-text">{% translate "Laissez vide pour pas de limite" %}</div>
+                        </div>
+                        
+                        <!-- Heure d'expiration -->
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.expires_at_time.id_for_label }}" class="form-label">
+                                {% translate "Heure d'expiration" %}
+                            </label>
+                            {{ form.expires_at_time }}
+                            {% if form.expires_at_time.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.expires_at_time.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Section 2: Options de configuration -->
+                <section class="mb-4">
+                    <h3 class="h5 border-bottom pb-2 mb-3">{% translate "Options de configuration" %}</h3>
+                    
+                    <div class="row">
+                        <!-- Type de réponse -->
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.response_type.id_for_label }}" class="form-label">
+                                {% translate "Type de réponse" %}
+                            </label>
+                            {{ form.response_type }}
+                            {% if form.response_type.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.response_type.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Options de visibilité -->
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                {{ form.show_participants }}
+                                <label class="form-check-label" for="{{ form.show_participants.id_for_label }}">
+                                    {% translate "Afficher les participants" %}
+                                </label>
+                            </div>
+                            
+                            <div class="form-check">
+                                {{ form.show_vote_counts }}
+                                <label class="form-check-label" for="{{ form.show_vote_counts.id_for_label }}">
+                                    {% translate "Afficher les décomptes de votes" %}
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Options de participation -->
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                {{ form.allow_comments }}
+                                <label class="form-check-label" for="{{ form.allow_comments.id_for_label }}">
+                                    {% translate "Autoriser les commentaires" %}
+                                </label>
+                            </div>
+                            
+                            <div class="form-check">
+                                {{ form.allow_multiple_votes }}
+                                <label class="form-check-label" for="{{ form.allow_multiple_votes.id_for_label }}">
+                                    {% translate "Autoriser votes multiples" %}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Section 3: Options de date -->
+                <section class="mb-4">
+                    <h3 class="h5 border-bottom pb-2 mb-3">
+                        {% translate "Options de date" %}
+                        <span class="text-danger">*</span>
+                    </h3>
+                    
+                    {{ formset.management_form }}
+                    
+                    <div id="options-container">
+                        {% for option_form in formset %}
+                            <div class="option-form card mb-3">
+                                {% if option_form.id.value %}{{ option_form.id }}{% endif %}
+                                
+                                <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                                    <h4 class="h6 mb-0">{% translate "Option" %} #{{ forloop.counter }}</h4>
+                                    {% if formset.can_delete and forloop.counter0 > 0 %}
+                                        <button type="button" class="btn btn-sm btn-outline-danger delete-option">
+                                            <i class="fas fa-trash-alt"></i> {% translate "Supprimer" %}
+                                        </button>
+                                        {{ option_form.DELETE }}
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="card-body">
+                                    <div class="row">
+                                        <!-- Date -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ option_form.date.id_for_label }}" class="form-label">
+                                                {% translate "Date" %} <span class="text-danger">*</span>
+                                            </label>
+                                            {{ option_form.date }}
+                                            {% if option_form.date.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in option_form.date.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Toute la journée -->
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check mt-4">
+                                                {{ option_form.all_day }}
+                                                <label class="form-check-label" for="{{ option_form.all_day.id_for_label }}">
+                                                    {% translate "Toute la journée" %}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row time-fields">
+                                        <!-- Heure de début -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ option_form.start_time.id_for_label }}" class="form-label">
+                                                {% translate "Heure de début" %}
+                                            </label>
+                                            {{ option_form.start_time }}
+                                            {% if option_form.start_time.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in option_form.start_time.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Heure de fin -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ option_form.end_time.id_for_label }}" class="form-label">
+                                                {% translate "Heure de fin" %}
+                                            </label>
+                                            {{ option_form.end_time }}
+                                            {% if option_form.end_time.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in option_form.end_time.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <!-- Lieu -->
+                                        <div class="col-md-12 mb-3">
+                                            <label for="{{ option_form.location.id_for_label }}" class="form-label">
+                                                {% translate "Lieu" %} <small class="text-muted">({% translate "optionnel" %})</small>
+                                            </label>
+                                            {{ option_form.location }}
+                                            {% if option_form.location.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in option_form.location.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="text-center mb-3">
+                        <button type="button" id="add-option" class="btn btn-outline-primary">
+                            <i class="fas fa-plus-circle"></i> {% translate "Ajouter une option" %}
+                        </button>
+                    </div>
+                </section>
+                
+                <!-- Section 4: Questions personnalisées -->
+                {% if poll_questions_available and question_formset %}
+                <section class="mb-4">
+                    <h3 class="h5 border-bottom pb-2 mb-3">
+                        {% translate "Questions personnalisées" %}
+                        <small class="text-muted">({% translate "optionnel" %})</small>
+                    </h3>
+                    <p class="text-muted mb-3">
+                        {% translate "Ajoutez des questions personnalisées au-delà des options de date/heure pour collecter plus d'informations des participants." %}
+                    </p>
+                    
+                    {{ question_formset.management_form }}
+                    
+                    <div id="questions-container">
+                        {% for question_form in question_formset %}
+                            <div class="question-form card mb-3">
+                                {% if question_form.id.value %}{{ question_form.id }}{% endif %}
+                                
+                                <div class="card-header d-flex justify-content-between align-items-center bg-secondary text-white">
+                                    <h4 class="h6 mb-0">{% translate "Question" %} #{{ forloop.counter }}</h4>
+                                    {% if question_formset.can_delete and forloop.counter0 > 0 %}
+                                        <button type="button" class="btn btn-sm btn-outline-light delete-question">
+                                            <i class="fas fa-trash-alt"></i> {% translate "Supprimer" %}
+                                        </button>
+                                        {{ question_form.DELETE }}
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="card-body">
+                                    <div class="row">
+                                        <!-- Texte de la question -->
+                                        <div class="col-md-8 mb-3">
+                                            <label for="{{ question_form.question_text.id_for_label }}" class="form-label">
+                                                {% translate "Texte de la question" %} <span class="text-danger">*</span>
+                                            </label>
+                                            {{ question_form.question_text }}
+                                            {% if question_form.question_text.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in question_form.question_text.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Type de question -->
+                                        <div class="col-md-4 mb-3">
+                                            <label for="{{ question_form.question_type.id_for_label }}" class="form-label">
+                                                {% translate "Type de question" %}
+                                            </label>
+                                            {{ question_form.question_type }}
+                                            {% if question_form.question_type.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in question_form.question_type.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Options pour questions à choix multiples -->
+                                    <div class="row choices-section" style="display: none;">
+                                        <div class="col-md-12 mb-3">
+                                            <label for="{{ question_form.choices_text.id_for_label }}" class="form-label">
+                                                {% translate "Options de choix" %}
+                                            </label>
+                                            {{ question_form.choices_text }}
+                                            {% if question_form.choices_text.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in question_form.choices_text.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                            <div class="form-text">
+                                                {% translate "Saisissez une option par ligne pour les questions à choix multiple" %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <!-- Question obligatoire -->
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check">
+                                                {{ question_form.is_required }}
+                                                <label class="form-check-label" for="{{ question_form.is_required.id_for_label }}">
+                                                    {% translate "Question obligatoire" %}
+                                                </label>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Ordre -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ question_form.order.id_for_label }}" class="form-label">
+                                                {% translate "Ordre d'affichage" %}
+                                            </label>
+                                            {{ question_form.order }}
+                                            {% if question_form.order.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in question_form.order.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="text-center mb-3">
+                        <button type="button" id="add-question" class="btn btn-outline-secondary">
+                            <i class="fas fa-plus-circle"></i> {% translate "Ajouter une question" %}
+                        </button>
+                    </div>
+                </section>
+                {% else %}
+                <!-- Section 4: Information sur les questions personnalisées -->
+                <section class="mb-4">
+                    <h3 class="h5 border-bottom pb-2 mb-3">
+                        {% translate "Questions personnalisées" %}
+                        <small class="text-muted">({% translate "bientôt disponible" %})</small>
+                    </h3>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        {% translate "Les questions personnalisées seront disponibles après l'application des dernières mises à jour de la base de données." %}
+                        <br>
+                        <small>{% translate "Contactez l'administrateur pour activer cette fonctionnalité." %}</small>
+                    </div>
+                </section>
+                {% endif %}
+                
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{% url 'competitions:event_planning:poll_list' %}" class="btn btn-secondary">
+                        {% translate "Annuler" %}
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {% translate "Créer le sondage" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestion des options "Toute la journée"
+    document.querySelectorAll('input[name$="-all_day"]').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            const timeFields = this.closest('.option-form').querySelector('.time-fields');
+            if (this.checked) {
+                timeFields.style.display = 'none';
+            } else {
+                timeFields.style.display = 'block';
+            }
+        });
+    });
+
+    // Gestion de la suppression d'options
+    document.querySelectorAll('.delete-option').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const optionForm = this.closest('.option-form');
+            const deleteCheckbox = optionForm.querySelector('input[name$="-DELETE"]');
+            deleteCheckbox.checked = true;
+            optionForm.style.display = 'none';
+        });
+    });
+
+    // Gestion de la suppression de questions
+    document.querySelectorAll('.delete-question').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const questionForm = this.closest('.question-form');
+            const deleteCheckbox = questionForm.querySelector('input[name$="-DELETE"]');
+            deleteCheckbox.checked = true;
+            questionForm.style.display = 'none';
+        });
+    });
+
+    // Gestion de l'affichage conditionnel du champ choix pour les questions
+    document.querySelectorAll('select[name$="-question_type"]').forEach(function(select) {
+        select.addEventListener('change', function() {
+            const choicesSection = this.closest('.question-form').querySelector('.choices-section');
+            if (this.value === 'choice') {
+                choicesSection.style.display = 'block';
+            } else {
+                choicesSection.style.display = 'none';
+            }
+        });
+        
+        // Trigger pour l'état initial
+        const event = new Event('change');
+        select.dispatchEvent(event);
+    });
+
+    // Ajouter CSS aux champs de formulaire pour Bootstrap
+    document.querySelectorAll('input, select, textarea').forEach(function(field) {
+        if (!field.classList.contains('form-check-input')) {
+            field.classList.add('form-control');
+        }
+    });
+    
+    document.querySelectorAll('select').forEach(function(field) {
+        field.classList.remove('form-control');
+        field.classList.add('form-select');
+    });
+    
+    document.querySelectorAll('input[type="checkbox"]').forEach(function(field) {
+        field.classList.add('form-check-input');
+    });
+});
+</script>
+{% endblock %}

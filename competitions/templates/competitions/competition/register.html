@@ -1,0 +1,784 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load competition_tags %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Inscription à" %} {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .registration-form {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .competition-header {
+        position: relative;
+        background-size: cover;
+        background-position: center;
+        color: white;
+        padding: 3rem 0;
+        margin-bottom: 2rem;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .competition-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7));
+        z-index: 1;
+    }
+    
+    .competition-header-content {
+        position: relative;
+        z-index: 2;
+    }
+    
+    .section-title {
+        position: relative;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .section-title::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 50px;
+        height: 3px;
+        background-color: var(--primary);
+    }
+    
+    .category-option {
+        border: 1px solid #ced4da;
+        border-radius: 5px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .category-option:hover {
+        border-color: var(--primary);
+        background-color: rgba(var(--primary-rgb), 0.05);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+    }
+    
+    .category-option input[type="radio"] {
+        margin-right: 0.5rem;
+    }
+    
+    .category-details {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    
+    .qualification-level {
+        display: none;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .card {
+        border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+    }
+    
+    .card-header {
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+        padding: 1rem 1.5rem;
+    }
+    
+    .btn-primary {
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        border-radius: 4px;
+        transition: all 0.3s;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+    
+    /* Style pour les champs d'erreur */
+    .is-invalid {
+        border-color: #dc3545 !important;
+    }
+    
+    .invalid-feedback {
+        display: block;
+        width: 100%;
+        margin-top: 0.25rem;
+        font-size: 80%;
+        color: #dc3545;
+    }
+    
+    /* Style pour les champs désactivés */
+    .form-control:disabled,
+    .form-control[readonly] {
+        background-color: #e9ecef;
+        opacity: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- En-tête de la compétition -->
+<div class="competition-header" {% if competition.logo %}style="background-image: url('{{ competition.logo.url }}');"{% endif %}>
+    <div class="container competition-header-content">
+        <h1>{{ competition.title }}</h1>
+        <p class="lead">
+            <i class="fas fa-calendar-alt me-2"></i>{{ competition.start_date|date:"d/m/Y" }}
+            {% if competition.end_date != competition.start_date %}
+                - {{ competition.end_date|date:"d/m/Y" }}
+            {% endif %}
+            {% if competition.address %}
+            <i class="fas fa-map-marker-alt ms-3 me-2"></i>{{ competition.address }}
+            {% endif %}
+        </p>
+        {% if competition.registration_deadline %}
+            <div class="badge bg-warning text-dark mt-2 p-2">
+                <i class="fas fa-hourglass-end me-1"></i>
+                {% trans "Date limite d'inscription" %}: {{ competition.registration_deadline|date:"d/m/Y" }}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="container mb-5">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="registration-form">
+        <h2 class="section-title">
+            {% if is_edit %}
+                {% trans "Modifier mon inscription" %}
+            {% else %}
+                {% trans "Inscription à la compétition" %}
+            {% endif %}
+        </h2>
+        
+        <!-- Informations importantes -->
+        <div class="alert alert-info mb-4">
+            <h5 class="alert-heading"><i class="fas fa-info-circle me-2"></i>{% trans "Informations importantes" %}</h5>
+            <p>{% trans "Merci de bien vérifier votre profil avant de vous inscrire. L'exactitude des informations est essentielle pour garantir votre participation dans les bonnes catégories." %}</p>
+            {% if competition.registration_deadline %}
+                <hr>
+                <p class="mb-0">
+                    <strong>{% trans "Date limite d'inscription" %}:</strong> {{ competition.registration_deadline|date:"d/m/Y" }}
+                </p>
+            {% endif %}
+        </div>
+        
+        <!-- Formulaire d'inscription -->
+        <form method="post" action="" id="registration-form">
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in form.non_field_errors %}
+                        <p class="mb-0">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            
+            <!-- Informations personnelles -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="h5 mb-0">{% trans "Informations personnelles" %}</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="{{ form.first_name.id_for_label }}" class="form-label">{% trans "Prénom" %}</label>
+                                {{ form.first_name }}
+                                {% if form.first_name.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.first_name.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="{{ form.last_name.id_for_label }}" class="form-label">{% trans "Nom" %}</label>
+                                {{ form.last_name }}
+                                {% if form.last_name.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.last_name.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="{{ form.birth_date.id_for_label }}" class="form-label">{% trans "Date de naissance" %}</label>
+                                {{ form.birth_date }}
+                                {% if form.birth_date.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.birth_date.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="{{ form.age.id_for_label }}" class="form-label">{% trans "Âge" %}</label>
+                                {{ form.age }}
+                                {% if form.age.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.age.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="{{ form.grade.id_for_label }}" class="form-label">{% trans "Grade" %}</label>
+                                {{ form.grade }}
+                                {% if form.grade.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.grade.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group mb-0">
+                        <label for="{{ form.club.id_for_label }}" class="form-label">{% trans "Club" %}</label>
+                        {{ form.club }}
+                        {% if form.club.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.club.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Rôles -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="h5 mb-0">{% trans "Participation et rôles" %}</h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-light mb-4">
+                        <p class="mb-0">{% trans "Cochez les rôles que vous souhaitez occuper lors de cette compétition." %}</p>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                {% if form.is_competitor %}
+                                    {{ form.is_competitor }}
+                                    <label for="{{ form.is_competitor.id_for_label }}" class="form-check-label">
+                                        <strong>{% trans "Compétiteur" %}</strong>
+                                    </label>
+                                    <div class="text-muted small">{% trans "Participer en tant qu'athlète" %}</div>
+                                    {% if form.is_competitor.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.is_competitor.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                {% if form.is_coach %}
+                                    {{ form.is_coach }}
+                                    <label for="{{ form.is_coach.id_for_label }}" class="form-check-label">
+                                        <strong>{% trans "Coach" %}</strong>
+                                    </label>
+                                    <div class="text-muted small">{% trans "Accompagner une équipe ou des athlètes" %}</div>
+                                    {% if form.is_coach.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.is_coach.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                {% if form.is_technical_judge %}
+                                    {{ form.is_technical_judge }}
+                                    <label for="{{ form.is_technical_judge.id_for_label }}" class="form-check-label">
+                                        <strong>{% trans "Juge Technique" %}</strong>
+                                    </label>
+                                    <div class="text-muted small">{% trans "Notation des prestations techniques" %}</div>
+                                    {% if form.is_technical_judge.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.is_technical_judge.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Message informatif pour le niveau du juge technique -->
+                            <div class="form-group mt-2" id="technical_judge_level_container" style="display: none;">
+                                <div class="alert alert-info">
+                                    {% trans "Votre niveau de qualification sera validé par les administrateurs." %}
+                                </div>
+                                <input type="hidden" name="technical_judge_level" value="pending">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                {% if form.is_combat_referee %}
+                                    {{ form.is_combat_referee }}
+                                    <label for="{{ form.is_combat_referee.id_for_label }}" class="form-check-label">
+                                        <strong>{% trans "Arbitre Combat" %}</strong>
+                                    </label>
+                                    <div class="text-muted small">{% trans "Arbitrage des combats" %}</div>
+                                    {% if form.is_combat_referee.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.is_combat_referee.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                                                        
+                            <!-- Message informatif pour le niveau d'arbitre de combat -->
+                            <div class="form-group mt-2" id="combat_referee_level_container" style="display: none;">
+                                <div class="alert alert-info">
+                                    {% trans "Votre niveau de qualification sera validé par les administrateurs." %}
+                                </div>
+                                <input type="hidden" name="combat_referee_level" value="pending">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-check">
+                        {% if form.is_volunteer %}
+                            {{ form.is_volunteer }}
+                            <label for="{{ form.is_volunteer.id_for_label }}" class="form-check-label">
+                                <strong>{% trans "Bénévole" %}</strong>
+                            </label>
+                            <div class="text-muted small">{% trans "Aider à l'organisation et à la logistique" %}</div>
+                            {% if form.is_volunteer.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.is_volunteer.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Types de compétition et catégories -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="h5 mb-0">{% trans "Types de compétition et catégories" %}</h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning mb-4">
+                        <p class="mb-0">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {% trans "Pour chaque type de compétition sélectionné, vous devez choisir une seule catégorie." %}
+                        </p>
+                    </div>
+                    
+                    {% if competition_types %}
+                        {% for comp_type in competition_types %}
+                            {% with type_field_name='type_'|add:comp_type.id|stringformat:"d" %}
+                            {% with category_field_name='category_for_type_'|add:comp_type.id|stringformat:"d" %}
+                            
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <div class="form-check">
+                                        {% if form|get_field:type_field_name %}
+                                            {{ form|get_field:type_field_name }}
+                                            <label class="form-check-label" for="id_{{ type_field_name }}">
+                                                <strong>{{ comp_type.name }}</strong>
+                                            </label>
+                                        {% else %}
+                                            <input type="checkbox" class="form-check-input" id="id_{{ type_field_name }}" 
+                                                name="{{ type_field_name }}" value="1">
+                                            <label class="form-check-label" for="id_{{ type_field_name }}">
+                                                <strong>{{ comp_type.name }}</strong>
+                                            </label>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="card-body categories-container" id="categories_{{ comp_type.id }}" 
+                                    style="{% if not form|get_field_value:type_field_name %}display: none;{% endif %}">
+                                    
+                                    {% if form|get_field:category_field_name %}
+                                        <h5 class="mb-3">{% trans "Sélectionnez votre catégorie" %}</h5>
+                                        
+                                        {% for radio in form|get_field:category_field_name %}
+                                            <div class="category-option">
+                                                {{ radio.tag }}
+                                                <label for="{{ radio.id_for_label }}">
+                                                    <strong>{{ radio.choice_label }}</strong>
+                                                    
+                                                    <div class="category-details">
+                                                        {% with category=radio.choice_value|get_category_object %}
+                                                            {% if category.min_age or category.max_age %}
+                                                                <span class="me-3">
+                                                                    <i class="fas fa-birthday-cake me-1"></i>
+                                                                    {% if category.min_age and category.max_age %}
+                                                                        {{ category.min_age }} - {{ category.max_age }} {% trans "ans" %}
+                                                                    {% elif category.min_age %}
+                                                                        {% trans "À partir de" %} {{ category.min_age }} {% trans "ans" %}
+                                                                    {% elif category.max_age %}
+                                                                        {% trans "Jusqu'à" %} {{ category.max_age }} {% trans "ans" %}
+                                                                    {% endif %}
+                                                                </span>
+                                                            {% endif %}
+                                                            
+                                                            {% if category.min_weight or category.max_weight %}
+                                                                <span class="me-3">
+                                                                    <i class="fas fa-weight me-1"></i>
+                                                                    {% if category.min_weight and category.max_weight %}
+                                                                        {{ category.min_weight }} - {{ category.max_weight }} kg
+                                                                    {% elif category.min_weight %}
+                                                                        {% trans "À partir de" %} {{ category.min_weight }} kg
+                                                                    {% elif category.max_weight %}
+                                                                        {% trans "Jusqu'à" %} {{ category.max_weight }} kg
+                                                                    {% endif %}
+                                                                </span>
+                                                            {% endif %}
+                                                            
+                                                            {% if category.min_grade or category.max_grade %}
+                                                                <span class="me-3">
+                                                                    <i class="fas fa-award me-1"></i>
+                                                                    {% if category.min_grade and category.max_grade %}
+                                                                        {{ category.min_grade }} - {{ category.max_grade }}
+                                                                    {% elif category.min_grade %}
+                                                                        {% trans "À partir de" %} {{ category.min_grade }}
+                                                                    {% elif category.max_grade %}
+                                                                        {% trans "Jusqu'à" %} {{ category.max_grade }}
+                                                                    {% endif %}
+                                                                </span>
+                                                            {% endif %}
+                                                            
+                                                            {% if category.gender %}
+                                                                <span>
+                                                                    <i class="fas fa-venus-mars me-1"></i>
+                                                                    {% if category.gender == 'male' %}
+                                                                        {% trans "Hommes" %}
+                                                                    {% elif category.gender == 'female' %}
+                                                                        {% trans "Femmes" %}
+                                                                    {% else %}
+                                                                        {% trans "Mixte" %}
+                                                                    {% endif %}
+                                                                </span>
+                                                            {% endif %}
+                                                        {% endwith %}
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        {% endfor %}
+                                        
+                                        {% if form|get_field_errors:category_field_name %}
+                                            <div class="alert alert-danger mt-3">
+                                                {{ form|get_field_errors:category_field_name }}
+                                            </div>
+                                        {% endif %}
+                                        
+                                    {% else %}
+                                        <!-- Si pas de catégories disponibles dans le formulaire, chercher directement -->
+                                        <h5 class="mb-3">{% trans "Sélectionnez votre catégorie" %}</h5>
+                                        
+                                        {% for category in comp_type.categories.all %}
+                                            <div class="category-option">
+                                                <input type="radio" class="form-check-input" name="{{ category_field_name }}" 
+                                                    id="id_{{ category_field_name }}_{{ category.id }}" value="{{ category.id }}">
+                                                <label for="id_{{ category_field_name }}_{{ category.id }}">
+                                                    <strong>{{ category.name }}</strong>
+                                                    
+                                                    <div class="category-details">
+                                                        {% if category.min_age or category.max_age %}
+                                                            <span class="me-3">
+                                                                <i class="fas fa-birthday-cake me-1"></i>
+                                                                {% if category.min_age and category.max_age %}
+                                                                    {{ category.min_age }} - {{ category.max_age }} {% trans "ans" %}
+                                                                {% elif category.min_age %}
+                                                                    {% trans "À partir de" %} {{ category.min_age }} {% trans "ans" %}
+                                                                {% elif category.max_age %}
+                                                                    {% trans "Jusqu'à" %} {{ category.max_age }} {% trans "ans" %}
+                                                                {% endif %}
+                                                            </span>
+                                                        {% endif %}
+                                                        
+                                                        {% if category.min_weight or category.max_weight %}
+                                                            <span class="me-3">
+                                                                <i class="fas fa-weight me-1"></i>
+                                                                {% if category.min_weight and category.max_weight %}
+                                                                    {{ category.min_weight }} - {{ category.max_weight }} kg
+                                                                {% elif category.min_weight %}
+                                                                    {% trans "À partir de" %} {{ category.min_weight }} kg
+                                                                {% elif category.max_weight %}
+                                                                    {% trans "Jusqu'à" %} {{ category.max_weight }} kg
+                                                                {% endif %}
+                                                            </span>
+                                                        {% endif %}
+                                                        
+                                                        {% if category.min_grade or category.max_grade %}
+                                                            <span class="me-3">
+                                                                <i class="fas fa-award me-1"></i>
+                                                                {% if category.min_grade and category.max_grade %}
+                                                                    {{ category.min_grade }} - {{ category.max_grade }}
+                                                                {% elif category.min_grade %}
+                                                                    {% trans "À partir de" %} {{ category.min_grade }}
+                                                                {% elif category.max_grade %}
+                                                                    {% trans "Jusqu'à" %} {{ category.max_grade }}
+                                                                {% endif %}
+                                                            </span>
+                                                        {% endif %}
+                                                        
+                                                        {% if category.gender %}
+                                                            <span>
+                                                                <i class="fas fa-venus-mars me-1"></i>
+                                                                {% if category.gender == 'male' %}
+                                                                    {% trans "Hommes" %}
+                                                                {% elif category.gender == 'female' %}
+                                                                    {% trans "Femmes" %}
+                                                                {% else %}
+                                                                    {% trans "Mixte" %}
+                                                                {% endif %}
+                                                            </span>
+                                                        {% endif %}
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        {% empty %}
+                                            <div class="alert alert-light">
+                                                {% trans "Aucune catégorie n'est disponible pour ce type de compétition." %}
+                                            </div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            {% endwith %}
+                            {% endwith %}
+                        {% empty %}
+                            <div class="alert alert-warning">
+                                {% trans "Aucun type de compétition n'est disponible pour cette compétition." %}
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-warning">
+                            {% trans "Aucun type de compétition n'est disponible pour cette compétition." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Notes supplémentaires -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="h5 mb-0">{% trans "Informations supplémentaires" %}</h3>
+                </div>
+                <div class="card-body">
+                    <div class="form-group mb-0">
+                        <label for="{{ form.notes.id_for_label }}" class="form-label">{% trans "Notes ou commentaires" %}</label>
+                        {{ form.notes }}
+                        {% if form.notes.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.notes.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            {% trans "Si vous avez des besoins particuliers ou des informations à communiquer aux organisateurs, vous pouvez les indiquer ici." %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Validation finale -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="confirm_info" required>
+                        <label class="form-check-label" for="confirm_info">
+                            {% trans "Je confirme que les informations fournies sont exactes et complètes." %}
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-4">
+                        <input class="form-check-input" type="checkbox" id="accept_rules" required>
+                        <label class="form-check-label" for="accept_rules">
+                            {% trans "J'accepte le règlement de la compétition et les conditions de participation." %}
+                        </label>
+                    </div>
+                    
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-check-circle me-2"></i> 
+                            {% if is_edit %}
+                                {% trans "Mettre à jour mon inscription" %}
+                            {% else %}
+                                {% trans "Confirmer mon inscription" %}
+                            {% endif %}
+                        </button>
+                        <a href="{% url 'competitions:competitions:detail' pk=competition.id %}" class="btn btn-secondary btn-lg ms-2">
+                            <i class="fas fa-times me-2"></i> {% trans "Annuler" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion de l'affichage des niveaux de qualification
+        const technicalJudgeCheckbox = document.getElementById('{{ form.is_technical_judge.id_for_label }}');
+        const technicalLevelContainer = document.getElementById('technical_judge_level_container');
+        
+        const combatRefereeCheckbox = document.getElementById('{{ form.is_combat_referee.id_for_label }}');
+        const combatLevelContainer = document.getElementById('combat_referee_level_container');
+        
+        // Fonction pour afficher/masquer les conteneurs de qualification
+        function toggleQualificationLevels() {
+            if (technicalJudgeCheckbox && technicalLevelContainer) {
+                technicalLevelContainer.style.display = technicalJudgeCheckbox.checked ? 'block' : 'none';
+            }
+            
+            if (combatRefereeCheckbox && combatLevelContainer) {
+                combatLevelContainer.style.display = combatRefereeCheckbox.checked ? 'block' : 'none';
+            }
+        }
+        
+        // Initialiser l'état
+        toggleQualificationLevels();
+        
+        // Ajouter les événements de changement
+        if (technicalJudgeCheckbox) {
+            technicalJudgeCheckbox.addEventListener('change', toggleQualificationLevels);
+        }
+        
+        if (combatRefereeCheckbox) {
+            combatRefereeCheckbox.addEventListener('change', toggleQualificationLevels);
+        }
+        
+        // Gestion de l'affichage des catégories par type de compétition
+        {% for comp_type in competition_types %}
+            const typeCheckbox{{ comp_type.id }} = document.getElementById('id_type_{{ comp_type.id }}');
+            const categoriesContainer{{ comp_type.id }} = document.getElementById('categories_{{ comp_type.id }}');
+            
+            if (typeCheckbox{{ comp_type.id }} && categoriesContainer{{ comp_type.id }}) {
+                // Ajouter l'événement de changement
+                typeCheckbox{{ comp_type.id }}.addEventListener('change', function() {
+                    categoriesContainer{{ comp_type.id }}.style.display = this.checked ? 'block' : 'none';
+                });
+            }
+        {% endfor %}
+        
+        // Validation du formulaire
+        const form = document.getElementById('registration-form');
+        const submitButton = form.querySelector('button[type="submit"]');
+        const confirmInfoCheckbox = document.getElementById('confirm_info');
+        const acceptRulesCheckbox = document.getElementById('accept_rules');
+        
+        // Vérification des cases à cocher avant soumission
+        form.addEventListener('submit', function(e) {
+            if (confirmInfoCheckbox && !confirmInfoCheckbox.checked) {
+                e.preventDefault();
+                alert("{% trans 'Veuillez confirmer que les informations fournies sont exactes.' %}");
+                confirmInfoCheckbox.focus();
+                return false;
+            }
+            
+            if (acceptRulesCheckbox && !acceptRulesCheckbox.checked) {
+                e.preventDefault();
+                alert("{% trans 'Veuillez accepter le règlement de la compétition.' %}");
+                acceptRulesCheckbox.focus();
+                return false;
+            }
+            
+            // Vérification supplémentaire pour les compétiteurs
+            const isCompetitorElement = document.getElementById('{{ form.is_competitor.id_for_label }}');
+            if (isCompetitorElement && isCompetitorElement.checked) {
+                let hasSelectedType = false;
+                let hasSelectedCategory = true;
+                
+                {% for comp_type in competition_types %}
+                    const typeCheckbox = document.getElementById('id_type_{{ comp_type.id }}');
+                    if (typeCheckbox && typeCheckbox.checked) {
+                        hasSelectedType = true;
+                        
+                        // Vérifier si une catégorie est sélectionnée pour ce type
+                        const categoryFields = document.querySelectorAll('input[name="category_for_type_{{ comp_type.id }}"]:checked');
+                        if (categoryFields.length === 0) {
+                            hasSelectedCategory = false;
+                        }
+                    }
+                {% endfor %}
+                
+                if (!hasSelectedType) {
+                    e.preventDefault();
+                    alert("{% trans 'En tant que compétiteur, vous devez sélectionner au moins un type de compétition.' %}");
+                    return false;
+                }
+                
+                if (!hasSelectedCategory) {
+                    e.preventDefault();
+                    alert("{% trans 'Veuillez sélectionner une catégorie pour chaque type de compétition choisi.' %}");
+                    return false;
+                }
+            }
+            
+            // Vérification pour les juges techniques
+            if (technicalJudgeCheckbox && technicalJudgeCheckbox.checked) {
+                // Pas besoin de validation car le niveau est défini par défaut
+                // Utiliser input[name="technical_judge_level"] au lieu de id_technical_judge_level
+                const technicalLevelInput = document.querySelector('input[name="technical_judge_level"]');
+                if (!technicalLevelInput || technicalLevelInput.value === '') {
+                    e.preventDefault();
+                    alert("{% trans 'Une erreur est survenue avec le niveau de juge technique.' %}");
+                    return false;
+                }
+            }
+            
+            // Vérification pour les arbitres de combat
+            if (combatRefereeCheckbox && combatRefereeCheckbox.checked) {
+                const combatLevelSelect = document.getElementById('id_combat_referee_level');
+                if (combatLevelSelect && combatLevelSelect.value === '') {
+                    e.preventDefault();
+                    alert("{% trans 'Vous devez sélectionner un niveau de qualification pour le rôle d\'Arbitre Combat.' %}");
+                    combatLevelSelect.focus();
+                    return false;
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

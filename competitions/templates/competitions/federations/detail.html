@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ federation.name }} | {% trans "Fédération" %} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .federation-header {
+        padding: 3rem 0;
+        background-color: #f8f9fa;
+        margin-bottom: 2rem;
+    }
+    
+    .federation-logo {
+        width: 120px;
+        height: 120px;
+        object-fit: contain;
+        border-radius: 10px;
+        background-color: white;
+        padding: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .federation-info {
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+        padding: 1.5rem;
+        height: 100%;
+    }
+    
+    .info-item {
+        margin-bottom: 1rem;
+        display: flex;
+    }
+    
+    .info-icon {
+        min-width: 30px;
+        color: var(--primary);
+        font-size: 1.2rem;
+    }
+    
+    .club-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .club-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .club-logo {
+        width: 60px;
+        height: 60px;
+        object-fit: contain;
+        background-color: #f8f9fa;
+        padding: 5px;
+        border-radius: 5px;
+    }
+    
+    .map-container {
+        height: 300px;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- En-tête de la fédération -->
+<div class="federation-header">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                {% if federation.logo %}
+                    <img src="{{ federation.logo.url }}" alt="{{ federation.name }}" class="federation-logo me-4">
+                {% else %}
+                    <div class="federation-logo d-flex align-items-center justify-content-center me-4 bg-light">
+                        <i class="fas fa-building fa-3x text-secondary"></i>
+                    </div>
+                {% endif %}
+                
+                <div>
+                    <h1 class="mb-1">{{ federation.name }}</h1>
+                    {% if federation.country %}
+                        <p class="mb-0 lead">
+                            <i class="fas fa-globe-americas me-2"></i> {{ federation.country }}
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div>
+                {% if perms.competitions.change_federation or user == federation.owner %}
+                <a href="{% url 'competitions:federations:update' federation.slug %}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                    </a>
+                {% endif %}
+                
+                {% if perms.competitions.delete_federation or user == federation.owner %}
+                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteFederationModal">
+                        <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container mb-5">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="row">
+        <!-- Informations de la fédération -->
+        <div class="col-lg-8 mb-4">
+            <div class="federation-info">
+                <h2 class="h4 mb-4">{% trans "À propos de la fédération" %}</h2>
+                
+                {% if federation.description %}
+                    <div class="mb-4">
+                        {{ federation.description|linebreaks }}
+                    </div>
+                {% else %}
+                    <div class="alert alert-light mb-4">
+                        <i class="fas fa-info-circle me-2"></i>{% trans "Aucune description disponible." %}
+                    </div>
+                {% endif %}
+                
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <h3 class="h5 mb-3">{% trans "Coordonnées" %}</h3>
+                        
+                        {% if federation.address or federation.city or federation.postal_code %}
+                            <div class="info-item">
+                                <span class="info-icon"><i class="fas fa-map-marker-alt"></i></span>
+                                <span>
+                                    {% if federation.address %}{{ federation.address }}<br>{% endif %}
+                                    {% if federation.postal_code %}{{ federation.postal_code }}{% endif %}
+                                    {% if federation.city %}{{ federation.city }}{% endif %}
+                                </span>
+                            </div>
+                        {% endif %}
+                        
+                        {% if federation.contact_email %}
+                            <div class="info-item">
+                                <span class="info-icon"><i class="fas fa-envelope"></i></span>
+                                <span>{{ federation.contact_email }}</span>
+                            </div>
+                        {% endif %}
+                        
+                        {% if federation.contact_phone %}
+                            <div class="info-item">
+                                <span class="info-icon"><i class="fas fa-phone"></i></span>
+                                <span>{{ federation.contact_phone }}</span>
+                            </div>
+                        {% endif %}
+                        
+                        {% if federation.website %}
+                            <div class="info-item">
+                                <span class="info-icon"><i class="fas fa-globe"></i></span>
+                                <span>
+                                    <a href="{{ federation.website }}" target="_blank" rel="noopener noreferrer">
+                                        {{ federation.website }}
+                                    </a>
+                                </span>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h3 class="h5 mb-3">{% trans "Informations supplémentaires" %}</h3>
+                        
+                        {% if federation.founding_date %}
+                            <div class="info-item">
+                                <span class="info-icon"><i class="fas fa-calendar-alt"></i></span>
+                                <span>
+                                    <strong>{% trans "Date de fondation" %}:</strong> {{ federation.founding_date|date:"d/m/Y" }}
+                                </span>
+                            </div>
+                        {% endif %}
+                        
+                        <div class="info-item">
+                            <span class="info-icon"><i class="fas fa-users"></i></span>
+                            <span>
+                                <strong>{% trans "Clubs affiliés" %}:</strong> {{ total_clubs }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Carte et localisation -->
+        <div class="col-lg-4 mb-4">
+            {% if federation.address %}
+                <div class="federation-info">
+                    <h2 class="h4 mb-3">{% trans "Localisation" %}</h2>
+                    
+                    <div class="map-container mb-3">
+                        <iframe
+                            width="100%"
+                            height="100%"
+                            frameborder="0"
+                            scrolling="no"
+                            marginheight="0"
+                            marginwidth="0"
+                            src="https://maps.google.com/maps?width=100%25&amp;height=600&amp;hl=en&amp;q={{ federation.address|urlencode }}%20{{ federation.city|urlencode }}%20{{ federation.country|urlencode }}&amp;t=&amp;z=14&amp;ie=UTF8&amp;iwloc=B&amp;output=embed"
+                        ></iframe>
+                    </div>
+                    
+                    <a href="https://www.google.com/maps/search/?api=1&query={{ federation.address|urlencode }}%20{{ federation.city|urlencode }}%20{{ federation.country|urlencode }}" 
+                       class="btn btn-outline-primary w-100" target="_blank" rel="noopener noreferrer">
+                        <i class="fas fa-directions me-2"></i>{% trans "Obtenir l'itinéraire" %}
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Clubs affiliés -->
+    <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h3 mb-0">{% trans "Clubs affiliés" %}</h2>
+            
+            {% if total_clubs > clubs_page.paginator.per_page %}
+                <span class="text-muted">{% trans "Affichage de" %} {{ clubs_page.start_index }}-{{ clubs_page.end_index }} {% trans "sur" %} {{ total_clubs }}</span>
+            {% endif %}
+        </div>
+        
+        {% if clubs_page %}
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                {% for club in clubs_page %}
+                    <div class="col">
+                        <div class="card club-card h-100 shadow-sm">
+                            <div class="card-body">
+                                <div class="d-flex mb-3">
+                                    {% if club.logo %}
+                                        <img src="{{ club.logo.url }}" alt="{{ club.name }}" class="club-logo me-3">
+                                    {% else %}
+                                        <div class="club-logo d-flex align-items-center justify-content-center me-3 bg-light">
+                                            <i class="fas fa-dojo fa-2x text-secondary"></i>
+                                        </div>
+                                    {% endif %}
+                                    
+                                    <div>
+                                        <h3 class="h5 mb-1">{{ club.name }}</h3>
+                                        {% if club.city %}
+                                            <p class="mb-0 small text-muted">
+                                                <i class="fas fa-map-marker-alt me-1"></i> {{ club.city }}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-end mt-auto">
+                                    <a href="{% url 'competitions:club:club_competition_detail' club.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-info-circle me-1"></i> {% trans "Voir le club" %}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Aucun club affilié à cette fédération pour le moment." %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            
+            <!-- Pagination des clubs -->
+            {% if clubs_page.has_other_pages %}
+                <nav aria-label="{% trans 'Navigation par page' %}" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if clubs_page.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1" aria-label="{% trans 'Première' %}">
+                                    <span aria-hidden="true">&laquo;&laquo;</span>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ clubs_page.previous_page_number }}" aria-label="{% trans 'Précédente' %}">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">&laquo;&laquo;</span>
+                            </li>
+                            <li class="page-item disabled">
+                                <span class="page-link">&laquo;</span>
+                            </li>
+                        {% endif %}
+                        
+                        {% for i in clubs_page.paginator.page_range %}
+                            {% if i >= clubs_page.number|add:"-2" and i <= clubs_page.number|add:"2" %}
+                                {% if i == clubs_page.number %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ i }}</span>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ i }}">{{ i }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if clubs_page.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ clubs_page.next_page_number }}" aria-label="{% trans 'Suivante' %}">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ clubs_page.paginator.num_pages }}" aria-label="{% trans 'Dernière' %}">
+                                    <span aria-hidden="true">&raquo;&raquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">&raquo;</span>
+                            </li>
+                            <li class="page-item disabled">
+                                <span class="page-link">&raquo;&raquo;</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal de confirmation de suppression -->
+{% if perms.competitions.delete_federation or user == federation.owner %}
+    <div class="modal fade" id="deleteFederationModal" tabindex="-1" aria-labelledby="deleteFederationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteFederationModalLabel">{% trans "Confirmer la suppression" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>{% trans "Êtes-vous sûr de vouloir supprimer la fédération" %} <strong>{{ federation.name }}</strong> ?</p>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        {% trans "Cette action est irréversible. Les clubs affiliés à cette fédération ne seront pas supprimés, mais perdront leur affiliation." %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        {% trans "Annuler" %}
+                    </button>
+                    <form method="post" action="{% url 'competitions:federations:delete' federation.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer définitivement" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

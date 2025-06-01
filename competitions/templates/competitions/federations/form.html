@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ title }} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .form-header {
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+    
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid var(--primary);
+    }
+    
+    .section-title {
+        font-weight: 600;
+        margin-bottom: 1.2rem;
+        display: flex;
+        align-items: center;
+    }
+    
+    .section-title i {
+        margin-right: 0.5rem;
+        color: var(--primary);
+    }
+    
+    .preview-container {
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    
+    .logo-preview {
+        max-width: 150px;
+        max-height: 150px;
+        border-radius: 10px;
+        background-color: white;
+        padding: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        display: none;
+    }
+    
+    .custom-file-input:lang(fr) ~ .custom-file-label::after {
+        content: "Parcourir";
+    }
+    
+    .required::after {
+        content: " *";
+        color: var(--primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="form-container">
+        <div class="form-header">
+            <h1 class="h3">{{ title }}</h1>
+            {% if federation %}
+                <p class="text-muted">{{ federation.name }}</p>
+            {% endif %}
+        </div>
+        
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <!-- Informations générales -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <i class="fas fa-info-circle"></i>
+                    {% trans "Informations générales" %}
+                </h2>
+                
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <div class="mb-3">
+                            <label for="{{ form.name.id_for_label }}" class="form-label required">
+                                {{ form.name.label }}
+                            </label>
+                            {{ form.name }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.name.errors }}
+                                </div>
+                            {% endif %}
+                            {% if form.name.help_text %}
+                                <small class="form-text text-muted">{{ form.name.help_text }}</small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.country.id_for_label }}" class="form-label">
+                                {{ form.country.label }}
+                            </label>
+                            {{ form.country }}
+                            {% if form.country.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.country.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.founding_date.id_for_label }}" class="form-label">
+                                {{ form.founding_date.label }}
+                            </label>
+                            {{ form.founding_date }}
+                            {% if form.founding_date.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.founding_date.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="{{ form.logo.id_for_label }}" class="form-label">
+                                {{ form.logo.label }}
+                            </label>
+                            
+                            <div class="preview-container mb-2">
+                                {% if federation and federation.logo %}
+                                    <img src="{{ federation.logo.url }}" alt="{{ federation.name }}" class="logo-preview" id="logoPreview" style="display: block;">
+                                {% else %}
+                                    <img src="#" alt="{% trans 'Aperçu du logo' %}" class="logo-preview" id="logoPreview">
+                                {% endif %}
+                            </div>
+                            
+                            <div class="custom-file">
+                                {{ form.logo }}
+                                <label class="custom-file-label" for="{{ form.logo.id_for_label }}">
+                                    {% if federation and federation.logo %}
+                                        {{ federation.logo.name|slice:"15:" }}
+                                    {% else %}
+                                        {% trans "Choisir un fichier..." %}
+                                    {% endif %}
+                                </label>
+                            </div>
+                            {% if form.logo.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.logo.errors }}
+                                </div>
+                            {% endif %}
+                            {% if form.logo.help_text %}
+                                <small class="form-text text-muted">{{ form.logo.help_text }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                        {{ form.description.label }}
+                    </label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.description.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Adresse et Contact -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <i class="fas fa-map-marker-alt"></i>
+                    {% trans "Adresse et Contact" %}
+                </h2>
+                
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="mb-3">
+                            <label for="{{ form.address.id_for_label }}" class="form-label">
+                                {{ form.address.label }}
+                            </label>
+                            {{ form.address }}
+                            {% if form.address.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.address.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-8">
+                        <div class="mb-3">
+                            <label for="{{ form.city.id_for_label }}" class="form-label">
+                                {{ form.city.label }}
+                            </label>
+                            {{ form.city }}
+                            {% if form.city.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.city.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="{{ form.postal_code.id_for_label }}" class="form-label">
+                                {{ form.postal_code.label }}
+                            </label>
+                            {{ form.postal_code }}
+                            {% if form.postal_code.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.postal_code.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.contact_email.id_for_label }}" class="form-label">
+                                {{ form.contact_email.label }}
+                            </label>
+                            {{ form.contact_email }}
+                            {% if form.contact_email.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.contact_email.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.contact_phone.id_for_label }}" class="form-label">
+                                {{ form.contact_phone.label }}
+                            </label>
+                            {{ form.contact_phone }}
+                            {% if form.contact_phone.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.contact_phone.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.website.id_for_label }}" class="form-label">
+                        {{ form.website.label }}
+                    </label>
+                    {{ form.website }}
+                    {% if form.website.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.website.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Boutons d'action -->
+            <div class="d-flex justify-content-between">
+                <a href="{% if federation %}{% url 'competitions:federations:detail' federation.slug %}{% else %}{% url 'competitions:federations:list' %}{% endif %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                </a>
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>{{ submit_text }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Affichage de l'aperçu du logo
+        const logoInput = document.getElementById('{{ form.logo.id_for_label }}');
+        const logoPreview = document.getElementById('logoPreview');
+        const logoLabel = document.querySelector('label[for="{{ form.logo.id_for_label }}"]').nextElementSibling;
+        
+        if (logoInput && logoPreview) {
+            logoInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    logoPreview.src = URL.createObjectURL(file);
+                    logoPreview.style.display = 'block';
+                    
+                    // Mettre à jour le libellé du bouton
+                    if (logoLabel) {
+                        logoLabel.textContent = file.name;
+                    }
+                } else {
+                    logoPreview.style.display = 'none';
+                }
+            });
+        }
+        
+        // Validation du formulaire
+        const form = document.querySelector('form');
+        
+        form.addEventListener('submit', function(e) {
+            let isValid = true;
+            
+            // Vérifier que le nom est renseigné
+            const nameInput = document.getElementById('{{ form.name.id_for_label }}');
+            if (nameInput && !nameInput.value.trim()) {
+                nameInput.classList.add('is-invalid');
+                isValid = false;
+                
+                // Créer un message d'erreur si n'existe pas déjà
+                let errorDiv = nameInput.nextElementSibling;
+                if (!errorDiv || !errorDiv.classList.contains('invalid-feedback')) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'invalid-feedback d-block';
+                    errorDiv.textContent = '{% trans "Ce champ est obligatoire." %}';
+                    nameInput.parentNode.insertBefore(errorDiv, nameInput.nextSibling);
+                }
+            } else if (nameInput) {
+                nameInput.classList.remove('is-invalid');
+                
+                // Supprimer le message d'erreur existant
+                const errorDiv = nameInput.nextElementSibling;
+                if (errorDiv && errorDiv.classList.contains('invalid-feedback')) {
+                    errorDiv.remove();
+                }
+            }
+            
+            // Vérification de l'extension du logo si présent
+            if (logoInput && logoInput.files.length > 0) {
+                const file = logoInput.files[0];
+                const fileName = file.name.toLowerCase();
+                const validExtensions = ['jpg', 'jpeg', 'png', 'svg'];
+                const fileExtension = fileName.split('.').pop();
+                
+                if (!validExtensions.includes(fileExtension)) {
+                    logoInput.classList.add('is-invalid');
+                    isValid = false;
+                    
+                    // Créer un message d'erreur si n'existe pas déjà
+                    let errorDiv = logoInput.parentNode.nextElementSibling;
+                    if (!errorDiv || !errorDiv.classList.contains('invalid-feedback')) {
+                        errorDiv = document.createElement('div');
+                        errorDiv.className = 'invalid-feedback d-block';
+                        errorDiv.textContent = '{% trans "L\'extension du fichier n\'est pas autorisée. Utilisez JPG, JPEG, PNG ou SVG." %}';
+                        logoInput.parentNode.parentNode.insertBefore(errorDiv, logoInput.parentNode.nextSibling);
+                    }
+                } else {
+                    logoInput.classList.remove('is-invalid');
+                    
+                    // Supprimer le message d'erreur existant
+                    const errorDiv = logoInput.parentNode.nextElementSibling;
+                    if (errorDiv && errorDiv.classList.contains('invalid-feedback')) {
+                        errorDiv.remove();
+                    }
+                }
+                
+                // Vérification de la taille du fichier (max 2 Mo)
+                if (file.size > 2 * 1024 * 1024) {
+                    logoInput.classList.add('is-invalid');
+                    isValid = false;
+                    
+                    // Créer un message d'erreur si n'existe pas déjà
+                    let errorDiv = logoInput.parentNode.nextElementSibling;
+                    if (!errorDiv || !errorDiv.classList.contains('invalid-feedback')) {
+                        errorDiv = document.createElement('div');
+                        errorDiv.className = 'invalid-feedback d-block';
+                        errorDiv.textContent = '{% trans "La taille du fichier ne doit pas dépasser 2 Mo." %}';
+                        logoInput.parentNode.parentNode.insertBefore(errorDiv, logoInput.parentNode.nextSibling);
+                    }
+                }
+            }
+            
+            // Validation du site web s'il est renseigné
+            const websiteInput = document.getElementById('{{ form.website.id_for_label }}');
+            if (websiteInput && websiteInput.value.trim()) {
+                let website = websiteInput.value.trim();
+                
+                // Ajouter http:// si le préfixe de protocole est manquant
+                if (!website.startsWith('http://') && !website.startsWith('https://')) {
+                    websiteInput.value = 'https://' + website;
+                }
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
+            }
+        });
+    });
+</script>
+{% endblock %}

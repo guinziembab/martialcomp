@@ -1,0 +1,1320 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Tableau de bord Spectateur" %} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --spectator-primary: #3498db;
+        --spectator-secondary: #2980b9;
+        --spectator-accent: #1abc9c;
+        --spectator-light: #e3f2fd;
+        --spectator-dark: #1c6ca1;
+        --spectator-hover: #2c8fd1;
+    }
+
+    /* Layout principal */
+    .dashboard-container {
+        display: flex;
+        min-height: calc(100vh - 56px - 89px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+        width: 280px;
+        background: linear-gradient(135deg, var(--spectator-dark) 0%, var(--spectator-primary) 100%);
+        color: #fff;
+        position: sticky;
+        top: 56px;
+        height: calc(100vh - 56px);
+        overflow-y: auto;
+        transition: all 0.3s ease;
+        z-index: 1000;
+    }
+
+    @media (max-width: 768px) {
+        .sidebar {
+            position: fixed;
+            left: -280px;
+            top: 56px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .sidebar.active {
+            left: 0;
+        }
+
+        .main-content {
+            width: 100% !important;
+        }
+    }
+
+    /* Toggle button for mobile */
+    .sidebar-toggle {
+        position: fixed;
+        top: 70px;
+        left: 15px;
+        background-color: var(--spectator-primary);
+        color: white;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        z-index: 1001;
+    }
+
+    @media (max-width: 768px) {
+        .sidebar-toggle {
+            display: flex;
+        }
+    }
+
+    /* Styles pour le profil utilisateur */
+    .user-profile {
+        padding: 1.8rem 1rem;
+        text-align: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+
+    .user-avatar {
+        width: 90px;
+        height: 90px;
+        background-color: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        border: 3px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .user-name {
+        font-size: 1.2rem;
+        margin-bottom: 0.25rem;
+        font-weight: 600;
+    }
+
+    .user-role {
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.8);
+        background-color: rgba(0, 0, 0, 0.2);
+        display: inline-block;
+        padding: 0.2rem 0.8rem;
+        border-radius: 20px;
+    }
+
+    /* Menu de navigation */
+    .sidebar-nav .nav-link {
+        color: rgba(255, 255, 255, 0.8);
+        padding: 0.9rem 1.2rem;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s ease;
+        border-left: 3px solid transparent;
+        margin: 2px 0;
+    }
+
+    .sidebar-nav .nav-link:hover,
+    .sidebar-nav .nav-link.active {
+        color: #fff;
+        background-color: rgba(255, 255, 255, 0.15);
+        border-left: 3px solid white;
+    }
+
+    .sidebar-nav .nav-link i {
+        margin-right: 0.75rem;
+        width: 22px;
+        text-align: center;
+        font-size: 1.1rem;
+    }
+
+    .sidebar-footer {
+        padding: 1.2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+
+    /* Contenu principal */
+    .main-content {
+        flex: 1;
+        padding: 2rem;
+        background-color: #f8f9fa;
+        transition: all 0.3s ease;
+    }
+
+    /* Styles pour les cartes */
+    .card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-header {
+        background-color: #fff;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 1.2rem 1.5rem;
+    }
+
+    .banner-card {
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(135deg, var(--spectator-primary) 0%, var(--spectator-secondary) 100%);
+        color: white;
+        height: 200px;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+    }
+
+    .banner-content {
+        position: relative;
+        z-index: 2;
+        padding: 2rem;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .banner-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .banner-subtitle {
+        font-size: 1rem;
+        max-width: 600px;
+        margin-bottom: 1.5rem;
+        opacity: 0.9;
+    }
+
+    .banner-bg {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        opacity: 0.1;
+        z-index: 1;
+        user-select: none;
+        font-size: 160px;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 30px;
+    }
+
+    /* Styles pour les onglets */
+    .spectator-tabs {
+        display: flex;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .spectator-tab {
+        padding: 1rem 1.5rem;
+        cursor: pointer;
+        position: relative;
+        color: #6c757d;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .spectator-tab.active {
+        color: var(--spectator-primary);
+    }
+
+    .spectator-tab::after {
+        content: '';
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background-color: var(--spectator-primary);
+        transform: scaleX(0);
+        transition: transform 0.3s ease;
+    }
+
+    .spectator-tab.active::after {
+        transform: scaleX(1);
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Gestion des sections */
+    .section {
+        margin-bottom: 2rem;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 0;
+    }
+
+    .section-link {
+        color: var(--spectator-primary);
+        display: flex;
+        align-items: center;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .section-link:hover {
+        color: var(--spectator-secondary);
+        text-decoration: none;
+    }
+
+    .section-link i {
+        margin-left: 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    /* Grille responsive */
+    .card-grid {
+        display: grid;
+        grid-template-columns: repeat(1, 1fr);
+        gap: 1.5rem;
+    }
+
+    @media (min-width: 576px) {
+        .card-grid-2 {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (min-width: 992px) {
+        .card-grid-3 {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        
+        .card-grid-4 {
+            grid-template-columns: repeat(4, 1fr);
+        }
+        
+        .card-grid-5 {
+            grid-template-columns: repeat(5, 1fr);
+        }
+    }
+
+    /* Card styles */
+    .discipline-card {
+        position: relative;
+        border-radius: 12px;
+        overflow: hidden;
+        height: 220px;
+    }
+
+    .discipline-img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-size: cover;
+        background-position: center;
+        transition: all 0.5s ease;
+        z-index: 1;
+    }
+
+    .discipline-card:hover .discipline-img {
+        transform: scale(1.1);
+    }
+
+    .discipline-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.7) 100%);
+        z-index: 2;
+    }
+
+    .discipline-content {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        padding: 1.5rem;
+        z-index: 3;
+        color: white;
+    }
+
+    .discipline-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .discipline-text {
+        font-size: 0.875rem;
+        opacity: 0.9;
+        margin-bottom: 1rem;
+    }
+
+    .spectator-badge {
+        display: inline-block;
+        padding: 0.35rem 0.6rem;
+        border-radius: 30px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+        white-space: nowrap;
+    }
+
+    .event-card {
+        display: flex;
+        border-radius: 12px;
+        overflow: hidden;
+        height: 120px;
+    }
+
+    .event-img {
+        width: 40%;
+        background-size: cover;
+        background-position: center;
+    }
+
+    .event-content {
+        width: 60%;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .event-date {
+        font-size: 0.85rem;
+        color: #6c757d;
+        display: flex;
+        align-items: center;
+    }
+
+    .event-date i {
+        margin-right: 0.5rem;
+    }
+
+    .event-actions {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    /* Quick actions */
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .quick-action {
+        background-color: white;
+        border-radius: 12px;
+        padding: 1.5rem 1rem;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .quick-action:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+
+    .quick-action i {
+        font-size: 2rem;
+        color: var(--spectator-primary);
+        margin-bottom: 1rem;
+        display: block;
+    }
+
+    .quick-action-label {
+        font-weight: 500;
+        color: #333;
+    }
+
+    /* Live section */
+    .live-badge {
+        display: inline-flex;
+        align-items: center;
+        background-color: #dc3545;
+        color: white;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.35rem 0.6rem;
+        border-radius: 30px;
+    }
+
+    .live-dot {
+        width: 8px;
+        height: 8px;
+        background-color: white;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+
+    /* Testimonial card */
+    .testimonial-card {
+        border-radius: 12px;
+        padding: 1.5rem;
+        background-color: white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .testimonial-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background-color: var(--spectator-light);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+    }
+
+    .testimonial-quote {
+        position: relative;
+        font-style: italic;
+        color: #555;
+        margin-top: 1rem;
+        padding-left: 1.5rem;
+    }
+
+    .testimonial-quote::before {
+        content: '"';
+        position: absolute;
+        left: 0;
+        top: 0;
+        font-size: 2rem;
+        color: var(--spectator-primary);
+        line-height: 1;
+        opacity: 0.5;
+    }
+
+    /* Calendar styling */
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0.25rem;
+    }
+
+    .calendar-header {
+        text-align: center;
+        padding: 0.5rem;
+        font-weight: 600;
+        color: #6c757d;
+        font-size: 0.85rem;
+    }
+
+    .calendar-day {
+        padding: 0.5rem;
+        text-align: center;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        height: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+
+    .calendar-day:not(.inactive):hover {
+        background-color: #e9ecef;
+        cursor: pointer;
+    }
+
+    .calendar-day.inactive {
+        color: #adb5bd;
+    }
+
+    .calendar-day.today {
+        background-color: var(--spectator-light);
+        color: var(--spectator-primary);
+        font-weight: 600;
+    }
+
+    .calendar-day.has-event {
+        position: relative;
+    }
+
+    .calendar-day.has-event::after {
+        content: '';
+        position: absolute;
+        bottom: 3px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background-color: var(--spectator-primary);
+    }
+
+    /* Newsletter card */
+    .newsletter-card {
+        background-color: var(--spectator-light);
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+
+    .newsletter-title {
+        color: var(--spectator-dark);
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .newsletter-form {
+        position: relative;
+    }
+
+    .newsletter-input {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        padding-right: 110px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+        background-color: white;
+    }
+
+    .newsletter-submit {
+        position: absolute;
+        right: 5px;
+        top: 5px;
+        background-color: var(--spectator-primary);
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .newsletter-submit:hover {
+        background-color: var(--spectator-secondary);
+    }
+
+    /* Club card */
+    .club-card {
+        display: flex;
+        background-color: white;
+        border-radius: 12px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .club-img {
+        width: 120px;
+        background-size: cover;
+        background-position: center;
+    }
+
+    .club-content {
+        padding: 1.25rem;
+        flex: 1;
+    }
+
+    .club-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .club-location {
+        display: flex;
+        align-items: center;
+        color: #6c757d;
+        font-size: 0.875rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .club-location i {
+        margin-right: 0.5rem;
+    }
+
+    .club-disciplines {
+        display: flex;
+        flex-wrap: wrap;
+        margin-bottom: 0.75rem;
+    }
+
+    .btn-spectator {
+        background-color: var(--spectator-primary);
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+
+    .btn-spectator:hover {
+        background-color: var(--spectator-secondary);
+        color: white;
+    }
+
+    .btn-spectator-outline {
+        color: var(--spectator-primary);
+        background-color: transparent;
+        border: 1px solid var(--spectator-primary);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+
+    .btn-spectator-outline:hover {
+        background-color: var(--spectator-primary);
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Sidebar toggle button for mobile -->
+<div class="sidebar-toggle" id="sidebarToggle">
+    <i class="fas fa-bars"></i>
+</div>
+
+<div class="dashboard-container">
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="d-flex flex-column h-100">
+            <!-- En-tête du profil -->
+            <div class="user-profile">
+                <div class="user-avatar">
+                    <i class="fas fa-user fa-2x"></i>
+                </div>
+                {% if user.get_full_name %}
+                    <h5 class="user-name">{{ user.get_full_name }}</h5>
+                {% else %}
+                    <h5 class="user-name">{{ user.username }}</h5>
+                {% endif %}
+                <p class="user-role">{% trans "Spectateur" %}</p>
+            </div>
+            
+            <!-- Menu principal -->
+            <nav class="sidebar-nav flex-grow-1">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a href="{% url 'competitions:dashboard:spectator' %}" class="nav-link active">
+                            <i class="fas fa-home"></i> {% trans "Accueil" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link">
+                            <i class="fas fa-compass"></i> {% trans "Explorer" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link">
+                            <i class="fas fa-calendar-alt"></i> {% trans "Événements" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link">
+                            <i class="fas fa-users"></i> {% trans "Clubs" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link">
+                            <i class="fas fa-medal"></i> {% trans "Disciplines" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link">
+                            <i class="fas fa-video"></i> {% trans "En direct" %}
+                            <span class="badge bg-danger ms-auto">2</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link">
+                            <i class="fas fa-heart"></i> {% trans "Favoris" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link">
+                            <i class="fas fa-book"></i> {% trans "Guides" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link">
+                            <i class="fas fa-user-circle"></i> {% trans "Mon profil" %}
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            
+            <!-- Pied de page -->
+            <div class="sidebar-footer">
+                <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm w-100">
+                    <i class="fas fa-sign-out-alt me-2"></i> {% trans "Déconnexion" %}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenu principal -->
+    <div class="main-content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>{% trans "Bienvenue" %}, {{ user.first_name|default:user.username }}</h1>
+            
+            <!-- Date et login info -->
+            <div class="text-end">
+                <div class="d-flex flex-column align-items-end">
+                    <span class="text-muted small">
+                        <i class="far fa-calendar-alt me-1"></i> {% now "j F Y" %}
+                    </span>
+                    <span class="small text-secondary">
+                        <i class="fas fa-clock me-1"></i> {% trans "Dernière connexion:" %} 
+                        {% if user.last_login %}
+                            {{ user.last_login|date:"d/m/Y H:i" }}
+                        {% else %}
+                            {% trans "Première connexion" %}
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <!-- Banner section -->
+        <div class="banner-card">
+            <div class="banner-content">
+                <h2 class="banner-title">{% trans "Découvrez le monde des arts martiaux" %}</h2>
+                <p class="banner-subtitle">{% trans "Explorez les disciplines, trouvez des clubs, suivez des compétitions et développez votre passion." %}</p>
+                <div>
+                    <a href="#" class="btn btn-light">
+                        <i class="fas fa-play me-2"></i> {% trans "Commencer l'exploration" %}
+                    </a>
+                </div>
+            </div>
+            <div class="banner-bg">
+                <i class="fas fa-karate"></i>
+            </div>
+        </div>
+        
+        <!-- Quick actions -->
+        <div class="quick-actions">
+            <a href="#" class="quick-action text-decoration-none">
+                <i class="fas fa-trophy"></i>
+                <span class="quick-action-label">{% trans "Compétitions" %}</span>
+            </a>
+            <a href="#" class="quick-action text-decoration-none">
+                <i class="fas fa-users"></i>
+                <span class="quick-action-label">{% trans "Clubs" %}</span>
+            </a>
+            <a href="#" class="quick-action text-decoration-none">
+                <i class="fas fa-karate"></i>
+                <span class="quick-action-label">{% trans "Disciplines" %}</span>
+            </a>
+            <a href="#" class="quick-action text-decoration-none">
+                <i class="fas fa-video"></i>
+                <span class="quick-action-label">{% trans "En direct" %}</span>
+            </a>
+            <a href="#" class="quick-action text-decoration-none">
+                <i class="fas fa-calendar"></i>
+                <span class="quick-action-label">{% trans "Calendrier" %}</span>
+            </a>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="spectator-tabs">
+            <div class="spectator-tab active" data-tab="discover">{% trans "Découvrir" %}</div>
+            <div class="spectator-tab" data-tab="events">{% trans "Événements" %}</div>
+            <div class="spectator-tab" data-tab="live">{% trans "En direct" %}</div>
+            <div class="spectator-tab" data-tab="community">{% trans "Communauté" %}</div>
+            <div class="spectator-tab" data-tab="guides">{% trans "Guides" %}</div>
+        </div>
+        
+        <!-- Discover tab -->
+        <div id="discover" class="tab-content active">
+            <!-- Disciplines populaires -->
+            <section class="section">
+                <div class="section-header">
+                    <h3 class="section-title">{% trans "Disciplines populaires" %}</h3>
+                    <a href="#" class="section-link">
+                        {% trans "Voir toutes les disciplines" %}
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+                
+                <div class="card-grid card-grid-5">
+                    {% for i in "12345"|make_list %}
+                    <div class="discipline-card">
+                        <div class="discipline-img" style="background-image: url('{% static 'img/disciplines/discipline' %}{{ i }}.jpg');"></div>
+                        <div class="discipline-overlay"></div>
+                        <div class="discipline-content">
+                            <h4 class="discipline-title">
+                                {% if i == "1" %}
+                                    {% trans "Karaté" %}
+                                {% elif i == "2" %}
+                                    {% trans "Judo" %}
+                                {% elif i == "3" %}
+                                    {% trans "Taekwondo" %}
+                                {% elif i == "4" %}
+                                    {% trans "Qwan Ki Do" %}
+                                {% else %}
+                                    {% trans "Kung Fu" %}
+                                {% endif %}
+                            </h4>
+                            <a href="#" class="btn btn-sm btn-light">{% trans "Explorer" %}</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            
+            <!-- Competitions -->
+            <section class="section">
+                <div class="section-header">
+                    <h3 class="section-title">{% trans "Compétitions à venir" %}</h3>
+                    <a href="#" class="section-link">
+                        {% trans "Voir toutes les compétitions" %}
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+                
+                <div class="card-grid card-grid-2">
+                    {% for i in "1234"|make_list %}
+                    <div class="event-card">
+                        <div class="event-img" style="background-image: url('{% static 'img/disciplines/discipline' %}{{ i }}.jpg');"></div>
+                        <div class="event-content">
+                            <div>
+                                <h4 class="h5 mb-2">{% trans "Championnat National" %} {{ i }}</h4>
+                                <div class="event-date">
+                                    <i class="far fa-calendar-alt"></i> 
+                                    {% now "j F Y" %}
+                                </div>
+                            </div>
+                            <div class="event-actions">
+                                <a href="#" class="btn btn-sm btn-spectator-outline">{% trans "Détails" %}</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+            
+            <!-- Live section -->
+            <section class="section">
+                <div class="section-header">
+                    <h3 class="section-title">
+                        {% trans "En direct maintenant" %}
+                        <span class="live-badge ms-2">
+                            <span class="live-dot"></span>
+                            {% trans "LIVE" %}
+                        </span>
+                    </h3>
+                    <a href="#" class="section-link">
+                        {% trans "Voir tous les événements en direct" %}
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="position-relative" style="height: 350px; background-color: #000;">
+                                <div class="d-flex align-items-center justify-content-center h-100 text-white">
+                                    <i class="fas fa-play-circle fa-3x"></i>
+                                </div>
+                                <div class="position-absolute top-0 end-0 m-3">
+                                    <span class="live-badge">
+                                        <span class="live-dot"></span>
+                                        {% trans "EN DIRECT" %}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <h4>{% trans "Championnat International de Karaté" %}</h4>
+                                <p class="mb-0 text-muted">
+                                    <i class="fas fa-users me-2"></i> 1.2K {% trans "spectateurs" %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0">{% trans "Événements en direct" %}</h5>
+                            </div>
+                            <div class="list-group list-group-flush">
+                                <a href="#" class="list-group-item list-group-item-action">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{% trans "Championnat de Karaté" %}</h6>
+                                            <small class="text-muted">{% trans "Paris, France" %}</small>
+                                        </div>
+                                        <span class="live-badge">
+                                            <span class="live-dot"></span>
+                                            {% trans "LIVE" %}
+                                        </span>
+                                    </div>
+                                </a>
+                                <a href="#" class="list-group-item list-group-item-action">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{% trans "Tournoi de Judo" %}</h6>
+                                            <small class="text-muted">{% trans "Lyon, France" %}</small>
+                                        </div>
+                                        <span class="live-badge">
+                                            <span class="live-dot"></span>
+                                            {% trans "LIVE" %}
+                                        </span>
+                                    </div>
+                                </a>
+                                <a href="#" class="list-group-item list-group-item-action">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{% trans "Coupe de Taekwondo" %}</h6>
+                                            <small class="text-muted">{% trans "Marseille, France" %}</small>
+                                        </div>
+                                        <span class="badge bg-secondary">
+                                            {% trans "Bientôt" %}
+                                        </span>
+                                    </div>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Clubs -->
+            <section class="section">
+                <div class="section-header">
+                    <h3 class="section-title">{% trans "Clubs près de chez vous" %}</h3>
+                    <a href="#" class="section-link">
+                        {% trans "Voir tous les clubs" %}
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+                
+                <div class="card-grid card-grid-3">
+                    {% for i in "123"|make_list %}
+                    <div class="club-card">
+                        <div class="club-img" style="background-image: url('{% static 'img/disciplines/discipline' %}{{ i }}.jpg');"></div>
+                        <div class="club-content">
+                            <h4 class="club-title">{% trans "Club des Arts Martiaux" %} {{ i }}</h4>
+                            <div class="club-location">
+                                <i class="fas fa-map-marker-alt"></i> {% trans "Paris, France" %}
+                            </div>
+                            <div class="club-disciplines">
+                                <span class="spectator-badge bg-light text-dark">{% trans "Karaté" %}</span>
+                                <span class="spectator-badge bg-light text-dark">{% trans "Judo" %}</span>
+                            </div>
+                            <a href="#" class="btn btn-sm btn-spectator-outline">{% trans "Voir le club" %}</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+        
+        <!-- Events Tab -->
+        <div id="events" class="tab-content">
+            <div class="row">
+                <div class="col-lg-8">
+                    <!-- Upcoming competitions -->
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">{% trans "Compétitions à venir" %}</h5>
+                            <div class="d-flex">
+                                <div class="input-group me-2" style="width: 250px;">
+                                    <input type="text" class="form-control" placeholder="{% trans 'Rechercher...' %}">
+                                    <button class="btn btn-outline-secondary" type="button">
+                                        <i class="fas fa-search"></i>
+                                    </button>
+                                </div>
+                                <select class="form-select" style="width: 150px;">
+                                    <option>{% trans "Toutes" %}</option>
+                                    <option>{% trans "Karaté" %}</option>
+                                    <option>{% trans "Judo" %}</option>
+                                    <option>{% trans "Taekwondo" %}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="list-group list-group-flush">
+                            {% for i in "12345"|make_list %}
+                            <div class="list-group-item p-3">
+                                <div class="d-flex">
+                                    <div class="flex-shrink-0 me-3" style="width: 80px; height: 80px; background-color: var(--spectator-light); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-trophy fa-2x text-primary"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h5 class="mb-1">{% trans "Championnat National" %} {{ i }}</h5>
+                                                <div class="mb-2">
+                                                    <span class="spectator-badge bg-light text-dark">
+                                                        <i class="fas fa-calendar-alt me-1"></i> 
+                                                        {% now "j F Y" %}
+                                                    </span>
+                                                    <span class="spectator-badge bg-light text-dark">
+                                                        <i class="fas fa-map-marker-alt me-1"></i> 
+                                                        {% trans "Paris, France" %}
+                                                    </span>
+                                                    <span class="spectator-badge bg-primary text-white">
+                                                        {% trans "Karaté" %}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <a href="#" class="btn btn-sm btn-spectator-outline">
+                                                    <i class="fas fa-info-circle me-1"></i> 
+                                                    {% trans "Détails" %}
+                                                </a>
+                                            </div>
+                                        </div>
+                                        <p class="text-muted mb-0 small">{% trans "Organisé par" %}: Fédération Française de Karaté</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="card-footer">
+                            <nav>
+                                <ul class="pagination justify-content-center mb-0">
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" tabindex="-1">
+                                            <i class="fas fa-chevron-left"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                                    <li class="page-item"><a class="page-link" href="#">2</a></li>
+                                    <li class="page-item"><a class="page-link" href="#">3</a></li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="#">
+                                            <i class="fas fa-chevron-right"></i>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <!-- Calendar -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Calendrier des événements" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <button class="btn btn-sm btn-light">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <h6 class="mb-0">{% now "F Y" %}</h6>
+                                <button class="btn btn-sm btn-light">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="calendar-grid mb-3">
+                                <div class="calendar-header">{% trans "Lu" %}</div>
+                                <div class="calendar-header">{% trans "Ma" %}</div>
+                                <div class="calendar-header">{% trans "Me" %}</div>
+                                <div class="calendar-header">{% trans "Je" %}</div>
+                                <div class="calendar-header">{% trans "Ve" %}</div>
+                                <div class="calendar-header">{% trans "Sa" %}</div>
+                                <div class="calendar-header">{% trans "Di" %}</div>
+                                
+                                <div class="calendar-day inactive">29</div>
+                                <div class="calendar-day inactive">30</div>
+                                <div class="calendar-day inactive">31</div>
+                                <div class="calendar-day">1</div>
+                                <div class="calendar-day">2</div>
+                                <div class="calendar-day">3</div>
+                                <div class="calendar-day">4</div>
+                                
+                                <div class="calendar-day">5</div>
+                                <div class="calendar-day">6</div>
+                                <div class="calendar-day">7</div>
+                                <div class="calendar-day">8</div>
+                                <div class="calendar-day has-event">9</div>
+                                <div class="calendar-day">10</div>
+                                <div class="calendar-day">11</div>
+                                
+                                <div class="calendar-day">12</div>
+                                <div class="calendar-day has-event">13</div>
+                                <div class="calendar-day">14</div>
+                                <div class="calendar-day today">15</div>
+                                <div class="calendar-day">16</div>
+                                <div class="calendar-day has-event">17</div>
+                                <div class="calendar-day has-event">18</div>
+                                
+                                <div class="calendar-day">19</div>
+                                <div class="calendar-day">20</div>
+                                <div class="calendar-day">21</div>
+                                <div class="calendar-day">22</div>
+                                <div class="calendar-day">23</div>
+                                <div class="calendar-day">24</div>
+                                <div class="calendar-day">25</div>
+                                
+                                <div class="calendar-day">26</div>
+                                <div class="calendar-day">27</div>
+                                <div class="calendar-day">28</div>
+                                <div class="calendar-day">29</div>
+                                <div class="calendar-day">30</div>
+                                <div class="calendar-day inactive">1</div>
+                                <div class="calendar-day inactive">2</div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between">
+                                <a href="#" class="btn btn-sm btn-spectator-outline">
+                                    {% trans "Vue mois" %}
+                                </a>
+                                <a href="#" class="btn btn-sm btn-spectator-outline">
+                                    {% trans "Vue semaine" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Popular events -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Événements populaires" %}</h5>
+                        </div>
+                        <div class="list-group list-group-flush">
+                            {% for i in "123"|make_list %}
+                            <a href="#" class="list-group-item list-group-item-action p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">{% trans "Championnat International" %} {{ i }}</h6>
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar-alt me-1"></i> 
+                                            {% now "j F Y" %}
+                                        </small>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">{{ i }}K</span>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Newsletter -->
+        <div class="row mt-4">
+            <div class="col-md-8">
+                <div class="newsletter-card">
+                    <h4 class="newsletter-title">{% trans "Abonnez-vous à notre newsletter" %}</h4>
+                    <p class="text-muted mb-3">{% trans "Recevez des informations sur les prochains événements et actualités des arts martiaux." %}</p>
+                    <form class="newsletter-form">
+                        <input type="email" class="newsletter-input" placeholder="{% trans 'Votre adresse email' %}">
+                        <button type="submit" class="newsletter-submit">{% trans "S'abonner" %}</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Mobile sidebar toggle
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebar = document.getElementById('sidebar');
+        
+        if (sidebarToggle && sidebar) {
+            sidebarToggle.addEventListener('click', function() {
+                sidebar.classList.toggle('active');
+                // Change icon
+                const icon = sidebarToggle.querySelector('i');
+                if (sidebar.classList.contains('active')) {
+                    icon.classList.remove('fa-bars');
+                    icon.classList.add('fa-times');
+                } else {
+                    icon.classList.remove('fa-times');
+                    icon.classList.add('fa-bars');
+                }
+            });
+            
+            // Close sidebar when clicking outside
+            document.addEventListener('click', function(event) {
+                const isClickInside = sidebar.contains(event.target) || sidebarToggle.contains(event.target);
+                if (!isClickInside && sidebar.classList.contains('active')) {
+                    sidebar.classList.remove('active');
+                    const icon = sidebarToggle.querySelector('i');
+                    icon.classList.remove('fa-times');
+                    icon.classList.add('fa-bars');
+                }
+            });
+        }
+        
+        // Tabs functionality
+        const tabs = document.querySelectorAll('.spectator-tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Remove active class from all tabs
+                tabs.forEach(t => t.classList.remove('active'));
+                // Add active class to clicked tab
+                this.classList.add('active');
+                
+                // Hide all tab contents
+                const tabContents = document.querySelectorAll('.tab-content');
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                // Show the corresponding tab content
+                const tabContentId = this.getAttribute('data-tab');
+                const tabContent = document.getElementById(tabContentId);
+                if (tabContent) {
+                    tabContent.classList.add('active');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

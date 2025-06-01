@@ -1,0 +1,306 @@
+{% extends "organizations/base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{{ title }} | {{ organization.name }} | {% trans "Organisations" %}{% endblock %}
+
+{% block content_title %}{{ title }}{% endblock %}
+{% block content_subtitle %}
+    {% if form.instance.pk %}
+        {% trans "Modifier les informations du membre" %}
+    {% else %}
+        {% trans "Ajouter un nouveau membre à l'organisation" %}
+    {% endif %}
+{% endblock %}
+
+{% block main_content %}
+    <div class="mb-4">
+        <a href="{% url 'organizations:members' organization_id=organization.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i> {% trans "Retour à la liste des membres" %}
+        </a>
+    </div>
+
+    <form method="post" novalidate class="needs-validation">
+        {% csrf_token %}
+        
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+        {% endif %}
+        
+        <!-- Informations du membre -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4 class="mb-0">{% trans "Informations du membre" %}</h4>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Utilisateur -->
+                    <div class="col-md-12">
+                        <label for="{{ form.user.id_for_label }}" class="form-label">{{ form.user.label }} *</label>
+                        {{ form.user }}
+                        {% if form.user.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.user.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        {% if form.user.help_text %}
+                            <div class="form-text text-muted">{{ form.user.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Organisation -->
+                    {% if form.organization %}
+                        <div class="col-md-12">
+                            <label for="{{ form.organization.id_for_label }}" class="form-label">{{ form.organization.label }}</label>
+                            {{ form.organization }}
+                            {% if form.organization.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.organization.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <div class="col-md-12">
+                            <label class="form-label">{% trans "Organisation" %}</label>
+                            <input type="text" class="form-control" value="{{ organization.name }}" readonly>
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Rôle -->
+                    <div class="col-md-6">
+                        <label for="{{ form.role.id_for_label }}" class="form-label">{{ form.role.label }} *</label>
+                        {{ form.role }}
+                        {% if form.role.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.role.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Titre -->
+                    <div class="col-md-6">
+                        <label for="{{ form.title.id_for_label }}" class="form-label">{{ form.title.label }}</label>
+                        {{ form.title }}
+                        {% if form.title.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.title.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text text-muted">{% trans "Ex: Président, Secrétaire, Trésorier, etc." %}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dates d'appartenance -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4 class="mb-0">{% trans "Dates d'appartenance" %}</h4>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Date d'adhésion -->
+                    <div class="col-md-6">
+                        <label for="{{ form.join_date.id_for_label }}" class="form-label">{{ form.join_date.label }}</label>
+                        {{ form.join_date }}
+                        {% if form.join_date.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.join_date.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Date de fin -->
+                    <div class="col-md-6">
+                        <label for="{{ form.end_date.id_for_label }}" class="form-label">{{ form.end_date.label }}</label>
+                        {{ form.end_date }}
+                        {% if form.end_date.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.end_date.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="form-text text-muted">{% trans "Laissez vide pour une adhésion sans date de fin" %}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Permissions -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4 class="mb-0">{% trans "Permissions" %}</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Les propriétaires et administrateurs ont automatiquement toutes les permissions ci-dessous." %}
+                </div>
+
+                <div class="form-check mb-3">
+                    {{ form.can_manage_members }}
+                    <label class="form-check-label" for="{{ form.can_manage_members.id_for_label }}">
+                        {{ form.can_manage_members.label }}
+                    </label>
+                    <div class="form-text text-muted">{% trans "Permet de gérer les membres de l'organisation (ajouter, modifier, supprimer)" %}</div>
+                </div>
+                
+                <div class="form-check mb-3">
+                    {{ form.can_edit_organization }}
+                    <label class="form-check-label" for="{{ form.can_edit_organization.id_for_label }}">
+                        {{ form.can_edit_organization.label }}
+                    </label>
+                    <div class="form-text text-muted">{% trans "Permet de modifier les informations de l'organisation" %}</div>
+                </div>
+                
+                <div class="form-check mb-3">
+                    {{ form.can_manage_competitions }}
+                    <label class="form-check-label" for="{{ form.can_manage_competitions.id_for_label }}">
+                        {{ form.can_manage_competitions.label }}
+                    </label>
+                    <div class="form-text text-muted">{% trans "Permet de gérer les compétitions de l'organisation" %}</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Notes -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4 class="mb-0">{% trans "Notes" %}</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-12">
+                        <label for="{{ form.notes.id_for_label }}" class="form-label">{{ form.notes.label }}</label>
+                        {{ form.notes }}
+                        {% if form.notes.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.notes.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Statut -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4 class="mb-0">{% trans "Statut" %}</h4>
+            </div>
+            <div class="card-body">
+                <div class="form-check form-switch">
+                    {{ form.is_active }}
+                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                        {{ form.is_active.label }}
+                    </label>
+                </div>
+                <div class="form-text text-muted">
+                    {% trans "Un membre inactif ne peut pas accéder aux fonctionnalités de l'organisation" %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Boutons d'action -->
+        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+            <a href="{% url 'organizations:members' organization_id=organization.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-times me-1"></i> {% trans "Annuler" %}
+            </a>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-1"></i> {% trans "Enregistrer" %}
+            </button>
+        </div>
+    </form>
+{% endblock %}
+
+{% block organization_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Amélioration des champs de formulaire
+        var formElements = document.querySelectorAll('input, textarea, select');
+        formElements.forEach(function(element) {
+            // Ajouter la classe form-control à tous les champs
+            if (element.type !== 'checkbox' && element.type !== 'radio') {
+                element.classList.add('form-control');
+            } else {
+                element.classList.add('form-check-input');
+            }
+            
+            // Gestion spécifique pour les select
+            if (element.tagName === 'SELECT') {
+                element.classList.add('form-select');
+            }
+            
+            // Gestion des dates
+            if (element.type === 'date') {
+                element.classList.add('form-control');
+            }
+        });
+        
+        // Gestion des dates
+        var joinDateInput = document.querySelector('input[name="join_date"]');
+        if (joinDateInput && !joinDateInput.value) {
+            // Set default date for join_date to today
+            var today = new Date();
+            var dateString = today.toISOString().split('T')[0];
+            joinDateInput.value = dateString;
+        }
+        
+        // Gestion des rôles et permissions
+        var roleSelect = document.getElementById('{{ form.role.id_for_label }}');
+        var permissionFields = [
+            document.getElementById('{{ form.can_manage_members.id_for_label }}'),
+            document.getElementById('{{ form.can_edit_organization.id_for_label }}'),
+            document.getElementById('{{ form.can_manage_competitions.id_for_label }}')
+        ];
+        
+        function updatePermissionsVisibility() {
+            var selectedRole = roleSelect.value;
+            var isAdminOrOwner = (selectedRole === 'owner' || selectedRole === 'admin');
+            
+            permissionFields.forEach(function(field) {
+                if (isAdminOrOwner) {
+                    field.checked = true;
+                    field.disabled = true;
+                    field.parentNode.classList.add('text-muted');
+                } else {
+                    field.disabled = false;
+                    field.parentNode.classList.remove('text-muted');
+                }
+            });
+        }
+        
+        if (roleSelect) {
+            roleSelect.addEventListener('change', updatePermissionsVisibility);
+            // Initialiser l'état des champs
+            updatePermissionsVisibility();
+        }
+        
+        // Initialiser Select2 si disponible pour une meilleure sélection d'utilisateurs
+        if (typeof($.fn.select2) !== 'undefined') {
+            $('#{{ form.user.id_for_label }}').select2({
+                theme: 'bootstrap-5',
+                placeholder: '{% trans "Sélectionner un utilisateur" %}',
+                width: '100%'
+            });
+        }
+    });
+</script>
+{% endblock %}

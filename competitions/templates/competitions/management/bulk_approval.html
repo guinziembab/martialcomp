@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ competition.title }} - {% trans "Approbation en masse" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .participant-card {
+        transition: all 0.2s ease;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+    
+    .participant-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    
+    .participant-card.selected {
+        border: 2px solid #0d6efd;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    
+    .participant-card .form-check-input {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 3px 10px;
+        border-radius: 20px;
+    }
+    
+    .status-pending {
+        background-color: #f0ad4e;
+        color: white;
+    }
+    
+    .status-approved {
+        background-color: #5cb85c;
+        color: white;
+    }
+    
+    .status-rejected {
+        background-color: #d9534f;
+        color: white;
+    }
+    
+    .action-container {
+        position: sticky;
+        bottom: 0;
+        background-color: #f8f9fa;
+        border-top: 1px solid #dee2e6;
+        padding: 15px;
+        border-radius: 0 0 10px 10px;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+    }
+    
+    .filter-controls {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .note-textarea {
+        border-radius: 8px;
+        resize: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <a href="{% url 'competitions:management:participants_list' competition.id %}" class="btn btn-outline-secondary mb-2">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la liste" %}
+            </a>
+            <h1 class="h3 mb-0">{% trans "Approbation en masse" %} - {{ competition.title }}</h1>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="alert alert-info">
+                <div class="d-flex">
+                    <div class="me-3">
+                        <i class="fas fa-info-circle fa-2x"></i>
+                    </div>
+                    <div>
+                        <h5 class="alert-heading">{% trans "Comment ça fonctionne" %}</h5>
+                        <p class="mb-0">
+                            {% trans "Cette page vous permet d'approuver ou rejeter plusieurs inscriptions en une seule opération. Sélectionnez les participants, choisissez l'action à effectuer, ajoutez éventuellement une note, puis validez." %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" id="bulkForm">
+                {% csrf_token %}
+                
+                <!-- Filtres et contrôles -->
+                <div class="filter-controls mb-4">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" id="participantSearch" class="form-control" placeholder="{% trans 'Rechercher un participant...' %}">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <select id="statusFilter" class="form-select">
+                                <option value="all">{% trans "Tous les statuts" %}</option>
+                                <option value="pending" selected>{% trans "En attente uniquement" %}</option>
+                                <option value="approved">{% trans "Approuvés uniquement" %}</option>
+                                <option value="rejected">{% trans "Rejetés uniquement" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="selectAllParticipants">
+                                <label class="form-check-label" for="selectAllParticipants">{% trans "Tout sélectionner" %}</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Liste des participants -->
+                <div class="row mb-4" id="participantsList">
+                    {% for registration in form.fields.registrations.queryset %}
+                        <div class="col-lg-6 participant-item" data-status="{{ registration.status }}">
+                            <div class="card participant-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="form-check me-3">
+                                            <input class="form-check-input participant-checkbox" type="checkbox" name="registrations" value="{{ registration.id }}" id="participant{{ registration.id }}" 
+                                                {% if registration in form.initial.registrations %}checked{% endif %}>
+                                            <label class="form-check-label" for="participant{{ registration.id }}"></label>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h5 class="card-title mb-1">{{ registration.practitioner.full_name }}</h5>
+                                            <p class="card-text text-muted mb-1 small">
+                                                <i class="fas fa-dojo me-1"></i>{{ registration.practitioner.club.name|default:"Sans club" }}
+                                                {% if registration.practitioner.grade %} - {{ registration.practitioner.grade }}{% endif %}
+                                            </p>
+                                            <p class="card-text mb-0">
+                                                {% if registration.status == 'pending' %}
+                                                    <span class="badge status-badge status-pending">
+                                                        <i class="fas fa-clock me-1"></i>{% trans "En attente" %}
+                                                    </span>
+                                                {% elif registration.status == 'approved' %}
+                                                    <span class="badge status-badge status-approved">
+                                                        <i class="fas fa-check me-1"></i>{% trans "Approuvé" %}
+                                                    </span>
+                                                {% elif registration.status == 'rejected' %}
+                                                    <span class="badge status-badge status-rejected">
+                                                        <i class="fas fa-times me-1"></i>{% trans "Rejeté" %}
+                                                    </span>
+                                                {% endif %}
+                                                
+                                                {% for category in registration.categories.all %}
+                                                    <span class="badge bg-info text-dark ms-1">{{ category.name }}</span>
+                                                {% endfor %}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <a href="{% url 'competitions:management:participant_detail' competition.id registration.id %}" class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="col-12">
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>{% trans "Aucun participant trouvé." %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Actions et note -->
+                <div class="action-container">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="action"><i class="fas fa-tasks me-2"></i>{% trans "Action à effectuer" %}</label>
+                                <select name="action" id="action" class="form-select">
+                                    <option value="approved">{% trans "Approuver les inscriptions sélectionnées" %}</option>
+                                    <option value="rejected">{% trans "Rejeter les inscriptions sélectionnées" %}</option>
+                                    <option value="pending">{% trans "Remettre en attente les inscriptions sélectionnées" %}</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group mb-3">
+                                <label for="note"><i class="fas fa-sticky-note me-2"></i>{% trans "Note (optionnelle)" %}</label>
+                                <textarea name="note" id="note" class="form-control note-textarea" rows="3" placeholder="{% trans 'Cette note sera ajoutée à toutes les inscriptions sélectionnées' %}"></textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title"><i class="fas fa-info-circle me-2"></i>{% trans "Résumé" %}</h5>
+                                    <div id="selectionSummary">
+                                        <p>{% trans "Aucun participant sélectionné" %}</p>
+                                    </div>
+                                    
+                                    <div class="d-grid gap-2 mt-4">
+                                        <button type="submit" class="btn btn-primary btn-lg" id="submitButton" disabled>
+                                            <i class="fas fa-save me-2"></i>{% trans "Valider les changements" %}
+                                        </button>
+                                        <a href="{% url 'competitions:management:participants_list' competition.id %}" class="btn btn-outline-secondary">
+                                            {% trans "Annuler et revenir à la liste" %}
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const participantsList = document.getElementById('participantsList');
+        const participantItems = document.querySelectorAll('.participant-item');
+        const participantCheckboxes = document.querySelectorAll('.participant-checkbox');
+        const selectAllCheckbox = document.getElementById('selectAllParticipants');
+        const searchInput = document.getElementById('participantSearch');
+        const statusFilter = document.getElementById('statusFilter');
+        const selectionSummary = document.getElementById('selectionSummary');
+        const submitButton = document.getElementById('submitButton');
+        const bulkForm = document.getElementById('bulkForm');
+        
+        // Fonction pour mettre à jour l'apparence des cartes
+        function updateCardAppearance() {
+            participantCheckboxes.forEach(checkbox => {
+                const card = checkbox.closest('.participant-card');
+                if (checkbox.checked) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+        }
+        
+        // Fonction pour mettre à jour le résumé de sélection
+        function updateSelectionSummary() {
+            const selectedCount = document.querySelectorAll('.participant-checkbox:checked').length;
+            let summaryHTML = '';
+            
+            if (selectedCount === 0) {
+                summaryHTML = `<p class="text-muted"><i class="fas fa-exclamation-circle me-2"></i>{% trans "Aucun participant sélectionné" %}</p>`;
+                submitButton.disabled = true;
+            } else {
+                summaryHTML = `
+                    <div class="alert alert-primary">
+                        <p class="mb-1"><strong>${selectedCount}</strong> {% trans "participants sélectionnés" %}</p>
+                        <p class="mb-0 small">{% trans "L'action choisie sera appliquée à tous ces participants" %}</p>
+                    </div>
+                `;
+                submitButton.disabled = false;
+            }
+            
+            selectionSummary.innerHTML = summaryHTML;
+        }
+        
+        // Fonction pour filtrer les participants
+        function filterParticipants() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const statusValue = statusFilter.value;
+            
+            participantItems.forEach(item => {
+                const name = item.querySelector('.card-title').textContent.toLowerCase();
+                const club = item.querySelector('.text-muted').textContent.toLowerCase();
+                const status = item.dataset.status;
+                
+                const matchesSearch = name.includes(searchTerm) || club.includes(searchTerm);
+                const matchesStatus = statusValue === 'all' || status === statusValue;
+                
+                if (matchesSearch && matchesStatus) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+        
+        // Gérer le clic sur les cartes (pour cocher la case)
+        participantsList.addEventListener('click', function(e) {
+            const card = e.target.closest('.participant-card');
+            if (card && !e.target.closest('a') && !e.target.closest('input')) {
+                const checkbox = card.querySelector('.participant-checkbox');
+                checkbox.checked = !checkbox.checked;
+                updateCardAppearance();
+                updateSelectionSummary();
+            }
+        });
+        
+        // Gérer les changements de statut des checkboxes individuelles
+        participantCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateCardAppearance();
+                updateSelectionSummary();
+                
+                // Mettre à jour l'état du "tout sélectionner"
+                const allVisible = Array.from(participantItems).filter(item => item.style.display !== 'none');
+                const allVisibleChecked = allVisible.every(item => item.querySelector('.participant-checkbox').checked);
+                selectAllCheckbox.checked = allVisibleChecked && allVisible.length > 0;
+            });
+        });
+        
+        // Gérer le "tout sélectionner"
+        selectAllCheckbox.addEventListener('change', function() {
+            const isChecked = this.checked;
+            
+            participantItems.forEach(item => {
+                if (item.style.display !== 'none') {
+                    const checkbox = item.querySelector('.participant-checkbox');
+                    checkbox.checked = isChecked;
+                }
+            });
+            
+            updateCardAppearance();
+            updateSelectionSummary();
+        });
+        
+        // Gérer la recherche
+        searchInput.addEventListener('input', filterParticipants);
+        
+        // Gérer le filtre de statut
+        statusFilter.addEventListener('change', function() {
+            filterParticipants();
+            
+            // Réinitialiser "tout sélectionner"
+            selectAllCheckbox.checked = false;
+            
+            // Mettre à jour les cases cochées si nécessaire
+            if (this.value !== 'all') {
+                participantItems.forEach(item => {
+                    if (item.dataset.status !== this.value) {
+                        const checkbox = item.querySelector('.participant-checkbox');
+                        checkbox.checked = false;
+                    }
+                });
+                updateCardAppearance();
+                updateSelectionSummary();
+            }
+        });
+        
+        // Gérer la soumission du formulaire
+        bulkForm.addEventListener('submit', function(e) {
+            const selectedCount = document.querySelectorAll('.participant-checkbox:checked').length;
+            
+            if (selectedCount === 0) {
+                e.preventDefault();
+                alert("{% trans 'Veuillez sélectionner au moins un participant.' %}");
+                return;
+            }
+            
+            const action = document.getElementById('action').value;
+            let actionText = '';
+            
+            if (action === 'approved') {
+                actionText = "{% trans 'approuver' %}";
+            } else if (action === 'rejected') {
+                actionText = "{% trans 'rejeter' %}";
+            } else {
+                actionText = "{% trans 'remettre en attente' %}";
+            }
+            
+            if (!confirm(`{% trans 'Êtes-vous sûr de vouloir' %} ${actionText} ${selectedCount} {% trans 'participants ?' %}`)) {
+                e.preventDefault();
+            }
+        });
+        
+        // Initialiser l'affichage
+        updateCardAppearance();
+        updateSelectionSummary();
+        filterParticipants();
+    });
+</script>
+{% endblock %}

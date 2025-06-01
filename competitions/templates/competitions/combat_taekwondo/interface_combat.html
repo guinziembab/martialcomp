@@ -1,0 +1,702 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/combat.css' %}">
+<style>
+  body {
+    background-color: #f0f2f5;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+  
+  .tkd-interface {
+    min-height: 100vh;
+  }
+  
+  .tkd-header {
+    background-color: #1a237e;
+    color: white;
+    padding: 1rem;
+    border-bottom: 3px solid #ff3d00;
+  }
+  
+  .tkd-timer {
+    font-size: 3rem;
+    font-weight: bold;
+    font-family: monospace;
+    background-color: #000;
+    color: #00ff00;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+  }
+  
+  .tkd-controls {
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 0.5rem;
+    padding: 1rem;
+  }
+  
+  .tkd-score-container {
+    border-radius: 0.5rem;
+    padding: 2rem 1rem;
+    text-align: center;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .tkd-score-red {
+    background-color: #d32f2f;
+    color: white;
+  }
+  
+  .tkd-score-blue {
+    background-color: #1976d2;
+    color: white;
+  }
+  
+  .tkd-score-value {
+    font-size: 8rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  
+  .competitor-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-top: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .competitor-club {
+    font-size: 1rem;
+    opacity: 0.8;
+  }
+  
+  .penalty-badges {
+    margin-top: 1rem;
+  }
+  
+  .kyong-go-badge {
+    background-color: #ffc107;
+    color: #212529;
+    font-size: 1rem;
+    margin: 0 2px;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+  
+  .gam-jeom-badge {
+    background-color: #f44336;
+    color: white;
+    font-size: 1rem;
+    margin: 0 2px;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+  
+  .tkd-technique-btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    text-align: left;
+  }
+  
+  .tkd-technique-btn:hover {
+    transform: scale(1.03);
+  }
+  
+  .tkd-technique-btn .point-value {
+    float: right;
+    font-size: 1.2rem;
+  }
+  
+  .tkd-action-history {
+    height: calc(100vh - 350px);
+    overflow-y: auto;
+  }
+  
+  .round-indicator {
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+  
+  .round-indicator .round-badge {
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+    text-align: center;
+    border-radius: 50%;
+    margin: 0 8px;
+    background-color: #e0e0e0;
+    color: #757575;
+    font-weight: bold;
+    font-size: 1.2rem;
+  }
+  
+  .round-indicator .round-badge.active {
+    background-color: #2196f3;
+    color: white;
+  }
+  
+  .tkd-controls-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 1rem;
+    border-top: 1px solid #dee2e6;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  .match-alert {
+    animation: blink-animation 1s infinite;
+    font-weight: bold;
+  }
+  
+  @keyframes blink-animation {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tkd-interface">
+  <!-- Entête -->
+  <div class="tkd-header">
+    <div class="container-fluid">
+      <div class="row align-items-center">
+        <div class="col-md-3">
+          <h4>{% translate "TKD Scoring Interface" %}</h4>
+          <div class="small">{{ combat.poule.nom|default:"" }} - {{ combat.get_type_combat_display }}</div>
+        </div>
+        <div class="col-md-6 text-center">
+          <!-- Round indicator -->
+          <div class="round-indicator">
+            <span class="round-badge active">1</span>
+            <span class="round-badge">2</span>
+            <span class="round-badge">3</span>
+          </div>
+          <div class="tkd-timer" id="tkd-timer">01:30</div>
+          <div class="small">
+            {% if combat.status == 'en_cours' %}
+            <span class="badge bg-success">{% translate "Combat en cours" %}</span>
+            {% else %}
+            <span class="badge bg-secondary">{{ combat.get_status_display }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-md-3 text-end">
+          <div class="btn-group">
+            <a href="{% url 'competitions:combat_taekwondo:detail_combat' combat_id=combat.id %}" class="btn btn-outline-light">
+              <i class="fas fa-arrow-left"></i> {% translate "Détails" %}
+            </a>
+            <a href="#" class="btn btn-outline-warning" target="_blank">
+              <i class="fas fa-desktop"></i> {% translate "Affichage public" %}
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Contenu principal -->
+  <div class="container-fluid mt-4 mb-5 pb-5">
+    <div class="row">
+      <!-- Zone des scores -->
+      <div class="col-md-8">
+        <div class="row">
+          <!-- Score Rouge (Hong) -->
+          <div class="col-6">
+            <div class="tkd-score-container tkd-score-red">
+              <div class="tkd-score-value" id="score-red">{{ combat.score_rouge }}</div>
+              <div class="competitor-name">
+                {% if combat.type_combat == 'individuel' %}
+                {{ combat.pratiquant_rouge.full_name|default:"Hong" }}
+                {% else %}
+                {{ combat.equipe_rouge.nom|default:"Équipe Rouge" }}
+                {% endif %}
+              </div>
+              <div class="competitor-club">
+                {% if combat.type_combat == 'individuel' and combat.pratiquant_rouge.organization %}
+                {{ combat.pratiquant_rouge.organization.name }}
+                {% elif combat.type_combat == 'equipe' and combat.equipe_rouge.club %}
+                {{ combat.equipe_rouge.club.name }}
+                {% endif %}
+              </div>
+              <div class="penalty-badges">
+                {% for i in kyong_go_rouge|default_if_none:0|add:0|ljust:10 %}
+                  <span class="kyong-go-badge" title="Kyong-go">K</span>
+                {% endfor %}
+                {% for i in gam_jeom_rouge|default_if_none:0|add:0|ljust:5 %}
+                  <span class="gam-jeom-badge" title="Gam-jeom">G</span>
+                {% endfor %}
+              </div>
+              
+              {% if disqualify_rouge %}
+              <div class="alert alert-danger mt-2 match-alert">
+                <i class="fas fa-exclamation-triangle"></i> {% translate "Disqualification" %}
+              </div>
+              {% endif %}
+            </div>
+            
+            {% if combat.status == 'en_cours' %}
+            <div class="mb-4">
+              <h5>{% translate "Techniques" %}</h5>
+              <button class="btn btn-light tkd-technique-btn" data-action="point" data-technique="punch_body" data-color="rouge">
+                {% translate "Poing au tronc" %} <span class="point-value">1</span>
+              </button>
+              <button class="btn btn-light tkd-technique-btn" data-action="point" data-technique="kick_body" data-color="rouge">
+                {% translate "Coup de pied au tronc" %} <span class="point-value">2</span>
+              </button>
+              <button class="btn btn-light tkd-technique-btn" data-action="point" data-technique="kick_head" data-color="rouge">
+                {% translate "Coup de pied à la tête" %} <span class="point-value">3</span>
+              </button>
+              <button class="btn btn-light tkd-technique-btn" data-action="point" data-technique="turning_kick_body" data-color="rouge">
+                {% translate "Coup de pied retourné au tronc" %} <span class="point-value">4</span>
+              </button>
+              <button class="btn btn-light tkd-technique-btn" data-action="point" data-technique="turning_kick_head" data-color="rouge">
+                {% translate "Coup de pied retourné à la tête" %} <span class="point-value">5</span>
+              </button>
+              
+              <h5 class="mt-3">{% translate "Pénalités" %}</h5>
+              <div class="row">
+                <div class="col-6">
+                  <button class="btn btn-warning w-100" data-action="avertissement" data-penalty-type="kyong_go" data-color="rouge">
+                    {% translate "Kyong-go" %}
+                  </button>
+                </div>
+                <div class="col-6">
+                  <button class="btn btn-danger w-100" data-action="penalite" data-penalty-type="gam_jeom" data-color="rouge">
+                    {% translate "Gam-jeom" %}
+                  </button>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          
+          <!-- Score Bleu (Chung) -->
+          <div class="col-6">
+            <div class="tkd-score-container tkd-score-blue">
+              <div class="tkd-score-value" id="score-white">{{ combat.score_blanc }}</div>
+              <div class="competitor-name">
+                {% if combat.type_combat == 'individuel' %}
+                {{ combat.pratiquant_blanc.full_name|default:"Chung" }}
+                {% else %}
+                {{ combat.equipe_blanc.nom|default:"Équipe Bleue" }}
+                {% endif %}
+              </div>
+              <div class="competitor-club">
+                {% if combat.type_combat == 'individuel' and combat.pratiquant_blanc.organization %}
+                {{ combat.pratiquant_blanc.organization.name }}
+                {% elif combat.type_combat == 'equipe' and combat.equipe_blanc.club %}
+                {{ combat.equipe_blanc.club.name }}
+                {% endif %}
+              </div>
+              <div class="penalty-badges">
+                {% for i in kyong_go_blanc|default_if_none:0|add:0|ljust:10 %}
+                  <span class="kyong-go-badge" title="Kyong-go">K</span>
+                {% endfor %}
+                {% for i in gam_jeom_blanc|default_if_none:0|add:0|ljust:5 %}
+                  <span class="gam-jeom-badge" title="Gam-jeom">G</span>
+                {% endfor %}
+              </div>
+              
+              {% if disqualify_blanc %}
+              <div class="alert alert-danger mt-2 match-alert">
+                <i class="fas fa-exclamation-triangle"></i> {% translate "Disqualification" %}
+              </div>
+              {% endif %}
+            </div>
+            
+            {% if combat.status == 'en_cours' %}
+            <div class="mb-4">
+              <h5>{% translate "Techniques" %}</h5>
+              <button class="btn btn-light tkd-technique-btn" data-action="point" data-technique="punch_body" data-color="blanc">
+                {% translate "Poing au tronc" %} <span class="point-value">1</span>
+              </button>
+              <button class="btn btn-light tkd-technique-btn" data-action="point" data-technique="kick_body" data-color="blanc">
+                {% translate "Coup de pied au tronc" %} <span class="point-value">2</span>
+              </button>
+              <button class="btn btn-light tkd-technique-btn" data-action="point" data-technique="kick_head" data-color="blanc">
+                {% translate "Coup de pied à la tête" %} <span class="point-value">3</span>
+              </button>
+              <button class="btn btn-light tkd-technique-btn" data-action="point" data-technique="turning_kick_body" data-color="blanc">
+                {% translate "Coup de pied retourné au tronc" %} <span class="point-value">4</span>
+              </button>
+              <button class="btn btn-light tkd-technique-btn" data-action="point" data-technique="turning_kick_head" data-color="blanc">
+                {% translate "Coup de pied retourné à la tête" %} <span class="point-value">5</span>
+              </button>
+              
+              <h5 class="mt-3">{% translate "Pénalités" %}</h5>
+              <div class="row">
+                <div class="col-6">
+                  <button class="btn btn-warning w-100" data-action="avertissement" data-penalty-type="kyong_go" data-color="blanc">
+                    {% translate "Kyong-go" %}
+                  </button>
+                </div>
+                <div class="col-6">
+                  <button class="btn btn-danger w-100" data-action="penalite" data-penalty-type="gam_jeom" data-color="blanc">
+                    {% translate "Gam-jeom" %}
+                  </button>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- Contrôles du combat -->
+        {% if combat.status == 'en_cours' %}
+        <div class="tkd-controls mt-4">
+          <div class="row">
+            <div class="col-md-4">
+              <button id="pause-timer" class="btn btn-warning w-100">
+                <i class="fas fa-pause"></i> {% translate "Pause" %}
+              </button>
+            </div>
+            <div class="col-md-4">
+              <button id="reset-timer" class="btn btn-secondary w-100">
+                <i class="fas fa-redo"></i> {% translate "Réinitialiser" %}
+              </button>
+            </div>
+            <div class="col-md-4">
+              <a href="{% url 'competitions:combat_taekwondo:terminer_combat' combat_id=combat.id %}" class="btn btn-primary w-100">
+                <i class="fas fa-flag-checkered"></i> {% translate "Terminer le combat" %}
+              </a>
+            </div>
+          </div>
+          
+          <div class="row mt-3">
+            <div class="col-md-4">
+              <button id="next-round" class="btn btn-info w-100">
+                <i class="fas fa-step-forward"></i> {% translate "Round suivant" %}
+              </button>
+            </div>
+            <div class="col-md-4">
+              <button id="add-time" class="btn btn-outline-primary w-100">
+                <i class="fas fa-plus"></i> {% translate "Ajouter 10s" %}
+              </button>
+            </div>
+            <div class="col-md-4">
+              <button id="remove-time" class="btn btn-outline-danger w-100">
+                <i class="fas fa-minus"></i> {% translate "Retirer 10s" %}
+              </button>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+        
+        {% if point_gap_victory %}
+        <div class="alert alert-warning mt-4 match-alert text-center">
+          <i class="fas fa-trophy"></i> 
+          {% translate "Victoire par écart de points (règle des 20 points)" %}
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Historique des actions -->
+      <div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-header bg-light">
+            <h5 class="mb-0">{% translate "Historique des actions" %}</h5>
+          </div>
+          <div class="tkd-action-history list-group list-group-flush" id="action-history">
+            <!-- Les actions seront ajoutées ici dynamiquement -->
+            {% for action in actions %}
+            <div class="list-group-item">
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="badge {% if action.couleur == 'rouge' %}bg-danger{% elif action.couleur == 'blanc' %}bg-primary{% else %}bg-secondary{% endif %}">
+                  {{ action.get_couleur_display }}
+                </span>
+                <span class="badge {% if action.type_action == 'point' %}bg-success{% elif action.type_action == 'penalite' %}bg-danger{% elif action.type_action == 'avertissement' %}bg-warning text-dark{% else %}bg-info{% endif %}">
+                  {{ action.get_type_action_display }}
+                  {% if action.type_action in 'point,penalite' %}
+                  ({{ action.valeur }})
+                  {% endif %}
+                </span>
+                <small class="text-muted">{{ action.temps|time:"H:i:s" }}</small>
+              </div>
+              
+              {% if action.description %}
+              <div class="small text-muted mt-1">
+                {{ action.description }}
+              </div>
+              {% endif %}
+              
+              {% if combat.status == 'en_cours' %}
+              <div class="mt-2 text-end">
+                <a href="{% url 'competitions:combat_taekwondo:annuler_action' action_id=action.id %}" class="btn btn-sm btn-outline-danger">
+                  <i class="fas fa-undo"></i> {% translate "Annuler" %}
+                </a>
+              </div>
+              {% endif %}
+            </div>
+            {% empty %}
+            <div class="list-group-item text-center text-muted">
+              {% translate "Aucune action enregistrée" %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  {% csrf_token %}
+  <meta name="combat-id" content="{{ combat.id }}">
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Références aux éléments DOM
+  const tkdTimer = document.getElementById('tkd-timer');
+  const scoreRed = document.getElementById('score-red');
+  const scoreWhite = document.getElementById('score-white');
+  const actionHistory = document.getElementById('action-history');
+  const pauseTimerBtn = document.getElementById('pause-timer');
+  const resetTimerBtn = document.getElementById('reset-timer');
+  const addTimeBtn = document.getElementById('add-time');
+  const removeTimeBtn = document.getElementById('remove-time');
+  const nextRoundBtn = document.getElementById('next-round');
+  
+  // Variables du chronomètre
+  let timerInterval;
+  let seconds = 90; // 1min30s par défaut pour un round de TKD
+  let isRunning = {% if combat.status == 'en_cours' %}true{% else %}false{% endif %};
+  let currentRound = 1;
+  const roundDuration = 90; // Durée standard d'un round en TKD
+  
+  // Fonction pour mettre à jour l'affichage du chronomètre
+  function updateTimer() {
+    if (isRunning && seconds > 0) {
+      seconds--;
+    } else if (isRunning && seconds <= 0) {
+      // Fin du round
+      clearInterval(timerInterval);
+      isRunning = false;
+      if (pauseTimerBtn) {
+        pauseTimerBtn.innerHTML = '<i class="fas fa-play"></i> ' + '{% translate "Reprendre" %}';
+        pauseTimerBtn.classList.replace('btn-warning', 'btn-success');
+      }
+      
+      // Signal sonore et visuel
+      tkdTimer.style.color = "#ff0000";
+      setTimeout(() => tkdTimer.style.color = "#00ff00", 500);
+      // Ajouter un beep si possible
+    }
+    
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    tkdTimer.textContent = 
+      (minutes < 10 ? '0' : '') + minutes + ':' + 
+      (remainingSeconds < 10 ? '0' : '') + remainingSeconds;
+  }
+  
+  // Démarrer le chronomètre
+  if (isRunning) {
+    timerInterval = setInterval(updateTimer, 1000);
+  }
+  updateTimer(); // Mise à jour immédiate
+  
+  // Gestion des rounds
+  if (nextRoundBtn) {
+    nextRoundBtn.addEventListener('click', function() {
+      if (currentRound < 3) {
+        currentRound++;
+        seconds = roundDuration;
+        updateTimer();
+        
+        // Mettre à jour l'affichage des rounds
+        document.querySelectorAll('.round-badge').forEach((badge, index) => {
+          if (index + 1 === currentRound) {
+            badge.classList.add('active');
+          } else {
+            badge.classList.remove('active');
+          }
+        });
+        
+        // Réinitialiser le timer
+        clearInterval(timerInterval);
+        isRunning = true;
+        timerInterval = setInterval(updateTimer, 1000);
+        
+        if (pauseTimerBtn) {
+          pauseTimerBtn.innerHTML = '<i class="fas fa-pause"></i> ' + '{% translate "Pause" %}';
+          pauseTimerBtn.classList.replace('btn-success', 'btn-warning');
+        }
+      } else {
+        alert('{% translate "Le combat est déjà au dernier round." %}');
+      }
+    });
+  }
+  
+  // Contrôles du chronomètre
+  if (pauseTimerBtn) {
+    pauseTimerBtn.addEventListener('click', function() {
+      if (isRunning) {
+        clearInterval(timerInterval);
+        isRunning = false;
+        this.innerHTML = '<i class="fas fa-play"></i> ' + '{% translate "Reprendre" %}';
+        this.classList.replace('btn-warning', 'btn-success');
+      } else {
+        timerInterval = setInterval(updateTimer, 1000);
+        isRunning = true;
+        this.innerHTML = '<i class="fas fa-pause"></i> ' + '{% translate "Pause" %}';
+        this.classList.replace('btn-success', 'btn-warning');
+      }
+    });
+  }
+  
+  if (resetTimerBtn) {
+    resetTimerBtn.addEventListener('click', function() {
+      if (confirm('{% translate "Êtes-vous sûr de vouloir réinitialiser le chronomètre ?" %}')) {
+        seconds = roundDuration;
+        updateTimer();
+      }
+    });
+  }
+  
+  if (addTimeBtn) {
+    addTimeBtn.addEventListener('click', function() {
+      seconds += 10;
+      updateTimer();
+    });
+  }
+  
+  if (removeTimeBtn) {
+    removeTimeBtn.addEventListener('click', function() {
+      seconds = Math.max(0, seconds - 10);
+      updateTimer();
+    });
+  }
+  
+  // Gestionnaire pour les boutons de technique
+  document.querySelectorAll('.tkd-technique-btn').forEach(button => {
+    button.addEventListener('click', function() {
+      const action = this.dataset.action;
+      const technique = this.dataset.technique;
+      const color = this.dataset.color;
+      
+      // Soumission via AJAX
+      submitTaekwondoAction(action, color, technique);
+    });
+  });
+  
+  // Gestionnaire pour les boutons de pénalité
+  document.querySelectorAll('[data-penalty-type]').forEach(button => {
+    button.addEventListener('click', function() {
+      const action = this.dataset.action;
+      const penaltyType = this.dataset.penaltyType;
+      const color = this.dataset.color;
+      
+      // Soumission via AJAX
+      submitTaekwondoAction(action, color, null, penaltyType);
+    });
+  });
+  
+  // Fonction pour soumettre une action via AJAX
+  function submitTaekwondoAction(actionType, color, technique = null, penaltyType = null) {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const data = {
+      type_action: actionType,
+      couleur: color,
+      description: ''
+    };
+    
+    if (technique) {
+      data.technique = technique;
+    }
+    
+    if (penaltyType) {
+      data.penalty_type = penaltyType;
+    }
+    
+    fetch('{% url "competitions:combat_taekwondo:ajouter_action" combat_id=combat.id %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Mettre à jour les scores
+        scoreRed.textContent = data.score_rouge.toFixed(2);
+        scoreWhite.textContent = data.score_blanc.toFixed(2);
+        
+        // Recharger la page après un délai pour mettre à jour l'historique
+        setTimeout(() => {
+          location.reload();
+        }, 500);
+        
+        // Vérifier les conditions de victoire
+        if (data.point_gap_victory) {
+          alert('{% translate "Victoire par écart de points (règle des 20 points)." %}');
+        }
+        
+        if (data.disqualify_rouge) {
+          alert('{% translate "Le combattant rouge est disqualifié en raison du nombre d\'avertissements." %}');
+        }
+        
+        if (data.disqualify_blanc) {
+          alert('{% translate "Le combattant bleu est disqualifié en raison du nombre d\'avertissements." %}');
+        }
+      } else {
+        alert('{% translate "Erreur lors de l\'enregistrement de l\'action" %}: ' + data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('{% translate "Erreur lors de la communication avec le serveur" %}');
+    });
+  }
+  
+  // Rafraîchissement périodique des données (toutes les 3 secondes)
+  setInterval(function() {
+    fetch('{% url "competitions:combat_taekwondo:api_statut_combat" combat_id=combat.id %}')
+      .then(response => response.json())
+      .then(data => {
+        // Mettre à jour les scores
+        scoreRed.textContent = data.score_rouge.toFixed(2);
+        scoreWhite.textContent = data.score_blanc.toFixed(2);
+        
+        // Vérifier si le combat est toujours en cours
+        if (data.status !== 'en_cours' && isRunning) {
+          clearInterval(timerInterval);
+          isRunning = false;
+          alert('{% translate "Le statut du combat a changé. La page va être rechargée." %}');
+          location.reload();
+        }
+      })
+      .catch(error => console.error('Error:', error));
+  }, 3000);
+});
+</script>
+{% endblock %}

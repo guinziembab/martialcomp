@@ -1,0 +1,224 @@
+{# competitions/templates/competitions/club/roles_management.html #}
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Gestion des rôles" %} | {{ club.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">
+            <i class="fas fa-user-cog me-2 text-primary"></i>
+            {% trans "Gestion des rôles et permissions" %}
+        </h1>
+        <a href="{% url 'competitions:club:create_role' %}" class="btn btn-primary">
+            <i class="fas fa-plus-circle me-1"></i> {% trans "Nouveau rôle" %}
+        </a>
+    </div>
+    
+    {% if messages %}
+        <div class="messages mb-4">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-tag me-2 text-primary"></i>
+                        {% trans "Rôles disponibles" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if roles %}
+                        <div class="list-group">
+                            {% for role in roles %}
+                                <div class="list-group-item list-group-item-action">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{{ role.name }}</h6>
+                                            <small class="text-muted">{{ role.description }}</small>
+                                            {% if role.is_default %}
+                                                <span class="badge bg-info ms-2">{% trans "Par défaut" %}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <a href="{% url 'competitions:club:edit_role' role.id %}" class="btn btn-sm btn-outline-primary me-1">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'competitions:club:delete_role' role.id %}" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-2">
+                                        <h6 class="small fw-bold">{% trans "Permissions" %}</h6>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            {% if role.can_manage_practitioners %}
+                                                <span class="badge bg-success">{% trans "Pratiquants" %}</span>
+                                            {% endif %}
+                                            {% if role.can_manage_registrations %}
+                                                <span class="badge bg-success">{% trans "Inscriptions" %}</span>
+                                            {% endif %}
+                                            {% if role.can_manage_competitions %}
+                                                <span class="badge bg-success">{% trans "Compétitions" %}</span>
+                                            {% endif %}
+                                            {% if role.can_manage_judges %}
+                                                <span class="badge bg-success">{% trans "Juges" %}</span>
+                                            {% endif %}
+                                            {% if role.can_manage_grades %}
+                                                <span class="badge bg-success">{% trans "Grades" %}</span>
+                                            {% endif %}
+                                            {% if role.can_manage_roles %}
+                                                <span class="badge bg-success">{% trans "Rôles" %}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Aucun rôle défini. Créez votre premier rôle pour commencer." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users-cog me-2 text-success"></i>
+                        {% trans "Utilisateurs et rôles" %}
+                    </h5>
+                    <a href="{% url 'competitions:club:assign_role' %}" class="btn btn-sm btn-success">
+                        <i class="fas fa-user-plus me-1"></i> {% trans "Attribuer un rôle" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if users_by_role %}
+                        <div class="accordion" id="rolesAccordion">
+                            {% for role_id, user_role_list in users_by_role.items %}
+                                {% with role=user_role_list.0.role %}
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header" id="heading{{ role.id }}">
+                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ role.id }}" aria-expanded="false" aria-controls="collapse{{ role.id }}">
+                                                <strong>{{ role.name }}</strong>
+                                                <span class="badge bg-primary ms-2">{{ user_role_list|length }}</span>
+                                            </button>
+                                        </h2>
+                                        <div id="collapse{{ role.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ role.id }}" data-bs-parent="#rolesAccordion">
+                                            <div class="accordion-body">
+                                                <ul class="list-group">
+                                                    {% for user_role in user_role_list %}
+                                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                            <div>
+                                                                <span>{{ user_role.user.get_full_name|default:user_role.user.username }}</span>
+                                                                <br>
+                                                                <small class="text-muted">{{ user_role.user.email }}</small>
+                                                            </div>
+                                                            <div>
+                                                                <small class="text-muted me-2">{{ user_role.assigned_at|date:"d/m/Y" }}</small>
+                                                                <a href="{% url 'competitions:club:revoke_role' user_role.id %}" class="btn btn-sm btn-outline-danger">
+                                                                    <i class="fas fa-times"></i>
+                                                                </a>
+                                                            </div>
+                                                        </li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endwith %}
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Aucun utilisateur avec des rôles attribués." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">
+                <i class="fas fa-info-circle me-2 text-info"></i>
+                {% trans "À propos des rôles et permissions" %}
+            </h5>
+        </div>
+        <div class="card-body">
+            <p>{% trans "Les rôles déterminent ce que les utilisateurs peuvent faire au sein de votre club. Chaque rôle a des permissions spécifiques qui peuvent être activées ou désactivées." %}</p>
+            
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <h6>{% trans "Types de permissions" %}</h6>
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex align-items-center">
+                            <i class="fas fa-users text-primary me-3"></i>
+                            <div>
+                                <strong>{% trans "Gérer les pratiquants" %}</strong>
+                                <p class="mb-0 small text-muted">{% trans "Ajouter, modifier et supprimer des pratiquants" %}</p>
+                            </div>
+                        </li>
+                        <li class="list-group-item d-flex align-items-center">
+                            <i class="fas fa-clipboard-list text-success me-3"></i>
+                            <div>
+                                <strong>{% trans "Gérer les inscriptions" %}</strong>
+                                <p class="mb-0 small text-muted">{% trans "Gérer les inscriptions aux compétitions" %}</p>
+                            </div>
+                        </li>
+                        <li class="list-group-item d-flex align-items-center">
+                            <i class="fas fa-trophy text-danger me-3"></i>
+                            <div>
+                                <strong>{% trans "Gérer les compétitions" %}</strong>
+                                <p class="mb-0 small text-muted">{% trans "Créer et gérer des compétitions" %}</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex align-items-center">
+                            <i class="fas fa-gavel text-warning me-3"></i>
+                            <div>
+                                <strong>{% trans "Gérer les juges" %}</strong>
+                                <p class="mb-0 small text-muted">{% trans "Gérer les juges et arbitres du club" %}</p>
+                            </div>
+                        </li>
+                        <li class="list-group-item d-flex align-items-center">
+                            <i class="fas fa-award text-info me-3"></i>
+                            <div>
+                                <strong>{% trans "Gérer les grades" %}</strong>
+                                <p class="mb-0 small text-muted">{% trans "Gérer les grades des pratiquants" %}</p>
+                            </div>
+                        </li>
+                        <li class="list-group-item d-flex align-items-center">
+                            <i class="fas fa-user-cog text-secondary me-3"></i>
+                            <div>
+                                <strong>{% trans "Gérer les rôles" %}</strong>
+                                <p class="mb-0 small text-muted">{% trans "Créer et attribuer des rôles aux utilisateurs" %}</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

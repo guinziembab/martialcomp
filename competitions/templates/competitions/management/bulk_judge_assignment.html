@@ -1,0 +1,1094 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Assignation en masse de juges" %} - {{ competition.title }} - Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .main-container {
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+    
+    .form-card {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        margin-bottom: 30px;
+    }
+    
+    .form-header {
+        padding: 25px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .form-body {
+        padding: 25px;
+    }
+    
+    .step-indicator {
+        display: flex;
+        margin-bottom: 30px;
+    }
+    
+    .step {
+        flex: 1;
+        text-align: center;
+        padding: 15px;
+        position: relative;
+    }
+    
+    .step:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        right: 0;
+        width: 100%;
+        height: 2px;
+        background-color: #dee2e6;
+        transform: translateY(-50%);
+        z-index: 1;
+    }
+    
+    .step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: #f8f9fa;
+        border: 2px solid #dee2e6;
+        font-weight: 600;
+        margin-bottom: 10px;
+        position: relative;
+        z-index: 2;
+    }
+    
+    .step.active .step-number {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: white;
+    }
+    
+    .step.completed .step-number {
+        background-color: #198754;
+        border-color: #198754;
+        color: white;
+    }
+    
+    .step-title {
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+    
+    .judge-card {
+        border-radius: 10px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        margin-bottom: 15px;
+        border: 2px solid transparent;
+        cursor: pointer;
+    }
+    
+    .judge-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .judge-card.selected {
+        border-color: #0d6efd;
+        box-shadow: 0 5px 15px rgba(13, 110, 253, 0.3);
+    }
+    
+    .judge-header {
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .judge-body {
+        padding: 15px;
+    }
+    
+    .judge-img {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-right: 15px;
+    }
+    
+    .judge-qualification-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+    
+    .category-card {
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #dee2e6;
+        margin-bottom: 15px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .category-card:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .category-card.selected {
+        border-color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    
+    .category-title {
+        font-weight: 500;
+        margin-bottom: 5px;
+    }
+    
+    .category-discipline {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    .assignment-details {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .assignment-type-selector {
+        margin-bottom: 20px;
+    }
+    
+    .assignment-type-option {
+        display: inline-block;
+        padding: 10px 15px;
+        margin-right: 10px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 1px solid #dee2e6;
+    }
+    
+    .assignment-type-option:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .assignment-type-option.selected {
+        background-color: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+    }
+    
+    .assignment-option-icon {
+        margin-right: 8px;
+    }
+    
+    .schedule-selector {
+        margin-bottom: 20px;
+    }
+    
+    .selection-summary {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .summary-card {
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+    
+    .summary-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    
+    .summary-img {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-right: 10px;
+    }
+    
+    .summary-title {
+        font-weight: 500;
+        flex-grow: 1;
+    }
+    
+    .summary-remove {
+        color: #dc3545;
+        cursor: pointer;
+    }
+    
+    .summary-info {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    .search-box {
+        position: relative;
+        margin-bottom: 20px;
+    }
+    
+    .search-box .form-control {
+        padding-left: 40px;
+        border-radius: 20px;
+    }
+    
+    .search-icon {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+    }
+    
+    .filter-badge {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 20px;
+        margin-right: 10px;
+        margin-bottom: 10px;
+        background-color: #f8f9fa;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .filter-badge:hover {
+        background-color: #e9ecef;
+    }
+    
+    .filter-badge.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+    
+    .no-results {
+        padding: 20px;
+        text-align: center;
+        background-color: #f8f9fa;
+        border-radius: 10px;
+    }
+    
+    .breadcrumb-item + .breadcrumb-item::before {
+        content: "›";
+    }
+    
+    .tatami-badge {
+        display: inline-block;
+        min-width: 30px;
+        height: 30px;
+        line-height: 30px;
+        text-align: center;
+        border-radius: 50%;
+        background-color: #6c757d;
+        color: white;
+        font-weight: 500;
+        margin-left: 5px;
+    }
+    
+    /* For multi-step form */
+    .step-content {
+        display: none;
+    }
+    
+    .step-content.active {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Fil d'Ariane -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:management:competition_detail' competition.id %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:management:judges_list' competition.id %}">{% trans "Juges" %}</a></li>
+            <li class="breadcrumb-item active">{% trans "Assignation en masse" %}</li>
+        </ol>
+    </nav>
+    
+    <!-- Messages d'alerte -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="main-container">
+        <!-- Titre de la page -->
+        <div class="text-center mb-4">
+            <h1 class="h2">{% trans "Assignation en masse de juges" %}</h1>
+            <p class="text-muted">
+                {% trans "Assignez plusieurs juges à une catégorie ou plusieurs catégories à un juge." %}
+            </p>
+        </div>
+        
+        <!-- Étapes -->
+        <div class="step-indicator">
+            <div class="step active" id="step-1-indicator">
+                <div class="step-number">1</div>
+                <div class="step-title">{% trans "Sélection" %}</div>
+            </div>
+            <div class="step" id="step-2-indicator">
+                <div class="step-number">2</div>
+                <div class="step-title">{% trans "Configuration" %}</div>
+            </div>
+            <div class="step" id="step-3-indicator">
+                <div class="step-number">3</div>
+                <div class="step-title">{% trans "Confirmation" %}</div>
+            </div>
+        </div>
+        
+        <!-- Formulaire principal -->
+        <form method="post" id="bulk-assignment-form">
+            {% csrf_token %}
+            <input type="hidden" name="competition_id" value="{{ competition.id }}">
+            
+            <!-- Étape 1: Sélection des juges et des catégories -->
+            <div class="step-content active" id="step-1">
+                <div class="row">
+                    <!-- Sélection des juges -->
+                    <div class="col-lg-6">
+                        <div class="form-card">
+                            <div class="form-header">
+                                <h2 class="h5 mb-0">{% trans "Sélectionnez les juges" %}</h2>
+                            </div>
+                            <div class="form-body">
+                                <!-- Recherche et filtres -->
+                                <div class="search-box">
+                                    <i class="fas fa-search search-icon"></i>
+                                    <input type="text" id="judge-search" class="form-control" placeholder="{% trans 'Rechercher un juge...' %}">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <span class="filter-badge active" data-filter="all">{% trans "Tous" %}</span>
+                                    <span class="filter-badge" data-filter="technical">{% trans "Juge Technique" %}</span>
+                                    <span class="filter-badge" data-filter="combat">{% trans "Arbitre Combat" %}</span>
+                                    <span class="filter-badge" data-filter="available">{% trans "Disponibles" %}</span>
+                                </div>
+                                
+                                <!-- Liste des juges -->
+                                <div id="judge-list">
+                                    {% if available_judges %}
+                                        {% for judge in available_judges %}
+                                            <div class="judge-card" data-judge-id="{{ judge.id }}" data-filter-types="{{ judge.filter_types }}">
+                                                <div class="judge-header">
+                                                    <div class="d-flex align-items-center">
+                                                        {% if judge.practitioner.photo %}
+                                                            <img src="{{ judge.practitioner.photo.url }}" alt="{{ judge.practitioner.full_name }}" class="judge-img">
+                                                        {% else %}
+                                                            <img src="{% static 'img/avatars/default.jpg' %}" alt="{{ judge.practitioner.full_name }}" class="judge-img">
+                                                        {% endif %}
+                                                        <div>
+                                                            <div class="fw-500">{{ judge.practitioner.full_name }}</div>
+                                                            {% if judge.qualification_level %}
+                                                                <span class="judge-qualification-badge {% if judge.qualification_level == 'international' %}bg-danger{% elif judge.qualification_level == 'national' %}bg-success{% elif judge.qualification_level == 'regional' %}bg-primary{% else %}bg-secondary{% endif %} text-white">
+                                                                    {{ judge.get_qualification_level_display }}
+                                                                </span>
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="judge-body">
+                                                    <div class="d-flex flex-wrap mb-2">
+                                                        {% if judge.is_technical_judge %}
+                                                            <span class="judge-qualification-badge bg-info text-white me-1">
+                                                                <i class="fas fa-gavel me-1"></i>{% trans "Juge Technique" %}
+                                                            </span>
+                                                        {% endif %}
+                                                        {% if judge.is_combat_referee %}
+                                                            <span class="judge-qualification-badge bg-danger text-white me-1">
+                                                                <i class="fas fa-fist-raised me-1"></i>{% trans "Arbitre Combat" %}
+                                                            </span>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div class="small text-muted">
+                                                        <i class="fas fa-clock me-1"></i> {{ judge.experience_years }} {% trans "ans d'expérience" %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="no-results">
+                                            <i class="fas fa-user-slash fa-3x mb-3 text-muted"></i>
+                                            <h5>{% trans "Aucun juge disponible" %}</h5>
+                                            <p class="text-muted mb-0">
+                                                {% trans "Aucun juge n'est inscrit pour cette compétition." %}
+                                            </p>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sélection des catégories -->
+                    <div class="col-lg-6">
+                        <div class="form-card">
+                            <div class="form-header">
+                                <h2 class="h5 mb-0">{% trans "Sélectionnez les catégories" %}</h2>
+                            </div>
+                            <div class="form-body">
+                                <!-- Recherche et filtres -->
+                                <div class="search-box">
+                                    <i class="fas fa-search search-icon"></i>
+                                    <input type="text" id="category-search" class="form-control" placeholder="{% trans 'Rechercher une catégorie...' %}">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <span class="filter-badge active" data-filter="all">{% trans "Toutes" %}</span>
+                                    {% for discipline in disciplines %}
+                                        <span class="filter-badge" data-filter="discipline-{{ discipline.id }}">{{ discipline.name }}</span>
+                                    {% endfor %}
+                                </div>
+                                
+                                <!-- Liste des catégories -->
+                                <div id="category-list">
+                                    {% if competition.categories.all %}
+                                        {% for category in competition.categories.all %}
+                                            <div class="category-card" data-category-id="{{ category.id }}" data-filter-types="discipline-{{ category.discipline.id }}">
+                                                <div class="category-title">{{ category.name }}</div>
+                                                <div class="category-discipline">{{ category.discipline.name }}</div>
+                                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                                    <div class="small text-muted">
+                                                        {% if category.age_min or category.age_max %}
+                                                            <i class="fas fa-user me-1"></i>
+                                                            {% if category.age_min and category.age_max %}
+                                                                {{ category.age_min }}-{{ category.age_max }} {% trans "ans" %}
+                                                            {% elif category.age_min %}
+                                                                {% trans "min" %} {{ category.age_min }} {% trans "ans" %}
+                                                            {% elif category.age_max %}
+                                                                {% trans "max" %} {{ category.age_max }} {% trans "ans" %}
+                                                            {% endif %}
+                                                        {% endif %}
+                                                    </div>
+                                                    {% if category.tatami %}
+                                                        <span class="tatami-badge">{{ category.tatami }}</span>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="no-results">
+                                            <i class="fas fa-list-alt fa-3x mb-3 text-muted"></i>
+                                            <h5>{% trans "Aucune catégorie disponible" %}</h5>
+                                            <p class="text-muted mb-0">
+                                                {% trans "Aucune catégorie n'a été créée pour cette compétition." %}
+                                            </p>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Résumé de la sélection -->
+                <div class="selection-summary">
+                    <h3 class="h5 mb-3">{% trans "Sélection actuelle" %}</h3>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="fw-bold mb-2">{% trans "Juges sélectionnés" %}: <span id="selected-judges-count">0</span></div>
+                            <div id="selected-judges-list" class="small">
+                                <div class="text-muted">{% trans "Aucun juge sélectionné" %}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="fw-bold mb-2">{% trans "Catégories sélectionnées" %}: <span id="selected-categories-count">0</span></div>
+                            <div id="selected-categories-list" class="small">
+                                <div class="text-muted">{% trans "Aucune catégorie sélectionnée" %}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Boutons de navigation -->
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'competitions:management:judges_list' competition.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la liste" %}
+                    </a>
+                    <button type="button" id="next-step-1" class="btn btn-primary" disabled>
+                        {% trans "Suivant" %} <i class="fas fa-arrow-right ms-2"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Étape 2: Configuration de l'assignation -->
+            <div class="step-content" id="step-2">
+                <div class="form-card">
+                    <div class="form-header">
+                        <h2 class="h5 mb-0">{% trans "Configurez les détails de l'assignation" %}</h2>
+                    </div>
+                    <div class="form-body">
+                        <!-- Type d'assignation -->
+                        <div class="assignment-type-selector mb-4">
+                            <label class="form-label fw-bold">{% trans "Type d'assignation" %}</label>
+                            <div>
+                                <div class="assignment-type-option" data-value="technical_judge">
+                                    <i class="fas fa-gavel assignment-option-icon"></i>{% trans "Juge Technique" %}
+                                </div>
+                                <div class="assignment-type-option" data-value="combat_referee">
+                                    <i class="fas fa-fist-raised assignment-option-icon"></i>{% trans "Arbitre Combat" %}
+                                </div>
+                                <div class="assignment-type-option" data-value="chief_judge">
+                                    <i class="fas fa-user-tie assignment-option-icon"></i>{% trans "Juge en Chef" %}
+                                </div>
+                                <div class="assignment-type-option" data-value="timekeeper">
+                                    <i class="fas fa-stopwatch assignment-option-icon"></i>{% trans "Chronométreur" %}
+                                </div>
+                                <div class="assignment-type-option" data-value="scorekeeper">
+                                    <i class="fas fa-clipboard-list assignment-option-icon"></i>{% trans "Marqueur" %}
+                                </div>
+                            </div>
+                            <input type="hidden" name="assignment_type" id="assignment_type_input" required>
+                            <div class="form-text">{% trans "Sélectionnez le rôle que les juges auront dans ces catégories." %}</div>
+                        </div>
+                        
+                        <!-- Horaire -->
+                        <div class="row mb-4">
+                            <div class="col-md-6 mb-3 mb-md-0">
+                                <label for="start_time" class="form-label fw-bold">{% trans "Heure de début" %}</label>
+                                <input type="datetime-local" id="start_time" name="start_time" class="form-control">
+                                <div class="form-text">{% trans "Laissez vide si l'horaire varie selon les catégories." %}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="end_time" class="form-label fw-bold">{% trans "Heure de fin" %}</label>
+                                <input type="datetime-local" id="end_time" name="end_time" class="form-control">
+                                <div class="form-text">{% trans "Laissez vide si l'horaire varie selon les catégories." %}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tatami -->
+                        <div class="mb-4">
+                            <label for="tatami" class="form-label fw-bold">{% trans "Tatami" %}</label>
+                            <select id="tatami" name="tatami" class="form-select">
+                                <option value="">{% trans "Pas de tatami spécifique" %}</option>
+                                {% for i in tatami_range %}
+                                    <option value="{{ i }}">{% trans "Tatami" %} {{ i }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">{% trans "Laissez vide pour utiliser le tatami déjà assigné à chaque catégorie." %}</div>
+                        </div>
+                        
+                        <!-- Notes -->
+                        <div class="mb-4">
+                            <label for="notes" class="form-label fw-bold">{% trans "Notes" %}</label>
+                            <textarea id="notes" name="notes" class="form-control" rows="3"></textarea>
+                            <div class="form-text">{% trans "Notes additionnelles pour ces assignations (optionnel)." %}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Boutons de navigation -->
+                <div class="d-flex justify-content-between">
+                    <button type="button" id="back-step-2" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>{% trans "Précédent" %}
+                    </button>
+                    <button type="button" id="next-step-2" class="btn btn-primary" disabled>
+                        {% trans "Suivant" %} <i class="fas fa-arrow-right ms-2"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Étape 3: Confirmation -->
+            <div class="step-content" id="step-3">
+                <div class="form-card">
+                    <div class="form-header">
+                        <h2 class="h5 mb-0">{% trans "Confirmez les assignations" %}</h2>
+                    </div>
+                    <div class="form-body">
+                        <div class="alert alert-info mb-4">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Vous êtes sur le point de créer plusieurs assignations. Veuillez vérifier les détails ci-dessous avant de confirmer." %}
+                        </div>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-6 mb-4 mb-md-0">
+                                <h6 class="mb-3">{% trans "Juges" %}</h6>
+                                <div id="confirmation-judges-list">
+                                    <!-- Les juges sélectionnés seront insérés ici par JavaScript -->
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="mb-3">{% trans "Catégories" %}</h6>
+                                <div id="confirmation-categories-list">
+                                    <!-- Les catégories sélectionnées seront insérées ici par JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-6 mb-4 mb-md-0">
+                                <h6 class="mb-3">{% trans "Type d'assignation" %}</h6>
+                                <div id="confirmation-assignment-type">
+                                    <!-- Le type d'assignation sera inséré ici par JavaScript -->
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="mb-3">{% trans "Détails" %}</h6>
+                                <div id="confirmation-details">
+                                    <!-- Les détails de l'assignation seront insérés ici par JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h6 class="mb-3">{% trans "Nombre total d'assignations à créer" %}</h6>
+                            <div class="display-6 mb-2" id="assignments-count">0</div>
+                            <div class="text-muted small">
+                                {% trans "Ce nombre correspond au nombre de juges × nombre de catégories." %}
+                            </div>
+                        </div>
+                        
+                        <!-- Confirmation -->
+                        <div class="form-check mb-4">
+                            <input class="form-check-input" type="checkbox" id="confirm-checkbox" required>
+                            <label class="form-check-label" for="confirm-checkbox">
+                                {% trans "Je confirme que je veux créer ces assignations. Ceci peut remplacer des assignations existantes pour les mêmes juges et catégories." %}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Boutons de navigation -->
+                <div class="d-flex justify-content-between">
+                    <button type="button" id="back-step-3" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>{% trans "Précédent" %}
+                    </button>
+                    <button type="submit" id="submit-btn" class="btn btn-success" disabled>
+                        <i class="fas fa-check me-2"></i>{% trans "Confirmer les assignations" %}
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Variables pour stocker les éléments sélectionnés
+        let selectedJudges = new Set();
+        let selectedCategories = new Set();
+        let selectedAssignmentType = null;
+        
+        // Éléments DOM
+        const judgeCards = document.querySelectorAll('.judge-card');
+        const categoryCards = document.querySelectorAll('.category-card');
+        const assignmentTypeOptions = document.querySelectorAll('.assignment-type-option');
+        const assignmentTypeInput = document.getElementById('assignment_type_input');
+        
+        // Éléments de navigation entre les étapes
+        const nextStep1Btn = document.getElementById('next-step-1');
+        const nextStep2Btn = document.getElementById('next-step-2');
+        const backStep2Btn = document.getElementById('back-step-2');
+        const backStep3Btn = document.getElementById('back-step-3');
+        const submitBtn = document.getElementById('submit-btn');
+        const confirmCheckbox = document.getElementById('confirm-checkbox');
+        
+        // Éléments d'affichage des sélections
+        const selectedJudgesCount = document.getElementById('selected-judges-count');
+        const selectedJudgesList = document.getElementById('selected-judges-list');
+        const selectedCategoriesCount = document.getElementById('selected-categories-count');
+        const selectedCategoriesList = document.getElementById('selected-categories-list');
+        
+        // Étapes
+        const steps = document.querySelectorAll('.step-content');
+        const stepIndicators = document.querySelectorAll('.step');
+        
+        // ===== Étape 1: Sélection des juges et des catégories =====
+        
+        // Sélection des juges
+        judgeCards.forEach(card => {
+            card.addEventListener('click', function() {
+                const judgeId = this.dataset.judgeId;
+                
+                if (selectedJudges.has(judgeId)) {
+                    // Désélectionner le juge
+                    selectedJudges.delete(judgeId);
+                    this.classList.remove('selected');
+                } else {
+                    // Sélectionner le juge
+                    selectedJudges.add(judgeId);
+                    this.classList.add('selected');
+                }
+                
+                // Mettre à jour l'affichage des juges sélectionnés
+                updateSelectedJudgesDisplay();
+                
+                // Mettre à jour l'état du bouton suivant
+                updateNextStep1ButtonState();
+            });
+        });
+        
+        // Sélection des catégories
+        categoryCards.forEach(card => {
+            card.addEventListener('click', function() {
+                const categoryId = this.dataset.categoryId;
+                
+                if (selectedCategories.has(categoryId)) {
+                    // Désélectionner la catégorie
+                    selectedCategories.delete(categoryId);
+                    this.classList.remove('selected');
+                } else {
+                    // Sélectionner la catégorie
+                    selectedCategories.add(categoryId);
+                    this.classList.add('selected');
+                }
+                
+                // Mettre à jour l'affichage des catégories sélectionnées
+                updateSelectedCategoriesDisplay();
+                
+                // Mettre à jour l'état du bouton suivant
+                updateNextStep1ButtonState();
+            });
+        });
+        
+        // Mise à jour de l'affichage des juges sélectionnés
+        function updateSelectedJudgesDisplay() {
+            selectedJudgesCount.textContent = selectedJudges.size;
+            
+            if (selectedJudges.size === 0) {
+                selectedJudgesList.innerHTML = '<div class="text-muted">{% trans "Aucun juge sélectionné" %}</div>';
+                return;
+            }
+            
+            let html = '';
+            selectedJudges.forEach(judgeId => {
+                const judgeCard = document.querySelector(`.judge-card[data-judge-id="${judgeId}"]`);
+                const judgeName = judgeCard.querySelector('.fw-500').textContent;
+                html += `<div>${judgeName}</div>`;
+            });
+            
+            selectedJudgesList.innerHTML = html;
+        }
+        
+        // Mise à jour de l'affichage des catégories sélectionnées
+        function updateSelectedCategoriesDisplay() {
+            selectedCategoriesCount.textContent = selectedCategories.size;
+            
+            if (selectedCategories.size === 0) {
+                selectedCategoriesList.innerHTML = '<div class="text-muted">{% trans "Aucune catégorie sélectionnée" %}</div>';
+                return;
+            }
+            
+            let html = '';
+            selectedCategories.forEach(categoryId => {
+                const categoryCard = document.querySelector(`.category-card[data-category-id="${categoryId}"]`);
+                const categoryName = categoryCard.querySelector('.category-title').textContent;
+                html += `<div>${categoryName}</div>`;
+            });
+            
+            selectedCategoriesList.innerHTML = html;
+        }
+        
+        // Mise à jour de l'état du bouton suivant de l'étape 1
+        function updateNextStep1ButtonState() {
+            nextStep1Btn.disabled = selectedJudges.size === 0 || selectedCategories.size === 0;
+        }
+        
+        // ===== Étape 2: Configuration de l'assignation =====
+        
+        // Sélection du type d'assignation
+        assignmentTypeOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                // Supprimer la classe "selected" de toutes les options
+                assignmentTypeOptions.forEach(o => o.classList.remove('selected'));
+                
+                // Ajouter la classe "selected" à l'option cliquée
+                this.classList.add('selected');
+                
+                // Mettre à jour la valeur de l'input hidden
+                selectedAssignmentType = this.dataset.value;
+                assignmentTypeInput.value = selectedAssignmentType;
+                
+                // Mettre à jour l'état du bouton suivant
+                updateNextStep2ButtonState();
+            });
+        });
+        
+        // Mise à jour de l'état du bouton suivant de l'étape 2
+        function updateNextStep2ButtonState() {
+            nextStep2Btn.disabled = !selectedAssignmentType;
+        }
+        
+        // ===== Étape 3: Confirmation =====
+        
+        // Mise à jour de l'affichage de confirmation
+        function updateConfirmationDisplay() {
+            // Juges
+            const confirmationJudgesList = document.getElementById('confirmation-judges-list');
+            if (selectedJudges.size === 0) {
+                confirmationJudgesList.innerHTML = '<div class="text-muted">{% trans "Aucun juge sélectionné" %}</div>';
+            } else {
+                let html = '';
+                selectedJudges.forEach(judgeId => {
+                    const judgeCard = document.querySelector(`.judge-card[data-judge-id="${judgeId}"]`);
+                    const judgeName = judgeCard.querySelector('.fw-500').textContent;
+                    html += `<div class="mb-2">${judgeName}</div>`;
+                });
+                confirmationJudgesList.innerHTML = html;
+            }
+            
+            // Catégories
+            const confirmationCategoriesList = document.getElementById('confirmation-categories-list');
+            if (selectedCategories.size === 0) {
+                confirmationCategoriesList.innerHTML = '<div class="text-muted">{% trans "Aucune catégorie sélectionnée" %}</div>';
+            } else {
+                let html = '';
+                selectedCategories.forEach(categoryId => {
+                    const categoryCard = document.querySelector(`.category-card[data-category-id="${categoryId}"]`);
+                    const categoryName = categoryCard.querySelector('.category-title').textContent;
+                    html += `<div class="mb-2">${categoryName}</div>`;
+                });
+                confirmationCategoriesList.innerHTML = html;
+            }
+            
+            // Type d'assignation
+            const confirmationAssignmentType = document.getElementById('confirmation-assignment-type');
+            if (!selectedAssignmentType) {
+                confirmationAssignmentType.innerHTML = '<div class="text-muted">{% trans "Aucun type d\'assignation sélectionné" %}</div>';
+            } else {
+                const assignmentTypeOption = document.querySelector(`.assignment-type-option[data-value="${selectedAssignmentType}"]`);
+                confirmationAssignmentType.innerHTML = `<div>${assignmentTypeOption.textContent}</div>`;
+            }
+            
+            // Détails
+            const confirmationDetails = document.getElementById('confirmation-details');
+            let detailsHtml = '';
+            
+            const startTime = document.getElementById('start_time').value;
+            const endTime = document.getElementById('end_time').value;
+            const tatami = document.getElementById('tatami').value;
+            const notes = document.getElementById('notes').value;
+            
+            if (startTime || endTime) {
+                detailsHtml += '<div class="mb-2">';
+                detailsHtml += '<i class="fas fa-clock me-2"></i>';
+                if (startTime && endTime) {
+                    detailsHtml += `${startTime} - ${endTime}`;
+                } else if (startTime) {
+                    detailsHtml += `{% trans "Début à" %} ${startTime}`;
+                } else if (endTime) {
+                    detailsHtml += `{% trans "Fin à" %} ${endTime}`;
+                }
+                detailsHtml += '</div>';
+            }
+            
+            if (tatami) {
+                detailsHtml += `<div class="mb-2"><i class="fas fa-map-marker-alt me-2"></i>{% trans "Tatami" %} ${tatami}</div>`;
+            }
+            
+            if (notes) {
+                detailsHtml += `<div><i class="fas fa-sticky-note me-2"></i>${notes}</div>`;
+            }
+            
+            if (!detailsHtml) {
+                detailsHtml = '<div class="text-muted">{% trans "Aucun détail spécifié" %}</div>';
+            }
+            
+            confirmationDetails.innerHTML = detailsHtml;
+            
+            // Nombre total d'assignations
+            const assignmentsCount = document.getElementById('assignments-count');
+            assignmentsCount.textContent = selectedJudges.size * selectedCategories.size;
+        }
+        
+        // ===== Navigation entre les étapes =====
+        
+        // Fonction pour naviguer vers une étape
+        function goToStep(stepNumber) {
+            // Masquer toutes les étapes
+            steps.forEach(step => step.classList.remove('active'));
+            
+            // Afficher l'étape désirée
+            document.getElementById(`step-${stepNumber}`).classList.add('active');
+            
+            // Mettre à jour les indicateurs d'étape
+            stepIndicators.forEach((indicator, index) => {
+                if (index + 1 < stepNumber) {
+                    indicator.classList.remove('active');
+                    indicator.classList.add('completed');
+                } else if (index + 1 === stepNumber) {
+                    indicator.classList.add('active');
+                    indicator.classList.remove('completed');
+                } else {
+                    indicator.classList.remove('active', 'completed');
+                }
+            });
+            
+            // Si on va à l'étape 3, mettre à jour l'affichage de confirmation
+            if (stepNumber === 3) {
+                updateConfirmationDisplay();
+            }
+        }
+        
+        // Bouton Suivant de l'étape 1
+        nextStep1Btn.addEventListener('click', function() {
+            goToStep(2);
+        });
+        
+        // Bouton Suivant de l'étape 2
+        nextStep2Btn.addEventListener('click', function() {
+            goToStep(3);
+        });
+        
+        // Bouton Précédent de l'étape 2
+        backStep2Btn.addEventListener('click', function() {
+            goToStep(1);
+        });
+        
+        // Bouton Précédent de l'étape 3
+        backStep3Btn.addEventListener('click', function() {
+            goToStep(2);
+        });
+        
+        // Case à cocher de confirmation
+        confirmCheckbox.addEventListener('change', function() {
+            submitBtn.disabled = !this.checked;
+        });
+        
+        // ===== Recherche et filtrage =====
+        
+        // Recherche de juges
+        const judgeSearch = document.getElementById('judge-search');
+        const judgeFilterBadges = document.querySelectorAll('.filter-badge');
+        let activeJudgeFilter = 'all';
+        
+        judgeSearch.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            filterJudges(searchTerm, activeJudgeFilter);
+        });
+        
+        judgeFilterBadges.forEach(badge => {
+            badge.addEventListener('click', function() {
+                // Mettre à jour la classe active
+                judgeFilterBadges.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Mettre à jour le filtre actif
+                activeJudgeFilter = this.dataset.filter;
+                
+                // Appliquer le filtre
+                filterJudges(judgeSearch.value.toLowerCase(), activeJudgeFilter);
+            });
+        });
+        
+        function filterJudges(searchTerm, filter) {
+            judgeCards.forEach(card => {
+                const judgeName = card.querySelector('.fw-500').textContent.toLowerCase();
+                const filterTypes = card.dataset.filterTypes || '';
+                
+                // Vérifier si le juge correspond au filtre et au terme de recherche
+                const matchesFilter = filter === 'all' || filterTypes.includes(filter);
+                const matchesSearch = judgeName.includes(searchTerm);
+                
+                // Afficher ou masquer la carte
+                if (matchesFilter && matchesSearch) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+        
+        // Recherche de catégories
+        const categorySearch = document.getElementById('category-search');
+        const categoryFilterBadges = document.querySelectorAll('.filter-badge[data-filter^="discipline-"], .filter-badge[data-filter="all"]');
+        let activeCategoryFilter = 'all';
+        
+        categorySearch.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            filterCategories(searchTerm, activeCategoryFilter);
+        });
+        
+        categoryFilterBadges.forEach(badge => {
+            badge.addEventListener('click', function() {
+                // Mettre à jour la classe active
+                categoryFilterBadges.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Mettre à jour le filtre actif
+                activeCategoryFilter = this.dataset.filter;
+                
+                // Appliquer le filtre
+                filterCategories(categorySearch.value.toLowerCase(), activeCategoryFilter);
+            });
+        });
+        
+        function filterCategories(searchTerm, filter) {
+            categoryCards.forEach(card => {
+                const categoryName = card.querySelector('.category-title').textContent.toLowerCase();
+                const disciplineName = card.querySelector('.category-discipline').textContent.toLowerCase();
+                const filterTypes = card.dataset.filterTypes || '';
+                
+                // Vérifier si la catégorie correspond au filtre et au terme de recherche
+                const matchesFilter = filter === 'all' || filterTypes.includes(filter);
+                const matchesSearch = categoryName.includes(searchTerm) || disciplineName.includes(searchTerm);
+                
+                // Afficher ou masquer la carte
+                if (matchesFilter && matchesSearch) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+        
+        // ===== Validation du formulaire =====
+        
+        const bulkAssignmentForm = document.getElementById('bulk-assignment-form');
+        bulkAssignmentForm.addEventListener('submit', function(event) {
+            // Vérifier que toutes les données nécessaires sont présentes
+            if (selectedJudges.size === 0 || selectedCategories.size === 0 || !selectedAssignmentType) {
+                event.preventDefault();
+                alert("{% trans 'Veuillez sélectionner au moins un juge, une catégorie et un type d''assignation.' %}");
+                return;
+            }
+            
+            // Créer des inputs cachés pour les juges sélectionnés
+            selectedJudges.forEach(judgeId => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'selected_judges[]';
+                input.value = judgeId;
+                bulkAssignmentForm.appendChild(input);
+            });
+            
+            // Créer des inputs cachés pour les catégories sélectionnées
+            selectedCategories.forEach(categoryId => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'selected_categories[]';
+                input.value = categoryId;
+                bulkAssignmentForm.appendChild(input);
+            });
+        });
+    });
+</script>
+{% endblock %}

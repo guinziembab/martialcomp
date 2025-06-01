@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ survey.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .question-card {
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #007bff;
+    }
+    .required-indicator {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    .rating-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .rating-option {
+        padding: 0.5rem 1rem;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .rating-option:hover {
+        background-color: #f8f9fa;
+    }
+    .rating-option.selected {
+        background-color: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+    .survey-meta {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1>{{ survey.title }}</h1>
+                <div>
+                    {% if can_edit %}
+                    <a href="{% url 'competitions:events:surveys:edit_survey' survey_id=survey.id %}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-edit"></i> {% translate "Modifier" %}
+                    </a>
+                    <a href="{% url 'competitions:events:surveys:survey_results' survey_id=survey.id %}" class="btn btn-outline-info me-2">
+                        <i class="fas fa-chart-bar"></i> {% translate "Résultats" %}
+                    </a>
+                    <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteSurveyModal">
+                        <i class="fas fa-trash"></i> {% translate "Supprimer" %}
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="survey-meta mb-3">
+                            {% if survey.is_active %}
+                                <span class="badge bg-success">{% translate "Actif" %}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{% translate "Inactif" %}</span>
+                            {% endif %}
+                            
+                            {% if survey.is_anonymous %}
+                                <span class="badge bg-info">{% translate "Anonyme" %}</span>
+                            {% endif %}
+                            
+                            {% if survey.is_required %}
+                                <span class="badge bg-danger">{% translate "Obligatoire" %}</span>
+                            {% endif %}
+                            
+                            {% if survey.allow_multiple_submissions %}
+                                <span class="badge bg-warning">{% translate "Réponses multiples autorisées" %}</span>
+                            {% endif %}
+                        </div>
+                        
+                        <p>{{ survey.description }}</p>
+                        
+                        <div class="survey-meta">
+                            {% if survey.event %}
+                                <p>{% translate "Pour l'événement" %}: 
+                                    <a href="{% url 'competitions:events:event_detail' event_id=survey.event.id %}">
+                                        {{ survey.event.title }}
+                                    </a>
+                                </p>
+                            {% endif %}
+                            
+                            {% if survey.start_date or survey.end_date %}
+                                <p>
+                                    {% if survey.start_date %}
+                                        {% translate "Début" %}: {{ survey.start_date|date:"d/m/Y H:i" }}
+                                    {% endif %}
+                                    
+                                    {% if survey.start_date and survey.end_date %}
+                                        -
+                                    {% endif %}
+                                    
+                                    {% if survey.end_date %}
+                                        {% translate "Fin" %}: {{ survey.end_date|date:"d/m/Y H:i" }}
+                                    {% endif %}
+                                </p>
+                            {% endif %}
+                            
+                            <p>{% translate "Créé par" %}: {{ survey.created_by.get_full_name|default:survey.created_by.username }}</p>
+                            <p>{% translate "Créé le" %}: {{ survey.created_at|date:"d/m/Y H:i" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if has_responded and not survey.allow_multiple_submissions %}
+                <div class="alert alert-info">
+                    <i class="fas fa-check-circle"></i> {% translate "Vous avez déjà répondu à ce sondage." %}
+                    <a href="{% url 'competitions:events:surveys:survey_results' survey_id=survey.id %}" class="alert-link">
+                        {% translate "Voir les résultats" %}
+                    </a>
+                </div>
+            {% elif survey.is_active %}
+                <form method="post" id="surveyForm">
+                    {% csrf_token %}
+                    
+                    {% if not user.is_authenticated or survey.is_anonymous %}
+                        <div class="card mb-4">
+                            <div class="card-header">{% translate "Vos informations" %}</div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="id_respondent_name">{% translate "Votre nom" %}</label>
+                                        <input type="text" class="form-control" id="id_respondent_name" name="respondent_name">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="id_respondent_email">{% translate "Votre email" %}</label>
+                                        <input type="email" class="form-control" id="id_respondent_email" name="respondent_email">
+                                    </div>
+                                </div>
+                                
+                                {% if survey.is_anonymous %}
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="id_is_anonymous" name="is_anonymous">
+                                        <label class="form-check-label" for="id_is_anonymous">
+                                            {% translate "Soumettre anonymement" %}
+                                        </label>
+                                        <small class="form-text text-muted d-block">
+                                            {% translate "Si vous cochez cette case, vos réponses seront complètement anonymes." %}
+                                        </small>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    <h3 class="mb-3">{% translate "Questions" %}</h3>
+                    
+                    {% for question in questions %}
+                        <div class="card question-card mb-4">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    {{ question.question_text }}
+                                    {% if question.is_required %}
+                                        <span class="required-indicator">*</span>
+                                    {% endif %}
+                                </h5>
+                                
+                                {% if question.help_text %}
+                                    <p class="text-muted mb-3">{{ question.help_text }}</p>
+                                {% endif %}
+                                
+                                <div class="question-input">
+                                    {% with field_name="question_"|add:question.id|stringformat:"s" %}
+                                        {% if question.question_type == 'text' %}
+                                            <input type="text" class="form-control" id="id_{{ field_name }}" 
+                                                name="{{ field_name }}" {% if question.is_required %}required{% endif %}>
+                                                
+                                        {% elif question.question_type == 'textarea' %}
+                                            <textarea class="form-control" id="id_{{ field_name }}" name="{{ field_name }}" 
+                                                rows="3" {% if question.is_required %}required{% endif %}></textarea>
+                                                
+                                        {% elif question.question_type == 'single_choice' %}
+                                            <div class="mb-3">
+                                                {% for choice in question.choices %}
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="radio" name="{{ field_name }}" 
+                                                            id="id_{{ field_name }}_{{ forloop.counter }}" value="{{ choice }}"
+                                                            {% if question.is_required %}required{% endif %}>
+                                                        <label class="form-check-label" for="id_{{ field_name }}_{{ forloop.counter }}">
+                                                            {{ choice }}
+                                                        </label>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                            
+                                        {% elif question.question_type == 'multiple_choice' %}
+                                            <div class="mb-3">
+                                                {% for choice in question.choices %}
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" name="{{ field_name }}" 
+                                                            id="id_{{ field_name }}_{{ forloop.counter }}" value="{{ choice }}">
+                                                        <label class="form-check-label" for="id_{{ field_name }}_{{ forloop.counter }}">
+                                                            {{ choice }}
+                                                        </label>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                            
+                                        {% elif question.question_type == 'rating' %}
+                                            <div class="rating-group mb-3">
+                                                {% for i in question.min_value|range:question.max_value %}
+                                                    <div class="rating-option" data-value="{{ i }}" 
+                                                        onclick="selectRating('{{ field_name }}', {{ i }})">
+                                                        {{ i }}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                            <input type="hidden" id="id_{{ field_name }}" name="{{ field_name }}" 
+                                                {% if question.is_required %}required{% endif %}>
+                                                
+                                        {% elif question.question_type == 'scale' %}
+                                            <div class="mb-3">
+                                                <div class="d-flex justify-content-between mb-2">
+                                                    <span>{{ question.min_value }}</span>
+                                                    <span>{{ question.max_value }}</span>
+                                                </div>
+                                                <input type="range" class="form-range" id="id_{{ field_name }}" 
+                                                    name="{{ field_name }}" min="{{ question.min_value }}" 
+                                                    max="{{ question.max_value }}" step="1"
+                                                    {% if question.is_required %}required{% endif %}>
+                                            </div>
+                                            
+                                        {% elif question.question_type == 'date' %}
+                                            <input type="date" class="form-control" id="id_{{ field_name }}" 
+                                                name="{{ field_name }}" {% if question.is_required %}required{% endif %}>
+                                        {% endif %}
+                                    {% endwith %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-paper-plane"></i> {% translate "Soumettre ma réponse" %}
+                        </button>
+                    </div>
+                </form>
+            {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-circle"></i> {% translate "Ce sondage n'est plus actif." %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card sticky-top" style="top: 1rem;">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">{% translate "Informations" %}</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <strong>{% translate "État" %}:</strong>
+                            {% if survey.is_active %}
+                                <span class="badge bg-success">{% translate "Actif" %}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{% translate "Inactif" %}</span>
+                            {% endif %}
+                        </li>
+                        
+                        {% if survey.event %}
+                            <li class="list-group-item">
+                                <strong>{% translate "Événement" %}:</strong>
+                                <a href="{% url 'competitions:events:event_detail' event_id=survey.event.id %}">
+                                    {{ survey.event.title }}
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        <li class="list-group-item">
+                            <strong>{% translate "Nombre de questions" %}:</strong> {{ questions|length }}
+                        </li>
+                        
+                        {% if can_edit %}
+                            <li class="list-group-item">
+                                <strong>{% translate "Réponses reçues" %}:</strong> 
+                                {{ survey.responses.count }}
+                            </li>
+                        {% endif %}
+                        
+                        <li class="list-group-item">
+                            <strong>{% translate "Créé par" %}:</strong> 
+                            {{ survey.created_by.get_full_name|default:survey.created_by.username }}
+                        </li>
+                        
+                        <li class="list-group-item">
+                            <strong>{% translate "Créé le" %}:</strong> 
+                            {{ survey.created_at|date:"d/m/Y" }}
+                        </li>
+                        
+                        {% if survey.start_date %}
+                            <li class="list-group-item">
+                                <strong>{% translate "Commence le" %}:</strong> 
+                                {{ survey.start_date|date:"d/m/Y H:i" }}
+                            </li>
+                        {% endif %}
+                        
+                        {% if survey.end_date %}
+                            <li class="list-group-item">
+                                <strong>{% translate "Se termine le" %}:</strong> 
+                                {{ survey.end_date|date:"d/m/Y H:i" }}
+                            </li>
+                        {% endif %}
+                    </ul>
+                    
+                    {% if can_edit %}
+                        <div class="d-grid gap-2 mt-3">
+                            <a href="{% url 'competitions:events:surveys:toggle_survey_status' survey_id=survey.id %}" 
+                               class="btn btn-outline-primary toggle-status" data-method="post">
+                                {% if survey.is_active %}
+                                    <i class="fas fa-toggle-off"></i> {% translate "Désactiver le sondage" %}
+                                {% else %}
+                                    <i class="fas fa-toggle-on"></i> {% translate "Activer le sondage" %}
+                                {% endif %}
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if can_edit %}
+<!-- Modal de suppression -->
+<div class="modal fade" id="deleteSurveyModal" tabindex="-1" aria-labelledby="deleteSurveyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteSurveyModalLabel">{% translate "Supprimer le sondage" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% translate "Êtes-vous sûr de vouloir supprimer ce sondage ?" %}</p>
+                <p class="text-danger">{% translate "Cette action est irréversible et toutes les réponses seront perdues." %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Annuler" %}</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">{% translate "Supprimer" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Pour les questions de type rating
+    function selectRating(fieldName, value) {
+        // Mettre à jour la valeur cachée
+        document.getElementById('id_' + fieldName).value = value;
+        
+        // Mettre à jour l'affichage
+        const options = document.querySelectorAll(`[data-value]`);
+        options.forEach(option => {
+            if (parseInt(option.dataset.value) === value) {
+                option.classList.add('selected');
+            } else {
+                option.classList.remove('selected');
+            }
+        });
+    }
+    
+    // Pour le toggle de statut
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggleBtn = document.querySelector('.toggle-status');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                fetch(this.href, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Recharger la page pour refléter le changement
+                        window.location.reload();
+                    } else {
+                        alert(data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            });
+        }
+        
+        // Pour la suppression
+        const confirmDeleteBtn = document.getElementById('confirmDelete');
+        if (confirmDeleteBtn) {
+            confirmDeleteBtn.addEventListener('click', function() {
+                fetch('{% url "competitions:events:surveys:delete_survey" survey_id=survey.id %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = data.redirect_url;
+                    } else {
+                        alert(data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            });
+        }
+    });
+    
+    // Enregistrer le moment où l'utilisateur commence à remplir le sondage
+    document.addEventListener('DOMContentLoaded', function() {
+        // Stocker l'heure de début
+        sessionStorage.setItem('survey_start_time', new Date().toISOString());
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,612 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/combat.css' %}">
+<style>
+  body {
+    background-color: #f0f2f5;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+  
+  .combat-interface {
+    min-height: 100vh;
+  }
+  
+  .combat-header {
+    background-color: #343a40;
+    color: white;
+    padding: 1rem;
+    border-bottom: 3px solid #ffc107;
+  }
+  
+  .combat-timer {
+    font-size: 2.5rem;
+    font-weight: bold;
+    font-family: monospace;
+  }
+  
+  .combat-controls {
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 0.5rem;
+    padding: 1rem;
+  }
+  
+  .score-container {
+    border-radius: 0.5rem;
+    padding: 2rem 1rem;
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+  
+  .score-value {
+    font-size: 6rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  
+  .competitor-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-top: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .competitor-club {
+    font-size: 1rem;
+    opacity: 0.8;
+  }
+  
+  .score-badge {
+    font-size: 1.25rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .score-badge:hover {
+    transform: scale(1.1);
+  }
+  
+  .action-btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s;
+  }
+  
+  .action-btn:hover {
+    transform: scale(1.05);
+  }
+  
+  .score-red {
+    background-color: #dc3545;
+    color: white;
+  }
+  
+  .score-white {
+    background-color: #f8f9fa;
+    color: #212529;
+    border: 1px solid #dee2e6;
+  }
+  
+  .action-history {
+    height: calc(100vh - 350px);
+    overflow-y: auto;
+  }
+  
+  .flash-point {
+    animation: flash-animation 0.8s;
+  }
+  
+  @keyframes flash-animation {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  
+  .controls-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 1rem;
+    border-top: 1px solid #dee2e6;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="combat-interface">
+  <!-- Entête -->
+  <div class="combat-header">
+    <div class="container-fluid">
+      <div class="row align-items-center">
+        <div class="col-md-4">
+          <h4>{% translate "Interface d'arbitrage" %}</h4>
+          <div class="small">{{ combat.poule.nom|default:"" }} - {{ combat.get_type_combat_display }}</div>
+        </div>
+        <div class="col-md-4 text-center">
+          <div class="combat-timer" id="combat-timer">00:00</div>
+          <div class="small">
+            {% if combat.status == 'en_cours' %}
+            <span class="badge bg-success">{% translate "Combat en cours" %}</span>
+            {% else %}
+            <span class="badge bg-secondary">{{ combat.get_status_display }}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-md-4 text-end">
+          <div class="btn-group">
+            <a href="{% url 'competitions:combat:detail_combat' combat_id=combat.id %}" class="btn btn-outline-light">
+              <i class="fas fa-arrow-left"></i> {% translate "Détails" %}
+            </a>
+            <a href="{% url 'competitions:combat:affichage_combat' combat_id=combat.id %}" class="btn btn-outline-warning" target="_blank">
+              <i class="fas fa-desktop"></i> {% translate "Affichage public" %}
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Contenu principal -->
+  <div class="container-fluid mt-4 mb-5 pb-5">
+    <div class="row">
+      <!-- Zone des scores -->
+      <div class="col-md-8">
+        <div class="row">
+          <!-- Score Rouge -->
+          <div class="col-6">
+            <div class="score-container score-red">
+              <div class="score-value" id="score-red">{{ combat.score_rouge }}</div>
+              <div class="competitor-name">
+                {% if combat.type_combat == 'individuel' %}
+                {{ combat.pratiquant_rouge.full_name|default:"Rouge" }}
+                {% else %}
+                {{ combat.equipe_rouge.nom|default:"Équipe Rouge" }}
+                {% endif %}
+              </div>
+              <div class="competitor-club">
+                {% if combat.type_combat == 'individuel' and combat.pratiquant_rouge.organization %}
+                {{ combat.pratiquant_rouge.organization.name }}
+                {% elif combat.type_combat == 'equipe' and combat.equipe_rouge.club %}
+                {{ combat.equipe_rouge.club.name }}
+                {% endif %}
+              </div>
+            </div>
+            
+            {% if combat.status == 'en_cours' %}
+            <div class="row g-2 mb-4">
+              {% if combat.configuration %}
+                {% for point in combat.configuration.valeurs_points %}
+                <div class="col-4">
+                  <button class="btn btn-outline-danger score-badge" data-action="point" data-value="{{ point }}" data-color="rouge">
+                    +{{ point }}
+                  </button>
+                </div>
+                {% endfor %}
+                
+                {% for penalite in combat.configuration.valeurs_penalites %}
+                <div class="col-4">
+                  <button class="btn btn-outline-dark score-badge" data-action="penalite" data-value="{{ penalite }}" data-color="rouge">
+                    {{ penalite }}
+                  </button>
+                </div>
+                {% endfor %}
+              {% else %}
+                <!-- Valeurs par défaut si pas de configuration -->
+                <div class="col-4">
+                  <button class="btn btn-outline-danger score-badge" data-action="point" data-value="0.25" data-color="rouge">+0.25</button>
+                </div>
+                <div class="col-4">
+                  <button class="btn btn-outline-danger score-badge" data-action="point" data-value="0.5" data-color="rouge">+0.5</button>
+                </div>
+                <div class="col-4">
+                  <button class="btn btn-outline-danger score-badge" data-action="point" data-value="1" data-color="rouge">+1</button>
+                </div>
+                <div class="col-4">
+                  <button class="btn btn-outline-danger score-badge" data-action="point" data-value="1.5" data-color="rouge">+1.5</button>
+                </div>
+                <div class="col-4">
+                  <button class="btn btn-outline-danger score-badge" data-action="point" data-value="2" data-color="rouge">+2</button>
+                </div>
+                <div class="col-4">
+                  <button class="btn btn-outline-dark score-badge" data-action="penalite" data-value="-0.5" data-color="rouge">-0.5</button>
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="mb-4">
+              <button class="btn btn-danger action-btn" data-action="sortie" data-color="rouge">
+                <i class="fas fa-sign-out-alt"></i> {% translate "Sortie de tapis" %}
+              </button>
+              <button class="btn btn-outline-danger action-btn" data-action="avertissement" data-color="rouge">
+                <i class="fas fa-exclamation-triangle"></i> {% translate "Avertissement" %}
+              </button>
+            </div>
+            {% endif %}
+          </div>
+          
+          <!-- Score Blanc -->
+          <div class="col-6">
+            <div class="score-container score-white">
+              <div class="score-value" id="score-white">{{ combat.score_blanc }}</div>
+              <div class="competitor-name">
+                {% if combat.type_combat == 'individuel' %}
+                {{ combat.pratiquant_blanc.full_name|default:"Blanc" }}
+                {% else %}
+                {{ combat.equipe_blanc.nom|default:"Équipe Blanche" }}
+                {% endif %}
+              </div>
+              <div class="competitor-club">
+                {% if combat.type_combat == 'individuel' and combat.pratiquant_blanc.organization %}
+                {{ combat.pratiquant_blanc.organization.name }}
+                {% elif combat.type_combat == 'equipe' and combat.equipe_blanc.club %}
+                {{ combat.equipe_blanc.club.name }}
+                {% endif %}
+              </div>
+            </div>
+            
+            {% if combat.status == 'en_cours' %}
+            <div class="row g-2 mb-4">
+              {% if combat.configuration %}
+                {% for point in combat.configuration.valeurs_points %}
+                <div class="col-4">
+                  <button class="btn btn-outline-dark score-badge" data-action="point" data-value="{{ point }}" data-color="blanc">
+                    +{{ point }}
+                  </button>
+                </div>
+                {% endfor %}
+                
+                {% for penalite in combat.configuration.valeurs_penalites %}
+                <div class="col-4">
+                  <button class="btn btn-outline-danger score-badge" data-action="penalite" data-value="{{ penalite }}" data-color="blanc">
+                    {{ penalite }}
+                  </button>
+                </div>
+                {% endfor %}
+              {% else %}
+                <!-- Valeurs par défaut si pas de configuration -->
+                <div class="col-4">
+                  <button class="btn btn-outline-dark score-badge" data-action="point" data-value="0.25" data-color="blanc">+0.25</button>
+                </div>
+                <div class="col-4">
+                  <button class="btn btn-outline-dark score-badge" data-action="point" data-value="0.5" data-color="blanc">+0.5</button>
+                </div>
+                <div class="col-4">
+                  <button class="btn btn-outline-dark score-badge" data-action="point" data-value="1" data-color="blanc">+1</button>
+                </div>
+                <div class="col-4">
+                  <button class="btn btn-outline-dark score-badge" data-action="point" data-value="1.5" data-color="blanc">+1.5</button>
+                </div>
+                <div class="col-4">
+                  <button class="btn btn-outline-dark score-badge" data-action="point" data-value="2" data-color="blanc">+2</button>
+                </div>
+                <div class="col-4">
+                  <button class="btn btn-outline-danger score-badge" data-action="penalite" data-value="-0.5" data-color="blanc">-0.5</button>
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="mb-4">
+              <button class="btn btn-dark action-btn" data-action="sortie" data-color="blanc">
+                <i class="fas fa-sign-out-alt"></i> {% translate "Sortie de tapis" %}
+              </button>
+              <button class="btn btn-outline-dark action-btn" data-action="avertissement" data-color="blanc">
+                <i class="fas fa-exclamation-triangle"></i> {% translate "Avertissement" %}
+              </button>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        
+        <!-- Contrôles du combat -->
+        {% if combat.status == 'en_cours' %}
+        <div class="combat-controls mt-4">
+          <div class="row">
+            <div class="col-md-4">
+              <button id="pause-timer" class="btn btn-warning w-100">
+                <i class="fas fa-pause"></i> {% translate "Pause" %}
+              </button>
+            </div>
+            <div class="col-md-4">
+              <button id="reset-timer" class="btn btn-secondary w-100">
+                <i class="fas fa-redo"></i> {% translate "Réinitialiser" %}
+              </button>
+            </div>
+            <div class="col-md-4">
+              <a href="{% url 'competitions:combat:terminer_combat' combat_id=combat.id %}" class="btn btn-primary w-100">
+                <i class="fas fa-flag-checkered"></i> {% translate "Terminer le combat" %}
+              </a>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Historique des actions -->
+      <div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-header bg-light">
+            <h5 class="mb-0">{% translate "Historique des actions" %}</h5>
+          </div>
+          <div class="action-history list-group list-group-flush" id="action-history">
+            <!-- Les actions seront ajoutées ici dynamiquement -->
+            {% for action in actions %}
+            <div class="list-group-item">
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="badge {% if action.couleur == 'rouge' %}bg-danger{% elif action.couleur == 'blanc' %}bg-light text-dark border{% else %}bg-secondary{% endif %}">
+                  {{ action.get_couleur_display }}
+                </span>
+                <span class="badge {% if action.type_action == 'point' %}bg-success{% elif action.type_action == 'penalite' %}bg-danger{% else %}bg-warning{% endif %}">
+                  {{ action.get_type_action_display }}
+                  {% if action.type_action in 'point,penalite' %}
+                  ({{ action.valeur }})
+                  {% endif %}
+                </span>
+                <small class="text-muted">{{ action.temps|time:"H:i:s" }}</small>
+              </div>
+              
+              {% if action.description %}
+              <div class="small text-muted mt-1">
+                {{ action.description }}
+              </div>
+              {% endif %}
+              
+              {% if combat.status == 'en_cours' %}
+              <div class="mt-2 text-end">
+                <a href="{% url 'competitions:combat:annuler_action' action_id=action.id %}" class="btn btn-sm btn-outline-danger">
+                  <i class="fas fa-undo"></i> {% translate "Annuler" %}
+                </a>
+              </div>
+              {% endif %}
+            </div>
+            {% empty %}
+            <div class="list-group-item text-center text-muted">
+              {% translate "Aucune action enregistrée" %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Contrôles fixes en bas -->
+  {% if combat.status == 'en_cours' %}
+  <div class="controls-footer">
+    <div class="container-fluid">
+      <div class="row">
+        <div class="col-md-6">
+          <div class="btn-group w-100">
+            <button class="btn btn-outline-primary" id="add-time-30">
+              <i class="fas fa-plus"></i> 30s
+            </button>
+            <button class="btn btn-outline-primary" id="add-time-60">
+              <i class="fas fa-plus"></i> 1min
+            </button>
+            <button class="btn btn-outline-danger" id="remove-time-30">
+              <i class="fas fa-minus"></i> 30s
+            </button>
+          </div>
+        </div>
+        <div class="col-md-6 text-end">
+          <a href="{% url 'competitions:combat:terminer_combat' combat_id=combat.id %}" class="btn btn-primary">
+            <i class="fas fa-flag-checkered"></i> {% translate "Terminer le combat" %}
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Références aux éléments DOM
+  const combatTimer = document.getElementById('combat-timer');
+  const scoreRed = document.getElementById('score-red');
+  const scoreWhite = document.getElementById('score-white');
+  const actionHistory = document.getElementById('action-history');
+  
+  // Variables du chronomètre
+  let timerInterval;
+  let seconds = 0;
+  let isRunning = {% if combat.status == 'en_cours' %}true{% else %}false{% endif %};
+  
+  {% if combat.status == 'en_cours' and combat.debut_combat %}
+  // Calculer le temps écoulé depuis le début du combat
+  const startTime = new Date('{{ combat.debut_combat|date:"c" }}');
+  const now = new Date();
+  const elapsedTime = Math.floor((now - startTime) / 1000);
+  seconds = elapsedTime;
+  {% endif %}
+  
+  // Fonction pour mettre à jour l'affichage du chronomètre
+  function updateTimer() {
+    if (isRunning) {
+      seconds++;
+    }
+    
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    combatTimer.textContent = 
+      (minutes < 10 ? '0' : '') + minutes + ':' + 
+      (remainingSeconds < 10 ? '0' : '') + remainingSeconds;
+  }
+  
+  // Démarrer le chronomètre
+  if (isRunning) {
+    timerInterval = setInterval(updateTimer, 1000);
+    updateTimer(); // Mise à jour immédiate
+  }
+  
+  {% if combat.status == 'en_cours' %}
+  // Gestionnaire pour les boutons de score
+  document.querySelectorAll('.score-badge').forEach(button => {
+    button.addEventListener('click', function() {
+      const action = this.dataset.action;
+      const value = this.dataset.value;
+      const color = this.dataset.color;
+      
+      // Appel AJAX pour enregistrer l'action
+      submitAction(action, value, color);
+    });
+  });
+  
+  // Gestionnaire pour les boutons d'action
+  document.querySelectorAll('.action-btn').forEach(button => {
+    button.addEventListener('click', function() {
+      const action = this.dataset.action;
+      const color = this.dataset.color;
+      
+      // Valeur par défaut pour les actions spéciales
+      let value = 0;
+      
+      if (action === 'sortie') {
+        value = -0.25; // Pénalité standard pour sortie
+      } else if (action === 'avertissement') {
+        value = 0; // Pas de pénalité directe pour un avertissement
+      }
+      
+      // Appel AJAX pour enregistrer l'action
+      submitAction(action, value, color);
+    });
+  });
+  
+  // Contrôles du chronomètre
+  const pauseTimerBtn = document.getElementById('pause-timer');
+  const resetTimerBtn = document.getElementById('reset-timer');
+  const addTime30Btn = document.getElementById('add-time-30');
+  const addTime60Btn = document.getElementById('add-time-60');
+  const removeTime30Btn = document.getElementById('remove-time-30');
+  
+  if (pauseTimerBtn) {
+    pauseTimerBtn.addEventListener('click', function() {
+      if (isRunning) {
+        clearInterval(timerInterval);
+        isRunning = false;
+        this.innerHTML = '<i class="fas fa-play"></i> ' + '{% translate "Reprendre" %}';
+        this.classList.replace('btn-warning', 'btn-success');
+      } else {
+        timerInterval = setInterval(updateTimer, 1000);
+        isRunning = true;
+        this.innerHTML = '<i class="fas fa-pause"></i> ' + '{% translate "Pause" %}';
+        this.classList.replace('btn-success', 'btn-warning');
+      }
+    });
+  }
+  
+  if (resetTimerBtn) {
+    resetTimerBtn.addEventListener('click', function() {
+      if (confirm('{% translate "Êtes-vous sûr de vouloir réinitialiser le chronomètre ?" %}')) {
+        seconds = 0;
+        updateTimer();
+      }
+    });
+  }
+  
+  if (addTime30Btn) {
+    addTime30Btn.addEventListener('click', function() {
+      seconds += 30;
+      updateTimer();
+    });
+  }
+  
+  if (addTime60Btn) {
+    addTime60Btn.addEventListener('click', function() {
+      seconds += 60;
+      updateTimer();
+    });
+  }
+  
+  if (removeTime30Btn) {
+    removeTime30Btn.addEventListener('click', function() {
+      seconds = Math.max(0, seconds - 30);
+      updateTimer();
+    });
+  }
+  
+  // Fonction pour soumettre une action via AJAX
+  function submitAction(actionType, value, color) {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch('{% url "competitions:combat:ajouter_action" combat_id=combat.id %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({
+        type_action: actionType,
+        couleur: color,
+        valeur: value,
+        description: ''
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Mettre à jour le score
+        scoreRed.textContent = data.score_rouge.toFixed(2);
+        scoreWhite.textContent = data.score_blanc.toFixed(2);
+        
+        // Effet visuel pour le score
+        if (color === 'rouge') {
+          scoreRed.classList.add('flash-point');
+          setTimeout(() => scoreRed.classList.remove('flash-point'), 800);
+        } else {
+          scoreWhite.classList.add('flash-point');
+          setTimeout(() => scoreWhite.classList.remove('flash-point'), 800);
+        }
+        
+        // Recharger la page pour rafraîchir l'historique des actions
+        // Ou mieux, ajouter dynamiquement l'action à l'historique
+        setTimeout(() => {
+          location.reload();
+        }, 500);
+      } else {
+        alert('{% translate "Erreur lors de l\'enregistrement de l\'action" %}: ' + data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('{% translate "Erreur lors de la communication avec le serveur" %}');
+    });
+  }
+  
+  // Rafraîchissement périodique des données
+  setInterval(function() {
+    fetch('{% url "competitions:combat:api_statut_combat" combat_id=combat.id %}')
+      .then(response => response.json())
+      .then(data => {
+        // Mettre à jour les scores
+        scoreRed.textContent = data.score_rouge.toFixed(2);
+        scoreWhite.textContent = data.score_blanc.toFixed(2);
+        
+        // Vérifier si le combat est toujours en cours
+        if (data.status !== 'en_cours' && isRunning) {
+          clearInterval(timerInterval);
+          isRunning = false;
+          alert('{% translate "Le statut du combat a changé. La page va être rechargée." %}');
+          location.reload();
+        }
+      })
+      .catch(error => console.error('Error:', error));
+  }, 5000); // Rafraîchir toutes les 5 secondes
+  {% endif %}
+});
+</script>
+{% endblock %}

@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Résultats par club" %} - {{ competition.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Titre et navigation -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Résultats par club" %}</h1>
+        <div class="btn-group">
+            <a href="{% url 'competitions:management:results_dashboard' competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+            </a>
+            <a href="{% url 'competitions:management:all_competition_results' competition.id %}" class="btn btn-primary">
+                <i class="fas fa-trophy me-2"></i>{% trans "Tous les résultats" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Information sur la compétition -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{{ competition.title }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><i class="fas fa-calendar-alt me-2"></i>{% trans "Dates" %}: {{ competition.start_date|date:"d/m/Y" }} {% if competition.end_date and competition.end_date != competition.start_date %}- {{ competition.end_date|date:"d/m/Y" }}{% endif %}</p>
+                    <p class="mb-1"><i class="fas fa-map-marker-alt me-2"></i>{% trans "Lieu" %}: {{ competition.location }}</p>
+                    <p class="mb-0"><i class="fas fa-users me-2"></i>{% trans "Clubs participants" %}: {{ clubs_results|length }}</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <div class="btn-group">
+                        <a href="{% url 'competitions:management:medals_report' competition.id %}" class="btn btn-outline-primary">
+                            <i class="fas fa-medal me-1"></i>{% trans "Rapport des médailles" %}
+                        </a>
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#exportModal">
+                            <i class="fas fa-file-export me-1"></i>{% trans "Exporter" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tableau récapitulatif -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="h5 mb-0">{% trans "Classement des clubs" %}</h3>
+                <div class="input-group" style="max-width: 300px;">
+                    <input type="text" class="form-control" id="clubSearch" placeholder="{% trans 'Rechercher un club...' %}">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "Position" %}</th>
+                        <th>{% trans "Club" %}</th>
+                        <th class="text-center">
+                            <span class="badge bg-warning" data-bs-toggle="tooltip" title="{% trans 'Médailles d\'or' %}">
+                                <i class="fas fa-medal"></i> 🥇
+                            </span>
+                        </th>
+                        <th class="text-center">
+                            <span class="badge bg-secondary" data-bs-toggle="tooltip" title="{% trans 'Médailles d\'argent' %}">
+                                <i class="fas fa-medal"></i> 🥈
+                            </span>
+                        </th>
+                        <th class="text-center">
+                            <span class="badge bg-danger" data-bs-toggle="tooltip" title="{% trans 'Médailles de bronze' %}">
+                                <i class="fas fa-medal"></i> 🥉
+                            </span>
+                        </th>
+                        <th class="text-center">{% trans "Total" %}</th>
+                        <th class="text-center">{% trans "Score" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for club_result in clubs_results %}
+                        <tr class="club-row">
+                            <td class="fw-bold fs-5">{{ forloop.counter }}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if club_result.club.logo %}
+                                        <img src="{{ club_result.club.logo.url }}" alt="{{ club_result.club.name }}" 
+                                             class="me-2" width="40" height="40">
+                                    {% else %}
+                                        <div class="bg-light d-flex justify-content-center align-items-center me-2" 
+                                             style="width: 40px; height: 40px; border-radius: 4px;">
+                                            <i class="fas fa-dojo text-secondary"></i>
+                                        </div>
+                                    {% endif %}
+                                    <div>
+                                        <span class="fw-bold club-name">{{ club_result.club.name }}</span>
+                                        {% if club_result.club.city %}
+                                            <div class="small text-muted">{{ club_result.club.city }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="fw-bold fs-4 text-warning">{{ club_result.gold_medals }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="fw-bold fs-4 text-secondary">{{ club_result.silver_medals }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="fw-bold fs-4 text-danger">{{ club_result.bronze_medals }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="fw-bold fs-4">{{ club_result.total_medals }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-primary px-3 py-2 fs-6">{{ club_result.total_score }}</span>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-primary" 
+                                        data-bs-toggle="collapse" 
+                                        data-bs-target="#clubDetails{{ club_result.club.id }}" 
+                                        aria-expanded="false" 
+                                        aria-controls="clubDetails{{ club_result.club.id }}">
+                                    <i class="fas fa-chevron-down me-1"></i>{% trans "Détails" %}
+                                </button>
+                            </td>
+                        </tr>
+                        <tr class="collapse-row">
+                            <td colspan="8" class="p-0">
+                                <div class="collapse" id="clubDetails{{ club_result.club.id }}">
+                                    <div class="card card-body border-0 bg-light">
+                                        <h4 class="h6 mb-3">{% trans "Détail des médailles" %} - {{ club_result.club.name }}</h4>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>{% trans "Catégorie" %}</th>
+                                                        <th>{% trans "Participant" %}</th>
+                                                        <th>{% trans "Rang" %}</th>
+                                                        <th>{% trans "Score" %}</th>
+                                                        <th>{% trans "Médaille" %}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for ranking in club_result.rankings %}
+                                                        {% if ranking.rank <= 3 %}
+                                                            <tr>
+                                                                <td>{{ ranking.category.name }}</td>
+                                                                <td>{{ ranking.practitioner.full_name }}</td>
+                                                                <td>{{ ranking.rank }}</td>
+                                                                <td>{{ ranking.final_score }}</td>
+                                                                <td>
+                                                                    {% if ranking.rank == 1 %}
+                                                                        <span class="badge bg-warning">
+                                                                            <i class="fas fa-medal me-1"></i>{% trans "Or" %}
+                                                                        </span>
+                                                                    {% elif ranking.rank == 2 %}
+                                                                        <span class="badge bg-secondary">
+                                                                            <i class="fas fa-medal me-1"></i>{% trans "Argent" %}
+                                                                        </span>
+                                                                    {% elif ranking.rank == 3 %}
+                                                                        <span class="badge bg-danger">
+                                                                            <i class="fas fa-medal me-1"></i>{% trans "Bronze" %}
+                                                                        </span>
+                                                                    {% endif %}
+                                                                </td>
+                                                            </tr>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                <div class="d-flex flex-column align-items-center">
+                                    <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                                    <p class="mb-0">{% trans "Aucun résultat disponible pour les clubs participants." %}</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Graphique des médailles -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h3 class="h5 mb-0">{% trans "Graphique des médailles par club" %}</h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <canvas id="medalsByClubChart" height="300"></canvas>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h4 class="h6 mb-3">{% trans "Légende" %}</h4>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-circle text-warning me-2"></i>{% trans "Or" %}
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">3 points</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-circle text-secondary me-2"></i>{% trans "Argent" %}
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">2 points</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-circle text-danger me-2"></i>{% trans "Bronze" %}
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">1 point</span>
+                                </li>
+                            </ul>
+                            <div class="alert alert-info mt-3">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% trans "Le score total est calculé selon la formule : (Or × 3) + (Argent × 2) + Bronze" %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal d'export -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="exportModalLabel">
+                    <i class="fas fa-file-export me-2"></i>{% trans "Exporter les résultats par club" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Choisissez le format d'exportation des résultats par club." %}</p>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'competitions:management:export_all_results' competition.id %}?type=club&format=pdf" class="btn btn-outline-danger">
+                        <i class="fas fa-file-pdf me-2"></i>{% trans "Exporter en PDF" %}
+                    </a>
+                    <a href="{% url 'competitions:management:export_all_results' competition.id %}?type=club&format=csv" class="btn btn-outline-success">
+                        <i class="fas fa-file-csv me-2"></i>{% trans "Exporter en CSV" %}
+                    </a>
+                    <a href="{% url 'competitions:management:export_all_results' competition.id %}?type=club&format=excel" class="btn btn-outline-primary">
+                        <i class="fas fa-file-excel me-2"></i>{% trans "Exporter en Excel" %}
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>{% trans "Fermer" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Recherche de clubs
+        const searchInput = document.getElementById('clubSearch');
+        if (searchInput) {
+            searchInput.addEventListener('keyup', function() {
+                const searchTerm = this.value.toLowerCase();
+                const clubRows = document.querySelectorAll('.club-row');
+                
+                clubRows.forEach(row => {
+                    const clubName = row.querySelector('.club-name').textContent.toLowerCase();
+                    const collapseRowId = row.nextElementSibling ? row.nextElementSibling.id : '';
+                    
+                    if (clubName.includes(searchTerm)) {
+                        row.style.display = '';
+                        if (row.nextElementSibling && row.nextElementSibling.classList.contains('collapse-row')) {
+                            row.nextElementSibling.style.display = '';
+                        }
+                    } else {
+                        row.style.display = 'none';
+                        if (row.nextElementSibling && row.nextElementSibling.classList.contains('collapse-row')) {
+                            row.nextElementSibling.style.display = 'none';
+                        }
+                    }
+                });
+            });
+        }
+        
+        // Génération du graphique
+        const ctx = document.getElementById('medalsByClubChart');
+        if (ctx) {
+            const chartData = {
+                labels: [
+                    {% for club_result in clubs_results %}
+                        '{{ club_result.club.name }}',
+                    {% endfor %}
+                ],
+                datasets: [
+                    {
+                        label: '{% trans "Or" %}',
+                        data: [
+                            {% for club_result in clubs_results %}
+                                {{ club_result.gold_medals }},
+                            {% endfor %}
+                        ],
+                        backgroundColor: 'rgba(255, 193, 7, 0.7)',
+                        borderColor: 'rgb(255, 193, 7)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: '{% trans "Argent" %}',
+                        data: [
+                            {% for club_result in clubs_results %}
+                                {{ club_result.silver_medals }},
+                            {% endfor %}
+                        ],
+                        backgroundColor: 'rgba(108, 117, 125, 0.7)',
+                        borderColor: 'rgb(108, 117, 125)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: '{% trans "Bronze" %}',
+                        data: [
+                            {% for club_result in clubs_results %}
+                                {{ club_result.bronze_medals }},
+                            {% endfor %}
+                        ],
+                        backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                        borderColor: 'rgb(220, 53, 69)',
+                        borderWidth: 1
+                    }
+                ]
+            };
+            
+            new Chart(ctx, {
+                type: 'bar',
+                data: chartData,
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    },
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: '{% trans "Distribution des médailles par club" %}'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Initialiser les tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
+{% endblock %}

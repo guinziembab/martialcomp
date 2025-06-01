@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load widget_tweaks %}
+
+{% block title %}{% translate "Créer un sondage" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h2 class="h4 mb-0">
+                {% if event %}
+                    {% translate "Créer un sondage pour" %} {{ event.title }}
+                {% else %}
+                    {% translate "Créer un nouveau sondage" %}
+                {% endif %}
+            </h2>
+            <a href="{% url 'competitions:event_planning:poll_list' %}" class="btn btn-sm btn-light">
+                <i class="fas fa-arrow-left"></i> {% translate "Retour" %}
+            </a>
+        </div>
+        <div class="card-body">
+            <form method="post" id="pollForm" class="needs-validation" novalidate>
+                {% csrf_token %}
+                
+                <!-- Erreurs générales du formulaire -->
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in form.non_field_errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- Erreurs générales du formset -->
+                {% if formset.non_form_errors %}
+                <div class="alert alert-danger">
+                    {% for error in formset.non_form_errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- Section 1: Informations générales -->
+                <section class="mb-4">
+                    <h3 class="h5 border-bottom pb-2 mb-3">{% translate "Informations générales" %}</h3>
+                    
+                    <div class="row">
+                        <!-- Organisation -->
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.organization.id_for_label }}" class="form-label">
+                                {% translate "Organisation" %} <span class="text-danger">*</span>
+                            </label>
+                            {% if organizations.count == 1 %}
+                                {{ form.organization }}
+                                <p class="form-text">{{ organizations.first.name }}</p>
+                            {% else %}
+                                <select name="organization" id="{{ form.organization.id_for_label }}" class="form-select{% if form.organization.errors %} is-invalid{% endif %}" required>
+                                    <option value="">{% translate "Sélectionner une organisation" %}</option>
+                                    {% for org in organizations %}
+                                        <option value="{{ org.id }}" {% if form.organization.value|stringformat:"i" == org.id|stringformat:"i" %}selected{% endif %}>
+                                            {{ org.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.organization.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.organization.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Type d'événement -->
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.event_type.id_for_label }}" class="form-label">
+                                {% translate "Type d'événement" %}
+                            </label>
+                            {% render_field form.event_type class="form-select" placeholder=_("Sélectionner un type") %}
+                            {% if form.event_type.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.event_type.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <div class="form-text">{% translate "Choisissez le type d'événement que vous prévoyez d'organiser." %}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Titre -->
+                        <div class="col-md-12 mb-3">
+                            <label for="{{ form.title.id_for_label }}" class="form-label">
+                                {% translate "Titre" %} <span class="text-danger">*</span>
+                            </label>
+                            {% render_field form.title class="form-control" placeholder=_("Titre du sondage") required="required" %}
+                            {% if form.title.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.title.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Description -->
+                        <div class="col-md-12 mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">
+                                {% translate "Description" %}
+                            </label>
+                            {% render_field form.description class="form-control" placeholder=_("Description de l'événement") rows="3" %}
+                            {% if form.description.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.description.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Date d'expiration -->
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.expires_at_date.id_for_label }}" class="form-label">
+                                {% translate "Date d'expiration" %}
+                            </label>
+                            {% render_field form.expires_at_date class="form-control" %}
+                            {% if form.expires_at_date.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.expires_at_date.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <div class="form-text">{% translate "Laissez vide pour pas de limite" %}</div>
+                        </div>
+                        
+                        <!-- Heure d'expiration -->
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.expires_at_time.id_for_label }}" class="form-label">
+                                {% translate "Heure d'expiration" %}
+                            </label>
+                            {% render_field form.expires_at_time class="form-control" %}
+                            {% if form.expires_at_time.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.expires_at_time.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Section 2: Options de configuration -->
+                <section class="mb-4">
+                    <h3 class="h5 border-bottom pb-2 mb-3">{% translate "Options de configuration" %}</h3>
+                    
+                    <div class="row">
+                        <!-- Type de réponse -->
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.response_type.id_for_label }}" class="form-label">
+                                {% translate "Type de réponse" %}
+                            </label>
+                            {% render_field form.response_type class="form-select" %}
+                            {% if form.response_type.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.response_type.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Options de visibilité -->
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                {% render_field form.show_participants class="form-check-input" %}
+                                <label class="form-check-label" for="{{ form.show_participants.id_for_label }}">
+                                    {% translate "Afficher les participants" %}
+                                </label>
+                                {% if form.show_participants.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.show_participants.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="form-check">
+                                {% render_field form.show_vote_counts class="form-check-input" %}
+                                <label class="form-check-label" for="{{ form.show_vote_counts.id_for_label }}">
+                                    {% translate "Afficher les décomptes de votes" %}
+                                </label>
+                                {% if form.show_vote_counts.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.show_vote_counts.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Options de participation -->
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                {% render_field form.allow_comments class="form-check-input" %}
+                                <label class="form-check-label" for="{{ form.allow_comments.id_for_label }}">
+                                    {% translate "Autoriser les commentaires" %}
+                                </label>
+                                {% if form.allow_comments.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.allow_comments.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="form-check">
+                                {% render_field form.allow_multiple_votes class="form-check-input" %}
+                                <label class="form-check-label" for="{{ form.allow_multiple_votes.id_for_label }}">
+                                    {% translate "Autoriser votes multiples" %}
+                                </label>
+                                {% if form.allow_multiple_votes.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.allow_multiple_votes.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Section 3: Options de date -->
+                <section class="mb-4">
+                    <h3 class="h5 border-bottom pb-2 mb-3">
+                        {% translate "Options de date" %}
+                        <span class="text-danger">*</span>
+                    </h3>
+                    
+                    {{ formset.management_form }}
+                    
+                    <div id="options-container">
+                        {% for option_form in formset %}
+                            <div class="option-form card mb-3 {% if option_form.DELETE.value %}d-none{% endif %}">
+                                {% if option_form.id.value %}{{ option_form.id }}{% endif %}
+                                
+                                <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                                    <h4 class="h6 mb-0">{% translate "Option" %} #<span class="option-number">{{ forloop.counter }}</span></h4>
+                                    {% if formset.can_delete %}
+                                        <div class="form-check form-switch">
+                                            {{ option_form.DELETE }}
+                                            <label class="form-check-label" for="{{ option_form.DELETE.id_for_label }}">
+                                                <button type="button" class="btn btn-sm btn-outline-danger delete-option">
+                                                    <i class="fas fa-trash-alt"></i> {% translate "Supprimer" %}
+                                                </button>
+                                            </label>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="card-body">
+                                    <div class="row">
+                                        <!-- Date -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ option_form.date.id_for_label }}" class="form-label">
+                                                {% translate "Date" %} <span class="text-danger">*</span>
+                                            </label>
+                                            {% render_field option_form.date class="form-control" required="required" %}
+                                            {% if option_form.date.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in option_form.date.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Toute la journée -->
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check mt-4">
+                                                {% render_field option_form.all_day class="form-check-input all-day-checkbox" %}
+                                                <label class="form-check-label" for="{{ option_form.all_day.id_for_label }}">
+                                                    {% translate "Toute la journée" %}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row time-fields {% if option_form.all_day.value %}d-none{% endif %}">
+                                        <!-- Heure de début -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ option_form.start_time.id_for_label }}" class="form-label">
+                                                {% translate "Heure de début" %}
+                                            </label>
+                                            {% render_field option_form.start_time class="form-control" %}
+                                            {% if option_form.start_time.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in option_form.start_time.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Heure de fin -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ option_form.end_time.id_for_label }}" class="form-label">
+                                                {% translate "Heure de fin" %}
+                                            </label>
+                                            {% render_field option_form.end_time class="form-control" %}
+                                            {% if option_form.end_time.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in option_form.end_time.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <!-- Lieu -->
+                                        <div class="col-md-12 mb-3">
+                                            <label for="{{ option_form.location.id_for_label }}" class="form-label">
+                                                {% translate "Lieu" %} <small class="text-muted">({% translate "optionnel" %})</small>
+                                            </label>
+                                            {% render_field option_form.location class="form-control" placeholder=_("Lieu spécifique pour cette option (si différent)") %}
+                                            {% if option_form.location.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in option_form.location.errors %}
+                                                    {{ error }}
+                                                {% endfor %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="text-center mb-3">
+                        <button type="button" id="add-option" class="btn btn-outline-primary">
+                            <i class="fas fa-plus-circle"></i> {% translate "Ajouter une option" %}
+                        </button>
+                    </div>
+                </section>
+                
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{% url 'competitions:event_planning:poll_list' %}" class="btn btn-secondary">
+                        {% translate "Annuler" %}
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> {% translate "Créer le sondage" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestion des options "Toute la journée"
+    document.querySelectorAll('.all-day-checkbox').forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            const timeFields = this.closest('.option-form').querySelector('.time-fields');
+            if (this.checked) {
+                timeFields.classList.add('d-none');
+            } else {
+                timeFields.classList.remove('d-none');
+            }
+        });
+    });
+
+    // Fonction pour mettre à jour les numéros d'option
+    function updateOptionNumbers() {
+        const visibleOptions = document.querySelectorAll('.option-form:not(.d-none)');
+        visibleOptions.forEach((option, index) => {
+            option.querySelector('.option-number').textContent = index + 1;
+        });
+    }
+
+    // Gestion de la suppression d'options
+    document.querySelectorAll('.delete-option').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const optionForm = this.closest('.option-form');
+            const deleteCheckbox = optionForm.querySelector('input[name$="-DELETE"]');
+            deleteCheckbox.checked = true;
+            optionForm.classList.add('d-none');
+            updateOptionNumbers();
+        });
+    });
+
+    // Gestion de l'ajout d'options
+    const addOptionButton = document.getElementById('add-option');
+    const optionsContainer = document.getElementById('options-container');
+    const totalForms = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
+    
+    addOptionButton.addEventListener('click', function() {
+        const formCount = parseInt(totalForms.value);
+        
+        // Cloner le premier formulaire
+        const formTemplate = document.querySelector('.option-form:not(.d-none)').cloneNode(true);
+        
+        // Mettre à jour les attributs et les ID pour le nouveau formulaire
+        formTemplate.innerHTML = formTemplate.innerHTML.replaceAll(
+            new RegExp('{{ formset.prefix }}-\\d+', 'g'), 
+            '{{ formset.prefix }}-' + formCount
+        );
+        
+        // Réinitialiser les valeurs des champs
+        formTemplate.querySelectorAll('input, select, textarea').forEach(function(input) {
+            if (input.type === 'checkbox') {
+                if (input.name.includes('-DELETE')) {
+                    input.checked = false;
+                }
+            } else {
+                input.value = '';
+            }
+        });
+        
+        // Ajouter le nouveau formulaire
+        optionsContainer.appendChild(formTemplate);
+        
+        // Mettre à jour le compteur de formulaires
+        totalForms.value = formCount + 1;
+        
+        // Mise à jour de la numérotation
+        updateOptionNumbers();
+        
+        // Réinitialiser les écouteurs d'événements
+        formTemplate.querySelector('.all-day-checkbox').addEventListener('change', function() {
+            const timeFields = this.closest('.option-form').querySelector('.time-fields');
+            if (this.checked) {
+                timeFields.classList.add('d-none');
+            } else {
+                timeFields.classList.remove('d-none');
+            }
+        });
+        
+        formTemplate.querySelector('.delete-option').addEventListener('click', function() {
+            const optionForm = this.closest('.option-form');
+            const deleteCheckbox = optionForm.querySelector('input[name$="-DELETE"]');
+            deleteCheckbox.checked = true;
+            optionForm.classList.add('d-none');
+            updateOptionNumbers();
+        });
+    });
+    
+    // Validation du formulaire
+    const form = document.getElementById('pollForm');
+    form.addEventListener('submit', function(event) {
+        // Vérifier s'il reste au moins une option visible
+        const visibleOptions = document.querySelectorAll('.option-form:not(.d-none)');
+        if (visibleOptions.length === 0) {
+            event.preventDefault();
+            alert("{% translate 'Vous devez ajouter au moins une option de date/heure.' %}");
+            return false;
+        }
+        
+        // Validation manuelle des champs required
+        let valid = true;
+        const requiredFields = form.querySelectorAll('input[required], select[required]');
+        requiredFields.forEach(function(field) {
+            if (!field.value.trim()) {
+                field.classList.add('is-invalid');
+                valid = false;
+            } else {
+                field.classList.remove('is-invalid');
+            }
+        });
+        
+        if (!valid) {
+            event.preventDefault();
+            alert("{% translate 'Veuillez remplir tous les champs obligatoires.' %}");
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Scanner QR Code" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    #qr-reader {
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+        border: 2px solid #ccc;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .scan-result {
+        display: none;
+        margin-top: 20px;
+    }
+    
+    .practitioner-info {
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-top: 15px;
+    }
+    
+    .practitioner-photo {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-right: 20px;
+    }
+    
+    .scan-history-item {
+        border-bottom: 1px solid #eee;
+        padding: 10px 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1>{% trans "Scanner QR Code Pratiquant" %}</h1>
+            
+            <div class="card">
+                <div class="card-body">
+                    <!-- Sélection du type de scan -->
+                    <div class="form-group mb-4">
+                        <label for="scan-type">{% trans "Type de scan" %}</label>
+                        <select id="scan-type" class="form-control">
+                            {% for value, label in scan_types %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <!-- Sélection contextuelle selon le type -->
+                    <div id="context-selection" class="mb-4">
+                        <!-- Sera rempli dynamiquement selon le type de scan -->
+                    </div>
+                    
+                    <!-- Zone de scan -->
+                    <div id="qr-reader" class="mb-4"></div>
+                    
+                    <!-- Boutons d'action -->
+                    <div class="text-center mb-4">
+                        <button id="start-scan" class="btn btn-primary">
+                            <i class="fas fa-camera"></i> {% trans "Démarrer le scan" %}
+                        </button>
+                        <button id="stop-scan" class="btn btn-danger" style="display: none;">
+                            <i class="fas fa-stop"></i> {% trans "Arrêter le scan" %}
+                        </button>
+                    </div>
+                    
+                    <!-- Résultat du scan -->
+                    <div id="scan-result" class="scan-result alert">
+                        <h4 class="alert-heading"></h4>
+                        <div class="practitioner-info" style="display: none;">
+                            <img class="practitioner-photo" src="" alt="">
+                            <div>
+                                <h5 class="mb-1"></h5>
+                                <p class="mb-0 text-muted club-name"></p>
+                                <p class="mb-0"><strong>{% trans "Licence" %}: </strong><span class="license-number"></span></p>
+                                <p class="mb-0">
+                                    <span class="badge badge-success federation-badge" style="display: none;">
+                                        <i class="fas fa-check-circle"></i> {% trans "Validé Fédération" %}
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                        <p class="message mt-3"></p>
+                    </div>
+                    
+                    <!-- Historique récent -->
+                    <div class="mt-5">
+                        <h3>{% trans "Scans récents" %}</h3>
+                        <div id="recent-scans" class="scan-history">
+                            <!-- Sera rempli via AJAX -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour la saisie manuelle -->
+<div class="modal fade" id="manual-input-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Saisie manuelle du code" %}</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="manual-form">
+                    <div class="form-group">
+                        <label for="manual-code">{% trans "Code QR" %}</label>
+                        <input type="text" class="form-control" id="manual-code" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-primary" id="submit-manual">{% trans "Valider" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+<script>
+let scanner = null;
+const csrfToken = '{{ csrf_token }}';
+
+// Initialisation
+document.addEventListener('DOMContentLoaded', function() {
+    const scanTypeSelect = document.getElementById('scan-type');
+    scanTypeSelect.addEventListener('change', updateContextSelection);
+    updateContextSelection();
+    
+    loadRecentScans();
+});
+
+// Mise à jour de la sélection contextuelle
+function updateContextSelection() {
+    const scanType = document.getElementById('scan-type').value;
+    const contextDiv = document.getElementById('context-selection');
+    
+    let html = '';
+    
+    switch(scanType) {
+        case 'competition':
+            html = `
+                <div class="form-group">
+                    <label for="competition-select">{% trans "Compétition" %}</label>
+                    <select id="competition-select" class="form-control">
+                        <option value="">{% trans "Sélectionner une compétition" %}</option>
+                        {% for competition in competitions %}
+                        <option value="{{ competition.id }}">{{ competition.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            `;
+            break;
+        case 'training':
+            html = `
+                <div class="form-group">
+                    <label for="training-select">{% trans "Session d'entraînement" %}</label>
+                    <select id="training-select" class="form-control">
+                        <option value="">{% trans "Sélectionner une session" %}</option>
+                        {% for session in training_sessions %}
+                        <option value="{{ session.id }}">{{ session.training_slot.name }} - {{ session.date|date:"H:i" }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            `;
+            break;
+        case 'event':
+            html = `
+                <div class="form-group">
+                    <label for="event-select">{% trans "Événement" %}</label>
+                    <select id="event-select" class="form-control">
+                        <option value="">{% trans "Sélectionner un événement" %}</option>
+                        {% for event in events %}
+                        <option value="{{ event.id }}">{{ event.name }} - {{ event.date|date:"d/m/Y" }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            `;
+            break;
+    }
+    
+    contextDiv.innerHTML = html;
+}
+
+// Démarrer le scan
+document.getElementById('start-scan').addEventListener('click', function() {
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    
+    scanner = new Html5QrcodeScanner("qr-reader", config);
+    
+    scanner.render(onScanSuccess, onScanFailure);
+    
+    document.getElementById('start-scan').style.display = 'none';
+    document.getElementById('stop-scan').style.display = 'inline-block';
+});
+
+// Arrêter le scan
+document.getElementById('stop-scan').addEventListener('click', function() {
+    if (scanner) {
+        scanner.clear();
+        scanner = null;
+    }
+    
+    document.getElementById('start-scan').style.display = 'inline-block';
+    document.getElementById('stop-scan').style.display = 'none';
+});
+
+// Succès du scan
+function onScanSuccess(decodedText, decodedResult) {
+    processScan(decodedText);
+    
+    // Arrêter le scan après succès
+    if (scanner) {
+        scanner.clear();
+        scanner = null;
+    }
+    
+    document.getElementById('start-scan').style.display = 'inline-block';
+    document.getElementById('stop-scan').style.display = 'none';
+}
+
+// Échec du scan (pas d'erreur, juste pas de QR code détecté)
+function onScanFailure(error) {
+    // Ignorer silencieusement
+}
+
+// Traiter le scan
+function processScan(qrCode) {
+    const scanType = document.getElementById('scan-type').value;
+    const data = {
+        qr_code: qrCode,
+        scan_type: scanType
+    };
+    
+    // Ajouter les données contextuelles
+    switch(scanType) {
+        case 'competition':
+            const competitionId = document.getElementById('competition-select')?.value;
+            if (competitionId) data.competition_id = competitionId;
+            break;
+        case 'training':
+            const trainingId = document.getElementById('training-select')?.value;
+            if (trainingId) data.training_session_id = trainingId;
+            break;
+        case 'event':
+            const eventId = document.getElementById('event-select')?.value;
+            if (eventId) data.event_id = eventId;
+            break;
+    }
+    
+    // Envoyer la requête
+    fetch('{% url "competitions:qr:process_scan" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        displayResult(data);
+        loadRecentScans();
+    })
+    .catch(error => {
+        displayError("{% trans 'Erreur lors du traitement du scan' %}");
+    });
+}
+
+// Afficher le résultat
+function displayResult(data) {
+    const resultDiv = document.getElementById('scan-result');
+    const heading = resultDiv.querySelector('.alert-heading');
+    const message = resultDiv.querySelector('.message');
+    
+    resultDiv.classList.remove('alert-success', 'alert-danger', 'alert-warning');
+    
+    if (data.success && data.valid) {
+        resultDiv.classList.add('alert-success');
+        heading.textContent = "{% trans 'Scan réussi' %}";
+        
+        // Afficher les informations du pratiquant
+        if (data.practitioner) {
+            const infoDiv = resultDiv.querySelector('.practitioner-info');
+            infoDiv.style.display = 'flex';
+            
+            const photo = infoDiv.querySelector('.practitioner-photo');
+            photo.src = data.practitioner.photo || '{% static "img/default-avatar.png" %}';
+            
+            infoDiv.querySelector('h5').textContent = data.practitioner.name;
+            infoDiv.querySelector('.club-name').textContent = data.practitioner.club || '';
+            infoDiv.querySelector('.license-number').textContent = data.practitioner.license_number || '-';
+            
+            const fedBadge = infoDiv.querySelector('.federation-badge');
+            fedBadge.style.display = data.practitioner.is_federation_validated ? 'inline-block' : 'none';
+        }
+    } else {
+        resultDiv.classList.add('alert-danger');
+        heading.textContent = "{% trans 'Scan échoué' %}";
+    }
+    
+    message.textContent = data.message;
+    resultDiv.style.display = 'block';
+}
+
+// Afficher une erreur
+function displayError(errorMessage) {
+    const resultDiv = document.getElementById('scan-result');
+    const heading = resultDiv.querySelector('.alert-heading');
+    const message = resultDiv.querySelector('.message');
+    
+    resultDiv.classList.remove('alert-success', 'alert-warning');
+    resultDiv.classList.add('alert-danger');
+    
+    heading.textContent = "{% trans 'Erreur' %}";
+    message.textContent = errorMessage;
+    
+    resultDiv.querySelector('.practitioner-info').style.display = 'none';
+    resultDiv.style.display = 'block';
+}
+
+// Charger les scans récents
+function loadRecentScans() {
+    fetch('{% url "competitions:qr:history" %}?limit=5')
+    .then(response => response.text())
+    .then(html => {
+        // Parser le HTML pour extraire les scans récents
+        // Ici on devrait avoir une vue API qui retourne du JSON
+        // Pour l'instant on simule
+        updateRecentScans([]);
+    });
+}
+
+// Mettre à jour l'affichage des scans récents
+function updateRecentScans(scans) {
+    const container = document.getElementById('recent-scans');
+    
+    if (scans.length === 0) {
+        container.innerHTML = '<p class="text-muted">{% trans "Aucun scan récent" %}</p>';
+        return;
+    }
+    
+    let html = '';
+    scans.forEach(scan => {
+        html += `
+            <div class="scan-history-item">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <strong>${scan.practitioner_name}</strong>
+                        <span class="badge badge-${scan.valid ? 'success' : 'danger'} ml-2">
+                            ${scan.scan_type_display}
+                        </span>
+                    </div>
+                    <small class="text-muted">${scan.date}</small>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+</script>
+{% endblock %}

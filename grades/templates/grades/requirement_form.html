@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ title }} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        max-width: 800px;
+        margin: 0 auto;
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+    }
+    
+    .required-field::after {
+        content: " *";
+        color: #dc3545;
+    }
+    
+    .help-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+    
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        color: #212529;
+    }
+    
+    .grade-info {
+        background-color: #f8f9fa;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .grade-color {
+        display: inline-block;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        vertical-align: middle;
+    }
+    
+    .criteria-editor {
+        margin-top: 1rem;
+    }
+    
+    .criteria-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    
+    .criteria-item button {
+        margin-left: 0.5rem;
+    }
+    
+    .form-buttons {
+        margin-top: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="form-container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>{{ title }}</h1>
+        </div>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        {% if grade %}
+            <div class="grade-info">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1">
+                            <span class="grade-color" style="background-color: {{ grade.color_code|default:'#e9ecef' }}"></span>
+                            {{ grade.name }}
+                        </h5>
+                        <div>
+                            <span class="badge bg-secondary">{{ grade.discipline.name }}</span>
+                            {% if grade.is_dan_grade %}
+                                <span class="badge bg-dark ms-2">{% trans "Grade Dan" %}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <a href="{% url 'grades:grade_detail' grade.id %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-eye me-1"></i>{% trans "Voir le grade" %}
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+        
+        <form method="post" id="requirementForm">
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in form.non_field_errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            
+            <!-- Informations de base -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "Informations de base" %}
+                </h2>
+                
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <label for="{{ form.name.id_for_label }}" class="form-label required-field">{% trans "Nom de l'exigence" %}</label>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.name.errors }}
+                            </div>
+                        {% endif %}
+                        {% if form.name.help_text %}
+                            <div class="help-text">{{ form.name.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="{{ form.order.id_for_label }}" class="form-label">{% trans "Ordre" %}</label>
+                        {{ form.order }}
+                        {% if form.order.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.order.errors }}
+                            </div>
+                        {% endif %}
+                        {% if form.order.help_text %}
+                            <div class="help-text">{{ form.order.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if not grade %}
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="id_discipline" class="form-label required-field">{% trans "Discipline" %}</label>
+                            <select name="discipline" id="id_discipline" class="form-select {% if discipline_error %}is-invalid{% endif %}">
+                                <option value="">---------</option>
+                                {% for discipline in disciplines %}
+                                    <option value="{{ discipline.id }}" {% if selected_discipline|stringformat:"s" == discipline.id|stringformat:"s" %}selected{% endif %}>
+                                        {{ discipline.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            {% if discipline_error %}
+                                <div class="invalid-feedback d-block">
+                                    {{ discipline_error }}
+                                </div>
+                            {% endif %}
+                            <div class="help-text">{% trans "Sélectionnez d'abord une discipline pour voir les grades disponibles" %}</div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="{{ form.grade.id_for_label }}" class="form-label required-field">{% trans "Grade" %}</label>
+                            {{ form.grade }}
+                            {% if form.grade.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.grade.errors }}
+                                </div>
+                            {% endif %}
+                            {% if form.grade.help_text %}
+                                <div class="help-text">{{ form.grade.help_text }}</div>
+                            {% endif %}
+                            
+                            <!-- Info de débogage -->
+                            {% if selected_discipline %}
+                                <div class="mt-2 small text-muted">
+                                    {% trans "Grades filtrés pour discipline ID" %}: {{ selected_discipline }}
+                                    ({{ filtered_grades_count|default:"0" }} {% trans "grades disponibles" %})
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <label for="{{ form.description.id_for_label }}" class="form-label">{% trans "Description" %}</label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.description.errors }}
+                        </div>
+                    {% endif %}
+                    {% if form.description.help_text %}
+                        <div class="help-text">{{ form.description.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Critères et exigences -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <i class="fas fa-clipboard-list me-2"></i>{% trans "Critères et conditions" %}
+                </h2>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="{{ form.criteria.id_for_label }}" class="form-label">{% trans "Critères d'évaluation" %}</label>
+                        {{ form.criteria }}
+                        {% if form.criteria.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.criteria.errors }}
+                            </div>
+                        {% endif %}
+                        {% if form.criteria.help_text %}
+                            <div class="help-text">{{ form.criteria.help_text }}</div>
+                        {% else %}
+                            <div class="help-text">{% trans "Entrez les critères séparés par des virgules" %}</div>
+                        {% endif %}
+                        
+                        <div class="criteria-editor">
+                            <div class="d-flex align-items-center mb-2">
+                                <input type="text" id="newCriterion" class="form-control me-2" placeholder="{% trans 'Nouveau critère...' %}">
+                                <button type="button" id="addCriterion" class="btn btn-outline-primary">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <div id="criteriaList" class="mt-2">
+                                <!-- Les critères seront ajoutés ici dynamiquement -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="{{ form.min_age.id_for_label }}" class="form-label">{% trans "Âge minimum requis" %}</label>
+                                {{ form.min_age }}
+                                {% if form.min_age.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.min_age.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <label for="{{ form.min_time_in_previous_grade.id_for_label }}" class="form-label">{% trans "Temps minimum dans le grade précédent (mois)" %}</label>
+                                <input type="number" name="min_time_in_previous_grade" id="id_min_time_in_previous_grade" class="form-control {% if form.min_time_in_previous_grade.errors %}is-invalid{% endif %}" value="{{ form.min_time_in_previous_grade.value|default:'0' }}" min="0">
+                                {% if form.min_time_in_previous_grade.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.min_time_in_previous_grade.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <label for="{{ form.required_points.id_for_label }}" class="form-label">{% trans "Points requis" %}</label>
+                            <input type="number" name="required_points" id="id_required_points" class="form-control {% if form.required_points.errors %}is-invalid{% endif %}" value="{{ form.required_points.value|default:'0' }}" min="0">
+                            {% if form.required_points.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.required_points.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-check mt-3">
+                    {{ form.is_mandatory }}
+                    <label class="form-check-label" for="{{ form.is_mandatory.id_for_label }}">
+                        {% trans "Cette exigence est obligatoire pour obtenir le grade" %}
+                    </label>
+                    {% if form.is_mandatory.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.is_mandatory.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Champs supplémentaires si présents dans le formulaire -->
+            {% for field in form %}
+                {% if field.name not in 'name,grade,description,order,criteria,min_age,min_time_in_previous_grade,required_points,is_mandatory' %}
+                    <div class="mb-3">
+                        <label for="{{ field.id_for_label }}" class="form-label {% if field.field.required %}required-field{% endif %}">
+                            {{ field.label }}
+                        </label>
+                        {{ field }}
+                        {% if field.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ field.errors }}
+                            </div>
+                        {% endif %}
+                        {% if field.help_text %}
+                            <div class="help-text">{{ field.help_text }}</div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% endfor %}
+            
+            <div class="form-buttons d-flex justify-content-between">
+                {% if grade %}
+                    <a href="{% url 'grades:grade_detail' grade.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au grade" %}
+                    </a>
+                {% else %}
+                    <a href="{% url 'grades:requirement_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                    </a>
+                {% endif %}
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>{% trans "Enregistrer" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Style pour les champs de formulaire
+        const formControls = document.querySelectorAll('input:not(.form-check-input), select, textarea');
+        formControls.forEach(control => {
+            if (!control.classList.contains('form-control') && !control.classList.contains('form-select')) {
+                if (control.tagName === 'SELECT') {
+                    control.classList.add('form-select');
+                } else {
+                    control.classList.add('form-control');
+                }
+            }
+        });
+        
+        // Afficher les erreurs de validation
+        const errorElements = document.querySelectorAll('.invalid-feedback');
+        errorElements.forEach(element => {
+            const associatedInput = element.previousElementSibling;
+            if (associatedInput) {
+                associatedInput.classList.add('is-invalid');
+            }
+        });
+        
+        // Gestion des critères d'évaluation
+        const criteriaInput = document.getElementById('{{ form.criteria.id_for_label }}');
+        const newCriterionInput = document.getElementById('newCriterion');
+        const addCriterionButton = document.getElementById('addCriterion');
+        const criteriaListContainer = document.getElementById('criteriaList');
+        
+        // Fonction pour charger les critères existants
+        function loadCriteria() {
+            const criteriaValue = criteriaInput.value;
+            if (criteriaValue) {
+                const criteria = criteriaValue.split(',').map(c => c.trim()).filter(c => c !== '');
+                criteriaListContainer.innerHTML = '';
+                
+                criteria.forEach(criterion => {
+                    addCriterionToList(criterion);
+                });
+            }
+        }
+        
+        // Fonction pour ajouter un critère à la liste
+        function addCriterionToList(criterion) {
+            const criterionDiv = document.createElement('div');
+            criterionDiv.className = 'criteria-item';
+            
+            const criterionText = document.createElement('span');
+            criterionText.textContent = criterion;
+            criterionText.className = 'flex-grow-1';
+            
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'btn btn-sm btn-outline-danger';
+            removeButton.innerHTML = '<i class="fas fa-times"></i>';
+            removeButton.addEventListener('click', function() {
+                criterionDiv.remove();
+                updateCriteriaInput();
+            });
+            
+            criterionDiv.appendChild(criterionText);
+            criterionDiv.appendChild(removeButton);
+            criteriaListContainer.appendChild(criterionDiv);
+        }
+        
+        // Fonction pour mettre à jour le champ de critères
+        function updateCriteriaInput() {
+            const criteriaItems = criteriaListContainer.querySelectorAll('.criteria-item');
+            const criteria = Array.from(criteriaItems).map(item => item.querySelector('span').textContent);
+            criteriaInput.value = criteria.join(', ');
+        }
+        
+        // Ajouter un événement au bouton d'ajout
+        addCriterionButton.addEventListener('click', function() {
+            const newCriterion = newCriterionInput.value.trim();
+            if (newCriterion) {
+                addCriterionToList(newCriterion);
+                newCriterionInput.value = '';
+                updateCriteriaInput();
+            }
+        });
+        
+        // Ajouter un événement à l'entrée pour l'ajout avec Entrée
+        newCriterionInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                addCriterionButton.click();
+            }
+        });
+        
+        // Charger les critères existants
+        loadCriteria();
+        
+        // Gestion de la sélection de discipline pour filtrer les grades
+        const disciplineSelect = document.getElementById('id_discipline');
+        const gradeSelect = document.getElementById('{{ form.grade.id_for_label }}');
+        
+        if (disciplineSelect && gradeSelect) {
+            disciplineSelect.addEventListener('change', function() {
+                const disciplineId = this.value;
+                
+                if (disciplineId) {
+                    // Rediriger avec le paramètre discipline
+                    const currentUrl = new URL(window.location.href);
+                    currentUrl.searchParams.set('discipline', disciplineId);
+                    window.location.href = currentUrl.toString();
+                } else {
+                    // Effacer les options de grade si aucune discipline n'est sélectionnée
+                    gradeSelect.innerHTML = '<option value="">---------</option>';
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

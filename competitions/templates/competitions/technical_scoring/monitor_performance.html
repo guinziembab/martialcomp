@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Suivi de prestation" %} - {{ practitioner.full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .score-card {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    .judge-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background-color: #f8f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+    }
+    
+    .score-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+    
+    .score-placeholder {
+        color: #adb5bd;
+        font-style: italic;
+    }
+    
+    .timer {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #495057;
+    }
+    
+    .timer-container {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 15px;
+        text-align: center;
+    }
+    
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+    }
+    
+    .status-indicator.connected {
+        background-color: #28a745;
+    }
+    
+    .status-indicator.pending {
+        background-color: #ffc107;
+    }
+    
+    .status-indicator.offline {
+        background-color: #dc3545;
+    }
+    
+    .judge-status {
+        font-size: 0.8rem;
+    }
+    
+    .score-table th,
+    .score-table td {
+        text-align: center;
+    }
+    
+    .score-table th:first-child,
+    .score-table td:first-child {
+        text-align: left;
+    }
+    
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+    
+    .live-indicator {
+        animation: pulse 2s infinite;
+        background-color: #dc3545;
+        color: white;
+        border-radius: 50px;
+        padding: 5px 10px;
+        font-size: 0.8rem;
+        display: inline-flex;
+        align-items: center;
+    }
+    
+    .live-indicator i {
+        margin-right: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:competitions:detail' pk=competition.id %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:competitions:categories' competition_id=competition.id %}">{% trans "Catégories" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:technical_scoring:manage_performances' category_id=category.id %}">{% trans "Prestations" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% trans "Suivi de prestation" %}</li>
+        </ol>
+    </nav>
+    
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3">
+                {% trans "Suivi de prestation" %}
+                <span class="live-indicator ms-2">
+                    <i class="fas fa-circle"></i> {% trans "En direct" %}
+                </span>
+            </h1>
+            <p class="text-muted">{% trans "Passage N°" %}{{ performance.performance_order }} - {{ practitioner.full_name }}</p>
+        </div>
+        <div class="col-auto">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="end_performance" value="1">
+                <button type="submit" class="btn btn-danger" id="end-performance-btn">
+                    <i class="fas fa-stop-circle me-2"></i>{% trans "Terminer la prestation" %}
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="row">
+        <div class="col-lg-5">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h5 mb-0">{% trans "Informations" %}</h2>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-4">
+                        <div class="judge-avatar">
+                            <i class="fas fa-user fa-lg text-secondary"></i>
+                        </div>
+                        <div>
+                            <h3 class="h5 mb-0">{{ practitioner.full_name }}</h3>
+                            <p class="mb-0 text-muted">
+                                {{ practitioner.grade }}
+                                {% if practitioner.club %}
+                                    - {{ practitioner.club.name }}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="timer-container mb-4">
+                        <div class="small text-muted mb-1">{% trans "Temps écoulé" %}</div>
+                        <div class="timer" id="timer">00:00</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h4 class="h6">{% trans "État de la prestation" %}</h4>
+                        <table class="table table-sm">
+                            <tr>
+                                <th>{% trans "Démarrée à" %}</th>
+                                <td>{{ performance.start_time|time:"H:i:s" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Statut" %}</th>
+                                <td>
+                                    <span class="badge bg-info">{% trans "En cours" %}</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Notes soumises" %}</th>
+                                <td id="submission-status">
+                                    {% if all_scores_submitted %}
+                                        <span class="badge bg-success">{% trans "Toutes les notes soumises" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">{% trans "En attente" %}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <div>
+                        <h4 class="h6">{% trans "Juges connectés" %}</h4>
+                        <ul class="list-group" id="judges-status">
+                            {% for judge in judges %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="status-indicator {% if judge.id in scores_by_judge %}connected{% else %}pending{% endif %}"></span>
+                                        {{ judge.first_name }} {{ judge.last_name }}
+                                    </div>
+                                    <span class="badge {% if judge.id in scores_by_judge %}bg-success{% else %}bg-secondary{% endif %} judge-status" id="judge-status-{{ judge.id }}">
+                                        {% if judge.id in scores_by_judge %}
+                                            {% trans "Notes soumises" %}
+                                        {% else %}
+                                            {% trans "En attente" %}
+                                        {% endif %}
+                                    </span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-7">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h5 mb-0">{% trans "Tableau des scores" %}</h2>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered score-table" id="scores-table">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Critère" %}</th>
+                                    {% for judge in judges %}
+                                        <th>{{ judge.first_name }}</th>
+                                    {% endfor %}
+                                    <th>{% trans "Moy." %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for criterion in criteria %}
+                                    <tr id="criterion-row-{{ criterion.id }}">
+                                        <td>{{ criterion.name }}</td>
+                                        {% for judge in judges %}
+                                            <td id="score-{{ judge.id }}-{{ criterion.id }}">
+                                                {% if judge.id in scores_by_judge and criterion.id in scores_by_judge|get_item:judge.id %}
+                                                    <span class="score-value">{{ scores_by_judge|get_item:judge.id|get_item:criterion.id }}</span>
+                                                {% else %}
+                                                    <span class="score-placeholder">-</span>
+                                                {% endif %}
+                                            </td>
+                                        {% endfor %}
+                                        <td id="avg-{{ criterion.id }}">
+                                            <span class="score-placeholder">-</span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr class="table-active">
+                                    <th>{% trans "Total" %}</th>
+                                    {% for judge in judges %}
+                                        <th id="total-{{ judge.id }}">
+                                            <span class="score-placeholder">-</span>
+                                        </th>
+                                    {% endfor %}
+                                    <th id="final-score">
+                                        <span class="score-placeholder">-</span>
+                                    </th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    
+                    <div class="alert alert-info mt-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Les scores sont mis à jour en temps réel à mesure que les juges soumettent leurs notes." %}
+                    </div>
+                </div>
+            </div>
+            
+            {% if not all_scores_submitted %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {% trans "Tous les juges n'ont pas encore soumis leurs notes." %}
+                </div>
+            {% else %}
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    {% trans "Toutes les notes sont soumises. Vous pouvez terminer la prestation." %}
+                </div>
+            {% endif %}
+            
+            <div class="d-grid gap-2">
+                <button type="button" class="btn btn-danger" id="confirm-end-btn">
+                    <i class="fas fa-stop-circle me-2"></i>{% trans "Terminer la prestation et accéder aux résultats" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation -->
+<div class="modal fade" id="confirmEndModal" tabindex="-1" aria-labelledby="confirmEndModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmEndModalLabel">{% trans "Confirmation" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                {% if all_scores_submitted %}
+                    <p>{% trans "Toutes les notes ont été soumises. Voulez-vous terminer la prestation ?" %}</p>
+                {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        {% trans "Tous les juges n'ont pas encore soumis leurs notes. Voulez-vous quand même terminer la prestation ?" %}
+                    </div>
+                    <p>{% trans "Les juges qui n'ont pas soumis leurs notes ne seront pas pris en compte dans le résultat final." %}</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-danger" id="confirm-end-performance">{% trans "Terminer la prestation" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Configuration du timer
+        const timerElement = document.getElementById('timer');
+        const startTime = new Date("{{ performance.start_time|date:'Y-m-d H:i:s' }}");
+        
+        function updateTimer() {
+            const now = new Date();
+            const diff = Math.floor((now - startTime) / 1000);
+            
+            const minutes = Math.floor(diff / 60).toString().padStart(2, '0');
+            const seconds = (diff % 60).toString().padStart(2, '0');
+            
+            timerElement.textContent = `${minutes}:${seconds}`;
+        }
+        
+        // Mettre à jour le timer toutes les secondes
+        updateTimer();
+        setInterval(updateTimer, 1000);
+        
+        // Configuration de la récupération des scores en temps réel
+        function fetchScores() {
+            fetch('{% url "competitions:technical_scoring:api_performance_status" performance_id=performance.id %}')
+                .then(response => response.json())
+                .then(data => {
+                    updateScoreTable(data);
+                })
+                .catch(error => console.error('Error fetching scores:', error));
+        }
+        
+        // Mettre à jour les scores toutes les 5 secondes
+        fetchScores();
+        setInterval(fetchScores, 5000);
+        
+        // Fonction pour mettre à jour le tableau des scores
+        function updateScoreTable(data) {
+            const scores = data.scores;
+            const judges = data.judges;
+            const criteria = data.criteria;
+            
+            // Mettre à jour les scores pour chaque juge et critère
+            for (const judgeId in scores) {
+                for (const criterionId in scores[judgeId]) {
+                    const scoreCell = document.getElementById(`score-${judgeId}-${criterionId}`);
+                    if (scoreCell) {
+                        scoreCell.innerHTML = `<span class="score-value">${scores[judgeId][criterionId]}</span>`;
+                    }
+                    
+                    // Mettre à jour le statut du juge
+                    const judgeStatus = document.getElementById(`judge-status-${judgeId}`);
+                    if (judgeStatus) {
+                        judgeStatus.className = 'badge bg-success judge-status';
+                        judgeStatus.textContent = '{% trans "Notes soumises" %}';
+                        
+                        // Mettre à jour l'indicateur de statut
+                        const statusIndicator = judgeStatus.parentElement.querySelector('.status-indicator');
+                        if (statusIndicator) {
+                            statusIndicator.className = 'status-indicator connected';
+                        }
+                    }
+                }
+            }
+            
+            // Calculer et mettre à jour les moyennes par critère
+            for (const criterion of criteria) {
+                const criterionId = criterion.id;
+                let sum = 0;
+                let count = 0;
+                
+                for (const judgeId in scores) {
+                    if (scores[judgeId][criterionId]) {
+                        sum += parseFloat(scores[judgeId][criterionId]);
+                        count++;
+                    }
+                }
+                
+                const avgCell = document.getElementById(`avg-${criterionId}`);
+                if (avgCell && count > 0) {
+                    const avg = (sum / count).toFixed(2);
+                    avgCell.innerHTML = `<span class="score-value">${avg}</span>`;
+                }
+            }
+            
+            // Calculer et mettre à jour les totaux par juge
+            for (const judge of judges) {
+                const judgeId = judge.id;
+                let total = 0;
+                let count = 0;
+                
+                if (scores[judgeId]) {
+                    for (const criterion of criteria) {
+                        const criterionId = criterion.id;
+                        if (scores[judgeId][criterionId]) {
+                            total += parseFloat(scores[judgeId][criterionId]) * parseFloat(criterion.weight);
+                            count++;
+                        }
+                    }
+                }
+                
+                const totalCell = document.getElementById(`total-${judgeId}`);
+                if (totalCell && count === criteria.length) {
+                    totalCell.innerHTML = `<span class="score-value">${total.toFixed(2)}</span>`;
+                }
+            }
+            
+            // Calculer et mettre à jour le score final
+            let finalScore = 0;
+            let finalCount = 0;
+            
+            for (const criterion of criteria) {
+                const criterionId = criterion.id;
+                let sum = 0;
+                let count = 0;
+                
+                for (const judgeId in scores) {
+                    if (scores[judgeId][criterionId]) {
+                        sum += parseFloat(scores[judgeId][criterionId]) * parseFloat(criterion.weight);
+                        count++;
+                    }
+                }
+                
+                if (count > 0) {
+                    finalScore += sum / count;
+                    finalCount++;
+                }
+            }
+            
+            const finalScoreCell = document.getElementById('final-score');
+            if (finalScoreCell && finalCount === criteria.length) {
+                finalScoreCell.innerHTML = `<span class="score-value">${finalScore.toFixed(2)}</span>`;
+            }
+            
+            // Mettre à jour le statut de soumission
+            const submissionStatus = document.getElementById('submission-status');
+            const allSubmitted = Object.keys(scores).length === judges.length;
+            
+            if (submissionStatus) {
+                if (allSubmitted) {
+                    submissionStatus.innerHTML = '<span class="badge bg-success">{% trans "Toutes les notes soumises" %}</span>';
+                } else {
+                    submissionStatus.innerHTML = '<span class="badge bg-warning text-dark">{% trans "En attente" %}</span>';
+                }
+            }
+        }
+        
+        // Gestion de la confirmation de fin de prestation
+        const confirmEndBtn = document.getElementById('confirm-end-btn');
+        const confirmEndModal = new bootstrap.Modal(document.getElementById('confirmEndModal'));
+        const confirmEndPerformanceBtn = document.getElementById('confirm-end-performance');
+        const endPerformanceForm = document.getElementById('end-performance-btn').closest('form');
+        
+        confirmEndBtn.addEventListener('click', function() {
+            confirmEndModal.show();
+        });
+        
+        confirmEndPerformanceBtn.addEventListener('click', function() {
+            endPerformanceForm.submit();
+        });
+    });
+</script>
+{% endblock %}

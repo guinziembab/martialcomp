@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}Diagnostic Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h1 class="mb-4">🔧 Diagnostic du Tableau de Bord</h1>
+            
+            <!-- Informations Utilisateur -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">👤 Informations Utilisateur</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <strong>Username:</strong> {{ user.username }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Authentifié:</strong> 
+                            {% if user.is_authenticated %}
+                                <span class="badge bg-success">✓ Oui</span>
+                            {% else %}
+                                <span class="badge bg-danger">✗ Non</span>
+                            {% endif %}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>ID Utilisateur:</strong> {{ user.id }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Email:</strong> {{ user.email|default:"Non défini" }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Rôle (profile.role):</strong> 
+                            {% if user.profile.role %}
+                                <span class="badge bg-info">{{ user.profile.role }}</span>
+                            {% else %}
+                                <span class="badge bg-warning">Non défini</span>
+                            {% endif %}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Club trouvé via:</strong> 
+                            {% if club_found_via %}
+                                <span class="badge bg-success">{{ club_found_via }}</span>
+                            {% else %}
+                                <span class="badge bg-danger">Aucune méthode</span>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Informations Club -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">🏢 Informations Club</h5>
+                </div>
+                <div class="card-body">
+                    {% if club %}
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">
+                                <strong>Nom:</strong> {{ club.name }}
+                            </li>
+                            <li class="list-group-item">
+                                <strong>ID:</strong> {{ club.id }}
+                            </li>
+                            <li class="list-group-item">
+                                <strong>Propriétaire:</strong> {{ club.owner|default:"Non défini" }}
+                            </li>
+                            <li class="list-group-item">
+                                <strong>Organisation associée:</strong> 
+                                {% if club.organization %}
+                                    <span class="badge bg-success">{{ club.organization.name }} (ID: {{ club.organization.id }})</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Aucune</span>
+                                {% endif %}
+                            </li>
+                            <li class="list-group-item">
+                                <strong>as_organization:</strong> 
+                                {% if club.as_organization %}
+                                    <span class="badge bg-success">{{ club.as_organization.name }} (ID: {{ club.as_organization.id }})</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Aucune</span>
+                                {% endif %}
+                            </li>
+                            <li class="list-group-item">
+                                <strong>Actif:</strong> 
+                                {% if club.is_active %}
+                                    <span class="badge bg-success">✓ Oui</span>
+                                {% else %}
+                                    <span class="badge bg-danger">✗ Non</span>
+                                {% endif %}
+                            </li>
+                            <li class="list-group-item">
+                                <strong>Migré:</strong> 
+                                {% if club.is_migrated %}
+                                    <span class="badge bg-success">✓ Oui</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Non</span>
+                                {% endif %}
+                            </li>
+                        </ul>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <strong>⚠️ Aucun club associé à l'utilisateur</strong>
+                            <p class="mb-0">L'utilisateur n'a pas de club associé via les méthodes suivantes :</p>
+                            <ul class="mt-2">
+                                <li>Attribut direct user.club</li>
+                                <li>Propriété Club.objects.filter(owner=user)</li>
+                                <li>Profil utilisateur</li>
+                                <li>Adhésions aux clubs</li>
+                            </ul>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Variables de Contexte -->
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">📊 Variables de Contexte Disponibles</h5>
+                </div>
+                <div class="card-body">
+                    {% if context_keys %}
+                        <div class="row">
+                            {% for key in context_keys %}
+                                <div class="col-md-3 mb-2">
+                                    <span class="badge bg-light text-dark">{{ key }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">Aucune variable de contexte disponible</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Statistiques de Base -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">📈 Statistiques de Base</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Pratiquants</h6>
+                            <p><strong>Total:</strong> {{ stats.total_practitioners|default:0 }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Compétitions</h6>
+                            <p><strong>Du club:</strong> {{ stats.club_competitions|default:0 }}</p>
+                            <p><strong>À gérer:</strong> {{ competitions_to_manage_count|default:0 }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Actions de Débogage -->
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">🔧 Actions de Débogage</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-primary">
+                                Retour au tableau de bord normal
+                            </a>
+                        </div>
+                        <div class="col-md-6">
+                            <button onclick="location.reload()" class="btn btn-secondary">
+                                Actualiser la page
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

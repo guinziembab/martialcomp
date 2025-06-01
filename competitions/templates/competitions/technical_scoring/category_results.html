@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Classement" %} - {{ category.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .results-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .category-info {
+        background-color: #fff;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        border-left: 5px solid #007bff;
+    }
+    
+    .category-name {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .competition-info {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .ranking-table-container {
+        background-color: #fff;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .ranking-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+    }
+    
+    .rank-cell {
+        font-size: 1.2rem;
+        font-weight: 700;
+        text-align: center;
+        width: 70px;
+    }
+    
+    .score-cell {
+        font-weight: 600;
+        font-size: 1.1rem;
+        text-align: center;
+    }
+    
+    .final-score {
+        font-size: 1.2rem;
+    }
+    
+    .first-places {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    
+    .rank-1 {
+        background-color: #fff9db !important;
+    }
+    
+    .rank-2 {
+        background-color: #f8f9fa !important;
+    }
+    
+    .rank-3 {
+        background-color: #fff4e6 !important;
+    }
+    
+    .medal-icon {
+        font-size: 1.5rem;
+        margin-right: 0.5rem;
+    }
+    
+    .gold-medal {
+        color: #fcc419;
+    }
+    
+    .silver-medal {
+        color: #adb5bd;
+    }
+    
+    .bronze-medal {
+        color: #fd7e14;
+    }
+    
+    .tie-badge {
+        background-color: #17a2b8;
+        color: white;
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+        border-radius: 3px;
+        margin-left: 0.5rem;
+        vertical-align: middle;
+    }
+    
+    .actions-container {
+        background-color: #fff;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+    
+    .print-preview {
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: white;
+        display: none;
+    }
+    
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        
+        .print-preview, .print-preview * {
+            visibility: visible;
+        }
+        
+        .print-preview {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            display: block;
+        }
+        
+        .no-print {
+            display: none !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="results-container">
+        <!-- En-tête avec infos de la catégorie -->
+        <div class="category-info">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h1 class="category-name">{{ category.name }}</h1>
+                    <div class="competition-info">
+                        {{ competition.title }}
+                    </div>
+                </div>
+                <a href="{% url 'competitions:competitions:categories' competition_id=competition.id %}" class="btn btn-outline-secondary no-print">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                </a>
+            </div>
+        </div>
+        
+        {% if messages %}
+            <div class="no-print">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        
+        <!-- Classement -->
+        <div class="ranking-table-container">
+            <h2 class="mb-4">{% trans "Classement final" %}</h2>
+            
+            {% if rankings %}
+                <div class="table-responsive">
+                    <table class="table table-hover ranking-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">{% trans "Rang" %}</th>
+                                <th scope="col">{% trans "Nom" %}</th>
+                                <th scope="col">{% trans "Club" %}</th>
+                                <th scope="col" class="text-center">{% trans "Score" %}</th>
+                                <th scope="col" class="text-center">{% trans "1ères places" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ranking in rankings %}
+                                <tr class="rank-{{ ranking.rank }}">
+                                    <td class="rank-cell">
+                                        {% if ranking.rank == 1 %}
+                                            <i class="fas fa-medal gold-medal" title="{% trans 'Médaille d\'or' %}"></i>
+                                        {% elif ranking.rank == 2 %}
+                                            <i class="fas fa-medal silver-medal" title="{% trans 'Médaille d\'argent' %}"></i>
+                                        {% elif ranking.rank == 3 %}
+                                            <i class="fas fa-medal bronze-medal" title="{% trans 'Médaille de bronze' %}"></i>
+                                        {% else %}
+                                            {{ ranking.rank }}
+                                        {% endif %}
+                                        
+                                        {% if ranking.is_tie %}
+                                            <span class="tie-badge">{% trans "Ex-aequo" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong>{{ ranking.practitioner.last_name }}</strong> {{ ranking.practitioner.first_name }}
+                                    </td>
+                                    <td>
+                                        {% if ranking.practitioner.club %}
+                                            {{ ranking.practitioner.club.name }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="score-cell">
+                                        <div class="final-score">{{ ranking.final_score|floatformat:2 }}</div>
+                                    </td>
+                                    <td class="text-center">
+                                        {{ ranking.first_places }}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucun résultat n'est encore disponible pour cette catégorie." %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Actions -->
+        <div class="actions-container no-print">
+            <form method="post" class="d-inline-block">
+                {% csrf_token %}
+                <button type="submit" name="export_results" class="btn btn-outline-primary me-2">
+                    <i class="fas fa-file-export me-2"></i>{% trans "Exporter en CSV" %}
+                </button>
+            </form>
+            
+            <button type="button" class="btn btn-outline-secondary me-2" id="print-btn">
+                <i class="fas fa-print me-2"></i>{% trans "Imprimer" %}
+            </button>
+            
+            <a href="{% url 'competitions:technical_scoring:manage_performances' category_id=category.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-list me-2"></i>{% trans "Gérer les prestations" %}
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Version imprimable -->
+<div class="print-preview">
+    <div class="text-center mb-4">
+        <h1>{{ competition.title }}</h1>
+        <h2>{{ category.name }}</h2>
+        <p>{% trans "Résultats du" %} {{ competition.end_date|date:"d/m/Y" }}</p>
+    </div>
+    
+    {% if rankings %}
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th scope="col">{% trans "Rang" %}</th>
+                    <th scope="col">{% trans "Nom" %}</th>
+                    <th scope="col">{% trans "Club" %}</th>
+                    <th scope="col" class="text-center">{% trans "Score" %}</th>
+                    <th scope="col" class="text-center">{% trans "1ères places" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ranking in rankings %}
+                    <tr>
+                        <td class="text-center">
+                            {{ ranking.rank }}
+                            {% if ranking.is_tie %} (ex){% endif %}
+                        </td>
+                        <td>
+                            <strong>{{ ranking.practitioner.last_name }}</strong> {{ ranking.practitioner.first_name }}
+                        </td>
+                        <td>
+                            {% if ranking.practitioner.club %}
+                                {{ ranking.practitioner.club.name }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {{ ranking.final_score|floatformat:2 }}
+                        </td>
+                        <td class="text-center">
+                            {{ ranking.first_places }}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>{% trans "Aucun résultat disponible" %}</p>
+    {% endif %}
+    
+    <div class="text-center mt-5">
+        <p>{% trans "Document généré le" %} {% now "d/m/Y H:i" %}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Fonction d'impression
+        const printBtn = document.getElementById('print-btn');
+        if (printBtn) {
+            printBtn.addEventListener('click', function() {
+                window.print();
+            });
+        }
+    });
+</script>
+{% endblock %}

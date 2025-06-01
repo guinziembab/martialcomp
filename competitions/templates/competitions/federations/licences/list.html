@@ -1,0 +1,156 @@
+{# competitions/templates/competitions/federation/licences/list.html #}
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Gestion des licences" %} - {{ federation.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:dashboard:index' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:federations:federation_dashboard' federation.id %}">{{ federation.name }}</a></li>
+            <li class="breadcrumb-item active">{% trans "Licences" %}</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{% trans "Gestion des licences" %}</h1>
+        <a href="{% url 'competitions:licences:create' federation.id %}" class="btn btn-primary">
+            <i class="fas fa-plus-circle me-2"></i>{% trans "Créer une licence" %}
+        </a>
+    </div>
+
+    <!-- Filtres et recherche -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-6">
+                    <label for="search" class="form-label">{% trans "Rechercher" %}</label>
+                    <input type="text" name="q" id="search" class="form-control" 
+                           placeholder="{% trans 'Nom, prénom ou numéro de licence...' %}" 
+                           value="{{ search_query }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="status" class="form-label">{% trans "Statut" %}</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="">{% trans "Tous les statuts" %}</option>
+                        {% for value, label in license_statuses %}
+                            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-2"></i>{% trans "Filtrer" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Liste des licences -->
+    <div class="card">
+        <div class="card-body">
+            {% if licences %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Numéro" %}</th>
+                                <th>{% trans "Pratiquant" %}</th>
+                                <th>{% trans "Club" %}</th>
+                                <th>{% trans "Émise le" %}</th>
+                                <th>{% trans "Expire le" %}</th>
+                                <th>{% trans "Statut" %}</th>
+                                <th>{% trans "Compétition" %}</th>
+                                <th class="text-end">{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for licence in licences %}
+                                <tr>
+                                    <td>{{ licence.license_number }}</td>
+                                    <td>{{ licence.practitioner.full_name }}</td>
+                                    <td>{{ licence.practitioner.club.name|default:"-" }}</td>
+                                    <td>{{ licence.issue_date|date:"d/m/Y" }}</td>
+                                    <td>{{ licence.expiry_date|date:"d/m/Y" }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ licence.status|yesno:'success,danger,warning' }}">
+                                            {{ licence.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if licence.is_competition_valid %}
+                                            <span class="badge bg-success">{% trans "Oui" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{% trans "Non" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="{% url 'competitions:licences:edit' federation.id licence.id %}" 
+                                           class="btn btn-sm btn-outline-primary me-1">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{% url 'competitions:licences:delete' federation.id licence.id %}" 
+                                           class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                {% if licences.has_other_pages %}
+                    <nav aria-label="Page navigation" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if licences.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% if search_query %}&q={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                                        &laquo; {% trans "Première" %}
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ licences.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                                        {% trans "Précédente" %}
+                                    </a>
+                                </li>
+                            {% endif %}
+
+                            <li class="page-item active">
+                                <span class="page-link">
+                                    {% trans "Page" %} {{ licences.number }} {% trans "sur" %} {{ licences.paginator.num_pages }}
+                                </span>
+                            </li>
+
+                            {% if licences.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ licences.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                                        {% trans "Suivante" %}
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ licences.paginator.num_pages }}{% if search_query %}&q={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                                        {% trans "Dernière" %} &raquo;
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucune licence trouvée." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

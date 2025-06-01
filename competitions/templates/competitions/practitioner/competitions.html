@@ -1,0 +1,295 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+
+{% block dashboard_content %}
+<div class="page-header">
+    <h1 class="page-title">{% trans "Mes Compétitions" %}</h1>
+    <p class="page-subtitle">{% trans "Consultez votre historique et vos inscriptions" %}</p>
+</div>
+
+<!-- Filtres -->
+<div class="dashboard-card mb-4">
+    <div class="card-body">
+        <form method="get" class="row">
+            <div class="col-md-4">
+                <select name="status" class="form-control" onchange="this.form.submit()">
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>
+                        {% trans "Toutes les compétitions" %}
+                    </option>
+                    <option value="upcoming" {% if status_filter == 'upcoming' %}selected{% endif %}>
+                        {% trans "Compétitions à venir" %}
+                    </option>
+                    <option value="past" {% if status_filter == 'past' %}selected{% endif %}>
+                        {% trans "Compétitions passées" %}
+                    </option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <select name="discipline" class="form-control" onchange="this.form.submit()">
+                    <option value="all" {% if discipline_filter == 'all' %}selected{% endif %}>
+                        {% trans "Toutes les disciplines" %}
+                    </option>
+                    {% for discipline in disciplines %}
+                    <option value="{{ discipline.id }}" {% if discipline_filter == discipline.id|stringformat:"s" %}selected{% endif %}>
+                        {{ discipline.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <div class="input-group">
+                    <input type="text" name="search" class="form-control" placeholder="{% trans 'Rechercher...' %}" 
+                           value="{{ request.GET.search }}">
+                    <div class="input-group-append">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Liste des compétitions -->
+<div class="dashboard-card">
+    <div class="card-header">
+        <h3>{% trans "Mes inscriptions" %}</h3>
+    </div>
+    <div class="card-body">
+        {% if registrations %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Compétition" %}</th>
+                        <th>{% trans "Lieu" %}</th>
+                        <th>{% trans "Catégorie" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                        <th>{% trans "Résultat" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for registration in registrations %}
+                    <tr>
+                        <td>
+                            {{ registration.competition.start_date|date:"d/m/Y" }}
+                        </td>
+                        <td>
+                            <strong>{{ registration.competition.name }}</strong>
+                            {% if registration.competition.is_upcoming %}
+                                <span class="badge badge-info ml-2">{% trans "À venir" %}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ registration.competition.location }}</td>
+                        <td>{{ registration.category.name }}</td>
+                        <td>
+                            {% if registration.status == 'confirmed' %}
+                                <span class="badge badge-success">{% trans "Confirmé" %}</span>
+                            {% elif registration.status == 'pending' %}
+                                <span class="badge badge-warning">{% trans "En attente" %}</span>
+                            {% elif registration.status == 'cancelled' %}
+                                <span class="badge badge-danger">{% trans "Annulé" %}</span>
+                            {% else %}
+                                <span class="badge badge-secondary">{{ registration.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if results|get_item:registration.id %}
+                                {% with result=results|get_item:registration.id %}
+                                    {% if result.ranking == 1 %}
+                                        <i class="fas fa-medal text-warning"></i> {% trans "1er" %}
+                                    {% elif result.ranking == 2 %}
+                                        <i class="fas fa-medal text-secondary"></i> {% trans "2e" %}
+                                    {% elif result.ranking == 3 %}
+                                        <i class="fas fa-medal" style="color: #cd7f32;"></i> {% trans "3e" %}
+                                    {% else %}
+                                        {{ result.ranking }}{% trans "e" %}
+                                    {% endif %}
+                                    {% if result.points %}
+                                        <small class="text-muted">({{ result.points }} pts)</small>
+                                    {% endif %}
+                                {% endwith %}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'competitions:competition_detail' registration.competition.id %}" 
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye"></i> {% trans "Détails" %}
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-trophy fa-4x text-muted mb-3"></i>
+            <p class="text-muted">{% trans "Aucune inscription trouvée" %}</p>
+            <a href="{% url 'competitions:competition_list' %}" class="btn btn-primary">
+                {% trans "Voir les compétitions disponibles" %}
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Statistiques de compétition -->
+<div class="row mt-4">
+    <div class="col-lg-4">
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "Statistiques par discipline" %}</h3>
+            </div>
+            <div class="card-body">
+                <canvas id="disciplineChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "Palmarès" %}</h3>
+            </div>
+            <div class="card-body">
+                <div class="palmares">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <i class="fas fa-medal text-warning fa-2x"></i>
+                            <span class="ml-2">{% trans "Or" %}</span>
+                        </div>
+                        <div>
+                            <h3 class="mb-0">{{ gold_medals|default:"0" }}</h3>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <i class="fas fa-medal text-secondary fa-2x"></i>
+                            <span class="ml-2">{% trans "Argent" %}</span>
+                        </div>
+                        <div>
+                            <h3 class="mb-0">{{ silver_medals|default:"0" }}</h3>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-medal fa-2x" style="color: #cd7f32;"></i>
+                            <span class="ml-2">{% trans "Bronze" %}</span>
+                        </div>
+                        <div>
+                            <h3 class="mb-0">{{ bronze_medals|default:"0" }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "Évolution du classement" %}</h3>
+            </div>
+            <div class="card-body">
+                <canvas id="rankingChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Graphique des disciplines
+    const disciplineCtx = document.getElementById('disciplineChart').getContext('2d');
+    
+    new Chart(disciplineCtx, {
+        type: 'doughnut',
+        data: {
+            labels: [
+                {% for discipline in disciplines %}
+                '{{ discipline.name }}',
+                {% endfor %}
+            ],
+            datasets: [{
+                data: [
+                    {% for discipline in disciplines %}
+                    {{ discipline.competition_count|default:"0" }},
+                    {% endfor %}
+                ],
+                backgroundColor: [
+                    'rgba(0, 123, 255, 0.8)',
+                    'rgba(40, 167, 69, 0.8)',
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(220, 53, 69, 0.8)',
+                    'rgba(23, 162, 184, 0.8)',
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                }
+            }
+        }
+    });
+    
+    // Graphique d'évolution du classement
+    const rankingCtx = document.getElementById('rankingChart').getContext('2d');
+    
+    // Données simulées pour l'exemple
+    const rankingData = {
+        labels: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin'],
+        datasets: [{
+            label: '{% trans "Classement" %}',
+            data: [10, 8, 6, 5, 4, 3],
+            borderColor: 'rgba(0, 123, 255, 1)',
+            backgroundColor: 'rgba(0, 123, 255, 0.1)',
+            tension: 0.3,
+            fill: true
+        }]
+    };
+    
+    new Chart(rankingCtx, {
+        type: 'line',
+        data: rankingData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    reverse: true,
+                    beginAtZero: false,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.parsed.y + '{% trans "e position" %}';
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

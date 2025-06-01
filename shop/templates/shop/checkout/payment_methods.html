@@ -1,0 +1,156 @@
+{% extends 'shop/base.html' %}
+{% load i18n %}
+
+{% block shop_title %}{% trans "Choisir un mode de paiement" %}{% endblock %}
+{% block shop_subtitle %}{% trans "Commande" %} #{{ order.reference }}{% endblock %}
+
+{% block shop_content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">{% trans "Récapitulatif de la commande" %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>{% trans "Sous-total" %}</span>
+                    <span>{{ order.subtotal_display }}</span>
+                </div>
+                
+                {% if order.discount_amount %}
+                <div class="d-flex justify-content-between mb-2 text-success">
+                    <span>{% trans "Remise" %}</span>
+                    <span>-{{ order.discount_amount_display }}</span>
+                </div>
+                {% endif %}
+                
+                <div class="d-flex justify-content-between mb-2">
+                    <span>{% trans "Frais de livraison" %}</span>
+                    <span>{{ order.shipping_cost_display }}</span>
+                </div>
+                
+                <hr>
+                
+                <div class="d-flex justify-content-between mb-0 fw-bold">
+                    <span>{% trans "Total" %}</span>
+                    <span class="h5 mb-0">{{ order.total_display }}</span>
+                </div>
+            </div>
+        </div>
+        
+        {% if payment_methods %}
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">{% trans "Choisir un mode de paiement" %}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'shop:process_payment' order.id %}">
+                    {% csrf_token %}
+                    
+                    {% for method in payment_methods %}
+                    <div class="card mb-3 {% if method.is_default %}border-primary{% endif %}">
+                        <div class="card-body">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="payment_method" 
+                                      id="payment_method_{{ method.id }}" value="{{ method.id }}"
+                                      {% if method.is_default %}checked{% endif %}>
+                                <label class="form-check-label w-100" for="payment_method_{{ method.id }}">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <div class="fw-bold">{{ method.name }}</div>
+                                            <div class="text-muted">{{ method.description }}</div>
+                                            
+                                            {% if method.fee_fixed or method.fee_percentage %}
+                                            <div class="small text-muted mt-1">
+                                                {% if method.fee_fixed %}
+                                                {% trans "Frais fixes" %}: {{ method.fee_fixed }} €
+                                                {% endif %}
+                                                
+                                                {% if method.fee_percentage %}
+                                                {% if method.fee_fixed %} + {% endif %}
+                                                {% trans "Frais" %}: {{ method.fee_percentage }}%
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="payment-method-icon">
+                                            {% if method.payment_type == 'card' %}
+                                            <div class="d-flex gap-2">
+                                                <i class="fab fa-cc-visa fa-2x"></i>
+                                                <i class="fab fa-cc-mastercard fa-2x"></i>
+                                                <i class="fab fa-cc-amex fa-2x"></i>
+                                            </div>
+                                            {% elif method.payment_type == 'paypal' %}
+                                            <i class="fab fa-paypal fa-2x"></i>
+                                            {% elif method.payment_type == 'bank_transfer' %}
+                                            <i class="fas fa-university fa-2x"></i>
+                                            {% else %}
+                                            <i class="fas fa-money-bill-wave fa-2x"></i>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                            
+                            {% if method.instructions %}
+                            <div class="payment-instructions mt-3 ps-4" style="display: none;">
+                                <div class="alert alert-light">
+                                    {{ method.instructions|linebreaks }}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-lock me-2"></i> {% trans "Procéder au paiement" %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            {% trans "Aucune méthode de paiement n'est disponible pour le moment. Veuillez contacter l'administrateur." %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show/hide payment method instructions
+        const paymentMethods = document.querySelectorAll('input[name="payment_method"]');
+        const instructionsContainers = document.querySelectorAll('.payment-instructions');
+        
+        function updateInstructions() {
+            instructionsContainers.forEach(container => {
+                container.style.display = 'none';
+            });
+            
+            const selectedMethod = document.querySelector('input[name="payment_method"]:checked');
+            if (selectedMethod) {
+                const parentCard = selectedMethod.closest('.card');
+                const instructions = parentCard.querySelector('.payment-instructions');
+                if (instructions) {
+                    instructions.style.display = 'block';
+                }
+            }
+        }
+        
+        paymentMethods.forEach(method => {
+            method.addEventListener('change', updateInstructions);
+        });
+        
+        // Initialize with selected method
+        updateInstructions();
+    });
+</script>
+{% endblock %}

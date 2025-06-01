@@ -1,0 +1,444 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Tableau de bord financier" %}{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">{% trans "Tableau de bord financier" %}</h1>
+    
+    <!-- Filtres de période -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Période" %}</h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="form-inline">
+                <div class="form-group mr-3">
+                    <label for="period" class="mr-2">{% trans "Période:" %}</label>
+                    <select name="period" id="period" class="form-control">
+                        <option value="7days" {% if period == '7days' %}selected{% endif %}>{% trans "7 derniers jours" %}</option>
+                        <option value="30days" {% if period == '30days' %}selected{% endif %}>{% trans "30 derniers jours" %}</option>
+                        <option value="90days" {% if period == '90days' %}selected{% endif %}>{% trans "90 derniers jours" %}</option>
+                        <option value="month" {% if period == 'month' %}selected{% endif %}>{% trans "Mois en cours" %}</option>
+                        <option value="prev_month" {% if period == 'prev_month' %}selected{% endif %}>{% trans "Mois précédent" %}</option>
+                        <option value="ytd" {% if period == 'ytd' %}selected{% endif %}>{% trans "Depuis le début de l'année" %}</option>
+                        <option value="custom" {% if period == 'custom' %}selected{% endif %}>{% trans "Personnalisée" %}</option>
+                    </select>
+                </div>
+                
+                <div id="custom-date-range" class="form-row {% if period != 'custom' %}d-none{% endif %}">
+                    <div class="form-group col-md-5">
+                        <label for="start_date" class="sr-only">{% trans "Date de début" %}</label>
+                        <input type="date" name="start_date" id="start_date" class="form-control" 
+                               value="{{ start_date|date:'Y-m-d' }}">
+                    </div>
+                    <div class="form-group col-md-5">
+                        <label for="end_date" class="sr-only">{% trans "Date de fin" %}</label>
+                        <input type="date" name="end_date" id="end_date" class="form-control" 
+                               value="{{ end_date|date:'Y-m-d' }}">
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">{% trans "Appliquer" %}</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Résumé financier -->
+    <div class="row">
+        <!-- Revenus -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                {% trans "Revenus" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ total_income|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-money-bill-wave fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dépenses -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-danger shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                {% trans "Dépenses" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ total_expense|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-credit-card fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Résultat net -->
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card {% if net_result >= 0 %}border-left-primary{% else %}border-left-warning{% endif %} shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold {% if net_result >= 0 %}text-primary{% else %}text-warning{% endif %} text-uppercase mb-1">
+                                {% trans "Résultat net" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ net_result|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-balance-scale fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Solde des comptes -->
+        {% if permissions.can_view_accounts %}
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                {% trans "Solde total" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ total_balance|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-university fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Statistiques des transactions -->
+    <div class="row">
+        <!-- Graphique revenus/dépenses -->
+        {% if permissions.can_view_reports and time_series_data %}
+        <div class="col-xl-8 col-lg-7">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Évolution revenus/dépenses" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-area">
+                        <canvas id="revenueExpenseChart"></canvas>
+                    </div>
+                    <div class="mt-4 text-center small">
+                        <span class="mr-2">
+                            <i class="fas fa-circle text-success"></i> {% trans "Revenus" %}
+                        </span>
+                        <span class="mr-2">
+                            <i class="fas fa-circle text-danger"></i> {% trans "Dépenses" %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Statut des transactions -->
+        <div class="col-xl-4 col-lg-5">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Statut des transactions" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th>{% trans "Nombre" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>{% trans "En attente" %}</td>
+                                    <td>{{ status_stats.pending|default:0 }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "Validées" %}</td>
+                                    <td>{{ status_stats.validated|default:0 }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "Rejetées" %}</td>
+                                    <td>{{ status_stats.rejected|default:0 }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "Annulées" %}</td>
+                                    <td>{{ status_stats.cancelled|default:0 }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transactions récentes -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Transactions récentes" %}</h6>
+            <a href="{% url 'finances:transactions:transaction_list' %}" class="btn btn-sm btn-primary">
+                {% trans "Voir toutes" %}
+            </a>
+        </div>
+        <div class="card-body">
+            {% if recent_transactions %}
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Date" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Description" %}</th>
+                            <th>{% trans "Catégorie" %}</th>
+                            <th>{% trans "Montant" %}</th>
+                            <th>{% trans "Statut" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in recent_transactions %}
+                        <tr>
+                            <td>{{ transaction.date|date:"d/m/Y" }}</td>
+                            <td>
+                                {% if transaction.type == 'income' %}
+                                <span class="badge bg-success">{% trans "Revenu" %}</span>
+                                {% else %}
+                                <span class="badge bg-danger">{% trans "Dépense" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ transaction.description }}</td>
+                            <td>{{ transaction.category.name|default:"-" }}</td>
+                            <td class="text-end">{{ transaction.amount|floatformat:2 }} €</td>
+                            <td>
+                                {% if transaction.status == 'pending' %}
+                                    <span class="badge bg-warning">{% trans "En attente" %}</span>
+                                {% elif transaction.status == 'validated' %}
+                                    <span class="badge bg-success">{% trans "Validée" %}</span>
+                                {% elif transaction.status == 'rejected' %}
+                                    <span class="badge bg-danger">{% trans "Rejetée" %}</span>
+                                {% elif transaction.status == 'cancelled' %}
+                                    <span class="badge bg-secondary">{% trans "Annulée" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'finances:transactions:transaction_detail' pk=transaction.id %}" 
+                                   class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <!-- État vide - Aucune transaction -->
+            <div class="text-center py-5">
+                <i class="fas fa-exchange-alt fa-4x text-muted mb-3"></i>
+                <h5 class="text-muted">{% trans "Aucune transaction trouvée" %}</h5>
+                <p class="text-muted mb-4">
+                    {% trans "Commencez par créer votre première transaction pour voir les données apparaître ici." %}
+                </p>
+                <a href="{% url 'finances:transactions:transaction_create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> {% trans "Créer une transaction" %}
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Factures récentes -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Factures récentes" %}</h6>
+            <a href="{% url 'finances:invoices:invoice_list' %}" class="btn btn-sm btn-primary">
+                {% trans "Voir toutes" %}
+            </a>
+        </div>
+        <div class="card-body">
+            {% if recent_invoices %}
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Date" %}</th>
+                            <th>{% trans "Numéro" %}</th>
+                            <th>{% trans "Client" %}</th>
+                            <th>{% trans "Montant" %}</th>
+                            <th>{% trans "Statut" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in recent_invoices %}
+                        <tr>
+                            <td>{{ invoice.issued_date|date:"d/m/Y" }}</td>
+                            <td>{{ invoice.number }}</td>
+                            <td>{{ invoice.client_name }}</td>
+                            <td class="text-end">{{ invoice.total|floatformat:2 }} €</td>
+                            <td>
+                                {% if invoice.status == 'draft' %}
+                                    <span class="badge bg-light text-dark">{% trans "Brouillon" %}</span>
+                                {% elif invoice.status == 'sent' %}
+                                    <span class="badge bg-info">{% trans "Envoyée" %}</span>
+                                {% elif invoice.status == 'paid' %}
+                                    <span class="badge bg-success">{% trans "Payée" %}</span>
+                                {% elif invoice.status == 'unpaid' %}
+                                    <span class="badge bg-warning">{% trans "Impayée" %}</span>
+                                {% elif invoice.status == 'cancelled' %}
+                                    <span class="badge bg-secondary">{% trans "Annulée" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'finances:invoices:invoice_detail' pk=invoice.id %}" 
+                                   class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <!-- État vide - Aucune facture -->
+            <div class="text-center py-5">
+                <i class="fas fa-file-invoice-dollar fa-4x text-muted mb-3"></i>
+                <h5 class="text-muted">{% trans "Aucune facture trouvée" %}</h5>
+                <p class="text-muted mb-4">
+                    {% trans "Créez votre première facture pour commencer à gérer votre facturation." %}
+                </p>
+                <a href="{% url 'finances:invoices:invoice_create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> {% trans "Créer une facture" %}
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if permissions.can_view_reports and time_series_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Initialisation du graphique des revenus et dépenses
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('revenueExpenseChart').getContext('2d');
+        
+        // Données pour le graphique
+        const labels = {{ time_series_data.labels|safe }};
+        const incomeData = {{ time_series_data.income|safe }};
+        const expenseData = {{ time_series_data.expense|safe }};
+        
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: "{% trans 'Revenus' %}",
+                        backgroundColor: "rgba(40, 167, 69, 0.1)",
+                        borderColor: "rgba(40, 167, 69, 1)",
+                        pointBackgroundColor: "rgba(40, 167, 69, 1)",
+                        pointBorderColor: "#fff",
+                        data: incomeData,
+                        borderWidth: 2,
+                        tension: 0.3
+                    },
+                    {
+                        label: "{% trans 'Dépenses' %}",
+                        backgroundColor: "rgba(220, 53, 69, 0.1)",
+                        borderColor: "rgba(220, 53, 69, 1)",
+                        pointBackgroundColor: "rgba(220, 53, 69, 1)",
+                        pointBorderColor: "#fff",
+                        data: expenseData,
+                        borderWidth: 2,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        left: 10,
+                        right: 25,
+                        top: 25,
+                        bottom: 0
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 12
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value.toLocaleString() + ' €';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                label += context.raw.toFixed(2) + ' €';
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+    
+    // Afficher/cacher les champs de date personnalisée
+    document.getElementById('period').addEventListener('change', function() {
+        const customDateRange = document.getElementById('custom-date-range');
+        if (this.value === 'custom') {
+            customDateRange.classList.remove('d-none');
+        } else {
+            customDateRange.classList.add('d-none');
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

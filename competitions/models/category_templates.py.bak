@@ -1,0 +1,82 @@
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.contrib.auth import get_user_model
+
+from organizations.models import Organization, OrganizationMember, OrganizationRole
+
+User = get_user_model()
+
+
+class CategoryTemplate(models.Model):
+    """
+    Template pour la création de catégories de compétition standardisées.
+    Permet de réutiliser des configurations de catégories entre différentes compétitions.
+    """
+    GENDER_CHOICES = [
+        ('male', _('Homme')),
+        ('female', _('Femme')),
+        ('mixed', _('Mixte'))
+    ]
+    
+    name = models.CharField(_("Nom"), max_length=100)
+    discipline = models.ForeignKey(
+        'Discipline',
+        on_delete=models.CASCADE,
+        related_name='category_templates',
+        verbose_name=_("Discipline")
+    )
+    competition_type = models.ForeignKey(
+        'CompetitionType',
+        on_delete=models.CASCADE,
+        related_name='category_templates',
+        verbose_name=_("Type de compétition")
+    )
+    
+    # Catégorie d'âge
+    min_age = models.PositiveSmallIntegerField(_("Âge minimum"), null=True, blank=True)
+    max_age = models.PositiveSmallIntegerField(_("Âge maximum"), null=True, blank=True)
+    
+    # Catégorie de grade
+    min_grade = models.ForeignKey(
+        'grades.Grade',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='template_min_grades',
+        verbose_name=_("Grade minimum")
+    )
+    max_grade = models.ForeignKey(
+        'grades.Grade',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='template_max_grades',
+        verbose_name=_("Grade maximum")
+    )
+    
+    # Catégorie de poids
+    min_weight = models.DecimalField(_("Poids minimum (kg)"), max_digits=5, decimal_places=2, null=True, blank=True)
+    max_weight = models.DecimalField(_("Poids maximum (kg)"), max_digits=5, decimal_places=2, null=True, blank=True)
+    
+    # Genre
+    gender = models.CharField(_("Genre"), max_length=10, choices=GENDER_CHOICES, default='mixed')
+    
+    # Métadonnées
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_category_templates',
+        verbose_name=_("Créé par")
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("Template de catégorie")
+        verbose_name_plural = _("Templates de catégorie")
+        ordering = ['discipline', 'competition_type', 'name']
+        unique_together = ['discipline', 'competition_type', 'name']
+    
+    def __str__(self):
+        return f"{self.name} ({self.discipline.name} - {self.competition_type.name})"

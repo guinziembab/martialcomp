@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Monitoring Multi-Tenant" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h1>{% trans "Tableau de bord de monitoring" %}</h1>
+    
+    <div class="row">
+        <!-- System Overview -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Vue d'ensemble du système" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div id="system-overview">
+                        <div class="spinner-border" role="status">
+                            <span class="sr-only">{% trans "Chargement..." %}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tenant Health -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Santé des tenants" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div id="tenant-health">
+                        <div class="spinner-border" role="status">
+                            <span class="sr-only">{% trans "Chargement..." %}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Performance Metrics -->
+        <div class="col-md-8 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Métriques de performance" %}</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="performance-chart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Alerts -->
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Alertes récentes" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div id="recent-alerts">
+                        <div class="spinner-border" role="status">
+                            <span class="sr-only">{% trans "Chargement..." %}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tenant List -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "État des tenants" %}</h5>
+                    <button class="btn btn-sm btn-primary float-right" onclick="refreshTenantHealth()">
+                        {% trans "Actualiser" %}
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped" id="tenant-status-table">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Tenant" %}</th>
+                                    <th>{% trans "Plan" %}</th>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th>{% trans "Santé" %}</th>
+                                    <th>{% trans "Dernière activité" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="6" class="text-center">
+                                        <div class="spinner-border" role="status">
+                                            <span class="sr-only">{% trans "Chargement..." %}</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Global variables
+let performanceChart = null;
+
+// Initialize monitoring dashboard
+function initMonitoring() {
+    loadSystemOverview();
+    loadTenantHealth();
+    loadPerformanceMetrics();
+    loadRecentAlerts();
+    
+    // Auto-refresh every 30 seconds
+    setInterval(function() {
+        loadSystemOverview();
+        loadTenantHealth();
+    }, 30000);
+}
+
+// Load system overview
+function loadSystemOverview() {
+    fetch('{% url "multitenant:system_status" %}')
+        .then(response => response.json())
+        .then(data => {
+            const html = `
+                <dl class="row">
+                    <dt class="col-sm-6">{% trans "Base de données" %}</dt>
+                    <dd class="col-sm-6">
+                        <span class="badge badge-${data.database.status === 'healthy' ? 'success' : 'danger'}">
+                            ${data.database.status}
+                        </span>
+                        <small class="text-muted">${data.database.size_human}</small>
+                    </dd>
+                    
+                    <dt class="col-sm-6">{% trans "Cache" %}</dt>
+                    <dd class="col-sm-6">
+                        <span class="badge badge-${data.cache.status === 'healthy' ? 'success' : 'danger'}">
+                            ${data.cache.status}
+                        </span>
+                    </dd>
+                    
+                    <dt class="col-sm-6">{% trans "Connexions DB" %}</dt>
+                    <dd class="col-sm-6">${data.database.connections}</dd>
+                    
+                    <dt class="col-sm-6">{% trans "Tenants actifs" %}</dt>
+                    <dd class="col-sm-6">${data.tenants.summary.active} / ${data.tenants.summary.total}</dd>
+                </dl>
+            `;
+            document.getElementById('system-overview').innerHTML = html;
+        })
+        .catch(error => {
+            document.getElementById('system-overview').innerHTML = 
+                '<div class="alert alert-danger">{% trans "Erreur de chargement" %}</div>';
+        });
+}
+
+// Load tenant health
+function loadTenantHealth() {
+    fetch('{% url "multitenant:all_tenants_health" %}')
+        .then(response => response.json())
+        .then(data => {
+            // Update summary
+            const summaryHtml = `
+                <div class="row text-center">
+                    <div class="col-4">
+                        <h3 class="text-success">${data.healthy_tenants}</h3>
+                        <p>{% trans "En bonne santé" %}</p>
+                    </div>
+                    <div class="col-4">
+                        <h3 class="text-warning">${data.warnings}</h3>
+                        <p>{% trans "Avertissements" %}</p>
+                    </div>
+                    <div class="col-4">
+                        <h3 class="text-danger">${data.unhealthy_tenants}</h3>
+                        <p>{% trans "Problèmes" %}</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('tenant-health').innerHTML = summaryHtml;
+            
+            // Update tenant table
+            updateTenantTable(data.tenant_status);
+        })
+        .catch(error => {
+            document.getElementById('tenant-health').innerHTML = 
+                '<div class="alert alert-danger">{% trans "Erreur de chargement" %}</div>';
+        });
+}
+
+// Update tenant status table
+function updateTenantTable(tenantStatus) {
+    const tbody = document.querySelector('#tenant-status-table tbody');
+    let rows = '';
+    
+    for (const [slug, status] of Object.entries(tenantStatus)) {
+        const statusBadge = status.status === 'healthy' ? 
+            '<span class="badge badge-success">{% trans "OK" %}</span>' :
+            status.status === 'warning' ?
+            '<span class="badge badge-warning">{% trans "Attention" %}</span>' :
+            '<span class="badge badge-danger">{% trans "Problème" %}</span>';
+        
+        rows += `
+            <tr>
+                <td>${status.tenant_name}</td>
+                <td>${status.checks.subscription?.message || '-'}</td>
+                <td>${statusBadge}</td>
+                <td>
+                    ${status.warnings.length > 0 ? 
+                        `<span class="text-warning">${status.warnings.length} {% trans "avertissements" %}</span>` : 
+                        '<span class="text-success">{% trans "Bon" %}</span>'}
+                </td>
+                <td>${status.checks.activity?.message || '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-info" onclick="viewTenantMetrics('${status.tenant_id}')">
+                        {% trans "Métriques" %}
+                    </button>
+                </td>
+            </tr>
+        `;
+    }
+    
+    tbody.innerHTML = rows;
+}
+
+// Load performance metrics
+function loadPerformanceMetrics() {
+    fetch('{% url "multitenant:monitoring_dashboard" %}')
+        .then(response => response.json())
+        .then(data => {
+            // Create chart
+            const ctx = document.getElementById('performance-chart').getContext('2d');
+            
+            if (performanceChart) {
+                performanceChart.destroy();
+            }
+            
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                    datasets: [{
+                        label: '{% trans "Requêtes/min" %}',
+                        data: [12, 19, 3, 5, 2, 3],
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: '{% trans "Performance du système" %}'
+                        }
+                    }
+                }
+            });
+        });
+}
+
+// Load recent alerts
+function loadRecentAlerts() {
+    // This would normally fetch from an alerts endpoint
+    const alerts = [
+        {
+            level: 'warning',
+            message: '{% trans "Tenant ABC: Essai expire dans 3 jours" %}',
+            time: 'Il y a 5 minutes'
+        },
+        {
+            level: 'error',
+            message: '{% trans "Tenant XYZ: Échec de connexion DB" %}',
+            time: 'Il y a 1 heure'
+        }
+    ];
+    
+    let alertsHtml = '<ul class="list-unstyled">';
+    alerts.forEach(alert => {
+        const alertClass = alert.level === 'error' ? 'danger' : alert.level;
+        alertsHtml += `
+            <li class="mb-2">
+                <div class="alert alert-${alertClass} py-1 px-2 mb-1">
+                    <small>${alert.message}</small>
+                </div>
+                <small class="text-muted">${alert.time}</small>
+            </li>
+        `;
+    });
+    alertsHtml += '</ul>';
+    
+    document.getElementById('recent-alerts').innerHTML = alertsHtml;
+}
+
+// View tenant metrics
+function viewTenantMetrics(tenantId) {
+    window.location.href = `{% url "multitenant:tenant_metrics_specific" "00000000-0000-0000-0000-000000000000" %}`.replace('00000000-0000-0000-0000-000000000000', tenantId);
+}
+
+// Refresh tenant health
+function refreshTenantHealth() {
+    loadTenantHealth();
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initMonitoring();
+});
+</script>
+
+{% endblock %}

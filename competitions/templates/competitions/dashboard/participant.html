@@ -1,0 +1,702 @@
+{% extends "competitions/dashboard/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Tableau de bord Participant" %} - MartialComp{% endblock %}
+
+{% block user_role %}{% trans "Participant" %}{% endblock %}
+
+{% block page_title %}{% trans "Tableau de bord Participant" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Amélioration du thème global */
+    body {
+        background-color: #f8f9fa !important;
+    }
+    
+    .dashboard-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+        border-radius: 0 0 20px 20px;
+    }
+    
+    /* Sidebar amélioré */
+    .sidebar {
+        background: linear-gradient(to bottom, #ffffff 0%, #f8f9fa 100%);
+        box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+        border-right: 1px solid #e9ecef;
+    }
+    
+    .nav-link {
+        color: #495057;
+        transition: all 0.3s ease;
+        border-radius: 10px;
+        margin: 5px 10px;
+        padding: 10px 15px;
+    }
+    
+    .nav-link:hover {
+        background-color: #f1f3f4;
+        color: #667eea;
+        transform: translateX(5px);
+    }
+    
+    .nav-link.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
+    }
+    
+    .nav-icon {
+        width: 20px;
+        height: 20px;
+        margin-right: 10px;
+    }
+    
+    /* Cards design amélioré */
+    .dashboard-card {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+        transition: all 0.3s ease;
+        border: none;
+        margin-bottom: 20px;
+    }
+    
+    .dashboard-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+    }
+    
+    .card-header {
+        background: transparent;
+        border-bottom: 2px solid #f8f9fa;
+        padding: 20px;
+    }
+    
+    .card-title {
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 1.2rem;
+    }
+    
+    /* Statistiques améliorées */
+    .stat-card {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(102, 126, 234, 0.1) 0%, transparent 70%);
+        transition: all 0.5s ease;
+    }
+    
+    .stat-card:hover::before {
+        top: -30%;
+        right: -30%;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+    }
+    
+    .stat-icon {
+        font-size: 3rem;
+        margin-bottom: 15px;
+        display: inline-block;
+        animation: float 3s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
+    }
+    
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+    
+    .stat-label {
+        color: #6c757d;
+        font-size: 0.95rem;
+        font-weight: 500;
+    }
+    
+    /* Couleurs personnalisées pour les stats */
+    .stat-competitions { border-top: 4px solid #667eea; }
+    .stat-medals { border-top: 4px solid #ffd700; }
+    .stat-participations { border-top: 4px solid #20c997; }
+    .stat-pending { border-top: 4px solid #fd7e14; }
+    .stat-payments { border-top: 4px solid #28a745; }
+    .stat-orders { border-top: 4px solid #17a2b8; }
+    .stat-notifications { border-top: 4px solid #dc3545; }
+    .stat-support { border-top: 4px solid #6610f2; }
+    
+    /* Section des fonctionnalités */
+    .feature-section {
+        margin-bottom: 30px;
+    }
+    
+    .feature-header {
+        display: flex;
+        justify-content: between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    
+    .feature-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 0;
+    }
+    
+    /* Tableaux améliorés */
+    .table {
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    .table thead th {
+        background-color: #f8f9fa;
+        border: none;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+        padding: 15px;
+    }
+    
+    .table tbody tr {
+        transition: all 0.3s ease;
+    }
+    
+    .table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    /* Boutons améliorés */
+    .btn {
+        border-radius: 8px;
+        padding: 8px 20px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Badges améliorés */
+    .badge {
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-weight: 500;
+        font-size: 0.85rem;
+    }
+    
+    /* Notifications améliorées */
+    .notification-item {
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        transition: all 0.3s ease;
+        background: white;
+        border: 1px solid #e9ecef;
+    }
+    
+    .notification-item:hover {
+        background-color: #f8f9fa;
+        border-color: #667eea;
+    }
+    
+    .notification-unread {
+        background-color: #f0f3ff;
+        border-color: #667eea;
+    }
+    
+    /* Animation d'entrée */
+    .fade-in {
+        animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .stat-card {
+            margin-bottom: 15px;
+        }
+        
+        .dashboard-header {
+            padding: 1rem 0;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block sidebar_menu %}
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant' %}" class="nav-link active">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        {% trans "Tableau de bord" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant_competitions' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+        {% trans "Mes compétitions" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:practitioner:training_dashboard' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        {% trans "Entraînements" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:practitioner:finance_dashboard' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23"></line>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+        </svg>
+        {% trans "Finances" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:practitioner:order_list' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="21" r="1"></circle>
+            <circle cx="20" cy="21" r="1"></circle>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+        </svg>
+        {% trans "Commandes" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:competitions:list' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+        </svg>
+        {% trans "Rechercher" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant_results' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        {% trans "Mes résultats" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant_profile' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        {% trans "Mon profil" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:logout' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        {% trans "Déconnexion" %}
+    </a>
+</li>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="dashboard-header">
+    <div class="container-fluid">
+        <h1 class="display-5 mb-2">{% trans "Bienvenue" %}, {{ request.user.get_full_name|default:request.user.username }} !</h1>
+        <p class="lead mb-0">{% trans "Voici un aperçu de vos activités et compétitions" %}</p>
+    </div>
+</div>
+
+<div class="container-fluid">
+    {% if practitioners %}
+        <!-- Cartes de statistiques principales -->
+        <div class="row mb-4 fade-in">
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stat-card stat-competitions">
+                    <div class="stat-icon">🏆</div>
+                    <div class="stat-value">{{ upcoming_competitions_count|default:"0" }}</div>
+                    <div class="stat-label">{% trans "Compétitions à venir" %}</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stat-card stat-medals">
+                    <div class="stat-icon">🥇</div>
+                    <div class="stat-value">{{ medals_count|default:"0" }}</div>
+                    <div class="stat-label">{% trans "Médailles" %}</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stat-card stat-participations">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-value">{{ participations_count|default:"0" }}</div>
+                    <div class="stat-label">{% trans "Participations" %}</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stat-card stat-pending">
+                    <div class="stat-icon">⏳</div>
+                    <div class="stat-value">{{ pending_registrations_count|default:"0" }}</div>
+                    <div class="stat-label">{% trans "En attente" %}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nouvelles statistiques -->
+        <div class="row mb-4 fade-in">
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stat-card stat-payments">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-value">{{ pending_payments_count|default:"0" }}</div>
+                    <div class="stat-label">{% trans "Paiements en attente" %}</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stat-card stat-orders">
+                    <div class="stat-icon">🛒</div>
+                    <div class="stat-value">{{ active_orders_count|default:"0" }}</div>
+                    <div class="stat-label">{% trans "Commandes actives" %}</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stat-card stat-notifications">
+                    <div class="stat-icon">🔔</div>
+                    <div class="stat-value">{{ unread_notifications_count|default:"0" }}</div>
+                    <div class="stat-label">{% trans "Notifications non lues" %}</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="stat-card stat-support">
+                    <div class="stat-icon">🎫</div>
+                    <div class="stat-value">{{ open_tickets_count|default:"0" }}</div>
+                    <div class="stat-label">{% trans "Tickets ouverts" %}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Section principale -->
+            <div class="col-lg-8">
+                <!-- Prochaines compétitions -->
+                <div class="dashboard-card fade-in">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h2 class="card-title">{% trans "Mes prochaines compétitions" %}</h2>
+                        <a href="{% url 'competitions:dashboard:participant_competitions' %}" class="btn btn-sm btn-primary">
+                            {% trans "Voir tout" %}
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        {% if upcoming_registrations %}
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>{% trans "Événement" %}</th>
+                                            <th>{% trans "Date" %}</th>
+                                            <th>{% trans "Catégorie" %}</th>
+                                            <th>{% trans "Actions" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for reg in upcoming_registrations|slice:":5" %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ reg.competition.title }}</strong><br>
+                                                <small class="text-muted">{{ reg.competition.city|default:"-" }}</small>
+                                            </td>
+                                            <td>{{ reg.competition.start_date|date:"d/m/Y" }}</td>
+                                            <td>
+                                                {% for cat in reg.categories.all %}
+                                                    <span class="badge bg-secondary">{{ cat.name }}</span>
+                                                {% endfor %}
+                                            </td>
+                                            <td>
+                                                <a href="{% url 'competitions:competitions:detail' reg.competition.pk %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted py-4">
+                                {% trans "Aucune compétition à venir" %}
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Suivi des paiements -->
+                <div class="feature-section">
+                    <div class="feature-header mb-3">
+                        <h2 class="feature-title">{% trans "Suivi des paiements" %}</h2>
+                    </div>
+                    <div class="dashboard-card fade-in">
+                        <div class="card-body">
+                            {% if recent_payments %}
+                                <div class="table-responsive">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>{% trans "Date" %}</th>
+                                                <th>{% trans "Montant" %}</th>
+                                                <th>{% trans "Type" %}</th>
+                                                <th>{% trans "Statut" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for payment in recent_payments|slice:":5" %}
+                                            <tr>
+                                                <td>{{ payment.created_at|date:"d/m/Y" }}</td>
+                                                <td><strong>{{ payment.amount }} €</strong></td>
+                                                <td>{{ payment.get_payment_type_display }}</td>
+                                                <td>
+                                                    {% if payment.status == 'completed' %}
+                                                        <span class="badge bg-success">{% trans "Complété" %}</span>
+                                                    {% elif payment.status == 'pending' %}
+                                                        <span class="badge bg-warning">{% trans "En attente" %}</span>
+                                                    {% else %}
+                                                        <span class="badge bg-danger">{% trans "Échoué" %}</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-center mt-3">
+                                    <a href="{% url 'competitions:practitioner:payment_list' %}" class="btn btn-sm btn-outline-primary">
+                                        {% trans "Voir tous les paiements" %}
+                                    </a>
+                                </div>
+                            {% else %}
+                                <p class="text-center text-muted py-4">
+                                    {% trans "Aucun paiement récent" %}
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Présence aux entraînements -->
+                <div class="feature-section">
+                    <div class="feature-header mb-3">
+                        <h2 class="feature-title">{% trans "Présence aux entraînements" %}</h2>
+                    </div>
+                    <div class="dashboard-card fade-in">
+                        <div class="card-body">
+                            <div class="row text-center mb-4">
+                                <div class="col-md-4">
+                                    <h3 class="text-primary">{{ training_stats.attendance_rate|default:"0" }}%</h3>
+                                    <p class="text-muted">{% trans "Taux de présence" %}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <h3 class="text-success">{{ training_stats.sessions_attended|default:"0" }}</h3>
+                                    <p class="text-muted">{% trans "Sessions suivies" %}</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <h3 class="text-info">{{ training_stats.hours_trained|default:"0" }}h</h3>
+                                    <p class="text-muted">{% trans "Heures d'entraînement" %}</p>
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <a href="{% url 'competitions:practitioner:training_dashboard' %}" class="btn btn-primary">
+                                    {% trans "Voir mon programme" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barre latérale -->
+            <div class="col-lg-4">
+                <!-- Notifications -->
+                <div class="dashboard-card fade-in mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title">{% trans "Notifications récentes" %}</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if recent_notifications %}
+                            {% for notification in recent_notifications|slice:":5" %}
+                                <div class="notification-item {% if not notification.is_read %}notification-unread{% endif %}">
+                                    <div class="d-flex align-items-start">
+                                        <div class="notification-icon me-3">
+                                            {% if notification.type == 'competition' %}
+                                                <i class="fas fa-trophy text-primary"></i>
+                                            {% elif notification.type == 'payment' %}
+                                                <i class="fas fa-credit-card text-success"></i>
+                                            {% elif notification.type == 'training' %}
+                                                <i class="fas fa-dumbbell text-info"></i>
+                                            {% else %}
+                                                <i class="fas fa-bell text-warning"></i>
+                                            {% endif %}
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">{{ notification.title }}</h6>
+                                            <p class="mb-1 text-muted small">{{ notification.message|truncatewords:10 }}</p>
+                                            <small class="text-muted">{{ notification.created_at|timesince }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                            <div class="text-center mt-3">
+                                <a href="{% url 'competitions:practitioner:notifications' %}" class="btn btn-sm btn-outline-primary">
+                                    {% trans "Toutes les notifications" %}
+                                </a>
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted">
+                                {% trans "Aucune notification" %}
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Commandes en cours -->
+                <div class="dashboard-card fade-in mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title">{% trans "Commandes en cours" %}</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if recent_orders %}
+                            {% for order in recent_orders|slice:":3" %}
+                                <div class="border-bottom pb-3 mb-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h6 class="mb-1">{{ order.order_number }}</h6>
+                                            <p class="mb-1 text-muted small">{{ order.created_at|date:"d/m/Y" }}</p>
+                                            <span class="badge bg-{% if order.status == 'delivered' %}success{% elif order.status == 'pending' %}warning{% else %}info{% endif %}">
+                                                {{ order.get_status_display }}
+                                            </span>
+                                        </div>
+                                        <div class="text-end">
+                                            <strong>{{ order.total }} €</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                            <div class="text-center">
+                                <a href="{% url 'competitions:practitioner:order_list' %}" class="btn btn-sm btn-outline-primary">
+                                    {% trans "Toutes mes commandes" %}
+                                </a>
+                            </div>
+                        {% else %}
+                            <p class="text-center text-muted">
+                                {% trans "Aucune commande en cours" %}
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Support -->
+                <div class="dashboard-card fade-in">
+                    <div class="card-header">
+                        <h3 class="card-title">{% trans "Support" %}</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if open_tickets %}
+                            <div class="mb-3">
+                                <p class="text-muted">{% trans "Tickets ouverts" %}: <strong>{{ open_tickets_count }}</strong></p>
+                            </div>
+                        {% endif %}
+                        <div class="text-center">
+                            <a href="{% url 'competitions:practitioner:support_tickets' %}" class="btn btn-primary">
+                                <i class="fas fa-headset me-2"></i>{% trans "Centre d'aide" %}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <!-- État d'onboarding pour les nouveaux utilisateurs -->
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="fas fa-user-plus fa-5x text-muted"></i>
+            </div>
+            <h2>{% trans "Bienvenue sur MartialComp" %}</h2>
+            <p class="lead mb-4">{% trans "Pour commencer à participer aux compétitions, vous devez créer votre profil de participant." %}</p>
+            <a href="#" class="btn btn-primary btn-lg">
+                <i class="fas fa-user-plus me-2"></i> {% trans "Créer mon profil" %}
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+// Animation des stat cards au scroll
+document.addEventListener('DOMContentLoaded', function() {
+    const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -100px 0px'
+    };
+    
+    const observer = new IntersectionObserver(function(entries) {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('fade-in');
+            }
+        });
+    }, observerOptions);
+    
+    document.querySelectorAll('.dashboard-card, .stat-card').forEach(el => {
+        observer.observe(el);
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Utilisation des ressources" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">{% trans "Utilisation des ressources" %}</h1>
+            
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle mr-2"></i>
+                {% blocktrans %}Consultez l'utilisation de vos ressources par rapport aux limites de votre plan.{% endblocktrans %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{% trans "Votre plan" %}</h5>
+                    {% if tenant.subscription_plan != 'champion' %}
+                    <a href="{% url 'multitenant:upgrade_plan' %}" class="btn btn-sm btn-primary">
+                        {% trans "Mettre à niveau" %}
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <h2 class="text-center mb-3">
+                        <span class="badge badge-{% if tenant.subscription_plan == 'essentials' %}secondary{% elif tenant.subscription_plan == 'masters' %}primary{% else %}success{% endif %}">
+                            {{ tenant.get_subscription_plan_display }}
+                        </span>
+                    </h2>
+                    
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "Facturation" %}:</span>
+                        <span class="font-weight-bold">{{ tenant.get_payment_frequency_display }}</span>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "Statut" %}:</span>
+                        <span class="badge badge-{% if tenant.is_active %}success{% else %}danger{% endif %}">
+                            {% if tenant.is_active %}{% trans "Actif" %}{% else %}{% trans "Inactif" %}{% endif %}
+                        </span>
+                    </div>
+                    
+                    {% if tenant.trial_ends_at %}
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "Fin de période d'essai" %}:</span>
+                        <span>{{ tenant.trial_ends_at|date:"d/m/Y" }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if tenant.current_period_end %}
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>{% trans "Prochaine facturation" %}:</span>
+                        <span>{{ tenant.current_period_end|date:"d/m/Y" }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Fonctionnalités" %}</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for feature_code in limits.features %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ feature_code|title }}
+                            <span class="badge badge-success"><i class="fas fa-check"></i></span>
+                        </li>
+                        {% endfor %}
+                        
+                        {% for feature_code in unavailable_features %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center text-muted">
+                            {{ feature_code|title }}
+                            <span class="badge badge-secondary"><i class="fas fa-times"></i></span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Utilisation des ressources" %}</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="text-muted mb-3">
+                        {% trans "Dernière mise à jour" %}: {{ last_updated|date:"d/m/Y H:i" }}
+                    </h6>
+                    
+                    <!-- Stockage -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{% trans "Stockage" %}</span>
+                            <span>{{ usage.storage_usage|filesizeformat }} / {{ limits.storage_limit|filesizeformat }}</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-{% if usage.storage_percentage < 70 %}info{% elif usage.storage_percentage < 90 %}warning{% else %}danger{% endif %}" 
+                                role="progressbar" 
+                                style="width: {{ usage.storage_percentage }}%">
+                                {{ usage.storage_percentage|floatformat:0 }}%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Utilisateurs -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{% trans "Utilisateurs" %}</span>
+                            <span>{{ usage.user_count }} / {{ limits.max_users }}</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-{% if usage.user_percentage < 70 %}info{% elif usage.user_percentage < 90 %}warning{% else %}danger{% endif %}" 
+                                role="progressbar" 
+                                style="width: {{ usage.user_percentage }}%">
+                                {{ usage.user_percentage|floatformat:0 }}%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Pratiquants -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{% trans "Pratiquants" %}</span>
+                            <span>{{ usage.practitioner_count }} / {{ limits.max_practitioners }}</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-{% if usage.practitioner_percentage < 70 %}info{% elif usage.practitioner_percentage < 90 %}warning{% else %}danger{% endif %}" 
+                                role="progressbar" 
+                                style="width: {{ usage.practitioner_percentage }}%">
+                                {{ usage.practitioner_percentage|floatformat:0 }}%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Compétitions -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{% trans "Compétitions" %}</span>
+                            <span>{{ usage.competition_count }} / {{ limits.max_competitions }}</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-{% if usage.competition_percentage < 70 %}info{% elif usage.competition_percentage < 90 %}warning{% else %}danger{% endif %}" 
+                                role="progressbar" 
+                                style="width: {{ usage.competition_percentage }}%">
+                                {{ usage.competition_percentage|floatformat:0 }}%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Catégories -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{% trans "Catégories" %}</span>
+                            <span>{{ usage.category_count }} / {{ limits.max_categories }}</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-{% if usage.category_percentage < 70 %}info{% elif usage.category_percentage < 90 %}warning{% else %}danger{% endif %}" 
+                                role="progressbar" 
+                                style="width: {{ usage.category_percentage }}%">
+                                {{ usage.category_percentage|floatformat:0 }}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Autres limites" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Ressource" %}</th>
+                                    <th>{% trans "Limite" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>{% trans "Participants par compétition" %}</td>
+                                    <td>{{ limits.competition_participants_limit }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "Requêtes API par heure" %}</td>
+                                    <td>{{ limits.api_rate_limit }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "Lignes maximum en export" %}</td>
+                                    <td>{% if limits.export_limit %}{{ limits.export_limit }}{% else %}{% trans "Illimité" %}{% endif %}</td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "Opérations par minute" %}</td>
+                                    <td>{{ limits.rate_limit }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if tenant.subscription_plan != 'champion' %}
+    <div class="row mt-4 mb-5">
+        <div class="col-12 text-center">
+            <div class="alert alert-info">
+                <h4 class="mb-3">{% trans "Vous approchez de vos limites?" %}</h4>
+                <p>{% trans "Mettez à niveau votre plan pour profiter de limites plus élevées et de fonctionnalités supplémentaires." %}</p>
+                <a href="{% url 'multitenant:upgrade_plan' %}" class="btn btn-primary btn-lg">
+                    {% trans "Voir les options de mise à niveau" %}
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

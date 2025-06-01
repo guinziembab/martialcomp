@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Gestion des clubs" %} | {{ federation.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+    }
+    
+    .section-title i {
+        margin-right: 0.5rem;
+        color: #dc3545;
+    }
+    
+    .club-logo {
+        width: 60px;
+        height: 60px;
+        object-fit: contain;
+        border-radius: 5px;
+        background-color: #f8f9fa;
+        padding: 5px;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #6c757d;
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: #adb5bd;
+    }
+    
+    .club-card {
+        transition: all 0.3s ease;
+    }
+    
+    .club-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .search-box {
+        position: relative;
+        margin-bottom: 2rem;
+    }
+    
+    .search-box .form-control {
+        padding-left: 40px;
+        border-radius: 50px;
+    }
+    
+    .search-box i {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+    }
+    
+    .badge-counter {
+        font-size: 1rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 20px;
+    }
+    
+    .filter-buttons {
+        margin-bottom: 1.5rem;
+    }
+    
+    .filter-btn {
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stats-card {
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+        height: 100%;
+    }
+    
+    .stats-icon {
+        font-size: 1.5rem;
+        background-color: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .club-actions button, .club-actions a {
+        margin-left: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- En-tête de la page -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">{% trans "Gestion des clubs affiliés" %}</h1>
+        <div>
+            <a href="{% url 'competitions:federations:add_club' federation_id=federation.id %}" class="btn btn-primary me-2">
+                <i class="fas fa-plus-circle me-2"></i>{% trans "Ajouter un club" %}
+            </a>
+            <a href="{% url 'dashboard:federations' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+            </a>
+        </div>
+    </div>
+    
+    <!-- Statistiques des clubs -->
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="stats-card p-3">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon me-3">
+                        <i class="fas fa-dojo"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0">{{ affiliated_clubs|length }}</h5>
+                        <p class="text-muted mb-0">{% trans "Clubs affiliés" %}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-3">
+            <div class="stats-card p-3">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon me-3">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0">{{ total_practitioners|default:"0" }}</h5>
+                        <p class="text-muted mb-0">{% trans "Pratiquants" %}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-3">
+            <div class="stats-card p-3">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon me-3">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0">{{ cities_count|default:"0" }}</h5>
+                        <p class="text-muted mb-0">{% trans "Villes couvertes" %}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filtres et recherche -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="search-box">
+                        <input type="text" id="clubSearch" class="form-control" placeholder="{% trans 'Rechercher un club par nom ou ville...' %}">
+                        <i class="fas fa-search"></i>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="filter-buttons">
+                        <button class="btn btn-outline-secondary filter-btn" data-filter="all">
+                            {% trans "Tous" %}
+                        </button>
+                        {% for discipline in disciplines %}
+                            <button class="btn btn-outline-secondary filter-btn" data-filter="{{ discipline.id }}">
+                                {{ discipline.name }}
+                            </button>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Liste des clubs affiliés -->
+    <div class="card">
+        <div class="card-header bg-white">
+            <h2 class="section-title mb-0">
+                <i class="fas fa-dojo"></i>
+                {% trans "Clubs affiliés" %}
+            </h2>
+        </div>
+        <div class="card-body">
+            {% if affiliated_clubs %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{% trans "Club" %}</th>
+                                <th>{% trans "Ville" %}</th>
+                                <th>{% trans "Disciplines" %}</th>
+                                <th>{% trans "Membres" %}</th>
+                                <th>{% trans "Date d'affiliation" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clubsList">
+                            {% for club in affiliated_clubs %}
+                                <tr class="club-item" data-club-name="{{ club.name|lower }}" data-club-city="{{ club.city|lower }}" data-disciplines="{% for discipline in club.disciplines.all %}{{ discipline.id }} {% endfor %}">
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if club.logo %}
+                                                <img src="{{ club.logo.url }}" alt="{{ club.name }}" class="me-3" style="width: 40px; height: 40px; object-fit: contain;">
+                                            {% else %}
+                                                <div class="d-flex align-items-center justify-content-center me-3 bg-light" style="width: 40px; height: 40px; border-radius: 5px;">
+                                                    <i class="fas fa-dojo text-muted"></i>
+                                                </div>
+                                            {% endif %}
+                                            <div>
+                                                <h6 class="mb-0">{{ club.name }}</h6>
+                                                {% if club.owner %}
+                                                    <small class="text-muted">{{ club.owner.get_full_name }}</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>{{ club.city }}</td>
+                                    <td>
+                                        {% for discipline in club.disciplines.all %}
+                                            <span class="badge bg-secondary me-1">{{ discipline.name }}</span>
+                                        {% empty %}
+                                            <span class="text-muted">-</span>
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">
+                                            {{ club.practitioners.count|default:"0" }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if club.affiliation_date %}
+                                            {{ club.affiliation_date|date:"d/m/Y" }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="club-actions">
+                                        <div class="btn-group">
+                                            <a href="#" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="#" class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-envelope"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#removeClubModal" data-club-id="{{ club.id }}" data-club-name="{{ club.name }}">
+                                                <i class="fas fa-unlink"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Message "Aucun résultat" pour la recherche -->
+                <div id="noResults" class="empty-state" style="display: none;">
+                    <i class="fas fa-search"></i>
+                    <p>{% trans "Aucun club ne correspond à votre recherche." %}</p>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-dojo"></i>
+                    <p>{% trans "Aucun club n'est affilié à votre fédération pour le moment." %}</p>
+                    <a href="{% url 'competitions:federations:add_club' federation_id=federation.id %}" class="btn btn-primary">
+                        <i class="fas fa-plus-circle me-2"></i>{% trans "Ajouter un club" %}
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation pour retirer un club -->
+<div class="modal fade" id="removeClubModal" tabindex="-1" aria-labelledby="removeClubModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="removeClubModalLabel">{% trans "Confirmer le retrait" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Êtes-vous sûr de vouloir retirer ce club de votre fédération ?" %}</p>
+                <p class="fw-bold club-name"></p>
+                <p class="text-muted">{% trans "Le club ne sera pas supprimé, mais ne sera plus affilié à votre fédération." %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <form id="removeClubForm" method="post" action="">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">{% trans "Retirer" %}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Filtrage par discipline
+        var filterButtons = document.querySelectorAll('.filter-btn');
+        var clubItems = document.querySelectorAll('.club-item');
+        
+        filterButtons.forEach(function(button) {
+            button.addEventListener('click', function() {
+                var filter = this.getAttribute('data-filter');
+                
+                // Mettre à jour les classes des boutons
+                filterButtons.forEach(btn => btn.classList.remove('active', 'btn-secondary'));
+                filterButtons.forEach(btn => btn.classList.add('btn-outline-secondary'));
+                this.classList.remove('btn-outline-secondary');
+                this.classList.add('active', 'btn-secondary');
+                
+                // Appliquer le filtre
+                if (filter === 'all') {
+                    clubItems.forEach(item => item.style.display = '');
+                } else {
+                    clubItems.forEach(function(item) {
+                        var disciplines = item.getAttribute('data-disciplines').trim().split(' ');
+                        if (disciplines.includes(filter)) {
+                            item.style.display = '';
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
+                }
+                
+                // Gérer l'affichage du message "Aucun résultat"
+                checkVisibleItems();
+            });
+        });
+        
+        // Recherche par nom ou ville
+        var searchInput = document.getElementById('clubSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                var searchTerm = this.value.toLowerCase().trim();
+                
+                clubItems.forEach(function(item) {
+                    var clubName = item.getAttribute('data-club-name');
+                    var clubCity = item.getAttribute('data-club-city');
+                    var display = item.style.display;
+                    
+                    // Ne modifier l'affichage que si l'élément n'est pas déjà masqué par le filtre de discipline
+                    if (display !== 'none' || searchTerm === '') {
+                        if (clubName.includes(searchTerm) || clubCity.includes(searchTerm)) {
+                            item.style.display = '';
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    }
+                });
+                
+                // Gérer l'affichage du message "Aucun résultat"
+                checkVisibleItems();
+            });
+        }
+        
+        // Fonction pour vérifier s'il y a des éléments visibles et afficher le message "Aucun résultat" si nécessaire
+        function checkVisibleItems() {
+            var visibleCount = 0;
+            clubItems.forEach(function(item) {
+                if (item.style.display !== 'none') {
+                    visibleCount++;
+                }
+            });
+            
+            var noResults = document.getElementById('noResults');
+            var clubsList = document.getElementById('clubsList');
+            
+            if (noResults && clubsList) {
+                if (visibleCount === 0) {
+                    noResults.style.display = 'block';
+                    clubsList.closest('.table-responsive').style.display = 'none';
+                } else {
+                    noResults.style.display = 'none';
+                    clubsList.closest('.table-responsive').style.display = '';
+                }
+            }
+        }
+        
+        // Gestion du modal de retrait de club
+        var removeClubModal = document.getElementById('removeClubModal');
+        if (removeClubModal) {
+            removeClubModal.addEventListener('show.bs.modal', function(event) {
+                // Bouton qui a déclenché le modal
+                var button = event.relatedTarget;
+                
+                // Extraire les infos du data-* attributes
+                var clubId = button.getAttribute('data-club-id');
+                var clubName = button.getAttribute('data-club-name');
+                
+                // Mettre à jour le contenu du modal
+                var modalTitle = removeClubModal.querySelector('.modal-title');
+                var clubNameElement = removeClubModal.querySelector('.club-name');
+                var form = document.getElementById('removeClubForm');
+                
+                modalTitle.textContent = '{% trans "Retirer" %} ' + clubName;
+                clubNameElement.textContent = clubName;
+                form.action = "{% url 'competitions:federations:remove_club' federation_id=federation.id club_id=999 %}".replace('999', clubId);
+            });
+        }
+    });
+</script>
+{% endblock %}

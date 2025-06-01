@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Historique des scans QR" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filters-section {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+    
+    .scan-item {
+        border-bottom: 1px solid #eee;
+        padding: 15px 0;
+    }
+    
+    .scan-item:last-child {
+        border-bottom: none;
+    }
+    
+    .scan-type-badge {
+        font-size: 0.85rem;
+        padding: 4px 10px;
+        border-radius: 15px;
+    }
+    
+    .scan-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .stat-label {
+        color: #666;
+        font-size: 0.9rem;
+        margin-top: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1>{% trans "Historique des scans QR" %}</h1>
+            
+            <!-- Statistiques -->
+            <div class="scan-stats">
+                <div class="stat-card">
+                    <div class="stat-value">{{ total_scans|default:"0" }}</div>
+                    <div class="stat-label">{% trans "Scans totaux" %}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ today_scans|default:"0" }}</div>
+                    <div class="stat-label">{% trans "Scans aujourd'hui" %}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ valid_scans|default:"0" }}</div>
+                    <div class="stat-label">{% trans "Scans valides" %}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ unique_practitioners|default:"0" }}</div>
+                    <div class="stat-label">{% trans "Pratiquants uniques" %}</div>
+                </div>
+            </div>
+            
+            <!-- Filtres -->
+            <div class="filters-section">
+                <form method="get" class="form-inline">
+                    <div class="form-group mb-2 mr-3">
+                        <label for="type" class="mr-2">{% trans "Type" %}</label>
+                        <select name="type" id="type" class="form-control">
+                            <option value="">{% trans "Tous" %}</option>
+                            {% for value, label in scan_types %}
+                            <option value="{{ value }}" {% if selected_type == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group mb-2 mr-3">
+                        <label for="from" class="mr-2">{% trans "Du" %}</label>
+                        <input type="date" name="from" id="from" class="form-control" value="{{ date_from }}">
+                    </div>
+                    
+                    <div class="form-group mb-2 mr-3">
+                        <label for="to" class="mr-2">{% trans "Au" %}</label>
+                        <input type="date" name="to" id="to" class="form-control" value="{{ date_to }}">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary mb-2">
+                        <i class="fas fa-filter"></i> {% trans "Filtrer" %}
+                    </button>
+                    
+                    <a href="{% url 'competitions:qr:history' %}" class="btn btn-secondary mb-2 ml-2">
+                        <i class="fas fa-times"></i> {% trans "Réinitialiser" %}
+                    </a>
+                </form>
+            </div>
+            
+            <!-- Liste des scans -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        {% trans "Scans récents" %}
+                        <span class="badge badge-secondary">{{ scans|length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if scans %}
+                    <div class="scan-list">
+                        {% for scan in scans %}
+                        <div class="scan-item">
+                            <div class="row align-items-center">
+                                <div class="col-md-3">
+                                    <strong>{{ scan.qr_code.practitioner.full_name }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ scan.qr_code.practitioner.organization.name }}</small>
+                                </div>
+                                <div class="col-md-2">
+                                    <span class="scan-type-badge badge badge-{% if scan.scan_type == 'attendance' %}primary{% elif scan.scan_type == 'competition' %}success{% elif scan.scan_type == 'event' %}info{% else %}secondary{% endif %}">
+                                        {{ scan.get_scan_type_display }}
+                                    </span>
+                                </div>
+                                <div class="col-md-3">
+                                    <i class="fas fa-calendar-alt text-muted"></i> {{ scan.scan_date|date:"d/m/Y H:i" }}
+                                    <br>
+                                    {% if scan.location %}
+                                    <small><i class="fas fa-map-marker-alt text-muted"></i> {{ scan.location }}</small>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-2">
+                                    {% if scan.competition %}
+                                    <i class="fas fa-trophy text-success"></i> {{ scan.competition.name|truncatechars:20 }}
+                                    {% elif scan.training_session %}
+                                    <i class="fas fa-dumbbell text-primary"></i> {{ scan.training_session.training_slot.name|truncatechars:20 }}
+                                    {% elif scan.event %}
+                                    <i class="fas fa-calendar-check text-info"></i> {{ scan.event.name|truncatechars:20 }}
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-1">
+                                    {% if scan.is_valid %}
+                                    <span class="badge badge-success">
+                                        <i class="fas fa-check"></i> {% trans "Valide" %}
+                                    </span>
+                                    {% else %}
+                                    <span class="badge badge-danger" data-toggle="tooltip" title="{{ scan.validation_message }}">
+                                        <i class="fas fa-times"></i> {% trans "Invalide" %}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-1 text-right">
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-secondary" type="button" data-toggle="dropdown">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-right">
+                                            <a class="dropdown-item" href="{% url 'competitions:practitioner:detail' scan.qr_code.practitioner.id %}">
+                                                <i class="fas fa-user"></i> {% trans "Voir pratiquant" %}
+                                            </a>
+                                            {% if scan.competition %}
+                                            <a class="dropdown-item" href="{% url 'competitions:competitions:detail' scan.competition.id %}">
+                                                <i class="fas fa-trophy"></i> {% trans "Voir compétition" %}
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-center text-muted py-5">
+                        <i class="fas fa-qrcode fa-3x mb-3"></i>
+                        <br>
+                        {% trans "Aucun scan trouvé pour les critères sélectionnés" %}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="mt-4">
+                <a href="{% url 'competitions:qr:scan' %}" class="btn btn-primary">
+                    <i class="fas fa-camera"></i> {% trans "Scanner un QR Code" %}
+                </a>
+                <button class="btn btn-secondary" onclick="exportCSV()">
+                    <i class="fas fa-download"></i> {% trans "Exporter CSV" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Initialiser les tooltips
+$(function () {
+  $('[data-toggle="tooltip"]').tooltip()
+})
+
+// Export CSV
+function exportCSV() {
+    const params = new URLSearchParams(window.location.search);
+    params.append('export', 'csv');
+    window.location.href = '{% url "competitions:qr:history" %}?' + params.toString();
+}
+
+// Auto-refresh toutes les 30 secondes
+setInterval(function() {
+    if (document.visibilityState === 'visible') {
+        location.reload();
+    }
+}, 30000);
+</script>
+{% endblock %}

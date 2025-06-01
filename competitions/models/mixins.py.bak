@@ -1,0 +1,25 @@
+class AdministratorMixin:
+    """Mixin pour ajouter des méthodes d'administrateur aux modèles."""
+    
+    def get_administrators(self):
+        """Récupère tous les administrateurs de l'entité."""
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        
+        if hasattr(self, 'administrators'):
+            return User.objects.filter(
+                id__in=self.administrators.values_list('user_id', flat=True)
+            )
+        return User.objects.none()
+    
+    def get_primary_administrator(self):
+        """Récupère l'administrateur principal de l'entité."""
+        if hasattr(self, 'administrators'):
+            admin = self.administrators.filter(is_primary=True).first()
+            if admin:
+                return admin.user
+        
+        if hasattr(self, 'owner'):
+            return self.owner
+        
+        return None

@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Notation technique" %} | {{ club.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .competition-card {
+        transition: all 0.3s ease;
+    }
+    
+    .competition-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .badge-judge {
+        background-color: #f8f9fa;
+        color: #333;
+        font-weight: normal;
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+        display: inline-block;
+    }
+    
+    .performance-item {
+        transition: all 0.2s ease;
+    }
+    
+    .performance-item:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">{% trans "Notation technique" %}</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Compétitions actives -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h5 mb-0">{% trans "Compétitions actives" %}</h2>
+                </div>
+                <div class="card-body">
+                    {% if active_competitions %}
+                        <div class="row row-cols-1 row-cols-md-2 g-4">
+                            {% for competition in active_competitions %}
+                                <div class="col">
+                                    <div class="card h-100 competition-card">
+                                        <div class="card-body">
+                                            <h3 class="h5 card-title">{{ competition.title }}</h3>
+                                            <p class="card-text small text-muted">
+                                                <i class="fas fa-calendar-alt me-1"></i>
+                                                {{ competition.start_date|date:"d/m/Y" }}
+                                                {% if competition.end_date != competition.start_date %}
+                                                    - {{ competition.end_date|date:"d/m/Y" }}
+                                                {% endif %}
+                                            </p>
+                                            <p class="card-text small">
+                                                <i class="fas fa-map-marker-alt me-1"></i>
+                                                {{ competition.venue_name|default:competition.city }}
+                                            </p>
+                                            <a href="{% url 'competitions:club:competition_scoring' competition.id %}" class="btn btn-sm btn-primary mt-2">
+                                                <i class="fas fa-star-half-alt me-1"></i> {% trans "Voir la notation" %}
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Aucune compétition active disponible pour la notation technique." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Performances récentes -->
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">{% trans "Performances récentes" %}</h2>
+                </div>
+                <div class="card-body">
+                    {% if recent_performances %}
+                        <div class="list-group">
+                            {% for performance in recent_performances %}
+                                <a href="{% url 'competitions:club:performance_detail' performance.id %}" class="list-group-item list-group-item-action performance-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1">{{ performance.practitioner.full_name }}</h5>
+                                        <small>{{ performance.created_at|date:"d/m/Y" }}</small>
+                                    </div>
+                                    <p class="mb-1">{{ performance.category }}</p>
+                                    <small class="text-muted">{{ performance.competition.title }}</small>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Aucune performance récente." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Juges techniques -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">{% trans "Juges techniques" %}</h2>
+                </div>
+                <div class="card-body">
+                    {% if judges %}
+                        <div class="mb-3">
+                            {% for judge in judges %}
+                                <span class="badge badge-judge py-2 px-3">
+                                    <i class="fas fa-user me-1"></i>
+                                    {{ judge.practitioner.full_name }}
+                                    <small class="ms-1">({{ judge.get_qualification_level_display }})</small>
+                                </span>
+                            {% endfor %}
+                        </div>
+                        <a href="{% url 'competitions:club:judges_list' %}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-list me-1"></i> {% trans "Voir tous les juges" %}
+                        </a>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {% trans "Votre club n'a pas encore de juges techniques enregistrés." %}
+                        </div>
+                        <a href="{% url 'competitions:club:judge_add' %}" class="btn btn-primary">
+                            <i class="fas fa-user-plus me-2"></i>{% trans "Ajouter un juge" %}
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Guide rapide -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="h5 mb-0">{% trans "Guide rapide" %}</h3>
+                </div>
+                <div class="card-body">
+                    <h4 class="h6">{% trans "Comment ça fonctionne ?" %}</h4>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            {% trans "Sélectionnez une compétition active" %}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            {% trans "Visualisez les critères de notation" %}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            {% trans "Consultez les performances de vos athlètes" %}
+                        </li>
+                        <li>
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            {% trans "Analysez les notes et résultats" %}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

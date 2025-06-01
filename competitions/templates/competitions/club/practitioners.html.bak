@@ -1,0 +1,639 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Gestion des pratiquants" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .practitioner-card {
+        transition: all 0.3s ease;
+    }
+    .practitioner-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+    }
+    
+    /* Styles améliorés pour les badges de grade */
+    .grade-badge {
+        border-radius: 12px;
+        padding: 5px 10px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+    }
+    
+    /* Styles pour les grades Qwan Ki Do */
+    .grade-cap-jaune {
+        background-color: rgba(255, 235, 59, 0.2);
+        color: #806600;
+        border-left: 4px solid #FFEB3B;
+    }
+    
+    .grade-cap-rouge {
+        background-color: rgba(244, 67, 54, 0.2);
+        color: #c62828;
+        border-left: 4px solid #F44336;
+    }
+    
+    .grade-cap-blanc {
+        background-color: rgba(245, 245, 245, 0.5);
+        color: #757575;
+        border-left: 4px solid #E0E0E0;
+        border: 1px solid #dee2e6;
+    }
+    
+    .grade-cap-bleu {
+        background-color: rgba(33, 150, 243, 0.2);
+        color: #0d47a1;
+        border-left: 4px solid #2196F3;
+    }
+    
+    .grade-dang {
+        background-color: rgba(0, 0, 0, 0.1);
+        color: #000000;
+        border-left: 4px solid #000000;
+    }
+    
+    /* Styles pour les niveaux des ceintures noires */
+    .grade-dang-1 { border-bottom: 1px solid gold; }
+    .grade-dang-2 { border-bottom: 2px solid gold; }
+    .grade-dang-3 { border-bottom: 3px solid gold; }
+    .grade-dang-4 { border-bottom: 4px solid gold; }
+    .grade-dang-5 { border-bottom: 5px solid gold; }
+    
+    /* Style amélioré pour le champ de grade dans les formulaires */
+    #id_grade.is-valid {
+        background-color: #d4edda;
+        border-color: #28a745;
+        transition: all 0.3s ease;
+    }
+    
+    .user-badge {
+        border-radius: 12px;
+        padding: 5px 10px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        background-color: #e9ecef;
+    }
+    .user-badge.has-user {
+        background-color: rgba(25, 135, 84, 0.1);
+        color: #198754;
+    }
+    .user-badge.no-user {
+        background-color: rgba(108, 117, 125, 0.1);
+        color: #6c757d;
+    }
+    .profile-img {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border-radius: 50%;
+        margin-right: 15px;
+    }
+    .profile-placeholder {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: #6c757d;
+        margin-right: 15px;
+    }
+    .gender-icon {
+        margin-left: 5px;
+        font-size: 0.9rem;
+    }
+    
+    /* Ajout pour améliorer le filtrage par grade */
+    .grade-filter-item {
+        display: flex;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    .grade-filter-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .grade-indicator {
+        width: 16px;
+        height: 16px;
+        margin-right: 8px;
+        border-radius: 2px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center">
+            <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-outline-secondary me-3">
+                <i class="fas fa-arrow-left me-1"></i>{% trans "Tableau de bord" %}
+            </a>
+            <h1 class="h2 mb-0">{% trans "Gestion des pratiquants" %}</h1>
+        </div>
+        <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-success">
+            <i class="fas fa-user-plus me-2"></i>{% trans "Ajouter un pratiquant" %}
+        </a>
+    </div>
+
+    <!-- Filtres et recherche -->
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" name="q" placeholder="{% trans "Rechercher..." %}" value="{{ request.GET.q }}">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select name="grade" class="form-select" id="grade-filter">
+                        <option value="">{% trans "Tous les grades" %}</option>
+                        {% for grade in available_grades %}
+                            <option value="{{ grade }}" {% if request.GET.grade == grade %}selected{% endif %} 
+                                    class="{% if 'Cap Jaune' in grade %}grade-cap-jaune{% elif 'Cap Rouge' in grade %}grade-cap-rouge{% elif 'Cap Blanc' in grade %}grade-cap-blanc{% elif 'Cap Bleu' in grade %}grade-cap-bleu{% elif 'Dang' in grade %}grade-dang{% endif %}">
+                                {{ grade }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="age_group" class="form-select">
+                        <option value="">{% trans "Tous les âges" %}</option>
+                        <option value="children" {% if request.GET.age_group == 'children' %}selected{% endif %}>{% trans "Enfants (6-11 ans)" %}</option>
+                        <option value="teenagers" {% if request.GET.age_group == 'teenagers' %}selected{% endif %}>{% trans "Adolescents (12-17 ans)" %}</option>
+                        <option value="adults" {% if request.GET.age_group == 'adults' %}selected{% endif %}>{% trans "Adultes (18-39 ans)" %}</option>
+                        <option value="seniors" {% if request.GET.age_group == 'seniors' %}selected{% endif %}>{% trans "Seniors (40+ ans)" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="user_status" class="form-select">
+                        <option value="">{% trans "Tous les statuts utilisateur" %}</option>
+                        <option value="with_user" {% if request.GET.user_status == 'with_user' %}selected{% endif %}>{% trans "Avec compte utilisateur" %}</option>
+                        <option value="without_user" {% if request.GET.user_status == 'without_user' %}selected{% endif %}>{% trans "Sans compte utilisateur" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">{% trans "Filtrer" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- Liste des pratiquants -->
+    {% if practitioners %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for practitioner in practitioners %}
+                <div class="col">
+                    <div class="card h-100 border-0 shadow-sm practitioner-card 
+                              {% if 'Cap Jaune' in practitioner.grade %}grade-cap-jaune{% elif 'Cap Rouge' in practitioner.grade %}grade-cap-rouge{% elif 'Cap Blanc' in practitioner.grade %}grade-cap-blanc{% elif 'Cap Bleu' in practitioner.grade %}grade-cap-bleu{% elif 'Dang' in practitioner.grade %}grade-dang{% endif %}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="card-title mb-0">
+                                    {{ practitioner.full_name }}
+                                    <!-- Ajout de l'icône de genre -->
+                                    {% if practitioner.gender == 'male' %}
+                                        <span class="gender-icon text-primary"><i class="fas fa-mars"></i></span>
+                                    {% elif practitioner.gender == 'female' %}
+                                        <span class="gender-icon text-danger"><i class="fas fa-venus"></i></span>
+                                    {% else %}
+                                        <span class="gender-icon text-secondary"><i class="fas fa-genderless"></i></span>
+                                    {% endif %}
+                                </h5>
+                                <!-- Badge de grade amélioré avec style spécifique -->
+                                <span class="grade-badge 
+                                      {% if 'Cap Jaune' in practitioner.grade %}grade-cap-jaune{% elif 'Cap Rouge' in practitioner.grade %}grade-cap-rouge{% elif 'Cap Blanc' in practitioner.grade %}grade-cap-blanc{% elif 'Cap Bleu' in practitioner.grade %}grade-cap-bleu{% elif '1er Dang' in practitioner.grade %}grade-dang grade-dang-1{% elif '2ème Dang' in practitioner.grade %}grade-dang grade-dang-2{% elif '3ème Dang' in practitioner.grade %}grade-dang grade-dang-3{% elif '4ème Dang' in practitioner.grade %}grade-dang grade-dang-4{% elif '5ème Dang' in practitioner.grade %}grade-dang grade-dang-5{% elif 'Dang' in practitioner.grade %}grade-dang{% endif %}">
+                                    {{ practitioner.grade }}
+                                </span>
+                            </div>
+                            
+                            <!-- Photo de profil -->
+                            {% if practitioner.photo %}
+                                <div class="text-center mb-3">
+                                    <img src="{{ practitioner.photo.url }}" alt="{{ practitioner.full_name }}" class="profile-img">
+                                </div>
+                            {% else %}
+                                <div class="text-center mb-3">
+                                    <div class="profile-placeholder mx-auto">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            
+                            <!-- Badge de statut d'utilisateur -->
+                            <div class="mb-3">
+                                {% if practitioner.user %}
+                                    <span class="user-badge has-user">
+                                        <i class="fas fa-user me-1"></i>{{ practitioner.user.username }}
+                                    </span>
+                                {% else %}
+                                    <span class="user-badge no-user">
+                                        <i class="fas fa-user-slash me-1"></i>{% trans "Sans compte" %}
+                                    </span>
+                                {% endif %}
+                            </div>
+                            
+                            <ul class="list-unstyled mb-3">
+                                <li><i class="fas fa-calendar-alt me-2 text-muted"></i>{{ practitioner.birth_date|date:"d/m/Y" }} ({{ practitioner.age }} {% trans "ans" %})</li>
+                                {% if practitioner.license_number %}
+                                    <li><i class="fas fa-id-card me-2 text-muted"></i>{{ practitioner.license_number }}</li>
+                                {% endif %}
+                                {% if practitioner.medical_certificate_date %}
+                                    <li>
+                                        <i class="fas fa-file-medical me-2 text-muted"></i>
+                                        <span class="{% if practitioner.is_medical_certificate_valid %}text-success{% else %}text-danger{% endif %}">
+                                            {{ practitioner.medical_certificate_date|date:"d/m/Y" }}
+                                            {% if not practitioner.is_medical_certificate_valid %}<i class="fas fa-exclamation-circle ms-1"></i>{% endif %}
+                                        </span>
+                                    </li>
+                                {% endif %}
+                                {% if practitioner.email %}
+                                    <li><i class="fas fa-envelope me-2 text-muted"></i>{{ practitioner.email }}</li>
+                                {% endif %}
+                            </ul>
+                            
+                            {% if practitioner.qualifications.exists %}
+                                <h6 class="text-muted mt-3 mb-2">{% trans "Qualifications" %}</h6>
+                                <div class="mb-3">
+                                    {% for qualification in practitioner.qualifications.all %}
+                                        <span class="badge bg-info me-1 mb-1">
+                                            {{ qualification.get_qualification_type_display }} ({{ qualification.get_level_display }})
+                                        </span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            
+                            <div class="d-flex gap-2 mt-3">
+                                <a href="{% url 'competitions:club:practitioner_edit' practitioner_id=practitioner.id %}" class="btn btn-sm btn-outline-primary flex-grow-1">
+                                    <i class="fas fa-edit me-1"></i>{% trans "Modifier" %}
+                                </a>
+                                <a href="{% url 'competitions:club:qualification_add' practitioner_id=practitioner.id %}" class="btn btn-sm btn-outline-info flex-grow-1">
+                                    <i class="fas fa-award me-1"></i>{% trans "Qualifications" %}
+                                </a>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        {% if practitioner.user %}
+                                            <li>
+                                                <span class="dropdown-item-text">
+                                                    <i class="fas fa-user me-2"></i>{% trans "Compte lié" %}
+                                                </span>
+                                            </li>
+                                        {% else %}
+                                            <li>
+                                                <a class="dropdown-item" href="{% url 'competitions:club:create_user_for_practitioner' practitioner_id=practitioner.id %}">
+                                                    <i class="fas fa-user-plus me-2"></i>{% trans "Créer un compte" %}
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item" href="{% url 'competitions:club:link_user_to_practitioner' practitioner_id=practitioner.id %}">
+                                                    <i class="fas fa-link me-2"></i>{% trans "Lier à un compte" %}
+                                                </a>
+                                            </li>
+                                        {% endif %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'competitions:club:available_competitions' %}">
+                                                <i class="fas fa-list-alt me-2"></i>{% trans "Inscriptions" %}
+                                            </a>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#deleteModal{{ practitioner.id }}">
+                                                <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Modal de confirmation de suppression -->
+                <div class="modal fade" id="deleteModal{{ practitioner.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">{% trans "Confirmer la suppression" %}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>{% trans "Êtes-vous sûr de vouloir supprimer le pratiquant" %} <strong>{{ practitioner.full_name }}</strong> ?</p>
+                                <p class="text-danger">{% trans "Cette action est irréversible." %}</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                                <form action="{% url 'competitions:club:practitioner_delete' practitioner_id=practitioner.id %}" method="post">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger">{% trans "Supprimer" %}</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination -->
+        {% if is_paginated %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.grade %}&grade={{ request.GET.grade }}{% endif %}{% if request.GET.age_group %}&age_group={{ request.GET.age_group }}{% endif %}{% if request.GET.user_status %}&user_status={{ request.GET.user_status }}{% endif %}">
+                                <i class="fas fa-angle-double-left"></i>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.grade %}&grade={{ request.GET.grade }}{% endif %}{% if request.GET.age_group %}&age_group={{ request.GET.age_group }}{% endif %}{% if request.GET.user_status %}&user_status={{ request.GET.user_status }}{% endif %}">
+                                <i class="fas fa-angle-left"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.grade %}&grade={{ request.GET.grade }}{% endif %}{% if request.GET.age_group %}&age_group={{ request.GET.age_group }}{% endif %}{% if request.GET.user_status %}&user_status={{ request.GET.user_status }}{% endif %}">
+                                    {{ num }}
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.grade %}&grade={{ request.GET.grade }}{% endif %}{% if request.GET.age_group %}&age_group={{ request.GET.age_group }}{% endif %}{% if request.GET.user_status %}&user_status={{ request.GET.user_status }}{% endif %}">
+                            <i class="fas fa-angle-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.grade %}&grade={{ request.GET.grade }}{% endif %}{% if request.GET.age_group %}&age_group={{ request.GET.age_group }}{% endif %}{% if request.GET.user_status %}&user_status={{ request.GET.user_status }}{% endif %}">
+                            <i class="fas fa-angle-double-right"></i>
+                        </a>
+                    </li>
+                {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center py-5">
+                <img src="{% static 'img/empty-state.svg' %}" alt="Aucun pratiquant" class="mb-3" style="max-width: 200px;">
+                <h3 class="h4 text-muted mb-3">{% trans "Aucun pratiquant enregistré" %}</h3>
+                <p class="text-muted mb-4">{% trans "Commencez par ajouter des pratiquants à votre club pour les inscrire aux compétitions." %}</p>
+                <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-primary">
+                    <i class="fas fa-user-plus me-2"></i>{% trans "Ajouter un pratiquant" %}
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Modal d'information sur la gestion des comptes -->
+<div class="modal fade" id="accountInfoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Gestion des comptes utilisateurs" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>{% trans "À propos des comptes utilisateurs" %}</h6>
+                    <p>{% trans "Un pratiquant peut avoir un compte utilisateur lui permettant de se connecter à l'application, ou être géré par un responsable de club sans compte associé." %}</p>
+                </div>
+                
+                <h6 class="mt-4 mb-3">{% trans "Options disponibles" %}:</h6>
+                <ul class="list-group mb-3">
+                    <li class="list-group-item d-flex">
+                        <div class="me-3 text-primary"><i class="fas fa-user-plus"></i></div>
+                        <div>
+                            <strong>{% trans "Créer un compte utilisateur" %}</strong>
+                            <p class="mb-0 small text-muted">{% trans "Crée automatiquement un compte avec identifiants temporaires." %}</p>
+                        </div>
+                    </li>
+                    <li class="list-group-item d-flex">
+                        <div class="me-3 text-primary"><i class="fas fa-link"></i></div>
+                        <div>
+                            <strong>{% trans "Lier à un compte existant" %}</strong>
+                            <p class="mb-0 small text-muted">{% trans "Associe le pratiquant à un utilisateur déjà existant dans le système." %}</p>
+                        </div>
+                    </li>
+                </ul>
+                
+                <p>{% trans "Vous pouvez filtrer les pratiquants avec ou sans compte utilisateur à l'aide des options de filtre en haut de la page." %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">{% trans "J'ai compris" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Légende des grades Modal -->
+<div class="modal fade" id="gradesInfoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Légende des grades Qwan Ki Do" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">{% trans "Le code couleur des grades facilite l'identification visuelle:" %}</p>
+                
+                <div class="list-group mb-3">
+                    <div class="list-group-item grade-filter-item">
+                        <div class="grade-indicator" style="background-color: #FFEB3B;"></div>
+                        <div>{% trans "Cap Jaune" %}</div>
+                    </div>
+                    <div class="list-group-item grade-filter-item">
+                        <div class="grade-indicator" style="background-color: #F44336;"></div>
+                        <div>{% trans "Cap Rouge" %}</div>
+                    </div>
+                    <div class="list-group-item grade-filter-item">
+                        <div class="grade-indicator" style="background-color: #FFFFFF; border: 1px solid #dee2e6;"></div>
+                        <div>{% trans "Cap Blanc" %}</div>
+                    </div>
+                    <div class="list-group-item grade-filter-item">
+                        <div class="grade-indicator" style="background-color: #2196F3;"></div>
+                        <div>{% trans "Cap Bleu" %}</div>
+                    </div>
+                    <div class="list-group-item grade-filter-item">
+                        <div class="grade-indicator" style="background-color: #000000;"></div>
+                        <div>{% trans "Dang (Ceinture Noire)" %}</div>
+                    </div>
+                </div>
+                
+                <p><i class="fas fa-info-circle me-2 text-primary"></i>{% trans "Les ceintures noires (Dang) sont représentées avec différentes barres dorées selon leur niveau." %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">{% trans "Fermer" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Trouver tous les éléments select du formulaire
+        const allSelects = document.querySelectorAll('select');
+        console.log("DEBUG - Tous les selects du formulaire:", allSelects);
+        
+        // Chercher par nom ou identifiant les éléments dont nous avons besoin
+        let disciplineSelect = document.querySelector('select[name="discipline"]') || 
+                             document.getElementById('id_discipline');
+        let systemSelect = document.querySelector('select[name="system"]') || 
+                         document.getElementById('id_system');
+        let gradeSelect = document.querySelector('select[name="grade"]') || 
+                        document.getElementById('id_grade');
+        
+        console.log("DEBUG - Éléments trouvés:");
+        console.log("- disciplineSelect:", disciplineSelect);
+        console.log("- systemSelect:", systemSelect);
+        console.log("- gradeSelect:", gradeSelect);
+        
+        // Vérifier que nous avons trouvé les éléments
+        if (!disciplineSelect || !systemSelect || !gradeSelect) {
+            console.error("Impossible de trouver tous les éléments de formulaire nécessaires.");
+            return;
+        }
+        
+        // Fonction de chargement des systèmes
+        disciplineSelect.addEventListener('change', function() {
+            const disciplineId = this.value;
+            console.log("DEBUG - Discipline changée:", disciplineId);
+            
+            if (!disciplineId) return;
+            
+            systemSelect.disabled = true;
+            systemSelect.innerHTML = '<option value="">Chargement...</option>';
+            gradeSelect.disabled = true;
+            gradeSelect.innerHTML = '<option value="">Sélectionnez un système</option>';
+            
+            // Utiliser fetch avec les bons en-têtes
+            fetch(`/api/disciplines/${disciplineId}/grade-systems/`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                console.log("DEBUG - Réponse API status:", response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log("DEBUG - Données reçues:", data);
+                
+                systemSelect.innerHTML = '<option value="">Sélectionnez un système</option>';
+                
+                // Vérifier différentes structures de données possibles
+                const systems = data.grade_systems || data.systems || (Array.isArray(data) ? data : []);
+                
+                console.log("DEBUG - Systèmes extraits:", systems);
+                
+                if (systems.length > 0) {
+                    systems.forEach(system => {
+                        const option = document.createElement('option');
+                        option.value = system.id;
+                        option.textContent = system.name;
+                        systemSelect.appendChild(option);
+                    });
+                } else {
+                    systemSelect.innerHTML = '<option value="">Aucun système disponible</option>';
+                }
+                
+                systemSelect.disabled = false;
+            })
+            .catch(error => {
+                console.error("DEBUG - Erreur:", error);
+                systemSelect.innerHTML = '<option value="">Erreur de chargement</option>';
+                systemSelect.disabled = false;
+            });
+        });
+        
+        // Fonction de chargement des grades
+        systemSelect.addEventListener('change', function() {
+            const systemId = this.value;
+            console.log("DEBUG - Système changé:", systemId);
+            
+            if (!systemId) return;
+            
+            gradeSelect.disabled = true;
+            gradeSelect.innerHTML = '<option value="">Chargement...</option>';
+            
+            fetch(`/api/grade-systems/${systemId}/grades/`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                console.log("DEBUG - Réponse API grades status:", response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log("DEBUG - Données des grades:", data);
+                
+                gradeSelect.innerHTML = '<option value="">Sélectionnez un grade</option>';
+                
+                // Vérifier différentes structures de données possibles
+                const grades = data.grades || (Array.isArray(data) ? data : []);
+                
+                console.log("DEBUG - Grades extraits:", grades);
+                
+                if (grades.length > 0) {
+                    grades.forEach(grade => {
+                        const option = document.createElement('option');
+                        option.value = grade.id;
+                        option.textContent = grade.name;
+                        gradeSelect.appendChild(option);
+                    });
+                } else {
+                    gradeSelect.innerHTML = '<option value="">Aucun grade disponible</option>';
+                }
+                
+                gradeSelect.disabled = false;
+            })
+            .catch(error => {
+                console.error("DEBUG - Erreur grades:", error);
+                gradeSelect.innerHTML = '<option value="">Erreur de chargement</option>';
+                gradeSelect.disabled = false;
+            });
+        });
+        
+        // Initialisation si une discipline est déjà sélectionnée
+        if (disciplineSelect.value) {
+            console.log("DEBUG - Discipline déjà sélectionnée:", disciplineSelect.value);
+            disciplineSelect.dispatchEvent(new Event('change'));
+        }
+    });
+</script>
+{% endblock %}

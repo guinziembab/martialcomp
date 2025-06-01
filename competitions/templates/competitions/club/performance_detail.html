@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Performance de" %} {{ performance.practitioner.full_name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:club:dashboard' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:club:technical_scoring' %}">{% trans "Notation technique" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:club:competition_scoring' performance.competition.id %}">{{ performance.competition.title }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ performance.practitioner.full_name }}</li>
+        </ol>
+    </nav>
+
+    <div class="mb-4">
+        <h1 class="h3">{% trans "Performance de" %} {{ performance.practitioner.full_name }}</h1>
+        <p class="text-muted">
+            <i class="fas fa-trophy me-2"></i>{{ performance.competition.title }}
+            <i class="fas fa-layer-group ms-3 me-2"></i>{{ performance.category.name }}
+        </p>
+    </div>
+
+    <!-- Informations sur la performance -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{% trans "Informations sur la performance" %}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <ul class="list-group">
+                        <li class="list-group-item">
+                            <strong>{% trans "Statut" %}:</strong>
+                            {% if performance.status == 'pending' %}
+                                <span class="badge bg-warning">{% trans "En attente" %}</span>
+                            {% elif performance.status == 'in_progress' %}
+                                <span class="badge bg-info">{% trans "En cours" %}</span>
+                            {% elif performance.status == 'completed' %}
+                                <span class="badge bg-success">{% trans "Terminé" %}</span>
+                            {% elif performance.status == 'disqualified' %}
+                                <span class="badge bg-danger">{% trans "Disqualifié" %}</span>
+                            {% endif %}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>{% trans "Ordre de passage" %}:</strong> {{ performance.performance_order }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>{% trans "Date" %}:</strong> {{ performance.created_at|date:"d/m/Y" }}
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul class="list-group">
+                        {% if performance.start_time %}
+                            <li class="list-group-item">
+                                <strong>{% trans "Heure de début" %}:</strong> {{ performance.start_time|date:"H:i" }}
+                            </li>
+                        {% endif %}
+                        {% if performance.end_time %}
+                            <li class="list-group-item">
+                                <strong>{% trans "Heure de fin" %}:</strong> {{ performance.end_time|date:"H:i" }}
+                            </li>
+                        {% endif %}
+                        {% if performance.duration %}
+                            <li class="list-group-item">
+                                <strong>{% trans "Durée" %}:</strong> {{ performance.duration|floatformat:1 }} s
+                            </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            
+            {% if performance.notes %}
+                <div class="mt-3">
+                    <h5 class="h6">{% trans "Notes" %}</h5>
+                    <p>{{ performance.notes }}</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Scores des juges -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h2 class="h5 mb-0">{% trans "Scores des juges" %}</h2>
+        </div>
+        <div class="card-body">
+            {% if scores_by_judge %}
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Juge" %}</th>
+                                {% for criterion in criteria %}
+                                    <th>{{ criterion.name }}</th>
+                                {% endfor %}
+                                <th>{% trans "Total" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for judge_id, data in scores_by_judge.items %}
+                                <tr>
+                                    <td>{{ data.judge.practitioner.full_name }}</td>
+                                    {% for criterion in criteria %}
+                                        <td>
+                                            {% if criterion.id in data.scores %}
+                                                {{ data.scores|get_item:criterion.id|get_item:'value' }}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    {% endfor %}
+                                    <td>
+                                        {% with total=0 %}
+                                            {% for criterion in criteria %}
+                                                {% if criterion.id in data.scores %}
+                                                    {% with score=data.scores|get_item:criterion.id|get_item:'value' %}
+                                                        {% with weighted=score|multiply:criterion.weight %}
+                                                            {% with new_total=total|add:weighted %}
+                                                                {% setvar total=new_total %}
+                                                            {% endwith %}
+                                                        {% endwith %}
+                                                    {% endwith %}
+                                                {% endif %}
+                                            {% endfor %}
+                                            <strong>{{ total|floatformat:2 }}</strong>
+                                        {% endwith %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucun score n'a encore été enregistré pour cette performance." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

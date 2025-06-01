@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Gestion des prestations" %} - {{ category.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .performance-card {
+        transition: all 0.2s ease;
+    }
+    
+    .performance-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .status-badge {
+        font-size: 0.8rem;
+    }
+    
+    .status-badge.pending {
+        background-color: #6c757d;
+    }
+    
+    .status-badge.in-progress {
+        background-color: #17a2b8;
+    }
+    
+    .status-badge.completed {
+        background-color: #28a745;
+    }
+    
+    .status-badge.cancelled {
+        background-color: #dc3545;
+    }
+    
+    .order-input {
+        width: 60px;
+        text-align: center;
+    }
+    
+    .drag-handle {
+        cursor: move;
+        color: #6c757d;
+    }
+    
+    .performance-table tr {
+        transition: background-color 0.2s;
+    }
+    
+    .performance-table tr:hover {
+        background-color: rgba(0,0,0,0.03);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:competitions:detail' pk=competition.id %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:competitions:categories' competition_id=competition.id %}">{% trans "Catégories" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% trans "Gestion des prestations" %} - {{ category.name }}</li>
+        </ol>
+    </nav>
+    
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3">{% trans "Gestion des prestations" %} - {{ category.name }}</h1>
+            <p class="text-muted">{% trans "Gérez l'ordre de passage et le statut des prestations techniques." %}</p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'competitions:technical_scoring:category_results' category_id=category.id %}" class="btn btn-outline-primary">
+                <i class="fas fa-trophy me-2"></i>{% trans "Voir les résultats" %}
+            </a>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{% trans "Liste des prestations" %}</h2>
+        </div>
+        <div class="card-body">
+            {% if performances %}
+                <form method="post" id="order-form">
+                    {% csrf_token %}
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover performance-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 60px">{% trans "Ordre" %}</th>
+                                    <th>{% trans "Participant" %}</th>
+                                    <th>{% trans "Club" %}</th>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th>{% trans "Score" %}</th>
+                                    <th style="width: 150px">{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="performances-body">
+                                {% for performance in performances %}
+                                    <tr>
+                                        <td>
+                                            <input type="number" name="performance_{{ performance.id }}" 
+                                                   value="{{ performance.performance_order }}" min="1" 
+                                                   class="form-control order-input">
+                                        </td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <div class="ms-2">
+                                                    <div class="fw-bold">{{ performance.practitioner.full_name }}</div>
+                                                    <div class="small text-muted">{{ performance.practitioner.grade }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {% if performance.practitioner.club %}
+                                                {{ performance.practitioner.club.name }}
+                                            {% else %}
+                                                <span class="text-muted">{% trans "Aucun club" %}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge status-badge {% if performance.status == 'pending' %}pending{% elif performance.status == 'in_progress' %}in-progress{% elif performance.status == 'completed' %}completed{% else %}cancelled{% endif %}">
+                                                {% if performance.status == 'pending' %}
+                                                    {% trans "En attente" %}
+                                                {% elif performance.status == 'in_progress' %}
+                                                    {% trans "En cours" %}
+                                                {% elif performance.status == 'completed' %}
+                                                    {% trans "Terminée" %}
+                                                {% else %}
+                                                    {% trans "Annulée" %}
+                                                {% endif %}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if performance.final_score %}
+                                                <span class="badge bg-success">{{ performance.final_score }}</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if performance.status == 'pending' %}
+                                                <a href="{% url 'competitions:technical_scoring:start_performance' performance_id=performance.id %}" class="btn btn-sm btn-primary">
+                                                    <i class="fas fa-play me-1"></i>{% trans "Démarrer" %}
+                                                </a>
+                                            {% elif performance.status == 'in_progress' %}
+                                                <a href="{% url 'competitions:technical_scoring:monitor_performance' performance_id=performance.id %}" class="btn btn-sm btn-info">
+                                                    <i class="fas fa-eye me-1"></i>{% trans "Suivre" %}
+                                                </a>
+                                            {% elif performance.status == 'completed' %}
+                                                <a href="{% url 'competitions:technical_scoring:performance_results' performance_id=performance.id %}" class="btn btn-sm btn-success">
+                                                    <i class="fas fa-chart-bar me-1"></i>{% trans "Résultats" %}
+                                                </a>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end mt-3">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>{% trans "Enregistrer l'ordre" %}
+                        </button>
+                    </div>
+                </form>
+            {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {% trans "Aucune prestation n'a été trouvée pour cette catégorie." %}
+                </div>
+                
+                <p>{% trans "Vous devez d'abord inscrire des participants à cette catégorie." %}</p>
+                
+                <a href="{% url 'competitions:competitions:categories' competition_id=competition.id %}" class="btn btn-primary">
+                    <i class="fas fa-users me-2"></i>{% trans "Gérer les inscriptions" %}
+                </a>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{% trans "Gestion de la compétition" %}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>{% trans "Configuration de la notation" %}</h5>
+                    <p>{% trans "Configurez les critères de notation et les paramètres d'évaluation." %}</p>
+                    <a href="{% url 'competitions:technical_scoring:category_scoring_setup' category_id=category.id %}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-cog me-2"></i>{% trans "Configuration" %}
+                    </a>
+                </div>
+                
+                <div class="col-md-6">
+                    <h5>{% trans "Assignation des juges" %}</h5>
+                    <p>{% trans "Assignez des juges à cette catégorie et désignez un juge en chef." %}</p>
+                    <a href="{% url 'competitions:technical_scoring:assign_judges' category_id=category.id %}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-gavel me-2"></i>{% trans "Gérer les juges" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="d-flex justify-content-between mt-4">
+        <a href="{% url 'competitions:competitions:categories' competition_id=competition.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Validation du formulaire d'ordre
+        const orderForm = document.getElementById('order-form');
+        if (orderForm) {
+            orderForm.addEventListener('submit', function(e) {
+                const orderInputs = document.querySelectorAll('.order-input');
+                const orders = new Set();
+                
+                // Vérifier si les ordres sont uniques
+                let hasError = false;
+                orderInputs.forEach(input => {
+                    const value = parseInt(input.value);
+                    if (orders.has(value)) {
+                        input.classList.add('is-invalid');
+                        hasError = true;
+                    } else {
+                        input.classList.remove('is-invalid');
+                        orders.add(value);
+                    }
+                });
+                
+                if (hasError) {
+                    e.preventDefault();
+                    alert("{% trans 'Les ordres de passage doivent être uniques.' %}");
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

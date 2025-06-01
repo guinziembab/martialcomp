@@ -1,0 +1,504 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Gestion des Grades" %} | {{ club.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .grade-badge {
+        display: inline-block;
+        padding: 0.35em 0.65em;
+        font-size: 0.85em;
+        font-weight: 500;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.25rem;
+        margin-right: 0.5rem;
+    }
+    
+    .grade-circle {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        vertical-align: middle;
+        border: 1px solid rgba(0, 0, 0, 0.2);
+    }
+    
+    .grade-white { background-color: #FFFFFF; }
+    .grade-yellow { background-color: #FFFF00; }
+    .grade-orange { background-color: #FFA500; }
+    .grade-green { background-color: #008000; color: white; }
+    .grade-blue { background-color: #0000FF; color: white; }
+    .grade-brown { background-color: #A52A2A; color: white; }
+    .grade-black { background-color: #000000; color: white; }
+    .grade-red { background-color: #FF0000; color: white; }
+    .grade-purple { background-color: #800080; color: white; }
+    
+    .table-responsive {
+        overflow-x: auto;
+    }
+    
+    .filter-section {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .grade-action-button {
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 0.2rem;
+    }
+    
+    .no-grade-badge {
+        background-color: #f8f9fa;
+        color: #6c757d;
+        font-style: italic;
+    }
+    
+    .batch-update-bar {
+        display: none;
+        background-color: #f8d7da;
+        border: 1px solid #f5c2c7;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .practitioner-checkbox {
+        width: 18px;
+        height: 18px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">
+        <i class="fas fa-award me-2 text-danger"></i>
+        {% trans "Gestion des Grades" %}
+    </h1>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-3">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- Filtres et recherche -->
+    <div class="filter-section">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="discipline" class="form-label">{% trans "Filtrer par discipline" %}</label>
+                <select id="discipline" name="discipline" class="form-select">
+                    <option value="">{% trans "Toutes les disciplines" %}</option>
+                    {% for discipline in disciplines %}
+                        <option value="{{ discipline.id }}" {% if discipline.id|stringformat:"s" == selected_discipline %}selected{% endif %}>
+                            {{ discipline.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="grade_status" class="form-label">{% trans "Statut du grade" %}</label>
+                <select id="grade_status" name="grade_status" class="form-select">
+                    <option value="">{% trans "Tous les statuts" %}</option>
+                    <option value="with_grade" {% if selected_grade_status == 'with_grade' %}selected{% endif %}>
+                        {% trans "Avec grade" %}
+                    </option>
+                    <option value="without_grade" {% if selected_grade_status == 'without_grade' %}selected{% endif %}>
+                        {% trans "Sans grade" %}
+                    </option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="q" class="form-label">{% trans "Recherche" %}</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="q" name="q" placeholder="{% trans 'Nom ou prénom' %}" value="{{ search_query|default:'' }}">
+                    <button class="btn btn-outline-primary" type="submit">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Barre d'action pour la mise à jour par lot -->
+    <div class="batch-update-bar" id="batchUpdateBar">
+        <form method="post" action="{% url 'competitions:club:batch_update_grades' %}" id="batchUpdateForm">
+            {% csrf_token %}
+            <div class="row align-items-center">
+                <div class="col-md-5">
+                    <span id="selectedCount" class="fw-bold">0</span> {% trans "pratiquants sélectionnés" %}
+                </div>
+                <div class="col-md-5">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <select name="discipline" class="form-select form-select-sm" id="batchDiscipline">
+                                <option value="">{% trans "Sélectionner une discipline" %}</option>
+                                {% for discipline in disciplines %}
+                                    <option value="{{ discipline.id }}">{{ discipline.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <select name="grade" class="form-select form-select-sm" id="batchGrade">
+                                <option value="">{% trans "Sélectionner un grade" %}</option>
+                                <!-- Les grades seront chargés dynamiquement via JavaScript -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2 text-end">
+                    <button type="submit" class="btn btn-danger btn-sm" id="batchUpdateButton" disabled>
+                        <i class="fas fa-save me-1"></i> {% trans "Mettre à jour" %}
+                    </button>
+                </div>
+            </div>
+            <!-- Champ caché pour stocker les IDs des pratiquants sélectionnés -->
+            <div id="selectedPractitioners">
+                <!-- Les checkboxes cochées seront ajoutées ici dynamiquement -->
+            </div>
+        </form>
+    </div>
+    
+    <!-- Liste des pratiquants -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center bg-light">
+            <h5 class="mb-0">
+                <i class="fas fa-list me-2"></i>
+                {% trans "Pratiquants" %}
+                {% if practitioners.paginator %}
+                    <span class="badge bg-secondary">{{ practitioners.paginator.count }}</span>
+                {% endif %}
+            </h5>
+            <div>
+                <button type="button" class="btn btn-outline-primary btn-sm me-2" id="toggleBatchSelection">
+                    <i class="fas fa-check-square me-1"></i> {% trans "Sélection multiple" %}
+                </button>
+                <a href="{% url 'competitions:club:grade_systems_management' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-cog me-1"></i> {% trans "Systèmes de grades" %}
+                </a>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 30px;" class="batch-selection-column d-none">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="selectAllPractitioners">
+                                </div>
+                            </th>
+                            <th>{% trans "Nom" %}</th>
+                            <th>{% trans "Disciplines" %}</th>
+                            <th>{% trans "Grade actuel" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for practitioner in practitioners %}
+                            <tr>
+                                <td class="batch-selection-column d-none">
+                                    <div class="form-check">
+                                        <input class="form-check-input practitioner-checkbox" 
+                                               type="checkbox" 
+                                               name="practitioners" 
+                                               value="{{ practitioner.id }}"
+                                               data-first-name="{{ practitioner.first_name }}"
+                                               data-last-name="{{ practitioner.last_name }}">
+                                    </div>
+                                </td>
+                                <td>
+                                    <a href="{% url 'competitions:club:practitioner_detail' pk=practitioner.id %}" class="text-decoration-none">
+                                        <strong>{{ practitioner.last_name }}</strong>, {{ practitioner.first_name }}
+                                    </a>
+                                    <small class="text-muted d-block">
+                                        {% if practitioner.age %}{{ practitioner.age }} {% trans "ans" %}{% endif %}
+                                    </small>
+                                </td>
+                                <td>
+                                    {% for discipline in practitioner.disciplines.all %}
+                                        <span class="badge bg-info">{{ discipline.name }}</span>
+                                    {% empty %}
+                                        <span class="text-muted">{% trans "Aucune discipline" %}</span>
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    {% if practitioner.grade %}
+                                        <span class="grade-badge" title="{{ practitioner.grade }}">
+                                            {% if "Blanche" in practitioner.grade %}
+                                                <span class="grade-circle grade-white"></span>
+                                            {% elif "Jaune" in practitioner.grade %}
+                                                <span class="grade-circle grade-yellow"></span>
+                                            {% elif "Orange" in practitioner.grade %}
+                                                <span class="grade-circle grade-orange"></span>
+                                            {% elif "Verte" in practitioner.grade %}
+                                                <span class="grade-circle grade-green"></span>
+                                            {% elif "Bleue" in practitioner.grade %}
+                                                <span class="grade-circle grade-blue"></span>
+                                            {% elif "Marron" in practitioner.grade %}
+                                                <span class="grade-circle grade-brown"></span>
+                                            {% elif "Noire" in practitioner.grade %}
+                                                <span class="grade-circle grade-black"></span>
+                                            {% elif "Rouge" in practitioner.grade %}
+                                                <span class="grade-circle grade-red"></span>
+                                            {% else %}
+                                                <span class="grade-circle"></span>
+                                            {% endif %}
+                                            {{ practitioner.grade }}
+                                        </span>
+                                    {% else %}
+                                        <span class="grade-badge no-grade-badge">{% trans "Non défini" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex">
+                                        <a href="{% url 'competitions:club:update_practitioner_grade' practitioner_id=practitioner.id %}" 
+                                           class="btn btn-outline-primary btn-sm grade-action-button" 
+                                           title="{% trans 'Mettre à jour le grade' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{% url 'competitions:club:practitioner_grade_history' practitioner_id=practitioner.id %}" 
+                                           class="btn btn-outline-info btn-sm grade-action-button"
+                                           title="{% trans 'Historique des grades' %}">
+                                            <i class="fas fa-history"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4">
+                                    <p class="text-muted mb-0">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        {% trans "Aucun pratiquant trouvé." %}
+                                    </p>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% if is_paginated %}
+            <div class="card-footer">
+                <nav aria-label="{% trans 'Pagination' %}">
+                    <ul class="pagination justify-content-center mb-0">
+                        {% if practitioners.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade_status %}&grade_status={{ selected_grade_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" aria-label="{% trans 'Première' %}">
+                                    <span aria-hidden="true">&laquo;&laquo;</span>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ practitioners.previous_page_number }}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade_status %}&grade_status={{ selected_grade_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" aria-label="{% trans 'Précédente' %}">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">&laquo;&laquo;</span>
+                            </li>
+                            <li class="page-item disabled">
+                                <span class="page-link">&laquo;</span>
+                            </li>
+                        {% endif %}
+                        
+                        {% for i in practitioners.paginator.page_range %}
+                            {% if practitioners.number == i %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ i }}</span>
+                                </li>
+                            {% elif i > practitioners.number|add:'-3' and i < practitioners.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ i }}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade_status %}&grade_status={{ selected_grade_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}">{{ i }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if practitioners.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ practitioners.next_page_number }}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade_status %}&grade_status={{ selected_grade_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" aria-label="{% trans 'Suivante' %}">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ practitioners.paginator.num_pages }}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade_status %}&grade_status={{ selected_grade_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" aria-label="{% trans 'Dernière' %}">
+                                    <span aria-hidden="true">&raquo;&raquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">&raquo;</span>
+                            </li>
+                            <li class="page-item disabled">
+                                <span class="page-link">&raquo;&raquo;</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion du bouton de sélection par lot
+        const toggleBatchSelectionBtn = document.getElementById('toggleBatchSelection');
+        const batchSelectionColumns = document.querySelectorAll('.batch-selection-column');
+        const batchUpdateBar = document.getElementById('batchUpdateBar');
+        const selectAllCheckbox = document.getElementById('selectAllPractitioners');
+        const practitionerCheckboxes = document.querySelectorAll('.practitioner-checkbox');
+        const selectedPractitionersContainer = document.getElementById('selectedPractitioners');
+        const selectedCountElement = document.getElementById('selectedCount');
+        const batchUpdateButton = document.getElementById('batchUpdateButton');
+        const batchDisciplineSelect = document.getElementById('batchDiscipline');
+        const batchGradeSelect = document.getElementById('batchGrade');
+        
+        // Fonction pour mettre à jour l'interface en fonction des sélections
+        function updateSelectionUI() {
+            const checkedCheckboxes = document.querySelectorAll('.practitioner-checkbox:checked');
+            const count = checkedCheckboxes.length;
+            
+            // Mettre à jour le compteur
+            selectedCountElement.textContent = count;
+            
+            // Activer/désactiver le bouton de mise à jour
+            batchUpdateButton.disabled = count === 0 || !batchGradeSelect.value;
+            
+            // Mettre à jour les champs cachés avec les IDs sélectionnés
+            selectedPractitionersContainer.innerHTML = '';
+            checkedCheckboxes.forEach(checkbox => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'practitioners';
+                input.value = checkbox.value;
+                selectedPractitionersContainer.appendChild(input);
+            });
+        }
+        
+        // Activer/désactiver la sélection par lot
+        if (toggleBatchSelectionBtn) {
+            toggleBatchSelectionBtn.addEventListener('click', function() {
+                const isActive = this.classList.contains('active');
+                
+                if (isActive) {
+                    // Désactiver la sélection par lot
+                    this.classList.remove('active');
+                    batchSelectionColumns.forEach(col => col.classList.add('d-none'));
+                    batchUpdateBar.style.display = 'none';
+                    
+                    // Décocher toutes les cases
+                    selectAllCheckbox.checked = false;
+                    practitionerCheckboxes.forEach(checkbox => {
+                        checkbox.checked = false;
+                    });
+                } else {
+                    // Activer la sélection par lot
+                    this.classList.add('active');
+                    batchSelectionColumns.forEach(col => col.classList.remove('d-none'));
+                    batchUpdateBar.style.display = 'block';
+                }
+                
+                updateSelectionUI();
+            });
+        }
+        
+        // Gestion du "Tout sélectionner"
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function() {
+                practitionerCheckboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+                
+                updateSelectionUI();
+            });
+        }
+        
+        // Écouter les changements sur les cases à cocher des pratiquants
+        practitionerCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateSelectionUI);
+        });
+        
+        // Gestion du chargement des grades lors de la sélection d'une discipline
+        if (batchDisciplineSelect) {
+            batchDisciplineSelect.addEventListener('change', function() {
+                const disciplineId = this.value;
+                
+                // Réinitialiser le select des grades
+                batchGradeSelect.innerHTML = '<option value="">{% trans "Sélectionner un grade" %}</option>';
+                
+                if (disciplineId) {
+                    // Afficher indicateur de chargement
+                    batchGradeSelect.innerHTML += '<option value="" disabled>{% trans "Chargement..." %}</option>';
+                    
+                    // Récupérer les grades de la discipline via l'API
+                    fetch(`{% url 'competitions:club:api_get_discipline_grades' discipline_id=0 %}`.replace('0', disciplineId))
+                        .then(response => response.json())
+                        .then(data => {
+                            // Réinitialiser le select
+                            batchGradeSelect.innerHTML = '<option value="">{% trans "Sélectionner un grade" %}</option>';
+                            
+                            // Regrouper les grades par catégorie
+                            const gradesByCategory = {};
+                            data.grades.forEach(grade => {
+                                if (!gradesByCategory[grade.category]) {
+                                    gradesByCategory[grade.category] = [];
+                                }
+                                gradesByCategory[grade.category].push(grade);
+                            });
+                            
+                            // Ajouter les options regroupées par catégorie
+                            for (const category in gradesByCategory) {
+                                const optgroup = document.createElement('optgroup');
+                                optgroup.label = category;
+                                
+                                gradesByCategory[category].forEach(grade => {
+                                    const option = new Option(grade.name, grade.name);
+                                    optgroup.appendChild(option);
+                                });
+                                
+                                batchGradeSelect.appendChild(optgroup);
+                            }
+                            
+                            // Mettre à jour l'interface
+                            updateSelectionUI();
+                        })
+                        .catch(error => {
+                            console.error('Erreur lors du chargement des grades:', error);
+                            batchGradeSelect.innerHTML = '<option value="">{% trans "Erreur de chargement" %}</option>';
+                        });
+                }
+                
+                updateSelectionUI();
+            });
+        }
+        
+        // Activation du bouton de mise à jour quand un grade est sélectionné
+        if (batchGradeSelect) {
+            batchGradeSelect.addEventListener('change', updateSelectionUI);
+        }
+        
+        // Initialiser l'interface
+        updateSelectionUI();
+    });
+</script>
+{% endblock %}

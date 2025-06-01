@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Réorganiser les critères" %} - {{ category.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Réorganiser les critères de notation" %}</h1>
+        <a href="{% url 'competitions:management:category_scoring_setup' competition.id category.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la configuration" %}
+        </a>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h5 mb-0">{{ category.name }} - {{ competition.title }}</h2>
+                </div>
+                <div class="card-body">
+                    <p class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Glissez et déposez les critères pour modifier leur ordre d'affichage." %}
+                    </p>
+
+                    <div id="criteriaList" class="list-group mb-4">
+                        {% for criterion in criteria %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center" data-id="{{ criterion.id }}">
+                            <div class="d-flex align-items-center">
+                                <div class="drag-handle me-3 text-muted">
+                                    <i class="fas fa-grip-vertical"></i>
+                                </div>
+                                <div>
+                                    <strong>{{ criterion.name }}</strong>
+                                    {% if criterion.description %}
+                                    <div class="small text-truncate" style="max-width: 300px;">{{ criterion.description }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <span class="badge bg-primary">{{ criterion.order }}</span>
+                        </div>
+                        {% empty %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {% trans "Aucun critère à réorganiser." %}
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button id="saveOrderBtn" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>{% trans "Enregistrer l'ordre" %}
+                        </button>
+                        <a href="{% url 'competitions:management:category_scoring_setup' competition.id category.id %}" class="btn btn-outline-secondary">
+                            {% trans "Annuler" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialiser Sortable.js
+        var el = document.getElementById('criteriaList');
+        var sortable = Sortable.create(el, {
+            handle: '.drag-handle',
+            animation: 150,
+            onEnd: function(evt) {
+                // Mettre à jour les badges de position
+                updateOrderIndicators();
+            }
+        });
+
+        // Mettre à jour les indicateurs d'ordre
+        function updateOrderIndicators() {
+            const items = document.querySelectorAll('#criteriaList .list-group-item');
+            items.forEach((item, index) => {
+                const badge = item.querySelector('.badge');
+                badge.textContent = index + 1;
+            });
+        }
+
+        // Sauvegarder l'ordre
+        document.getElementById('saveOrderBtn').addEventListener('click', function() {
+            const items = document.querySelectorAll('#criteriaList .list-group-item');
+            const criteriaOrders = [];
+
+            items.forEach((item, index) => {
+                criteriaOrders.push({
+                    id: item.dataset.id,
+                    order: index + 1
+                });
+            });
+
+            // Envoyer les données au serveur
+            fetch('{% url "competitions:management:reorder_scoring_criteria" competition.id category.id %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ criteriaOrders: criteriaOrders })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Rediriger vers la page de configuration
+                    window.location.href = "{% url 'competitions:management:category_scoring_setup' competition.id category.id %}";
+                } else {
+                    alert('{% trans "Une erreur est survenue lors de la sauvegarde." %}');
+                    console.error(data.message);
+                }
+            })
+            .catch(error => {
+                alert('{% trans "Une erreur est survenue lors de la sauvegarde." %}');
+                console.error(error);
+            });
+        });
+    });
+</script>
+{% endblock %}

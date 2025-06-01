@@ -1,0 +1,226 @@
+{% extends "competitions/standalone_scoring/admin/base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Performances" %} | {% translate "Scoring Management" %}{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="scoring-card">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>{% translate "Performances" %}</h2>
+                <a href="{% url 'competitions:standalone_scoring:performance_create' %}" class="scoring-btn-primary">
+                    {% translate "Create Performance" %}
+                </a>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-12">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="competition" class="form-label">{% translate "Competition" %}</label>
+                            <select name="competition" id="competition" class="form-select">
+                                <option value="">{% translate "All Competitions" %}</option>
+                                {% for competition in competitions %}
+                                <option value="{{ competition.id }}" {% if selected_competition == competition.id|stringformat:"i" %}selected{% endif %}>
+                                    {{ competition.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label for="category" class="form-label">{% translate "Category" %}</label>
+                            <select name="category" id="category" class="form-select">
+                                <option value="">{% translate "All Categories" %}</option>
+                                {% for category in categories %}
+                                <option value="{{ category.id }}" {% if selected_category == category.id|stringformat:"i" %}selected{% endif %}>
+                                    {{ category.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3">
+                            <label for="round_type" class="form-label">{% translate "Round Type" %}</label>
+                            <select name="round_type" id="round_type" class="form-select">
+                                <option value="">{% translate "All Rounds" %}</option>
+                                {% for round_type, round_name in round_types %}
+                                <option value="{{ round_type }}" {% if selected_round_type == round_type %}selected{% endif %}>
+                                    {{ round_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="status" class="form-label">{% translate "Status" %}</label>
+                            <select name="status" id="status" class="form-select">
+                                <option value="">{% translate "All Statuses" %}</option>
+                                {% for status_code, status_name in statuses %}
+                                <option value="{{ status_code }}" {% if selected_status == status_code %}selected{% endif %}>
+                                    {{ status_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">{% translate "Filter" %}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            {% if performances %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>{% translate "Participant" %}</th>
+                                <th>{% translate "Competition" %}</th>
+                                <th>{% translate "Category" %}</th>
+                                <th>{% translate "Round" %}</th>
+                                <th>{% translate "Status" %}</th>
+                                <th>{% translate "Order" %}</th>
+                                <th>{% translate "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for performance in performances %}
+                            <tr>
+                                <td>{{ performance.practitioner_name }}</td>
+                                <td>{{ performance.competition_name }}</td>
+                                <td>{{ performance.category_name }}</td>
+                                <td>
+                                    {% if performance.round_type == 'preliminary' %}
+                                        {% translate "Preliminary" %}
+                                    {% elif performance.round_type == 'semifinal' %}
+                                        {% translate "Semifinal" %}
+                                    {% elif performance.round_type == 'final' %}
+                                        {% translate "Final" %}
+                                    {% elif performance.round_type == 'exhibition' %}
+                                        {% translate "Exhibition" %}
+                                    {% endif %}
+                                    {{ performance.round_number }}
+                                </td>
+                                <td>
+                                    {% if performance.status == 'pending' %}
+                                        <span class="performance-status status-pending">{% translate "Pending" %}</span>
+                                    {% elif performance.status == 'in_progress' %}
+                                        <span class="performance-status status-in-progress">{% translate "In Progress" %}</span>
+                                    {% elif performance.status == 'completed' %}
+                                        <span class="performance-status status-completed">{% translate "Completed" %}</span>
+                                    {% elif performance.status == 'disqualified' %}
+                                        <span class="performance-status status-disqualified">{% translate "Disqualified" %}</span>
+                                    {% elif performance.status == 'cancelled' %}
+                                        <span class="performance-status status-cancelled">{% translate "Cancelled" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ performance.performance_order }}</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a href="{% url 'competitions:standalone_scoring:performance_detail' pk=performance.id %}" class="btn btn-sm btn-outline-primary">
+                                            {% translate "View" %}
+                                        </a>
+                                        <a href="{% url 'competitions:standalone_scoring:performance_update' pk=performance.id %}" class="btn btn-sm btn-outline-secondary">
+                                            {% translate "Edit" %}
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#statusModal{{ performance.id }}">
+                                            {% translate "Status" %}
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Status Modal -->
+                                    <div class="modal fade" id="statusModal{{ performance.id }}" tabindex="-1" aria-labelledby="statusModalLabel{{ performance.id }}" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title" id="statusModalLabel{{ performance.id }}">
+                                                        {% translate "Update Performance Status" %}
+                                                    </h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <p>{% translate "Current Status" %}: 
+                                                        {% if performance.status == 'pending' %}
+                                                            <span class="performance-status status-pending">{% translate "Pending" %}</span>
+                                                        {% elif performance.status == 'in_progress' %}
+                                                            <span class="performance-status status-in-progress">{% translate "In Progress" %}</span>
+                                                        {% elif performance.status == 'completed' %}
+                                                            <span class="performance-status status-completed">{% translate "Completed" %}</span>
+                                                        {% elif performance.status == 'disqualified' %}
+                                                            <span class="performance-status status-disqualified">{% translate "Disqualified" %}</span>
+                                                        {% elif performance.status == 'cancelled' %}
+                                                            <span class="performance-status status-cancelled">{% translate "Cancelled" %}</span>
+                                                        {% endif %}
+                                                    </p>
+                                                    
+                                                    <div class="d-grid gap-2">
+                                                        {% if performance.status == 'pending' %}
+                                                            <form method="post" action="{% url 'competitions:standalone_scoring:performance_status' pk=performance.id %}">
+                                                                {% csrf_token %}
+                                                                <input type="hidden" name="action" value="start">
+                                                                <button type="submit" class="btn btn-primary w-100">
+                                                                    {% translate "Start Performance" %}
+                                                                </button>
+                                                            </form>
+                                                        {% elif performance.status == 'in_progress' %}
+                                                            <form method="post" action="{% url 'competitions:standalone_scoring:performance_status' pk=performance.id %}">
+                                                                {% csrf_token %}
+                                                                <input type="hidden" name="action" value="end">
+                                                                <button type="submit" class="btn btn-success w-100">
+                                                                    {% translate "Complete Performance" %}
+                                                                </button>
+                                                            </form>
+                                                        {% endif %}
+                                                        
+                                                        {% if performance.status != 'completed' and performance.status != 'disqualified' and performance.status != 'cancelled' %}
+                                                            <form method="post" action="{% url 'competitions:standalone_scoring:performance_status' pk=performance.id %}">
+                                                                {% csrf_token %}
+                                                                <input type="hidden" name="action" value="disqualify">
+                                                                <div class="mb-3">
+                                                                    <label for="disqualify-reason-{{ performance.id }}" class="form-label">
+                                                                        {% translate "Disqualification Reason" %}
+                                                                    </label>
+                                                                    <textarea class="form-control" id="disqualify-reason-{{ performance.id }}" name="reason" rows="2"></textarea>
+                                                                </div>
+                                                                <button type="submit" class="btn btn-danger w-100">
+                                                                    {% translate "Disqualify Performance" %}
+                                                                </button>
+                                                            </form>
+                                                            
+                                                            <form method="post" action="{% url 'competitions:standalone_scoring:performance_status' pk=performance.id %}">
+                                                                {% csrf_token %}
+                                                                <input type="hidden" name="action" value="cancel">
+                                                                <div class="mb-3">
+                                                                    <label for="cancel-reason-{{ performance.id }}" class="form-label">
+                                                                        {% translate "Cancellation Reason" %}
+                                                                    </label>
+                                                                    <textarea class="form-control" id="cancel-reason-{{ performance.id }}" name="reason" rows="2"></textarea>
+                                                                </div>
+                                                                <button type="submit" class="btn btn-secondary w-100">
+                                                                    {% translate "Cancel Performance" %}
+                                                                </button>
+                                                            </form>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    {% translate "No performances found matching the selected filters." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

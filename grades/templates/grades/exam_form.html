@@ -1,0 +1,555 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ title }} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<style>
+    .form-container {
+        max-width: 900px;
+        margin: 0 auto;
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+    }
+    
+    .required-field::after {
+        content: " *";
+        color: #dc3545;
+    }
+    
+    .help-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+    
+    .section-divider {
+        margin: 2rem 0;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        color: #212529;
+    }
+    
+    .form-buttons {
+        margin-top: 2rem;
+    }
+    
+    .grade-selector {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        padding: 1rem;
+    }
+    
+    .grade-item {
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        margin-bottom: 0.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .grade-item:hover {
+        background-color: #f1f3f5;
+    }
+    
+    .picker-container {
+        position: relative;
+    }
+    
+    .date-picker, .time-picker {
+        background-color: #fff;
+        cursor: pointer;
+    }
+    
+    .date-picker:hover, .time-picker:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .date-picker-icon, .time-picker-icon {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+        color: #6c757d;
+    }
+    
+    /* Style pour flatpickr */
+    .flatpickr-input {
+        background-color: #fff !important;
+    }
+    
+    /* Style pour les catégories de grades */
+    .grade-category {
+        margin-bottom: 1rem;
+        padding: 0.75rem;
+        background-color: #f1f3f5;
+        border-radius: 0.5rem;
+    }
+    
+    .grade-category-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #343a40;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="form-container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>{{ title }}</h1>
+        </div>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <!-- Informations générales -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "Informations générales" %}
+                </h2>
+                
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <label for="id_title" class="form-label required-field">{% trans "Titre de l'examen" %}</label>
+                        <input type="text" name="title" id="id_title" class="form-control {% if form.title.errors %}is-invalid{% endif %}" value="{{ form.title.value|default:'' }}">
+                        {% if form.title.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.title.errors }}
+                            </div>
+                        {% endif %}
+                        {% if form.title.help_text %}
+                            <div class="help-text">{{ form.title.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="id_discipline" class="form-label required-field">{% trans "Discipline" %}</label>
+                        <select name="discipline" id="id_discipline" class="form-select {% if form.discipline.errors %}is-invalid{% endif %}">
+                            <option value="">---------</option>
+                            {% for discipline in disciplines %}
+                                <option value="{{ discipline.id }}" {% if form.discipline.value|stringformat:"i" == discipline.id|stringformat:"i" or request.GET.discipline == discipline.id|stringformat:"i" %}selected{% endif %}>
+                                    {{ discipline.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        {% if form.discipline.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.discipline.errors }}
+                            </div>
+                        {% endif %}
+                        {% if form.discipline.help_text %}
+                            <div class="help-text">{{ form.discipline.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label for="id_date" class="form-label required-field">{% trans "Date de l'examen" %}</label>
+                        <div class="picker-container">
+                            <input type="text" name="date" id="id_date" class="form-control date-picker {% if form.date.errors %}is-invalid{% endif %}" value="{{ form.date.value|date:'Y-m-d'|default:'' }}">
+                            <div class="date-picker-icon">
+                                <i class="fas fa-calendar-alt"></i>
+                            </div>
+                        </div>
+                        {% if form.date.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.date.errors }}
+                            </div>
+                        {% endif %}
+                        {% if form.date.help_text %}
+                            <div class="help-text">{{ form.date.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="id_start_time" class="form-label">{% trans "Heure de début" %}</label>
+                        <div class="picker-container">
+                            <input type="text" name="start_time" id="id_start_time" class="form-control time-picker {% if form.start_time.errors %}is-invalid{% endif %}" value="{{ form.start_time.value|default:'' }}">
+                            <div class="time-picker-icon">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                        </div>
+                        {% if form.start_time.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.start_time.errors }}
+                            </div>
+                        {% endif %}
+                        {% if form.start_time.help_text %}
+                            <div class="help-text">{{ form.start_time.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="id_end_time" class="form-label">{% trans "Heure de fin" %}</label>
+                        <div class="picker-container">
+                            <input type="text" name="end_time" id="id_end_time" class="form-control time-picker {% if form.end_time.errors %}is-invalid{% endif %}" value="{{ form.end_time.value|default:'' }}">
+                            <div class="time-picker-icon">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                        </div>
+                        {% if form.end_time.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.end_time.errors }}
+                            </div>
+                        {% endif %}
+                        {% if form.end_time.help_text %}
+                            <div class="help-text">{{ form.end_time.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="id_location" class="form-label required-field">{% trans "Lieu" %}</label>
+                    <input type="text" name="location" id="id_location" class="form-control {% if form.location.errors %}is-invalid{% endif %}" value="{{ form.location.value|default:'' }}">
+                    {% if form.location.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.location.errors }}
+                        </div>
+                    {% endif %}
+                    {% if form.location.help_text %}
+                        <div class="help-text">{{ form.location.help_text }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="id_description" class="form-label">{% trans "Description" %}</label>
+                    <textarea name="description" id="id_description" rows="4" class="form-control {% if form.description.errors %}is-invalid{% endif %}">{{ form.description.value|default:'' }}</textarea>
+                    {% if form.description.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.description.errors }}
+                        </div>
+                    {% endif %}
+                    {% if form.description.help_text %}
+                        <div class="help-text">{{ form.description.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Configuration de l'examen -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <i class="fas fa-cogs me-2"></i>{% trans "Configuration de l'examen" %}
+                </h2>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="id_examiners" class="form-label">{% trans "Examinateurs" %}</label>
+                        <input type="text" name="examiners" id="id_examiners" class="form-control {% if form.examiners.errors %}is-invalid{% endif %}" value="{{ form.examiners.value|default:'' }}">
+                        {% if form.examiners.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.examiners.errors }}
+                            </div>
+                        {% endif %}
+                        {% if form.examiners.help_text %}
+                            <div class="help-text">{{ form.examiners.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label for="id_status" class="form-label">{% trans "Statut" %}</label>
+                        <select name="status" id="id_status" class="form-select {% if form.status.errors %}is-invalid{% endif %}">
+                            {% for value, text in form.fields.status.choices %}
+                                <option value="{{ value }}" {% if value == form.status.value %}selected{% endif %}>{{ text }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if form.status.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.status.errors }}
+                            </div>
+                        {% endif %}
+                        {% if form.status.help_text %}
+                            <div class="help-text">{{ form.status.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="id_registration_deadline" class="form-label">{% trans "Date limite d'inscription" %}</label>
+                        <div class="picker-container">
+                            <input type="text" name="registration_deadline" id="id_registration_deadline" class="form-control date-picker {% if form.registration_deadline.errors %}is-invalid{% endif %}" value="{{ form.registration_deadline.value|date:'Y-m-d'|default:'' }}">
+                            <div class="date-picker-icon">
+                                <i class="fas fa-calendar-alt"></i>
+                            </div>
+                        </div>
+                        {% if form.registration_deadline.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.registration_deadline.errors }}
+                            </div>
+                        {% endif %}
+                        {% if form.registration_deadline.help_text %}
+                            <div class="help-text">{{ form.registration_deadline.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label for="id_max_participants" class="form-label">{% trans "Nombre maximum de participants" %}</label>
+                        <input type="number" name="max_participants" id="id_max_participants" class="form-control {% if form.max_participants.errors %}is-invalid{% endif %}" value="{{ form.max_participants.value|default:'50' }}" min="1">
+                        {% if form.max_participants.errors %}
+                            <div class="invalid-feedback">
+                                {{ form.max_participants.errors }}
+                            </div>
+                        {% endif %}
+                        {% if form.max_participants.help_text %}
+                            <div class="help-text">{{ form.max_participants.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="id_fee" class="form-label">{% trans "Frais d'inscription" %}</label>
+                    <div class="input-group">
+                        <input type="number" name="fee" id="id_fee" class="form-control {% if form.fee.errors %}is-invalid{% endif %}" value="{{ form.fee.value|default:'0.00' }}" step="0.01" min="0">
+                        <span class="input-group-text">€</span>
+                    </div>
+                    {% if form.fee.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.fee.errors }}
+                        </div>
+                    {% endif %}
+                    {% if form.fee.help_text %}
+                        <div class="help-text">{{ form.fee.help_text }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="id_notes" class="form-label">{% trans "Exigences de l'examen" %}</label>
+                    <textarea name="notes" id="id_notes" rows="4" class="form-control {% if form.notes.errors %}is-invalid{% endif %}">{{ form.notes.value|default:'' }}</textarea>
+                    {% if form.notes.errors %}
+                        <div class="invalid-feedback">
+                            {{ form.notes.errors }}
+                        </div>
+                    {% endif %}
+                    {% if form.notes.help_text %}
+                        <div class="help-text">{{ form.notes.help_text }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Grades disponibles -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <i class="fas fa-award me-2"></i>{% trans "Grades disponibles à l'examen" %}
+                </h2>
+                
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label">{% trans "Sélectionnez les grades disponibles pour cet examen" %}</label>
+                        <span class="badge bg-primary" id="selectedCount">0 {% trans "sélectionné(s)" %}</span>
+                    </div>
+                    
+                    <div class="grade-selector">
+                        {% if available_grades_by_category %}
+                            {% for category, grades in available_grades_by_category.items %}
+                                <div class="grade-category">
+                                    <div class="grade-category-title">{{ category }}</div>
+                                    {% for grade in grades %}
+                                        <div class="grade-item">
+                                            <div class="form-check">
+                                                <input class="form-check-input grade-checkbox" type="checkbox" name="available_grades" value="{{ grade.id }}" id="grade-{{ grade.id }}" 
+                                                {% if grade in form.instance.available_grades.all %}checked{% endif %}>
+                                                <label class="form-check-label d-flex justify-content-between align-items-center" for="grade-{{ grade.id }}">
+                                                    <div class="d-flex align-items-center">
+                                                        <span style="display: inline-block; width: 16px; height: 16px; border-radius: 50%; background-color: {{ grade.color_code|default:grade.color|default:'#e9ecef' }}; margin-right: 8px;"></span>
+                                                        {{ grade.name }}
+                                                    </div>
+                                                    <small class="text-muted">
+                                                        {% if grade.min_age > 0 %}
+                                                            <span class="badge bg-light text-dark">
+                                                                <i class="fas fa-birthday-cake me-1"></i>{{ grade.min_age }} ans
+                                                            </span>
+                                                        {% endif %}
+                                                    </small>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endfor %}
+                        {% elif available_grades %}
+                            {% for grade in available_grades %}
+                                <div class="grade-item">
+                                    <div class="form-check">
+                                        <input class="form-check-input grade-checkbox" type="checkbox" name="available_grades" value="{{ grade.id }}" id="grade-{{ grade.id }}" 
+                                        {% if grade in form.instance.available_grades.all %}checked{% endif %}>
+                                        <label class="form-check-label d-flex justify-content-between align-items-center" for="grade-{{ grade.id }}">
+                                            <div class="d-flex align-items-center">
+                                                <span style="display: inline-block; width: 16px; height: 16px; border-radius: 50%; background-color: {{ grade.color_code|default:grade.color|default:'#e9ecef' }}; margin-right: 8px;"></span>
+                                                {{ grade.name }}
+                                            </div>
+                                            <small class="text-muted">
+                                                {% if grade.min_age > 0 %}
+                                                    <span class="badge bg-light text-dark">
+                                                        <i class="fas fa-birthday-cake me-1"></i>{{ grade.min_age }} ans
+                                                    </span>
+                                                {% endif %}
+                                            </small>
+                                        </label>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            {% if form.discipline.value or request.GET.discipline %}
+                                <div class="alert alert-info mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    {% trans "Aucun grade disponible pour cette discipline. Veuillez créer des grades pour cette discipline avant de continuer." %}
+                                </div>
+                            {% else %}
+                                <div class="alert alert-warning mb-0">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    {% trans "Veuillez sélectionner une discipline pour voir les grades disponibles." %}
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-buttons d-flex justify-content-between">
+                <a href="{% url 'grades:exam_list' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                </a>
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>{% trans "Enregistrer" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Inclusion de flatpickr -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/fr.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Configuration de flatpickr pour les dates
+        flatpickr('.date-picker', {
+            dateFormat: 'Y-m-d',
+            locale: 'fr',
+            allowInput: true,
+            altInput: true,
+            altFormat: 'd/m/Y',
+            disableMobile: true
+        });
+        
+        // Configuration de flatpickr pour les heures
+        flatpickr('.time-picker', {
+            enableTime: true,
+            noCalendar: true,
+            dateFormat: "H:i",
+            time_24hr: true,
+            minuteIncrement: 15,
+            disableMobile: true,
+            defaultHour: 9,
+            // Placeholder pour les heures non définies
+            onOpen: function(selectedDates, dateStr, instance) {
+                if (!dateStr) {
+                    instance.setDate('09:00');
+                }
+            }
+        });
+        
+        // Compteur de grades sélectionnés
+        const gradeCheckboxes = document.querySelectorAll('.grade-checkbox');
+        const selectedCountElement = document.getElementById('selectedCount');
+        
+        function updateSelectedCount() {
+            const checkedCount = document.querySelectorAll('.grade-checkbox:checked').length;
+            selectedCountElement.textContent = checkedCount + ' {% trans "sélectionné(s)" %}';
+        }
+        
+        gradeCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateSelectedCount);
+        });
+        
+        // Initialiser le compteur
+        updateSelectedCount();
+        
+        // Filtrer les grades en fonction de la discipline sélectionnée
+        const disciplineSelect = document.getElementById('id_discipline');
+        if (disciplineSelect) {
+            disciplineSelect.addEventListener('change', function() {
+                const disciplineId = this.value;
+                if (disciplineId) {
+                    // Conserver les valeurs du formulaire actuelles
+                    const form = this.closest('form');
+                    const formData = new FormData(form);
+                    
+                    // Construire l'URL avec le paramètre discipline
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('discipline', disciplineId);
+                    
+                    // Mettre à jour l'URL sans soumettre le formulaire
+                    window.location.href = url.toString();
+                }
+            });
+        }
+        
+        // Mettre en forme les champs de formulaire
+        const formControls = document.querySelectorAll('input, select, textarea');
+        formControls.forEach(control => {
+            if (!control.classList.contains('form-check-input') && !control.classList.contains('form-control') && !control.classList.contains('form-select')) {
+                if (control.tagName === 'SELECT') {
+                    control.classList.add('form-select');
+                } else {
+                    control.classList.add('form-control');
+                }
+            }
+        });
+        
+        // Initialisation des dates limites cohérentes
+        const dateExamen = document.getElementById('id_date');
+        const dateInscription = document.getElementById('id_registration_deadline');
+        
+        if (dateExamen && dateInscription) {
+            dateExamen.addEventListener('change', function() {
+                const examDate = this.value;
+                if (examDate && (!dateInscription.value || new Date(dateInscription.value) > new Date(examDate))) {
+                    // Définir la date limite d'inscription à une semaine avant l'examen
+                    const registrationDate = new Date(examDate);
+                    registrationDate.setDate(registrationDate.getDate() - 7);
+                    
+                    // Formatter la date au format YYYY-MM-DD
+                    const formattedDate = registrationDate.toISOString().split('T')[0];
+                    dateInscription._flatpickr.setDate(formattedDate);
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

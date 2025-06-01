@@ -1,0 +1,100 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Calendrier des entraînements" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h1 class="h3 mb-0">{% trans "Calendrier des entraînements" %}</h1>
+        </div>
+        <div class="col-md-6 text-end">
+            <div class="btn-group" role="group">
+                <a href="?week={{ previous_week }}" class="btn btn-outline-primary">
+                    <i class="bi bi-chevron-left"></i> {% trans "Semaine précédente" %}
+                </a>
+                <a href="?week=0" class="btn btn-outline-primary">{% trans "Cette semaine" %}</a>
+                <a href="?week={{ next_week }}" class="btn btn-outline-primary">
+                    {% trans "Semaine suivante" %} <i class="bi bi-chevron-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Calendrier hebdomadaire -->
+    <div class="card">
+        <div class="card-body">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th style="width: 100px;">{% trans "Heure" %}</th>
+                        {% for day in days %}
+                        <th class="text-center">
+                            <div>{{ day.name }}</div>
+                            <div class="small text-muted">{{ day.date|date:"d M" }}</div>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for hour, slots in schedule.items %}
+                    <tr>
+                        <td class="align-middle">{{ hour }}</td>
+                        {% for day_slots in slots %}
+                        <td>
+                            {% for slot in day_slots %}
+                            <div class="training-slot mb-2 p-2 border rounded {% if slot.reservation %}bg-light{% endif %}">
+                                <div class="fw-bold">{{ slot.discipline.name }}</div>
+                                <div class="small">{{ slot.instructor.get_full_name }}</div>
+                                <div class="small text-muted">
+                                    <i class="bi bi-people"></i> {{ slot.current_participants }}/{{ slot.max_participants }}
+                                </div>
+                                {% if slot.reservation %}
+                                    <span class="badge bg-success">{% trans "Réservé" %}</span>
+                                    <a href="{% url 'competitions:practitioner:cancel_reservation' slot.reservation.id %}" 
+                                       class="btn btn-sm btn-danger float-end"
+                                       onclick="return confirm('{% trans "Êtes-vous sûr de vouloir annuler cette réservation ?" %}')">
+                                        {% trans "Annuler" %}
+                                    </a>
+                                {% elif slot.available %}
+                                    <a href="{% url 'competitions:practitioner:make_reservation' slot.id %}" 
+                                       class="btn btn-sm btn-primary float-end">
+                                        {% trans "Réserver" %}
+                                    </a>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "Complet" %}</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Légende -->
+    <div class="mt-4">
+        <h5>{% trans "Légende" %}</h5>
+        <div class="d-flex gap-3">
+            <div><span class="badge bg-success">{% trans "Réservé" %}</span> {% trans "Vous avez réservé ce créneau" %}</div>
+            <div><span class="badge bg-secondary">{% trans "Complet" %}</span> {% trans "Plus de places disponibles" %}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .training-slot {
+        min-height: 80px;
+        transition: all 0.2s;
+    }
+    .training-slot:hover {
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}

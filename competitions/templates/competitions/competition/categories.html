@@ -1,0 +1,632 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Catégories" %} - {{ competition.title }} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .categories-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+    
+    .header i {
+        font-size: 1.8rem;
+        margin-right: 0.8rem;
+        color: #dc3545;
+    }
+    
+    .section-title {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.2rem;
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #dc3545;
+    }
+    
+    .section-title i {
+        margin-right: 0.5rem;
+    }
+    
+    .category-card {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #dc3545;
+        transition: all 0.3s ease;
+    }
+    
+    .category-card:hover {
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        transform: translateY(-3px);
+    }
+    
+    .category-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 0.5rem;
+    }
+    
+    .category-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+    
+    .category-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .category-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+    
+    .detail-item {
+        margin-bottom: 0.5rem;
+    }
+    
+    .detail-label {
+        font-weight: 600;
+        display: block;
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .detail-value {
+        display: block;
+    }
+    
+    .nav-tabs {
+        border-bottom: 1px solid #dee2e6;
+        margin-bottom: 1.5rem;
+    }
+    
+    .nav-tabs .nav-link {
+        border: 1px solid transparent;
+        border-top-left-radius: 0.25rem;
+        border-top-right-radius: 0.25rem;
+        color: #495057;
+    }
+    
+    .nav-tabs .nav-link:hover {
+        border-color: #e9ecef #e9ecef #dee2e6;
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: #dc3545;
+        background-color: #fff;
+        border-color: #dee2e6 #dee2e6 #fff;
+        font-weight: 500;
+    }
+    
+    .add-category-form {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #28a745;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .required::after {
+        content: " *";
+        color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="categories-container">
+        <div class="header">
+            <i class="fas fa-layer-group"></i>
+            <h2 class="mb-0">{% trans "Catégories de" %} {{ competition.title }}</h2>
+        </div>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <p class="mb-0">
+                    {% blocktrans with start=competition.start_date|date:"d/m/Y" end=competition.end_date|date:"d/m/Y" %}
+                        Du {{ start }} au {{ end }}
+                    {% endblocktrans %}
+                </p>
+                <a href="{% url 'competitions:competitions:detail' competition.pk %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la compétition" %}
+                </a>
+            </div>
+        </div>
+        
+        <!-- Navigation par onglets pour les types de compétition -->
+        <ul class="nav nav-tabs" id="competitionTypesTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <a class="nav-link active" id="all-tab" data-bs-toggle="tab" href="#all" role="tab" aria-controls="all" aria-selected="true">
+                    {% trans "Toutes les catégories" %}
+                </a>
+            </li>
+            {% for comp_type in competition_types %}
+                <li class="nav-item" role="presentation">
+                    <a class="nav-link" id="type-{{ comp_type.id }}-tab" data-bs-toggle="tab" href="#type-{{ comp_type.id }}" role="tab" aria-controls="type-{{ comp_type.id }}" aria-selected="false">
+                        {{ comp_type.name }}
+                    </a>
+                </li>
+            {% endfor %}
+            <li class="nav-item" role="presentation">
+                <a class="nav-link text-success" id="add-tab" data-bs-toggle="tab" href="#add" role="tab" aria-controls="add" aria-selected="false">
+                    <i class="fas fa-plus me-1"></i> {% trans "Ajouter" %}
+                </a>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="competitionTypesContent">
+            <!-- Toutes les catégories -->
+            <div class="tab-pane fade show active" id="all" role="tabpanel" aria-labelledby="all-tab">
+                {% if categories %}
+                    {% for category in categories %}
+                        <div class="category-card">
+                            <div class="category-header">
+                                <div class="category-name">
+                                    {{ category.name }}
+                                    <span class="badge {% if category.gender == 'male' %}bg-primary{% elif category.gender == 'female' %}bg-danger{% else %}bg-secondary{% endif %} ms-2">
+                                        {% if category.gender == 'male' %}
+                                            {% trans "Hommes" %}
+                                        {% elif category.gender == 'female' %}
+                                            {% trans "Femmes" %}
+                                        {% else %}
+                                            {% trans "Mixte" %}
+                                        {% endif %}
+                                    </span>
+                                    <span class="badge bg-dark ms-2">{{ category.competition_type.name }}</span>
+                                </div>
+                                <div class="category-actions">
+                                    <a href="{% url 'competitions:category_update' pk=category.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteCategoryModal{{ category.id }}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="category-details">
+                                {% if category.min_age or category.max_age %}
+                                    <div class="detail-item">
+                                        <span class="detail-label">{% trans "Âge" %}</span>
+                                        <span class="detail-value">
+                                            {% if category.min_age and category.max_age %}
+                                                {{ category.min_age }} - {{ category.max_age }} {% trans "ans" %}
+                                            {% elif category.min_age %}
+                                                {% trans "À partir de" %} {{ category.min_age }} {% trans "ans" %}
+                                            {% elif category.max_age %}
+                                                {% trans "Jusqu'à" %} {{ category.max_age }} {% trans "ans" %}
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                {% endif %}
+                                
+                                {% if category.min_weight or category.max_weight %}
+                                    <div class="detail-item">
+                                        <span class="detail-label">{% trans "Poids" %}</span>
+                                        <span class="detail-value">
+                                            {% if category.min_weight and category.max_weight %}
+                                                {{ category.min_weight }} - {{ category.max_weight }} kg
+                                            {% elif category.min_weight %}
+                                                {% trans "À partir de" %} {{ category.min_weight }} kg
+                                            {% elif category.max_weight %}
+                                                {% trans "Jusqu'à" %} {{ category.max_weight }} kg
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                {% endif %}
+                                
+                                {% if category.min_grade or category.max_grade %}
+                                    <div class="detail-item">
+                                        <span class="detail-label">{% trans "Grade" %}</span>
+                                        <span class="detail-value">
+                                            {% if category.min_grade and category.max_grade %}
+                                                {{ category.min_grade }} - {{ category.max_grade }}
+                                            {% elif category.min_grade %}
+                                                {% trans "À partir de" %} {{ category.min_grade }}
+                                            {% elif category.max_grade %}
+                                                {% trans "Jusqu'à" %} {{ category.max_grade }}
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Modal de confirmation de suppression -->
+                        <div class="modal fade" id="deleteCategoryModal{{ category.id }}" tabindex="-1" aria-labelledby="deleteCategoryModalLabel{{ category.id }}" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="deleteCategoryModalLabel{{ category.id }}">{% trans "Confirmer la suppression" %}</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>{% trans "Êtes-vous sûr de vouloir supprimer la catégorie" %} <strong>{{ category.name }}</strong> ?</p>
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle me-2"></i>
+                                            {% trans "Cette action est irréversible et supprimera également les inscriptions associées à cette catégorie." %}
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                            {% trans "Annuler" %}
+                                        </button>
+                                        <form method="post" action="{% url 'competitions:category_delete' category_id=category.id %}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-danger">
+                                                <i class="fas fa-trash me-2"></i>{% trans "Supprimer définitivement" %}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Aucune catégorie n'a encore été créée pour cette compétition." %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Onglets par type de compétition -->
+            {% for comp_type in competition_types %}
+                <div class="tab-pane fade" id="type-{{ comp_type.id }}" role="tabpanel" aria-labelledby="type-{{ comp_type.id }}-tab">
+                    {% with type_categories=categories|filter_by_type:comp_type.id %}
+                        {% if type_categories %}
+                            {% for category in type_categories %}
+                                <div class="category-card">
+                                    <div class="category-header">
+                                        <div class="category-name">
+                                            {{ category.name }}
+                                            <span class="badge {% if category.gender == 'male' %}bg-primary{% elif category.gender == 'female' %}bg-danger{% else %}bg-secondary{% endif %} ms-2">
+                                                {% if category.gender == 'male' %}
+                                                    {% trans "Hommes" %}
+                                                {% elif category.gender == 'female' %}
+                                                    {% trans "Femmes" %}
+                                                {% else %}
+                                                    {% trans "Mixte" %}
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        <div class="category-actions">
+                                            <a href="{% url 'competitions:category_update' pk=category.id %}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteCategoryModal{{ category.id }}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="category-details">
+                                        {% if category.min_age or category.max_age %}
+                                            <div class="detail-item">
+                                                <span class="detail-label">{% trans "Âge" %}</span>
+                                                <span class="detail-value">
+                                                    {% if category.min_age and category.max_age %}
+                                                        {{ category.min_age }} - {{ category.max_age }} {% trans "ans" %}
+                                                    {% elif category.min_age %}
+                                                        {% trans "À partir de" %} {{ category.min_age }} {% trans "ans" %}
+                                                    {% elif category.max_age %}
+                                                        {% trans "Jusqu'à" %} {{ category.max_age }} {% trans "ans" %}
+                                                    {% endif %}
+                                                </span>
+                                            </div>
+                                        {% endif %}
+                                        
+                                        {% if category.min_weight or category.max_weight %}
+                                            <div class="detail-item">
+                                                <span class="detail-label">{% trans "Poids" %}</span>
+                                                <span class="detail-value">
+                                                    {% if category.min_weight and category.max_weight %}
+                                                        {{ category.min_weight }} - {{ category.max_weight }} kg
+                                                    {% elif category.min_weight %}
+                                                        {% trans "À partir de" %} {{ category.min_weight }} kg
+                                                    {% elif category.max_weight %}
+                                                        {% trans "Jusqu'à" %} {{ category.max_weight }} kg
+                                                    {% endif %}
+                                                </span>
+                                            </div>
+                                        {% endif %}
+                                        
+                                        {% if category.min_grade or category.max_grade %}
+                                            <div class="detail-item">
+                                                <span class="detail-label">{% trans "Grade" %}</span>
+                                                <span class="detail-value">
+                                                    {% if category.min_grade and category.max_grade %}
+                                                        {{ category.min_grade }} - {{ category.max_grade }}
+                                                    {% elif category.min_grade %}
+                                                        {% trans "À partir de" %} {{ category.min_grade }}
+                                                    {% elif category.max_grade %}
+                                                        {% trans "Jusqu'à" %} {{ category.max_grade }}
+                                                    {% endif %}
+                                                </span>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% trans "Aucune catégorie n'a encore été créée pour ce type de compétition." %}
+                            </div>
+                            <a href="{% url 'competitions:category_create' competition_id=competition.id type_id=comp_type.id %}" class="btn btn-success">
+                                <i class="fas fa-plus me-2"></i>{% trans "Ajouter une catégorie pour" %} {{ comp_type.name }}
+                            </a>
+                        {% endif %}
+                    {% endwith %}
+                </div>
+            {% endfor %}
+            
+            <!-- Onglet d'ajout de catégorie -->
+            <div class="tab-pane fade" id="add" role="tabpanel" aria-labelledby="add-tab">
+                <div class="add-category-form">
+                    <h4 class="mb-4">{% trans "Ajouter une nouvelle catégorie" %}</h4>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.competition_type.id_for_label }}" class="form-label required">
+                                        {{ form.competition_type.label }}
+                                    </label>
+                                    {{ form.competition_type }}
+                                    {% if form.competition_type.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.competition_type.errors }}
+                                        </div>
+                                    {% endif %}
+                                    {% if form.competition_type.help_text %}
+                                        <small class="form-text text-muted">{{ form.competition_type.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.name.id_for_label }}" class="form-label required">
+                                        {{ form.name.label }}
+                                    </label>
+                                    {{ form.name }}
+                                    {% if form.name.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.name.errors }}
+                                        </div>
+                                    {% endif %}
+                                    {% if form.name.help_text %}
+                                        <small class="form-text text-muted">{{ form.name.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.gender.id_for_label }}" class="form-label">
+                                {{ form.gender.label }}
+                            </label>
+                            {{ form.gender }}
+                            {% if form.gender.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.gender.errors }}
+                                </div>
+                            {% endif %}
+                            {% if form.gender.help_text %}
+                                <small class="form-text text-muted">{{ form.gender.help_text }}</small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="section-title mt-4">
+                            <i class="fas fa-user-clock"></i>
+                            {% trans "Critères d'âge" %}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.min_age.id_for_label }}" class="form-label">
+                                        {{ form.min_age.label }}
+                                    </label>
+                                    {{ form.min_age }}
+                                    {% if form.min_age.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.min_age.errors }}
+                                        </div>
+                                    {% endif %}
+                                    {% if form.min_age.help_text %}
+                                        <small class="form-text text-muted">{{ form.min_age.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.max_age.id_for_label }}" class="form-label">
+                                        {{ form.max_age.label }}
+                                    </label>
+                                    {{ form.max_age }}
+                                    {% if form.max_age.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.max_age.errors }}
+                                        </div>
+                                    {% endif %}
+                                    {% if form.max_age.help_text %}
+                                        <small class="form-text text-muted">{{ form.max_age.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="section-title mt-4">
+                            <i class="fas fa-weight"></i>
+                            {% trans "Critères de poids" %}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.min_weight.id_for_label }}" class="form-label">
+                                        {{ form.min_weight.label }}
+                                    </label>
+                                    {{ form.min_weight }}
+                                    {% if form.min_weight.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.min_weight.errors }}
+                                        </div>
+                                    {% endif %}
+                                    {% if form.min_weight.help_text %}
+                                        <small class="form-text text-muted">{{ form.min_weight.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.max_weight.id_for_label }}" class="form-label">
+                                        {{ form.max_weight.label }}
+                                    </label>
+                                    {{ form.max_weight }}
+                                    {% if form.max_weight.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.max_weight.errors }}
+                                        </div>
+                                    {% endif %}
+                                    {% if form.max_weight.help_text %}
+                                        <small class="form-text text-muted">{{ form.max_weight.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="section-title mt-4">
+                            <i class="fas fa-certificate"></i>
+                            {% trans "Critères de grade" %}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.min_grade.id_for_label }}" class="form-label">
+                                        {{ form.min_grade.label }}
+                                    </label>
+                                    {{ form.min_grade }}
+                                    {% if form.min_grade.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.min_grade.errors }}
+                                        </div>
+                                    {% endif %}
+                                    {% if form.min_grade.help_text %}
+                                        <small class="form-text text-muted">{{ form.min_grade.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.max_grade.id_for_label }}" class="form-label">
+                                        {{ form.max_grade.label }}
+                                    </label>
+                                    {{ form.max_grade }}
+                                    {% if form.max_grade.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.max_grade.errors }}
+                                        </div>
+                                    {% endif %}
+                                    {% if form.max_grade.help_text %}
+                                        <small class="form-text text-muted">{{ form.max_grade.help_text }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-plus me-2"></i>{% trans "Ajouter la catégorie" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Activer manuellement les onglets
+        const tabElems = document.querySelectorAll('[data-bs-toggle="tab"]');
+        tabElems.forEach(tabElem => {
+            tabElem.addEventListener('click', function(event) {
+                event.preventDefault();
+                const tab = new bootstrap.Tab(tabElem);
+                tab.show();
+            });
+        });
+
+        // S'assurer que le premier onglet est actif
+        const allTab = document.getElementById('all-tab');
+        if (allTab) {
+            const tab = new bootstrap.Tab(allTab);
+            tab.show();
+        }
+        
+        // Si l'URL contient un hash pour un onglet spécifique, l'activer
+        const hash = window.location.hash;
+        if (hash) {
+            const tabElement = document.querySelector(`a[href="${hash}"]`);
+            if (tabElement) {
+                const tab = new bootstrap.Tab(tabElement);
+                tab.show();
+            }
+        }
+        
+        // Filtrer par type de compétition dans le formulaire d'ajout
+        const typeSelect = document.getElementById('{{ form.competition_type.id_for_label }}');
+        if (typeSelect) {
+            // Pré-sélectionner le type de compétition si spécifié dans l'URL
+            const typeId = window.location.pathname.match(/\/type\/(\d+)\/$/);
+            if (typeId && typeId[1]) {
+                typeSelect.value = typeId[1];
+            }
+        }
+    });
+</script>
+{% endblock %}

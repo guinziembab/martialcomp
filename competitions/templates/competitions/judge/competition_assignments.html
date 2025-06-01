@@ -1,0 +1,566 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Affectations" %} | {{ competition.title }} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .competition-header {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .competition-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 5px;
+        background-color: #dc3545;
+    }
+    
+    .competition-meta {
+        display: flex;
+        align-items: center;
+        color: #6c757d;
+        margin-top: 0.5rem;
+    }
+    
+    .competition-meta i {
+        margin-right: 0.5rem;
+    }
+    
+    .dot-divider {
+        margin: 0 10px;
+        font-size: 0.5rem;
+        color: #6c757d;
+    }
+    
+    .assignment-card {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        margin-bottom: 1.5rem;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .assignment-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.12);
+    }
+    
+    .assignment-header {
+        background-color: #dc3545;
+        color: white;
+        padding: 1rem 1.5rem;
+        font-weight: 500;
+    }
+    
+    .technical-header {
+        background-color: #0d6efd;
+    }
+    
+    .combat-header {
+        background-color: #dc3545;
+    }
+    
+    .chief-header {
+        background-color: #198754;
+    }
+    
+    .timekeeper-header {
+        background-color: #6c757d;
+    }
+    
+    .assignment-body {
+        padding: 1.5rem;
+    }
+    
+    .category-details {
+        display: flex;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+    
+    .category-icon {
+        min-width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background-color: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        margin-right: 1rem;
+    }
+    
+    .category-info-item {
+        margin-bottom: 0.5rem;
+    }
+    
+    .category-label {
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+    }
+    
+    .category-value {
+        color: #6c757d;
+    }
+    
+    .assignment-actions {
+        text-align: right;
+        border-top: 1px solid #e9ecef;
+        padding-top: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .timeline {
+        position: relative;
+        padding-left: 2rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .timeline::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 8px;
+        height: 100%;
+        width: 2px;
+        background-color: #e9ecef;
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-bottom: 1.5rem;
+    }
+    
+    .timeline-item:last-child {
+        padding-bottom: 0;
+    }
+    
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        top: 5px;
+        left: -2rem;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background-color: #dc3545;
+        border: 3px solid white;
+        box-shadow: 0 0 0 1px #dc3545;
+        z-index: 1;
+    }
+    
+    .timeline-item.technical::before {
+        background-color: #0d6efd;
+        box-shadow: 0 0 0 1px #0d6efd;
+    }
+    
+    .timeline-item.combat::before {
+        background-color: #dc3545;
+        box-shadow: 0 0 0 1px #dc3545;
+    }
+    
+    .timeline-item.chief::before {
+        background-color: #198754;
+        box-shadow: 0 0 0 1px #198754;
+    }
+    
+    .timeline-item.timekeeper::before {
+        background-color: #6c757d;
+        box-shadow: 0 0 0 1px #6c757d;
+    }
+    
+    .timeline-time {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+    
+    .timeline-title {
+        margin-bottom: 0.5rem;
+    }
+    
+    .timeline-content {
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        margin-top: 0.5rem;
+    }
+    
+    .registration-info {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .role-badge {
+        display: inline-block;
+        padding: 0.5rem 0.75rem;
+        border-radius: 30px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin-right: 0.5rem;
+    }
+    
+    .badge-technical {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+    }
+    
+    .badge-combat {
+        background-color: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        background-color: #f8f9fa;
+        border-radius: 10px;
+    }
+    
+    .empty-state-icon {
+        font-size: 4rem;
+        color: #dee2e6;
+        margin-bottom: 1.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Messages de notification -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">{% trans "Affectations pour la compétition" %}</h1>
+        
+        <a href="{% url 'competitions:judge:dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-chevron-left me-2"></i>{% trans "Retour au tableau de bord" %}
+        </a>
+    </div>
+    
+    <!-- En-tête de la compétition -->
+    <div class="competition-header">
+        <h2 class="h3 mb-2">{{ competition.title }}</h2>
+        <div class="competition-meta">
+            <i class="fas fa-calendar-alt"></i>
+            {{ competition.start_date|date:"d/m/Y" }}
+            {% if competition.end_date and competition.end_date != competition.start_date %}
+                - {{ competition.end_date|date:"d/m/Y" }}
+            {% endif %}
+            
+            {% if competition.address %}
+                <span class="dot-divider">•</span>
+                <i class="fas fa-map-marker-alt"></i>
+                {{ competition.address }}
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Informations sur l'inscription -->
+    <div class="registration-info">
+        <h3 class="h5 mb-3">{% trans "Votre inscription" %}</h3>
+        <div class="row">
+            <div class="col-md-6 mb-3 mb-md-0">
+                <p class="mb-2">
+                    <span class="fw-medium">{% trans "Statut" %}:</span>
+                    {% if registration.status == 'approved' %}
+                        <span class="badge bg-success">{% trans "Approuvée" %}</span>
+                    {% elif registration.status == 'pending' %}
+                        <span class="badge bg-warning text-dark">{% trans "En attente" %}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ registration.get_status_display }}</span>
+                    {% endif %}
+                </p>
+                
+                <p class="mb-2">
+                    <span class="fw-medium">{% trans "Date d'inscription" %}:</span>
+                    {{ registration.registration_date|date:"d/m/Y" }}
+                </p>
+            </div>
+            
+            <div class="col-md-6">
+                <p class="mb-2">
+                    <span class="fw-medium">{% trans "Rôles" %}:</span>
+                </p>
+                
+                <div>
+                    {% if registration.is_technical_judge %}
+                        <span class="role-badge badge-technical">
+                            <i class="fas fa-gavel me-1"></i>{% trans "Juge Technique" %}
+                        </span>
+                    {% endif %}
+                    
+                    {% if registration.is_combat_referee %}
+                        <span class="role-badge badge-combat">
+                            <i class="fas fa-fist-raised me-1"></i>{% trans "Arbitre Combat" %}
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Liste des affectations -->
+            <h3 class="h4 mb-3">{% trans "Vos affectations" %}</h3>
+            
+            {% if assignments %}
+                {% for assignment in assignments %}
+                    <div class="assignment-card">
+                        <div class="assignment-header 
+                            {% if assignment.assignment_type == 'technical_judge' %}technical-header
+                            {% elif assignment.assignment_type == 'combat_referee' %}combat-header
+                            {% elif assignment.assignment_type == 'chief_judge' %}chief-header
+                            {% elif assignment.assignment_type == 'timekeeper' %}timekeeper-header{% endif %}">
+                            
+                            {% if assignment.assignment_type == 'technical_judge' %}
+                                <i class="fas fa-gavel me-2"></i>{% trans "Juge Technique" %}
+                            {% elif assignment.assignment_type == 'combat_referee' %}
+                                <i class="fas fa-fist-raised me-2"></i>{% trans "Arbitre Combat" %}
+                            {% elif assignment.assignment_type == 'chief_judge' %}
+                                <i class="fas fa-user-tie me-2"></i>{% trans "Juge en Chef" %}
+                            {% elif assignment.assignment_type == 'timekeeper' %}
+                                <i class="fas fa-stopwatch me-2"></i>{% trans "Chronométreur" %}
+                            {% endif %}
+                        </div>
+                        
+                        <div class="assignment-body">
+                            <div class="category-details">
+                                <div class="category-icon">
+                                    <i class="fas fa-layer-group"></i>
+                                </div>
+                                
+                                <div>
+                                    <h4 class="h5 mb-3">{{ assignment.category.name }}</h4>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="category-info-item">
+                                                <div class="category-label">{% trans "Type de compétition" %}</div>
+                                                <div class="category-value">
+                                                    {{ assignment.category.competition_type.name }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="col-md-6">
+                                            {% if assignment.category.gender %}
+                                                <div class="category-info-item">
+                                                    <div class="category-label">{% trans "Genre" %}</div>
+                                                    <div class="category-value">
+                                                        {% if assignment.category.gender == 'male' %}
+                                                            {% trans "Hommes" %}
+                                                        {% elif assignment.category.gender == 'female' %}
+                                                            {% trans "Femmes" %}
+                                                        {% else %}
+                                                            {% trans "Mixte" %}
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        {% if assignment.category.min_age or assignment.category.max_age %}
+                                            <div class="col-md-6">
+                                                <div class="category-info-item">
+                                                    <div class="category-label">{% trans "Âge" %}</div>
+                                                    <div class="category-value">
+                                                        {% if assignment.category.min_age and assignment.category.max_age %}
+                                                            {{ assignment.category.min_age }} - {{ assignment.category.max_age }} {% trans "ans" %}
+                                                        {% elif assignment.category.min_age %}
+                                                            {% trans "À partir de" %} {{ assignment.category.min_age }} {% trans "ans" %}
+                                                        {% elif assignment.category.max_age %}
+                                                            {% trans "Jusqu'à" %} {{ assignment.category.max_age }} {% trans "ans" %}
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                        
+                                        {% if assignment.category.min_weight or assignment.category.max_weight %}
+                                            <div class="col-md-6">
+                                                <div class="category-info-item">
+                                                    <div class="category-label">{% trans "Poids" %}</div>
+                                                    <div class="category-value">
+                                                        {% if assignment.category.min_weight and assignment.category.max_weight %}
+                                                            {{ assignment.category.min_weight }} - {{ assignment.category.max_weight }} kg
+                                                        {% elif assignment.category.min_weight %}
+                                                            {% trans "À partir de" %} {{ assignment.category.min_weight }} kg
+                                                        {% elif assignment.category.max_weight %}
+                                                            {% trans "Jusqu'à" %} {{ assignment.category.max_weight }} kg
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="assignment-actions">
+                                <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#schedule-{{ assignment.id }}" aria-expanded="false" aria-controls="schedule-{{ assignment.id }}">
+                                    <i class="fas fa-clock me-1"></i>{% trans "Voir le planning" %}
+                                </button>
+                            </div>
+                            
+                            <!-- Planning (collapsible) -->
+                            <div class="collapse mt-3" id="schedule-{{ assignment.id }}">
+                                <div class="timeline">
+                                    <!-- Exemple de planning (à adapter selon vos données réelles) -->
+                                    <div class="timeline-item {{ assignment.assignment_type }}">
+                                        <div class="timeline-time">08:00 - 08:30</div>
+                                        <div class="timeline-title">{% trans "Briefing des juges" %}</div>
+                                        <div class="timeline-content">
+                                            <p class="mb-0">{% trans "Réunion d'information pour tous les juges de cette catégorie." %}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="timeline-item {{ assignment.assignment_type }}">
+                                        <div class="timeline-time">09:00 - 12:00</div>
+                                        <div class="timeline-title">{% trans "Phase éliminatoire" %}</div>
+                                        <div class="timeline-content">
+                                            <p class="mb-0">{% trans "Notation des participants lors de la phase éliminatoire." %}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="timeline-item {{ assignment.assignment_type }}">
+                                        <div class="timeline-time">14:00 - 16:00</div>
+                                        <div class="timeline-title">{% trans "Phase finale" %}</div>
+                                        <div class="timeline-content">
+                                            <p class="mb-0">{% trans "Notation des participants lors de la phase finale." %}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <h3 class="h4 mb-3">{% trans "Aucune affectation" %}</h3>
+                    <p class="text-muted mb-4">{% trans "Vous n'avez pas encore reçu d'affectation pour cette compétition. Les organisateurs vous attribueront des rôles spécifiques ultérieurement." %}</p>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Informations complémentaires -->
+            <h3 class="h4 mb-3">{% trans "Informations utiles" %}</h3>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="h5 mb-0">{% trans "Coordonnées" %}</h4>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">
+                        <i class="fas fa-user me-2"></i>
+                        <span class="fw-medium">{% trans "Responsable" %}:</span>
+                        {% if competition.contact_name %}
+                            {{ competition.contact_name }}
+                        {% else %}
+                            {% trans "Non spécifié" %}
+                        {% endif %}
+                    </p>
+                    
+                    <p class="mb-2">
+                        <i class="fas fa-envelope me-2"></i>
+                        <span class="fw-medium">{% trans "Email" %}:</span>
+                        {% if competition.contact_email %}
+                            <a href="mailto:{{ competition.contact_email }}">{{ competition.contact_email }}</a>
+                        {% else %}
+                            {% trans "Non spécifié" %}
+                        {% endif %}
+                    </p>
+                    
+                    <p class="mb-0">
+                        <i class="fas fa-phone me-2"></i>
+                        <span class="fw-medium">{% trans "Téléphone" %}:</span>
+                        {% if competition.contact_phone %}
+                            <a href="tel:{{ competition.contact_phone }}">{{ competition.contact_phone }}</a>
+                        {% else %}
+                            {% trans "Non spécifié" %}
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Documents importants -->
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h4 class="h5 mb-0">{% trans "Documents importants" %}</h4>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="fas fa-file-alt me-2 text-primary"></i>
+                                {% trans "Règlement de la compétition" %}
+                            </span>
+                            <a href="#" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-download"></i>
+                            </a>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="fas fa-file-alt me-2 text-primary"></i>
+                                {% trans "Guide des juges" %}
+                            </span>
+                            <a href="#" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-download"></i>
+                            </a>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="fas fa-file-alt me-2 text-primary"></i>
+                                {% trans "Critères de notation" %}
+                            </span>
+                            <a href="#" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-download"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Rappels importants -->
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="h5 mb-0">{% trans "Rappels importants" %}</h4>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li class="mb-2">{% trans "Présentez-vous au moins 30 minutes avant le début de votre première affectation." %}</li>
+                        <li class="mb-2">{% trans "Portez une tenue appropriée selon les directives fournies." %}</li>
+                        <li>{% trans "En cas d'empêchement, veuillez contacter les organisateurs dès que possible." %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

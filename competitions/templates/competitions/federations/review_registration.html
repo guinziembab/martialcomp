@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }} - {{ federation.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">{{ title }}</h1>
+        <a href="{% url 'competitions:federations:certification_registrations' federation.id registration.certification.id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour aux inscriptions" %}
+        </a>
+    </div>
+
+    {% include "competitions/federations/tabs.html" with active="certifications" %}
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Détails de l'inscription -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Détails de l'inscription" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>{% trans "Certification" %} :</strong> {{ registration.certification.title }}</p>
+                    <p><strong>{% trans "Discipline" %} :</strong> {{ registration.certification.discipline.name }}</p>
+                    <p><strong>{% trans "Niveau" %} :</strong> {{ registration.certification.get_level_display }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>{% trans "Utilisateur" %} :</strong> {{ registration.user.get_full_name|default:registration.user.username }}</p>
+                    <p><strong>{% trans "Date d'inscription" %} :</strong> {{ registration.registration_date|date:"d/m/Y H:i" }}</p>
+                    <p><strong>{% trans "Statut actuel" %} :</strong> 
+                        {% if registration.status == 'pending' %}
+                            <span class="badge bg-warning">{% trans "En attente" %}</span>
+                        {% elif registration.status == 'approved' %}
+                            <span class="badge bg-success">{% trans "Approuvée" %}</span>
+                        {% elif registration.status == 'rejected' %}
+                            <span class="badge bg-danger">{% trans "Rejetée" %}</span>
+                        {% elif registration.status == 'completed' %}
+                            <span class="badge bg-primary">{% trans "Complétée" %}</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% if registration.notes %}
+                <div class="mt-3">
+                    <h6>{% trans "Notes du candidat" %}</h6>
+                    <p>{{ registration.notes }}</p>
+                </div>
+            {% endif %}
+            
+            {% if registration.reviewed_by %}
+                <div class="alert alert-info mt-3">
+                    <p><strong>{% trans "Examiné par" %} :</strong> {{ registration.reviewed_by.get_full_name|default:registration.reviewed_by.username }}</p>
+                    <p><strong>{% trans "Date d'examen" %} :</strong> {{ registration.reviewed_at|date:"d/m/Y H:i" }}</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Formulaire d'examen -->
+    {% if registration.status == 'pending' %}
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">{% trans "Examiner cette demande" %}</h6>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="form-group mb-4">
+                        <label>{% trans "Décision" %} *</label>
+                        <div class="mt-2">
+                            {% for radio in form.decision %}
+                                <div class="form-check mb-2">
+                                    {{ radio.tag }}
+                                    <label class="form-check-label" for="{{ radio.id_for_label }}">
+                                        {{ radio.choice_label }}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        {% if form.decision.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.decision.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group mb-4">
+                        <label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+                        {{ form.notes }}
+                        {% if form.notes.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.notes.errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>{% trans "Enregistrer la décision" %}
+                        </button>
+                        <a href="{% url 'competitions:federations:certification_registrations' federation.id registration.certification.id %}" class="btn btn-secondary ms-2">
+                            {% trans "Annuler" %}
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

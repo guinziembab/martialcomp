@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Liste de présence" %} - {{ session.training_slot.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>{% trans "Liste de présence" %}</h1>
+                <div>
+                    <a href="{% url 'competitions:club:training_sessions' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> {% trans "Retour aux sessions" %}
+                    </a>
+                </div>
+            </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Informations de la session -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3>{% trans "Détails de la session" %}</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>{% trans "Date" %}:</strong><br>
+                            {{ session.date|date:"d/m/Y" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>{% trans "Créneau" %}:</strong><br>
+                            {{ session.training_slot.name }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>{% trans "Horaire" %}:</strong><br>
+                            {{ session.start_time|time:"H:i" }} - {{ session.end_time|time:"H:i" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>{% trans "Instructeur" %}:</strong><br>
+                            {% if session.instructor %}
+                                {{ session.instructor.get_full_name|default:session.instructor.username }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if session.notes %}
+                        <div class="mt-3">
+                            <strong>{% trans "Notes" %}:</strong><br>
+                            {{ session.notes }}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Statistiques de présence -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-primary">{{ stats.total }}</h3>
+                            <p class="mb-0">{% trans "Total pratiquants" %}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-success">{{ stats.present }}</h3>
+                            <p class="mb-0">{% trans "Présents" %}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-danger">{{ stats.absent }}</h3>
+                            <p class="mb-0">{% trans "Absents" %}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-warning">{{ stats.excused }}</h3>
+                            <p class="mb-0">{% trans "Excusés" %}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liste de présence -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>{% trans "Liste des pratiquants" %}</h3>
+                </div>
+                <div class="card-body">
+                    {% if attendances %}
+                        <form method="post" action="{% url 'competitions:club:attendance_list' session.id %}">
+                            {% csrf_token %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>{% trans "Nom" %}</th>
+                                            <th>{% trans "Prénom" %}</th>
+                                            <th>{% trans "Grade" %}</th>
+                                            <th>{% trans "Statut" %}</th>
+                                            <th>{% trans "Heure d'arrivée" %}</th>
+                                            <th>{% trans "Notes" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for attendance in attendances %}
+                                        <tr>
+                                            <td>{{ attendance.practitioner.last_name }}</td>
+                                            <td>{{ attendance.practitioner.first_name }}</td>
+                                            <td>
+                                                {% if attendance.practitioner.current_grade %}
+                                                    {{ attendance.practitioner.current_grade.name }}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <select name="status_{{ attendance.id }}" class="form-select form-select-sm status-select" 
+                                                        data-status="{{ attendance.status }}">
+                                                    <option value="present" {% if attendance.status == 'present' %}selected{% endif %}>
+                                                        {% trans "Présent" %}
+                                                    </option>
+                                                    <option value="absent" {% if attendance.status == 'absent' %}selected{% endif %}>
+                                                        {% trans "Absent" %}
+                                                    </option>
+                                                    <option value="excused" {% if attendance.status == 'excused' %}selected{% endif %}>
+                                                        {% trans "Excusé" %}
+                                                    </option>
+                                                    <option value="late" {% if attendance.status == 'late' %}selected{% endif %}>
+                                                        {% trans "En retard" %}
+                                                    </option>
+                                                </select>
+                                            </td>
+                                            <td>
+                                                {% if attendance.arrival_time %}
+                                                    {{ attendance.arrival_time|time:"H:i" }}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <input type="text" name="notes_{{ attendance.id }}" 
+                                                       value="{{ attendance.notes }}" 
+                                                       class="form-control form-control-sm">
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="text-end mt-3">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> {% trans "Enregistrer" %}
+                                </button>
+                            </div>
+                        </form>
+                    {% else %}
+                        <p class="text-muted text-center py-4">
+                            <i class="fas fa-info-circle"></i> {% trans "Aucun pratiquant inscrit à cette session." %}
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.status-select[data-status="present"] {
+    background-color: #d4edda;
+    color: #155724;
+}
+.status-select[data-status="absent"] {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+.status-select[data-status="excused"] {
+    background-color: #fff3cd;
+    color: #856404;
+}
+.status-select[data-status="late"] {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Mettre à jour la couleur du select en fonction du statut
+    document.querySelectorAll('.status-select').forEach(function(select) {
+        select.addEventListener('change', function() {
+            this.setAttribute('data-status', this.value);
+        });
+    });
+});
+</script>
+{% endblock %}

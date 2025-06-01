@@ -1,0 +1,346 @@
+{% extends 'shop/dashboard/shop_base.html' %}
+{% load i18n %}
+
+{% block dashboard_content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{% translate "Rapport des ventes" %}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()">
+                <i class="bi bi-printer me-2"></i>{% translate "Imprimer" %}
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="exportButton">
+                <i class="bi bi-download me-2"></i>{% translate "Exporter" %}
+            </button>
+        </div>
+        <a href="{% url 'shop:dashboard:club_dashboard' %}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-arrow-left me-2"></i>{% translate "Retour au tableau de bord" %}
+        </a>
+    </div>
+</div>
+
+<!-- Sélection de période -->
+<div class="card mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">{% translate "Sélection de la période" %}</h6>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label for="{{ form.date_start.id_for_label }}" class="form-label">{% translate "Date de début" %}</label>
+                {{ form.date_start }}
+            </div>
+            <div class="col-md-3">
+                <label for="{{ form.date_end.id_for_label }}" class="form-label">{% translate "Date de fin" %}</label>
+                {{ form.date_end }}
+            </div>
+            <div class="col-md-3">
+                <label for="{{ form.group_by.id_for_label }}" class="form-label">{% translate "Regrouper par" %}</label>
+                {{ form.group_by }}
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-filter me-2"></i>{% translate "Générer le rapport" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Statistiques générales -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            {% translate "Chiffre d'affaires" %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ general_stats.total_sales|floatformat:2 }} €</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-currency-euro fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            {% translate "Nombre de commandes" %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ general_stats.total_orders }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-cart-check fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            {% translate "Panier moyen" %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ general_stats.average_order_value|floatformat:2 }} €</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-calculator fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            {% translate "Taux d'annulation" %}
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {% if general_stats.total_orders > 0 %}
+                                {{ general_stats.cancelled_orders|floatformat:0 }} / {{ general_stats.total_orders }} 
+                                <small>({{ general_stats.cancellation_rate|floatformat:1 }}%)</small>
+                            {% else %}
+                                0%
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-x-circle fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Graphiques -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">{% translate "Évolution des ventes" %}</h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-area">
+                    <canvas id="salesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">{% translate "Répartition par statut" %}</h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-pie">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top produits -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">{% translate "Top 10 des produits les plus vendus" %}</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>{% translate "Rang" %}</th>
+                        <th>{% translate "Produit" %}</th>
+                        <th>{% translate "Quantité vendue" %}</th>
+                        <th>{% translate "Chiffre d'affaires" %}</th>
+                        <th>{% translate "Pourcentage du CA total" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in top_products %}
+                    <tr>
+                        <td class="text-center">{{ forloop.counter }}</td>
+                        <td>{{ product.product_name }}</td>
+                        <td class="text-center">{{ product.total_quantity }}</td>
+                        <td class="text-end">{{ product.total_revenue|floatformat:2 }} €</td>
+                        <td class="text-center">
+                            {{ product.revenue_percentage|floatformat:1 }}%
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center">{% translate "Aucune vente pour la période sélectionnée" %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Détails par jour/semaine/mois -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">{% translate "Détails des ventes" %}</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>{% translate "Période" %}</th>
+                        <th>{% translate "Nombre de commandes" %}</th>
+                        <th>{% translate "Chiffre d'affaires" %}</th>
+                        <th>{% translate "Panier moyen" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% comment %}
+                    Les données par période seront ajoutées ici selon la logique de regroupement
+                    {% endcomment %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{{ chart_data.labels|json_script:"chart-labels" }}
+{{ chart_data.revenue|json_script:"chart-revenue" }}
+{{ chart_data.orders|json_script:"chart-orders" }}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Récupération des données du graphique
+    const chartLabels = JSON.parse(document.getElementById('chart-labels').textContent);
+    const chartRevenue = JSON.parse(document.getElementById('chart-revenue').textContent);
+    const chartOrders = JSON.parse(document.getElementById('chart-orders').textContent);
+    
+    // Configuration du graphique d'évolution des ventes
+    const salesCtx = document.getElementById('salesChart').getContext('2d');
+    const salesChart = new Chart(salesCtx, {
+        type: 'line',
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: '{% translate "Chiffre d\'affaires" %}',
+                data: chartRevenue,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1,
+                yAxisID: 'revenue-axis'
+            }, {
+                label: '{% translate "Nombre de commandes" %}',
+                data: chartOrders,
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                tension: 0.1,
+                yAxisID: 'orders-axis'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: false
+                }
+            },
+            scales: {
+                'revenue-axis': {
+                    type: 'linear',
+                    position: 'left',
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value, index, values) {
+                            return value + ' €';
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: '{% translate "Chiffre d\'affaires" %}'
+                    }
+                },
+                'orders-axis': {
+                    type: 'linear',
+                    position: 'right',
+                    beginAtZero: true,
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                    title: {
+                        display: true,
+                        text: '{% translate "Nombre de commandes" %}'
+                    }
+                }
+            }
+        }
+    });
+
+    // Configuration du graphique de répartition par statut
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    const statusChart = new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['{% translate "Complétées" %}', '{% translate "Annulées" %}', '{% translate "En cours" %}'],
+            datasets: [{
+                data: [{{ general_stats.completed_orders }}, {{ general_stats.cancelled_orders }}, {{ general_stats.in_progress_orders }}],
+                backgroundColor: [
+                    'rgb(75, 192, 192)',
+                    'rgb(255, 99, 132)',
+                    'rgb(255, 205, 86)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'right',
+                }
+            }
+        }
+    });
+
+    // Export functionality
+    document.getElementById('exportButton').addEventListener('click', function() {
+        // Implémentation de l'export CSV/Excel
+        alert('{% translate "Fonction d\'export à implémenter" %}');
+    });
+
+    // Gestion des dates
+    const dateStart = document.getElementById('id_date_start');
+    const dateEnd = document.getElementById('id_date_end');
+    
+    if (dateStart && dateEnd) {
+        // Validation des dates
+        dateEnd.min = dateStart.value;
+        dateStart.addEventListener('change', function() {
+            dateEnd.min = this.value;
+        });
+    }
+</script>
+{% endblock %}

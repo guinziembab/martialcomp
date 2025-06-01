@@ -1,0 +1,354 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+
+{% block dashboard_content %}
+<div class="page-header">
+    <h1 class="page-title">{% trans "Statistiques personnelles" %}</h1>
+    <p class="page-subtitle">{% trans "Analysez vos performances et votre progression" %}</p>
+</div>
+
+<!-- Statistiques générales -->
+<div class="stats-grid">
+    <div class="stats-card">
+        <div class="stats-icon" style="background-color: rgba(0, 123, 255, 0.1); color: #007bff;">
+            <i class="fas fa-trophy"></i>
+        </div>
+        <div class="stats-value">{{ total_competitions|default:"0" }}</div>
+        <div class="stats-label">{% trans "Compétitions totales" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon" style="background-color: rgba(255, 193, 7, 0.1); color: #ffc107;">
+            <i class="fas fa-medal"></i>
+        </div>
+        <div class="stats-value">{{ total_podiums|default:"0" }}</div>
+        <div class="stats-label">{% trans "Podiums obtenus" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon" style="background-color: rgba(40, 167, 69, 0.1); color: #28a745;">
+            <i class="fas fa-percentage"></i>
+        </div>
+        <div class="stats-value">{{ win_rate|default:"0" }}%</div>
+        <div class="stats-label">{% trans "Taux de victoire" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon" style="background-color: rgba(23, 162, 184, 0.1); color: #17a2b8;">
+            <i class="fas fa-chart-line"></i>
+        </div>
+        <div class="stats-value">{{ rank_improvement|default:"0" }}</div>
+        <div class="stats-label">{% trans "Progression classement" %}</div>
+    </div>
+</div>
+
+<!-- Graphiques de performance -->
+<div class="row">
+    <div class="col-lg-8">
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "Évolution annuelle" %}</h3>
+            </div>
+            <div class="card-body">
+                <canvas id="yearlyChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "Médailles par année" %}</h3>
+            </div>
+            <div class="card-body">
+                <canvas id="medalsChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistiques par discipline -->
+<div class="dashboard-card mt-4">
+    <div class="card-header">
+        <h3>{% trans "Performance par discipline" %}</h3>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>{% trans "Discipline" %}</th>
+                        <th class="text-center">{% trans "Compétitions" %}</th>
+                        <th class="text-center">{% trans "Or" %}</th>
+                        <th class="text-center">{% trans "Argent" %}</th>
+                        <th class="text-center">{% trans "Bronze" %}</th>
+                        <th class="text-center">{% trans "Total podiums" %}</th>
+                        <th class="text-center">{% trans "Taux de podium" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in discipline_stats %}
+                    <tr>
+                        <td>{{ stat.discipline.name }}</td>
+                        <td class="text-center">{{ stat.competitions }}</td>
+                        <td class="text-center">
+                            {% if stat.gold > 0 %}
+                                <span class="badge badge-warning">{{ stat.gold }}</span>
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if stat.silver > 0 %}
+                                <span class="badge badge-secondary">{{ stat.silver }}</span>
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if stat.bronze > 0 %}
+                                <span class="badge" style="background-color: #cd7f32; color: white;">{{ stat.bronze }}</span>
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ stat.podiums }}</td>
+                        <td class="text-center">
+                            {% widthratio stat.podiums stat.competitions 100 as podium_rate %}
+                            {{ podium_rate }}%
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            {% trans "Aucune statistique disponible" %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Évolution du classement -->
+<div class="dashboard-card mt-4">
+    <div class="card-header">
+        <h3>{% trans "Évolution du classement" %}</h3>
+    </div>
+    <div class="card-body">
+        <canvas id="rankingEvolutionChart" height="100"></canvas>
+    </div>
+</div>
+
+<!-- Statistiques détaillées -->
+<div class="row mt-4">
+    <div class="col-lg-6">
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "Meilleures performances" %}</h3>
+            </div>
+            <div class="card-body">
+                {% if best_performances %}
+                <ul class="list-group">
+                    {% for performance in best_performances %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ performance.competition.name }}</strong><br>
+                            <small class="text-muted">{{ performance.competition.date|date:"d/m/Y" }}</small>
+                        </div>
+                        <div>
+                            {% if performance.rank == 1 %}
+                                <i class="fas fa-medal text-warning fa-2x"></i>
+                            {% elif performance.rank == 2 %}
+                                <i class="fas fa-medal text-secondary fa-2x"></i>
+                            {% elif performance.rank == 3 %}
+                                <i class="fas fa-medal fa-2x" style="color: #cd7f32;"></i>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted text-center py-4">{% trans "Aucune performance enregistrée" %}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "Adversaires fréquents" %}</h3>
+            </div>
+            <div class="card-body">
+                {% if frequent_opponents %}
+                <ul class="list-group">
+                    {% for opponent in frequent_opponents %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ opponent.name }}</strong><br>
+                            <small class="text-muted">{{ opponent.encounters }} {% trans "rencontres" %}</small>
+                        </div>
+                        <div>
+                            <span class="badge badge-primary">{{ opponent.wins }} - {{ opponent.losses }}</span>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted text-center py-4">{% trans "Aucun adversaire récurrent" %}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Graphique d'évolution annuelle
+    const yearlyCtx = document.getElementById('yearlyChart').getContext('2d');
+    
+    new Chart(yearlyCtx, {
+        type: 'bar',
+        data: {
+            labels: [
+                {% for year_stat in yearly_stats %}
+                '{{ year_stat.year }}',
+                {% endfor %}
+            ],
+            datasets: [{
+                label: '{% trans "Compétitions" %}',
+                data: [
+                    {% for year_stat in yearly_stats %}
+                    {{ year_stat.competitions }},
+                    {% endfor %}
+                ],
+                backgroundColor: 'rgba(0, 123, 255, 0.8)',
+                borderColor: 'rgba(0, 123, 255, 1)',
+                borderWidth: 1
+            }, {
+                label: '{% trans "Podiums" %}',
+                data: [
+                    {% for year_stat in yearly_stats %}
+                    {{ year_stat.podiums }},
+                    {% endfor %}
+                ],
+                backgroundColor: 'rgba(255, 193, 7, 0.8)',
+                borderColor: 'rgba(255, 193, 7, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                }
+            }
+        }
+    });
+    
+    // Graphique des médailles
+    const medalsCtx = document.getElementById('medalsChart').getContext('2d');
+    
+    new Chart(medalsCtx, {
+        type: 'pie',
+        data: {
+            labels: ['{% trans "Or" %}', '{% trans "Argent" %}', '{% trans "Bronze" %}'],
+            datasets: [{
+                data: [
+                    {{ total_gold|default:"0" }},
+                    {{ total_silver|default:"0" }},
+                    {{ total_bronze|default:"0" }}
+                ],
+                backgroundColor: [
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(192, 192, 192, 0.8)',
+                    'rgba(205, 127, 50, 0.8)'
+                ],
+                borderColor: [
+                    'rgba(255, 193, 7, 1)',
+                    'rgba(192, 192, 192, 1)',
+                    'rgba(205, 127, 50, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                }
+            }
+        }
+    });
+    
+    // Graphique d'évolution du classement
+    const rankingEvolutionCtx = document.getElementById('rankingEvolutionChart').getContext('2d');
+    
+    const rankingData = {
+        labels: [
+            {% for result in rank_evolution %}
+            '{{ result.competition.start_date|date:"d/m/Y" }}',
+            {% endfor %}
+        ],
+        datasets: [{
+            label: '{% trans "Classement" %}',
+            data: [
+                {% for result in rank_evolution %}
+                {{ result.rank }},
+                {% endfor %}
+            ],
+            borderColor: 'rgba(0, 123, 255, 1)',
+            backgroundColor: 'rgba(0, 123, 255, 0.1)',
+            tension: 0.3,
+            fill: true
+        }]
+    };
+    
+    new Chart(rankingEvolutionCtx, {
+        type: 'line',
+        data: rankingData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    reverse: true,
+                    beginAtZero: false,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.parsed.y + '{% trans "e position" %}';
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

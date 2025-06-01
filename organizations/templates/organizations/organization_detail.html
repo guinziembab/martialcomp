@@ -1,0 +1,456 @@
+{% extends "organizations/base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{{ organization.name }} | {% trans "Organisations" %}{% endblock %}
+
+{% block organization_content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <!-- En-tête de l'organisation -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-2 text-center">
+                        {% if organization.logo %}
+                            <img src="{{ organization.logo.url }}" alt="{{ organization.name }}" class="img-fluid" style="max-height: 120px;">
+                        {% else %}
+                            <div class="organization-placeholder">
+                                <i class="fas fa-building fa-4x text-muted"></i>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-8">
+                        <h1 class="mb-1">{{ organization.name }}</h1>
+                        <p class="text-muted mb-2">{{ organization.get_organization_type_display }}</p>
+                        <div class="mb-2">
+                            {% if organization.city or organization.country %}
+                                <span class="me-3">
+                                    <i class="fas fa-map-marker-alt me-1"></i> 
+                                    {{ organization.city }}{% if organization.country %}, {{ organization.country }}{% endif %}
+                                </span>
+                            {% endif %}
+                            {% if organization.website %}
+                                <span class="me-3">
+                                    <i class="fas fa-globe me-1"></i> 
+                                    <a href="{{ organization.website }}" target="_blank" rel="noopener noreferrer">{{ organization.website }}</a>
+                                </span>
+                            {% endif %}
+                            {% if organization.email %}
+                                <span>
+                                    <i class="fas fa-envelope me-1"></i> 
+                                    <a href="mailto:{{ organization.email }}">{{ organization.email }}</a>
+                                </span>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <!-- Badge pour statut actif/inactif -->
+                            <span class="badge {% if organization.is_active %}bg-success{% else %}bg-danger{% endif %}">
+                                {% if organization.is_active %}{% trans "Actif" %}{% else %}{% trans "Inactif" %}{% endif %}
+                            </span>
+                            
+                            <!-- Badges pour disciplines -->
+                            {% for discipline in organization.disciplines.all %}
+                                <span class="badge bg-info text-dark ms-1">{{ discipline.name }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        {% if can_edit %}
+                            <div class="btn-group-vertical w-100">
+                                <a href="{% url 'organizations:update' pk=organization.id %}" class="btn btn-outline-primary mb-2">
+                                    <i class="fas fa-edit me-1"></i> {% trans "Modifier" %}
+                                </a>
+                                <a href="{% url 'organizations:delete' pk=organization.id %}" class="btn btn-outline-danger">
+                                    <i class="fas fa-trash-alt me-1"></i> {% trans "Supprimer" %}
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation par onglets -->
+<ul class="nav nav-tabs mb-4" id="organizationTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab" aria-controls="details" aria-selected="true">
+            <i class="fas fa-info-circle me-1"></i> {% trans "Détails" %}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="affiliations-tab" data-bs-toggle="tab" data-bs-target="#affiliations" type="button" role="tab" aria-controls="affiliations" aria-selected="false">
+            <i class="fas fa-sitemap me-1"></i> {% trans "Affiliations" %}
+            <span class="badge bg-secondary">{{ affiliations_count }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="members-tab" data-bs-toggle="tab" data-bs-target="#members" type="button" role="tab" aria-controls="members" aria-selected="false">
+            <i class="fas fa-users me-1"></i> {% trans "Membres" %}
+            <span class="badge bg-secondary">{{ members_count }}</span>
+        </button>
+    </li>
+    {% if competitions %}
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="competitions-tab" data-bs-toggle="tab" data-bs-target="#competitions" type="button" role="tab" aria-controls="competitions" aria-selected="false">
+            <i class="fas fa-trophy me-1"></i> {% trans "Compétitions" %}
+            <span class="badge bg-secondary">{{ competitions_count }}</span>
+        </button>
+    </li>
+    {% endif %}
+</ul>
+
+<!-- Contenu des onglets -->
+<div class="tab-content" id="organizationTabContent">
+    <!-- Onglet Détails -->
+    <div class="tab-pane fade show active" id="details" role="tabpanel" aria-labelledby="details-tab">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                {% if organization.description %}
+                    <h3>{% trans "Description" %}</h3>
+                    <p>{{ organization.description|linebreaks }}</p>
+                {% endif %}
+                
+                <!-- Informations de contact -->
+                <h3>{% trans "Informations de contact" %}</h3>
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tbody>
+                                {% if organization.address %}
+                                <tr>
+                                    <th scope="row"><i class="fas fa-map-marked-alt me-2"></i>{% trans "Adresse" %}</th>
+                                    <td>{{ organization.address }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if organization.city or organization.postal_code %}
+                                <tr>
+                                    <th scope="row"><i class="fas fa-city me-2"></i>{% trans "Ville / Code postal" %}</th>
+                                    <td>{{ organization.city }}{% if organization.postal_code %} - {{ organization.postal_code }}{% endif %}</td>
+                                </tr>
+                                {% endif %}
+                                {% if organization.country %}
+                                <tr>
+                                    <th scope="row"><i class="fas fa-flag me-2"></i>{% trans "Pays" %}</th>
+                                    <td>{{ organization.country }}</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tbody>
+                                {% if organization.email %}
+                                <tr>
+                                    <th scope="row"><i class="fas fa-envelope me-2"></i>{% trans "Email" %}</th>
+                                    <td><a href="mailto:{{ organization.email }}">{{ organization.email }}</a></td>
+                                </tr>
+                                {% endif %}
+                                {% if organization.phone %}
+                                <tr>
+                                    <th scope="row"><i class="fas fa-phone me-2"></i>{% trans "Téléphone" %}</th>
+                                    <td>{{ organization.phone }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if organization.website %}
+                                <tr>
+                                    <th scope="row"><i class="fas fa-globe me-2"></i>{% trans "Site web" %}</th>
+                                    <td><a href="{{ organization.website }}" target="_blank" rel="noopener noreferrer">{{ organization.website }}</a></td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Disciplines pratiquées -->
+                {% if organization.disciplines.exists %}
+                    <h3>{% trans "Disciplines" %}</h3>
+                    <div class="row">
+                        {% for discipline in organization.disciplines.all %}
+                            <div class="col-md-4 mb-2">
+                                <div class="card bg-light">
+                                    <div class="card-body py-2 px-3">
+                                        <i class="fas fa-dumbbell me-2"></i>{{ discipline.name }}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                
+                <!-- Métadonnées -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <p class="text-muted small mb-0">
+                            {% trans "Créé le" %}: {{ organization.created_at|date:"d/m/Y" }}
+                            {% if organization.created_by %}
+                                {% trans "par" %} {{ organization.created_by.get_full_name|default:organization.created_by.username }}
+                            {% endif %}
+                            <br>
+                            {% trans "Dernière mise à jour" %}: {{ organization.updated_at|date:"d/m/Y H:i" }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Onglet Affiliations -->
+    <div class="tab-pane fade" id="affiliations" role="tabpanel" aria-labelledby="affiliations-tab">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <!-- Actions -->
+                {% if can_edit %}
+                    <div class="mb-3">
+                        <div class="btn-group">
+                            <a href="{% url 'organizations:add_parent_affiliation' organization_id=organization.id %}" class="btn btn-outline-primary">
+                                <i class="fas fa-level-up-alt me-1"></i> {% trans "Affilier à une organisation parente" %}
+                            </a>
+                            <a href="{% url 'organizations:add_child_affiliation' organization_id=organization.id %}" class="btn btn-outline-success">
+                                <i class="fas fa-level-down-alt me-1"></i> {% trans "Ajouter une organisation affiliée" %}
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
+                
+                <!-- Organisations parentes -->
+                <h3>{% trans "Affiliations à des organisations parentes" %}</h3>
+                {% if parent_affiliations %}
+                    <div class="list-group mb-4">
+                        {% for affiliation in parent_affiliations %}
+                            <div class="list-group-item list-group-item-action">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <div>
+                                        <h5 class="mb-1">{{ affiliation.parent_organization.name }}</h5>
+                                        <p class="mb-1 text-muted">
+                                            <i class="fas fa-sitemap me-1"></i> {{ affiliation.get_affiliation_type_display }}
+                                            &middot;
+                                            <i class="fas fa-building me-1"></i> {{ affiliation.parent_organization.get_organization_type_display }}
+                                        </p>
+                                        {% if affiliation.start_date %}
+                                            <p class="mb-0 small">
+                                                {% trans "Depuis le" %}: {{ affiliation.start_date|date:"d/m/Y" }}
+                                                {% if affiliation.end_date %}
+                                                    {% trans "jusqu'au" %}: {{ affiliation.end_date|date:"d/m/Y" }}
+                                                {% endif %}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <a href="{% url 'organizations:detail' pk=affiliation.parent_organization.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye me-1"></i> {% trans "Voir" %}
+                                        </a>
+                                        {% if can_edit %}
+                                            <a href="{% url 'organizations:update_affiliation' pk=affiliation.id %}" class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-edit me-1"></i> {% trans "Modifier" %}
+                                            </a>
+                                            <form method="post" action="{% url 'organizations:delete_affiliation' pk=affiliation.id %}" class="d-inline" onsubmit="return confirm('{% trans "Êtes-vous sûr de vouloir supprimer cette affiliation ?" %}');">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                    <i class="fas fa-trash me-1"></i> {% trans "Supprimer" %}
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> {% trans "Cette organisation n'est affiliée à aucune organisation parente." %}
+                    </div>
+                {% endif %}
+                
+                <!-- Organisations enfants -->
+                <h3>{% trans "Organisations affiliées" %}</h3>
+                {% if child_affiliations %}
+                    <div class="list-group">
+                        {% for affiliation in child_affiliations %}
+                            <div class="list-group-item list-group-item-action">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <div>
+                                        <h5 class="mb-1">{{ affiliation.child_organization.name }}</h5>
+                                        <p class="mb-1 text-muted">
+                                            <i class="fas fa-sitemap me-1"></i> {{ affiliation.get_affiliation_type_display }}
+                                            &middot;
+                                            <i class="fas fa-building me-1"></i> {{ affiliation.child_organization.get_organization_type_display }}
+                                        </p>
+                                        {% if affiliation.start_date %}
+                                            <p class="mb-0 small">
+                                                {% trans "Depuis le" %}: {{ affiliation.start_date|date:"d/m/Y" }}
+                                                {% if affiliation.end_date %}
+                                                    {% trans "jusqu'au" %}: {{ affiliation.end_date|date:"d/m/Y" }}
+                                                {% endif %}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                    <div>
+                                        <a href="{% url 'organizations:detail' pk=affiliation.child_organization.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye me-1"></i> {% trans "Voir" %}
+                                        </a>
+                                        {% if can_edit %}
+                                            <a href="{% url 'organizations:update_affiliation' pk=affiliation.id %}" class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-edit me-1"></i> {% trans "Modifier" %}
+                                            </a>
+                                            <form method="post" action="{% url 'organizations:delete_affiliation' pk=affiliation.id %}" class="d-inline" onsubmit="return confirm('{% trans "Êtes-vous sûr de vouloir supprimer cette affiliation ?" %}');">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                    <i class="fas fa-trash me-1"></i> {% trans "Supprimer" %}
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> {% trans "Cette organisation n'a aucune organisation affiliée." %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Onglet Membres -->
+    <div class="tab-pane fade" id="members" role="tabpanel" aria-labelledby="members-tab">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <!-- Actions -->
+                {% if can_manage_members %}
+                    <div class="mb-3">
+                        <a href="{% url 'organizations:members' organization_id=organization.id %}" class="btn btn-primary">
+                            <i class="fas fa-users-cog me-1"></i> {% trans "Gérer les membres" %}
+                        </a>
+                        <a href="{% url 'organizations:add_member' organization_id=organization.id %}" class="btn btn-outline-success">
+                            <i class="fas fa-user-plus me-1"></i> {% trans "Ajouter un membre" %}
+                        </a>
+                    </div>
+                {% endif %}
+                
+                <!-- Liste des membres -->
+                <h3>{% trans "Membres de l'organisation" %}</h3>
+                {% if members %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Nom" %}</th>
+                                    <th>{% trans "Rôle" %}</th>
+                                    <th>{% trans "Titre" %}</th>
+                                    <th>{% trans "Depuis" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for member in members %}
+                                    <tr>
+                                        <td>
+                                            {{ member.user.get_full_name|default:member.user.username }}
+                                        </td>
+                                        <td>
+                                            <span class="badge 
+                                                {% if member.role == 'owner' %}bg-danger
+                                                {% elif member.role == 'admin' %}bg-warning text-dark
+                                                {% elif member.role == 'manager' %}bg-info text-dark
+                                                {% else %}bg-secondary
+                                                {% endif %}">
+                                                {{ member.get_role_display }}
+                                            </span>
+                                        </td>
+                                        <td>{{ member.title|default:"-" }}</td>
+                                        <td>{{ member.join_date|date:"d/m/Y" }}</td>
+                                        <td>
+                                            {% if can_manage_members %}
+                                                <a href="{% url 'organizations:update_member' pk=member.id %}" class="btn btn-sm btn-outline-secondary">
+                                                    <i class="fas fa-edit"></i> {% trans "Modifier" %}
+                                                </a>
+                                                
+                                                {% if member.role != 'owner' %}
+                                                    <form method="post" action="{% url 'organizations:transfer_owner' pk=member.id %}" class="d-inline" onsubmit="return confirm('{% trans "Êtes-vous sûr de vouloir transférer la propriété à ce membre ?" %}');">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                            <i class="fas fa-crown"></i> {% trans "Transférer propriété" %}
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> {% trans "Cette organisation n'a aucun membre enregistré." %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Onglet Compétitions -->
+    {% if competitions %}
+    <div class="tab-pane fade" id="competitions" role="tabpanel" aria-labelledby="competitions-tab">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h3>{% trans "Compétitions organisées" %}</h3>
+                <div class="list-group">
+                    {% for competition in competitions %}
+                        <a href="#" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">{{ competition.title }}</h5>
+                                <small>{{ competition.start_date|date:"d/m/Y" }}</small>
+                            </div>
+                            <p class="mb-1">{{ competition.location }}</p>
+                            <small class="text-muted">
+                                <i class="fas fa-users me-1"></i> {{ competition.registrations.count }} {% trans "participants" %}
+                            </small>
+                        </a>
+                    {% endfor %}
+                </div>
+                {% if competitions_count > 5 %}
+                    <div class="mt-3 text-center">
+                        <a href="#" class="btn btn-outline-primary">
+                            <i class="fas fa-list me-1"></i> {% trans "Voir toutes les compétitions" %} ({{ competitions_count }})
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block organization_js %}
+<script>
+    // Gestion des onglets avec conservation de l'onglet actif
+    document.addEventListener('DOMContentLoaded', function() {
+        // Récupère l'onglet stocké ou utilise l'onglet par défaut
+        var activeTabId = localStorage.getItem('organizationActiveTab') || 'details-tab';
+        
+        // Active l'onglet stocké
+        var activeTab = document.getElementById(activeTabId);
+        if (activeTab) {
+            var tab = new bootstrap.Tab(activeTab);
+            tab.show();
+        }
+        
+        // Enregistre l'onglet actif lors du changement
+        var tabs = document.querySelectorAll('button[data-bs-toggle="tab"]');
+        tabs.forEach(function(tab) {
+            tab.addEventListener('shown.bs.tab', function(event) {
+                localStorage.setItem('organizationActiveTab', event.target.id);
+            });
+        });
+    });
+</script>
+{% endblock %}

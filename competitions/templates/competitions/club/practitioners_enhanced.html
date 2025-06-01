@@ -1,0 +1,506 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Gestion des pratiquants" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .practitioner-card {
+        transition: all 0.3s ease;
+    }
+    .practitioner-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+    }
+    
+    /* Styles améliorés pour les badges de grade */
+    .grade-badge {
+        border-radius: 12px;
+        padding: 5px 10px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+    }
+    
+    /* Styles pour les grades Qwan Ki Do */
+    .grade-cap-jaune {
+        background-color: rgba(255, 235, 59, 0.2);
+        color: #806600;
+        border-left: 4px solid #FFEB3B;
+    }
+    
+    .grade-cap-rouge {
+        background-color: rgba(244, 67, 54, 0.2);
+        color: #c62828;
+        border-left: 4px solid #F44336;
+    }
+    
+    .grade-cap-blanc {
+        background-color: rgba(245, 245, 245, 0.5);
+        color: #757575;
+        border-left: 4px solid #E0E0E0;
+        border: 1px solid #dee2e6;
+    }
+    
+    .grade-cap-bleu {
+        background-color: rgba(33, 150, 243, 0.2);
+        color: #0d47a1;
+        border-left: 4px solid #2196F3;
+    }
+    
+    .grade-dang {
+        background-color: rgba(0, 0, 0, 0.1);
+        color: #000000;
+        border-left: 4px solid #000000;
+    }
+    
+    /* Styles pour les niveaux des ceintures noires */
+    .grade-dang-1 { border-bottom: 1px solid gold; }
+    .grade-dang-2 { border-bottom: 2px solid gold; }
+    .grade-dang-3 { border-bottom: 3px solid gold; }
+    .grade-dang-4 { border-bottom: 4px solid gold; }
+    .grade-dang-5 { border-bottom: 5px solid gold; }
+    
+    /* Style amélioré pour le champ de grade dans les formulaires */
+    #id_grade.is-valid {
+        background-color: #d4edda;
+        border-color: #28a745;
+        transition: all 0.3s ease;
+    }
+    
+    .user-badge {
+        border-radius: 12px;
+        padding: 5px 10px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        background-color: #e9ecef;
+    }
+    .user-badge.has-user {
+        background-color: rgba(25, 135, 84, 0.1);
+        color: #198754;
+    }
+    .user-badge.no-user {
+        background-color: rgba(108, 117, 125, 0.1);
+        color: #6c757d;
+    }
+    .profile-img {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border-radius: 50%;
+        margin-right: 15px;
+    }
+    .profile-placeholder {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: #6c757d;
+        margin-right: 15px;
+    }
+    .gender-icon {
+        margin-left: 5px;
+        font-size: 0.9rem;
+    }
+    
+    /* Ajout pour améliorer le filtrage par grade */
+    .grade-filter-item {
+        display: flex;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    .grade-filter-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .grade-indicator {
+        width: 16px;
+        height: 16px;
+        margin-right: 8px;
+        border-radius: 2px;
+    }
+    
+    /* Amélioration pour les boutons d'action */
+    .action-buttons {
+        display: flex;
+        gap: 8px;
+        margin-top: 15px;
+    }
+    
+    .btn-action {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Style pour le bouton de suppression bien visible */
+    .btn-delete {
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-delete:hover {
+        background-color: #c82333;
+        box-shadow: 0 2px 8px rgba(220, 53, 69, 0.5);
+    }
+    
+    /* Badge de grade toujours visible */
+    .grade-display {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 2;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center">
+            <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-outline-secondary me-3">
+                <i class="fas fa-arrow-left me-1"></i>{% trans "Tableau de bord" %}
+            </a>
+            <h1 class="h2 mb-0">{% trans "Gestion des pratiquants" %}</h1>
+        </div>
+        <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-success">
+            <i class="fas fa-user-plus me-2"></i>{% trans "Ajouter un pratiquant" %}
+        </a>
+    </div>
+
+    <!-- Filtres et recherche -->
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" name="q" placeholder="{% trans "Rechercher..." %}" value="{{ request.GET.q }}">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select name="grade" class="form-select" id="grade-filter">
+                        <option value="">{% trans "Tous les grades" %}</option>
+                        {% for grade in available_grades %}
+                            <option value="{{ grade }}" {% if request.GET.grade == grade %}selected{% endif %} 
+                                    class="{% if 'Cap Jaune' in grade %}grade-cap-jaune{% elif 'Cap Rouge' in grade %}grade-cap-rouge{% elif 'Cap Blanc' in grade %}grade-cap-blanc{% elif 'Cap Bleu' in grade %}grade-cap-bleu{% elif 'Dang' in grade %}grade-dang{% endif %}">
+                                {{ grade }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="age_group" class="form-select">
+                        <option value="">{% trans "Tous les âges" %}</option>
+                        <option value="children" {% if request.GET.age_group == 'children' %}selected{% endif %}>{% trans "Enfants (6-11 ans)" %}</option>
+                        <option value="teenagers" {% if request.GET.age_group == 'teenagers' %}selected{% endif %}>{% trans "Adolescents (12-17 ans)" %}</option>
+                        <option value="adults" {% if request.GET.age_group == 'adults' %}selected{% endif %}>{% trans "Adultes (18-39 ans)" %}</option>
+                        <option value="seniors" {% if request.GET.age_group == 'seniors' %}selected{% endif %}>{% trans "Seniors (40+ ans)" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="user_status" class="form-select">
+                        <option value="">{% trans "Tous les statuts utilisateur" %}</option>
+                        <option value="with_user" {% if request.GET.user_status == 'with_user' %}selected{% endif %}>{% trans "Avec compte utilisateur" %}</option>
+                        <option value="without_user" {% if request.GET.user_status == 'without_user' %}selected{% endif %}>{% trans "Sans compte utilisateur" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">{% trans "Filtrer" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- Liste des pratiquants -->
+    {% if practitioners %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for practitioner in practitioners %}
+                <div class="col">
+                    <div class="card h-100 border-0 shadow-sm practitioner-card 
+                              {% if 'Cap Jaune' in practitioner.grade_display %}grade-cap-jaune{% elif 'Cap Rouge' in practitioner.grade_display %}grade-cap-rouge{% elif 'Cap Blanc' in practitioner.grade_display %}grade-cap-blanc{% elif 'Cap Bleu' in practitioner.grade_display %}grade-cap-bleu{% elif 'Dang' in practitioner.grade_display %}grade-dang{% endif %}">
+                        
+                        <!-- Badge de grade toujours visible -->
+                        <span class="badge grade-badge grade-display
+                              {% if 'Cap Jaune' in practitioner.grade_display %}grade-cap-jaune{% elif 'Cap Rouge' in practitioner.grade_display %}grade-cap-rouge{% elif 'Cap Blanc' in practitioner.grade_display %}grade-cap-blanc{% elif 'Cap Bleu' in practitioner.grade_display %}grade-cap-bleu{% elif '1er Dang' in practitioner.grade_display %}grade-dang grade-dang-1{% elif '2ème Dang' in practitioner.grade_display %}grade-dang grade-dang-2{% elif '3ème Dang' in practitioner.grade_display %}grade-dang grade-dang-3{% elif '4ème Dang' in practitioner.grade_display %}grade-dang grade-dang-4{% elif '5ème Dang' in practitioner.grade_display %}grade-dang grade-dang-5{% elif 'Dang' in practitioner.grade_display %}grade-dang{% endif %}">
+                            {{ practitioner.grade_display }}
+                        </span>
+                        
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="card-title mb-0">
+                                    {{ practitioner.full_name }}
+                                    <!-- Ajout de l'icône de genre -->
+                                    {% if practitioner.gender == 'male' %}
+                                        <span class="gender-icon text-primary"><i class="fas fa-mars"></i></span>
+                                    {% elif practitioner.gender == 'female' %}
+                                        <span class="gender-icon text-danger"><i class="fas fa-venus"></i></span>
+                                    {% else %}
+                                        <span class="gender-icon text-secondary"><i class="fas fa-genderless"></i></span>
+                                    {% endif %}
+                                </h5>
+                            </div>
+                            
+                            <!-- Photo de profil -->
+                            {% if practitioner.photo %}
+                                <div class="text-center mb-3">
+                                    <img src="{{ practitioner.photo.url }}" alt="{{ practitioner.full_name }}" class="profile-img">
+                                </div>
+                            {% else %}
+                                <div class="text-center mb-3">
+                                    <div class="profile-placeholder mx-auto">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            
+                            <!-- Badge de statut d'utilisateur -->
+                            <div class="mb-3">
+                                {% if practitioner.user %}
+                                    <span class="user-badge has-user">
+                                        <i class="fas fa-user me-1"></i>{{ practitioner.user.username }}
+                                    </span>
+                                {% else %}
+                                    <span class="user-badge no-user">
+                                        <i class="fas fa-user-slash me-1"></i>{% trans "Sans compte" %}
+                                    </span>
+                                {% endif %}
+                            </div>
+                            
+                            <ul class="list-unstyled mb-3">
+                                <li><i class="fas fa-calendar-alt me-2 text-muted"></i>{{ practitioner.birth_date|date:"d/m/Y" }} ({{ practitioner.age }} {% trans "ans" %})</li>
+                                {% if practitioner.license_number %}
+                                    <li><i class="fas fa-id-card me-2 text-muted"></i>{{ practitioner.license_number }}</li>
+                                {% endif %}
+                                {% if practitioner.medical_certificate_date %}
+                                    <li>
+                                        <i class="fas fa-file-medical me-2 text-muted"></i>
+                                        <span class="{% if practitioner.is_medical_certificate_valid %}text-success{% else %}text-danger{% endif %}">
+                                            {{ practitioner.medical_certificate_date|date:"d/m/Y" }}
+                                            {% if not practitioner.is_medical_certificate_valid %}<i class="fas fa-exclamation-circle ms-1"></i>{% endif %}
+                                        </span>
+                                    </li>
+                                {% endif %}
+                                {% if practitioner.email %}
+                                    <li><i class="fas fa-envelope me-2 text-muted"></i>{{ practitioner.email }}</li>
+                                {% endif %}
+                            </ul>
+                            
+                            {% if practitioner.qualifications.exists %}
+                                <h6 class="text-muted mt-3 mb-2">{% trans "Qualifications" %}</h6>
+                                <div class="mb-3">
+                                    {% for qualification in practitioner.qualifications.all %}
+                                        <span class="badge bg-info me-1 mb-1">
+                                            {{ qualification.get_qualification_type_display }} ({{ qualification.get_level_display }})
+                                        </span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            
+                            <!-- Boutons d'action améliorés -->
+                            <div class="action-buttons">
+                                <a href="{% url 'competitions:club:practitioner_edit' practitioner_id=practitioner.id %}" class="btn btn-outline-primary btn-action">
+                                    <i class="fas fa-edit me-1"></i>{% trans "Modifier" %}
+                                </a>
+                                <a href="{% url 'competitions:club:qualification_add' practitioner_id=practitioner.id %}" class="btn btn-outline-info btn-action">
+                                    <i class="fas fa-award me-1"></i>{% trans "Qualifications" %}
+                                </a>
+                                <button class="btn btn-delete btn-action" data-bs-toggle="modal" data-bs-target="#deleteModal{{ practitioner.id }}">
+                                    <i class="fas fa-trash-alt me-1"></i>{% trans "Supprimer" %}
+                                </button>
+                            </div>
+                            
+                            <!-- Menu options supplémentaires -->
+                            <div class="dropdown mt-3">
+                                <button class="btn btn-outline-secondary w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i class="fas fa-ellipsis-h me-1"></i>{% trans "Plus d'options" %}
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    {% if not practitioner.user %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'competitions:club:create_user_for_practitioner' practitioner_id=practitioner.id %}">
+                                                <i class="fas fa-user-plus me-2"></i>{% trans "Créer un compte" %}
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'competitions:club:link_user_to_practitioner' practitioner_id=practitioner.id %}">
+                                                <i class="fas fa-link me-2"></i>{% trans "Lier à un compte" %}
+                                            </a>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                    {% endif %}
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'competitions:club:available_competitions' %}">
+                                            <i class="fas fa-list-alt me-2"></i>{% trans "Inscriptions" %}
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Modal de confirmation de suppression -->
+                <div class="modal fade" id="deleteModal{{ practitioner.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">{% trans "Confirmer la suppression" %}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>{% trans "Êtes-vous sûr de vouloir supprimer le pratiquant" %} <strong>{{ practitioner.full_name }}</strong> ?</p>
+                                <p class="text-danger">{% trans "Cette action est irréversible." %}</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                                <form action="{% url 'competitions:club:practitioner_delete' practitioner_id=practitioner.id %}" method="post">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger">{% trans "Supprimer" %}</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination -->
+        {% if is_paginated %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.grade %}&grade={{ request.GET.grade }}{% endif %}{% if request.GET.age_group %}&age_group={{ request.GET.age_group }}{% endif %}{% if request.GET.user_status %}&user_status={{ request.GET.user_status }}{% endif %}">
+                                <i class="fas fa-angle-double-left"></i>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.grade %}&grade={{ request.GET.grade }}{% endif %}{% if request.GET.age_group %}&age_group={{ request.GET.age_group }}{% endif %}{% if request.GET.user_status %}&user_status={{ request.GET.user_status }}{% endif %}">
+                                <i class="fas fa-angle-left"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.grade %}&grade={{ request.GET.grade }}{% endif %}{% if request.GET.age_group %}&age_group={{ request.GET.age_group }}{% endif %}{% if request.GET.user_status %}&user_status={{ request.GET.user_status }}{% endif %}">
+                                    {{ num }}
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.grade %}&grade={{ request.GET.grade }}{% endif %}{% if request.GET.age_group %}&age_group={{ request.GET.age_group }}{% endif %}{% if request.GET.user_status %}&user_status={{ request.GET.user_status }}{% endif %}">
+                            <i class="fas fa-angle-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.grade %}&grade={{ request.GET.grade }}{% endif %}{% if request.GET.age_group %}&age_group={{ request.GET.age_group }}{% endif %}{% if request.GET.user_status %}&user_status={{ request.GET.user_status }}{% endif %}">
+                            <i class="fas fa-angle-double-right"></i>
+                        </a>
+                    </li>
+                {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center py-5">
+                <img src="{% static 'img/empty-state.svg' %}" alt="Aucun pratiquant" class="mb-3" style="max-width: 200px;">
+                <h3 class="h4 text-muted mb-3">{% trans "Aucun pratiquant enregistré" %}</h3>
+                <p class="text-muted mb-4">{% trans "Commencez par ajouter des pratiquants à votre club pour les inscrire aux compétitions." %}</p>
+                <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-primary">
+                    <i class="fas fa-user-plus me-2"></i>{% trans "Ajouter un pratiquant" %}
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Bouton d'aide flottant -->
+<div class="position-fixed bottom-0 end-0 p-3">
+    <button class="btn btn-primary rounded-circle shadow" style="width: 50px; height: 50px;" 
+            type="button" data-bs-toggle="modal" data-bs-target="#helpModal">
+        <i class="fas fa-question"></i>
+    </button>
+</div>
+
+<!-- Modal d'aide -->
+<div class="modal fade" id="helpModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Aide - Gestion des pratiquants" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="accordion" id="helpAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#helpPart1">
+                                {% trans "Suppression de pratiquants" %}
+                            </button>
+                        </h2>
+                        <div id="helpPart1" class="accordion-collapse collapse show" data-bs-parent="#helpAccordion">
+                            <div class="accordion-body">
+                                <p>{% trans "Pour supprimer un pratiquant, utilisez le bouton rouge 'Supprimer' directement sur sa carte." %}</p>
+                                <p>{% trans "Une confirmation vous sera demandée avant la suppression définitive." %}</p>
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    {% trans "Attention: La suppression d'un pratiquant entraînera la perte de toutes ses données, y compris son historique de grades et ses inscriptions aux compétitions." %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#helpPart2">
+                                {% trans "Gestion des grades" %}
+                            </button>
+                        </h2>
+                        <div id="helpPart2" class="accordion-collapse collapse" data-bs-parent="#helpAccordion">
+                            <div class="accordion-body">
+                                <p>{% trans "Le grade actuel de chaque pratiquant est affiché en haut à droite de sa carte." %}</p>
+                                <p>{% trans "Pour modifier le grade d'un pratiquant, cliquez sur 'Modifier' puis mettez à jour son grade dans le formulaire." %}</p>
+                                <p>{% trans "Les grades sont affichés avec un code couleur pour faciliter leur identification visuelle." %}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">{% trans "J'ai compris" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

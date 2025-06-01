@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Tableau de bord Super Admin" %}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">{% trans "Gestion des Tenants" %}</h1>
+        </div>
+    </div>
+
+    <!-- Statistiques globales -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Total Tenants" %}</h5>
+                    <h2 class="mb-0">{{ stats.total_tenants }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Tenants Actifs" %}</h5>
+                    <h2 class="mb-0">{{ stats.active_tenants }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Revenus Totaux" %}</h5>
+                    <h2 class="mb-0">{{ stats.total_revenue|floatformat:2 }}€</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <h5 class="card-title">{% trans "Revenus Mensuels" %}</h5>
+                    <h2 class="mb-0">{% if stats.monthly_revenue %}{{ stats.monthly_revenue|floatformat:2 }}€{% else %}0€{% endif %}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphiques -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Croissance des Tenants" %}</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="growthChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Revenus par Mois" %}</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="revenueChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtres -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <form method="get" class="form-inline">
+                <input type="text" name="search" class="form-control mr-2" 
+                       placeholder="{% trans 'Rechercher...' %}" 
+                       value="{{ request.GET.search }}">
+                <select name="status" class="form-control mr-2">
+                    <option value="">{% trans "Tous les statuts" %}</option>
+                    <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>
+                        {% trans "Actifs" %}
+                    </option>
+                    <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>
+                        {% trans "Inactifs" %}
+                    </option>
+                </select>
+                <select name="plan" class="form-control mr-2">
+                    <option value="">{% trans "Tous les plans" %}</option>
+                    <option value="essentials" {% if request.GET.plan == 'essentials' %}selected{% endif %}>
+                        Essentials
+                    </option>
+                    <option value="masters" {% if request.GET.plan == 'masters' %}selected{% endif %}>
+                        Masters
+                    </option>
+                    <option value="champion" {% if request.GET.plan == 'champion' %}selected{% endif %}>
+                        Champion
+                    </option>
+                </select>
+                <button type="submit" class="btn btn-primary">{% trans "Filtrer" %}</button>
+                <a href="{% url 'multitenant:admin-dashboard' %}" class="btn btn-secondary ml-2">
+                    {% trans "Réinitialiser" %}
+                </a>
+                <a href="{% url 'multitenant:admin-tenant-create' %}" class="btn btn-success ml-2">
+                    <i class="fas fa-plus"></i> {% trans "Nouveau Tenant" %}
+                </a>
+                <a href="{% url 'multitenant:security_dashboard' %}" class="btn btn-warning ml-2">
+                    <i class="fas fa-shield-alt"></i> {% trans "Sécurité" %}
+                </a>
+            </form>
+        </div>
+    </div>
+
+    <!-- Liste des tenants -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Nom" %}</th>
+                                <th>{% trans "Domaine" %}</th>
+                                <th>{% trans "Plan" %}</th>
+                                <th>{% trans "Statut" %}</th>
+                                <th>{% trans "Continent" %}</th>
+                                <th>{% trans "Créé le" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tenant in tenants %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'multitenant:admin-tenant-detail' tenant.id %}">
+                                        {{ tenant.name }}
+                                    </a>
+                                </td>
+                                <td>{{ tenant.domain }}</td>
+                                <td>
+                                    <span class="badge badge-{% if tenant.subscription_plan == 'essentials' %}secondary{% elif tenant.subscription_plan == 'masters' %}primary{% else %}success{% endif %}">
+                                        {{ tenant.get_subscription_plan_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge badge-{% if tenant.is_active %}success{% else %}danger{% endif %}">
+                                        {% if tenant.is_active %}{% trans "Actif" %}{% else %}{% trans "Inactif" %}{% endif %}
+                                    </span>
+                                </td>
+                                <td>{{ tenant.get_continent_display }}</td>
+                                <td>{{ tenant.created_at|date:"d/m/Y" }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'multitenant:admin-tenant-detail' tenant.id %}" 
+                                           class="btn btn-info" title="{% trans 'Détails' %}">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{% url 'multitenant:admin-tenant-update' tenant.id %}" 
+                                           class="btn btn-warning" title="{% trans 'Modifier' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <form method="post" action="{% url 'multitenant:admin-tenant-toggle' tenant.id %}" 
+                                              style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" 
+                                                    class="btn btn-{% if tenant.is_active %}danger{% else %}success{% endif %}"
+                                                    title="{% if tenant.is_active %}{% trans 'Désactiver' %}{% else %}{% trans 'Activer' %}{% endif %}">
+                                                <i class="fas fa-{% if tenant.is_active %}pause{% else %}play{% endif %}"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center">
+                                    {% trans "Aucun tenant trouvé." %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <div class="row mt-3">
+        <div class="col-12">
+            <nav>
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                            {% trans "Précédent" %}
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                    <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                            {% trans "Suivant" %}
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Graphique de croissance
+const growthCtx = document.getElementById('growthChart').getContext('2d');
+const growthChart = new Chart(growthCtx, {
+    type: 'line',
+    data: {
+        labels: {{ growth_data|map:"date"|list|safe }},
+        datasets: [{
+            label: 'Nombre de tenants',
+            data: {{ growth_data|map:"count"|list|safe }},
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Graphique des revenus
+const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+const revenueChart = new Chart(revenueCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ revenue_data|map:"month"|list|safe }},
+        datasets: [{
+            label: 'Revenus (€)',
+            data: {{ revenue_data|map:"revenue"|list|safe }},
+            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

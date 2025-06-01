@@ -1,0 +1,248 @@
+{% extends "grades/base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block page_title %}{% trans "Liste des Grades" %}{% endblock %}
+
+{% block page_actions %}
+<div>
+    <a href="{% url 'grades:grade_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus-circle me-2"></i> {% trans "Ajouter un grade" %}
+    </a>
+</div>
+{% endblock %}
+
+{% block main_content %}
+    <!-- Filtres -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">{% trans "Filtres" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <!-- Filtre par discipline -->
+                <div class="col-md-4">
+                    <label for="discipline-filter" class="form-label">{% trans "Discipline" %}</label>
+                    <select id="discipline-filter" class="form-select">
+                        <option value="">{% trans "Toutes les disciplines" %}</option>
+                        {% for discipline in disciplines %}
+                            <option value="{{ discipline.id }}" {% if selected_discipline == discipline.id|stringformat:"i" %}selected{% endif %}>
+                                {{ discipline.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Filtre par catégorie -->
+                <div class="col-md-4">
+                    <label for="category-filter" class="form-label">{% trans "Catégorie" %}</label>
+                    <select id="category-filter" class="form-select">
+                        <option value="">{% trans "Toutes les catégories" %}</option>
+                        {% for category in categories %}
+                            <option value="{{ category.id }}" {% if selected_category == category.id|stringformat:"i" %}selected{% endif %}>
+                                {{ category.name }} ({{ category.discipline.name }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Statut actif/inactif -->
+                <div class="col-md-4">
+                    <label class="form-label">{% trans "Statut" %}</label>
+                    <div class="btn-group w-100" role="group">
+                        <button type="button" class="btn btn-outline-secondary btn-filter {% if is_active == 'true' %}active{% endif %}" 
+                                data-filter-type="is_active" data-filter-value="true">
+                            {% trans "Actifs" %}
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-filter {% if is_active == 'false' %}active{% endif %}" 
+                                data-filter-type="is_active" data-filter-value="false">
+                            {% trans "Inactifs" %}
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Recherche -->
+                <div class="col-12">
+                    <form id="search-form">
+                        <div class="input-group">
+                            <input type="text" id="search-input" class="form-control" placeholder="{% trans 'Rechercher un grade...' %}" 
+                                   value="{{ search_query }}">
+                            <button class="btn btn-outline-secondary" type="submit">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Liste des grades -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{% trans "Grades" %}</h5>
+                <span class="badge bg-primary">{{ page_obj.paginator.count }} {% trans "grades" %}</span>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if grades %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Couleur" %}</th>
+                                <th>{% trans "Nom" %}</th>
+                                <th>{% trans "Discipline" %}</th>
+                                <th>{% trans "Catégorie" %}</th>
+                                <th>{% trans "Niveau" %}</th>
+                                <th>{% trans "Âge min." %}</th>
+                                <th>{% trans "Statut" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for grade in grades %}
+                                <tr>
+                                    <td>
+                                        <span class="grade-color-badge" style="background-color: {{ grade.color_code }}"></span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-medium {% if grade.is_dan_grade %}dan-grade{% endif %}">
+                                            {{ grade.name }}
+                                        </span>
+                                    </td>
+                                    <td>{{ grade.discipline.name }}</td>
+                                    <td>{{ grade.category.name|default:"-" }}</td>
+                                    <td>{{ grade.level }}</td>
+                                    <td>{% if grade.min_age > 0 %}{{ grade.min_age }} {% trans "ans" %}{% else %}-{% endif %}</td>
+                                    <td>
+                                        {% if grade.is_active %}
+                                            <span class="badge bg-success">{% trans "Actif" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{% trans "Inactif" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'grades:grade_detail' grade.id %}" class="btn btn-sm btn-outline-primary" title="{% trans 'Détails' %}">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{% url 'grades:grade_update' grade.id %}" class="btn btn-sm btn-outline-secondary" title="{% trans 'Modifier' %}">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'grades:grade_delete' grade.id %}" class="btn btn-sm btn-outline-danger" title="{% trans 'Supprimer' %}">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                {% if is_paginated %}
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center mt-4">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if is_active %}&is_active={{ is_active }}{% endif %}" aria-label="First">
+                                        <span aria-hidden="true">&laquo;&laquo;</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if is_active %}&is_active={{ is_active }}{% endif %}" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">&laquo;&laquo;</span>
+                                </li>
+                                <li class="page-item disabled">
+                                    <span class="page-link">&laquo;</span>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in page_obj.paginator.page_range %}
+                                {% if page_obj.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ num }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if is_active %}&is_active={{ is_active }}{% endif %}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if is_active %}&is_active={{ is_active }}{% endif %}" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}{% if is_active %}&is_active={{ is_active }}{% endif %}" aria-label="Last">
+                                        <span aria-hidden="true">&raquo;&raquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">&raquo;</span>
+                                </li>
+                                <li class="page-item disabled">
+                                    <span class="page-link">&raquo;&raquo;</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% if search_query or selected_discipline or selected_category %}
+                        {% trans "Aucun grade ne correspond à vos critères de recherche." %}
+                    {% else %}
+                        {% trans "Aucun grade n'a été trouvé dans le système." %}
+                    {% endif %}
+                </div>
+                
+                <!-- Suggestion d'ajout si aucun grade -->
+                <div class="text-center mt-4">
+                    <p>{% trans "Vous pouvez ajouter un nouveau grade ou importer des grades existants." %}</p>
+                    <div class="btn-group">
+                        <a href="{% url 'grades:grade_create' %}" class="btn btn-primary">
+                            <i class="fas fa-plus-circle me-2"></i> {% trans "Ajouter un grade" %}
+                        </a>
+                        <a href="{% url 'grades:import_grades' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-file-import me-2"></i> {% trans "Importer des grades" %}
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}
+
+{% block page_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion du filtre par catégorie
+        const categorySelect = document.getElementById('category-filter');
+        if (categorySelect) {
+            categorySelect.addEventListener('change', function() {
+                const url = new URL(window.location);
+                if (this.value) {
+                    url.searchParams.set('category', this.value);
+                } else {
+                    url.searchParams.delete('category');
+                }
+                window.location = url.toString();
+            });
+        }
+    });
+</script>
+{% endblock %}

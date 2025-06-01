@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Supprimer l'examen" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .delete-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+    }
+    
+    .warning-icon {
+        font-size: 3rem;
+        color: #dc3545;
+        margin-bottom: 1rem;
+    }
+    
+    .exam-info {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1.5rem 0;
+    }
+    
+    .badge-discipline {
+        background-color: #6c757d;
+        color: white;
+    }
+    
+    .badge-status {
+        padding: 0.5em 0.75em;
+    }
+    
+    .status-scheduled {
+        background-color: #17a2b8;
+        color: white;
+    }
+    
+    .status-in_progress {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .status-completed {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .status-cancelled {
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .delete-buttons {
+        margin-top: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="delete-container">
+        <div class="text-center mb-4">
+            <div class="warning-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h1 class="h3">{% trans "Confirmer la suppression" %}</h1>
+        </div>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <p class="lead">{% trans "Êtes-vous sûr de vouloir supprimer l'examen suivant ?" %}</p>
+        
+        <div class="exam-info">
+            <h4>{{ exam.title }}</h4>
+            
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    {% if exam.discipline %}
+                        <span class="badge badge-discipline">{{ exam.discipline.name }}</span>
+                    {% endif %}
+                    
+                    {% if exam.status == 'scheduled' %}
+                        <span class="badge status-scheduled">{% trans "Programmé" %}</span>
+                    {% elif exam.status == 'in_progress' %}
+                        <span class="badge status-in_progress">{% trans "En cours" %}</span>
+                    {% elif exam.status == 'completed' %}
+                        <span class="badge status-completed">{% trans "Terminé" %}</span>
+                    {% elif exam.status == 'cancelled' %}
+                        <span class="badge status-cancelled">{% trans "Annulé" %}</span>
+                    {% endif %}
+                </div>
+                
+                <span class="text-muted">
+                    <i class="fas fa-calendar-alt me-1"></i>{{ exam.date|date:"j F Y" }}
+                </span>
+            </div>
+            
+            <p>
+                <i class="fas fa-map-marker-alt me-2"></i>{{ exam.location }}
+            </p>
+            
+            {% if exam.description %}
+                <p>{{ exam.description|truncatechars:100 }}</p>
+            {% endif %}
+            
+            <div class="alert alert-warning mt-2 mb-0">
+                <strong>{% trans "Attention" %}:</strong> {% trans "Cet examen possède" %} <strong>{{ exam.registrations.count }}</strong> {% trans "inscription(s) qui seront également supprimées." %}
+            </div>
+        </div>
+        
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            {% trans "Attention : Cette action est irréversible. Toutes les données associées à cet examen (inscriptions, résultats, etc.) seront perdues." %}
+        </div>
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="delete-buttons d-flex justify-content-between">
+                <a href="{% url 'grades:exam_detail' exam.id %}" class="btn btn-secondary">
+                    <i class="fas fa-times me-2"></i>{% trans "Annuler" %}
+                </a>
+                
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer définitivement" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,224 @@
+{% extends "grades/base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block page_title %}
+    {% trans "Attribution de grades en masse" %}
+{% endblock %}
+
+{% block page_actions %}
+<div>
+    <a href="{% url 'grades:grade_list' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i> {% trans "Retour" %}
+    </a>
+</div>
+{% endblock %}
+
+{% block main_content %}
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">{% trans "Attribution de grades en masse" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info mb-4">
+                <i class="fas fa-info-circle me-2"></i>
+                {% trans "Cette fonctionnalité vous permet d'attribuer le même grade à plusieurs pratiquants en une seule opération." %}
+            </div>
+            
+            <form method="post">
+                {% csrf_token %}
+                
+                {% if form.errors %}
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        {% trans "Veuillez corriger les erreurs suivantes :" %}
+                        <ul class="mb-0 mt-2">
+                            {% for field in form %}
+                                {% for error in field.errors %}
+                                    <li>{{ field.label }}: {{ error }}</li>
+                                {% endfor %}
+                            {% endfor %}
+                            {% for error in form.non_field_errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+                
+                <div class="row mb-4">
+                    <!-- Informations sur le grade -->
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">{% trans "Informations sur le grade" %}</h6>
+                            </div>
+                            <div class="card-body">
+                                <!-- Discipline -->
+                                <div class="mb-3">
+                                    <label for="{{ form.discipline.id_for_label }}" class="form-label fw-bold">{{ form.discipline.label }} *</label>
+                                    {{ form.discipline }}
+                                    {% if form.discipline.help_text %}
+                                        <div class="form-text">{{ form.discipline.help_text }}</div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Grade -->
+                                <div class="mb-3">
+                                    <label for="{{ form.grade.id_for_label }}" class="form-label fw-bold">{{ form.grade.label }} *</label>
+                                    {{ form.grade }}
+                                    {% if form.grade.help_text %}
+                                        <div class="form-text">{{ form.grade.help_text }}</div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Date d'obtention -->
+                                <div class="mb-3">
+                                    <label for="{{ form.date_obtained.id_for_label }}" class="form-label fw-bold">{{ form.date_obtained.label }} *</label>
+                                    {{ form.date_obtained }}
+                                    {% if form.date_obtained.help_text %}
+                                        <div class="form-text">{{ form.date_obtained.help_text }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Détails de l'attribution -->
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">{% trans "Détails de l'attribution" %}</h6>
+                            </div>
+                            <div class="card-body">
+                                <!-- Décerné par -->
+                                <div class="mb-3">
+                                    <label for="{{ form.awarded_by.id_for_label }}" class="form-label fw-bold">{{ form.awarded_by.label }}</label>
+                                    {{ form.awarded_by }}
+                                    {% if form.awarded_by.help_text %}
+                                        <div class="form-text">{{ form.awarded_by.help_text }}</div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Lieu d'obtention -->
+                                <div class="mb-3">
+                                    <label for="{{ form.location.id_for_label }}" class="form-label fw-bold">{{ form.location.label }}</label>
+                                    {{ form.location }}
+                                    {% if form.location.help_text %}
+                                        <div class="form-text">{{ form.location.help_text }}</div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Notes -->
+                                <div class="mb-3">
+                                    <label for="{{ form.notes.id_for_label }}" class="form-label fw-bold">{{ form.notes.label }}</label>
+                                    {{ form.notes }}
+                                    {% if form.notes.help_text %}
+                                        <div class="form-text">{{ form.notes.help_text }}</div>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Définir comme grade actuel -->
+                                <div class="form-check form-switch mb-3">
+                                    {{ form.set_as_current }}
+                                    <label class="form-check-label" for="{{ form.set_as_current.id_for_label }}">{{ form.set_as_current.label }}</label>
+                                    {% if form.set_as_current.help_text %}
+                                        <div class="form-text">{{ form.set_as_current.help_text }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sélection des pratiquants -->
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">{% trans "Sélection des pratiquants" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-warning mb-3">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {% trans "Attention : Les pratiquants qui ne répondent pas aux critères d'âge minimum ou de temps minimum dans le grade précédent ne recevront pas le grade." %}
+                        </div>
+                        
+                        <label for="{{ form.practitioners.id_for_label }}" class="form-label fw-bold">{{ form.practitioners.label }} *</label>
+                        <div class="form-text mb-2">
+                            {% trans "Utilisez la touche Ctrl (ou Cmd sur Mac) pour sélectionner plusieurs pratiquants." %}
+                        </div>
+                        {{ form.practitioners }}
+                        {% if form.practitioners.help_text %}
+                            <div class="form-text">{{ form.practitioners.help_text }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Bouton de soumission -->
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{% url 'grades:grade_list' %}" class="btn btn-outline-secondary me-md-2">
+                        {% trans "Annuler" %}
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>
+                        {% trans "Attribuer les grades" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock %}
+
+{% block page_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Mise à jour dynamique des grades en fonction de la discipline
+        const disciplineSelect = document.getElementById('{{ form.discipline.id_for_label }}');
+        const gradeSelect = document.getElementById('{{ form.grade.id_for_label }}');
+        const practitionersSelect = document.getElementById('{{ form.practitioners.id_for_label }}');
+        
+        if (disciplineSelect && gradeSelect) {
+            disciplineSelect.classList.add('discipline-select');
+            disciplineSelect.dataset.targetSelect = '#{{ form.grade.id_for_label }}';
+            
+            // Déclencher l'événement de changement au chargement si nécessaire
+            if (disciplineSelect.value) {
+                const event = new Event('change');
+                disciplineSelect.dispatchEvent(event);
+            }
+            
+            // Mise à jour des pratiquants éligibles en fonction du grade sélectionné
+            gradeSelect.addEventListener('change', function() {
+                if (this.value && disciplineSelect.value && practitionersSelect) {
+                    // Désactiver temporairement le select durant le chargement
+                    practitionersSelect.disabled = true;
+                    
+                    // Récupérer les pratiquants éligibles pour ce grade
+                    fetch(`/grades/api/eligible-practitioners/?grade_id=${this.value}&club_id={{ club.id }}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            // Conserver les pratiquants sélectionnés
+                            const selectedOptions = Array.from(practitionersSelect.selectedOptions).map(option => option.value);
+                            
+                            // Vider et repeupler la liste
+                            practitionersSelect.innerHTML = '';
+                            
+                            data.practitioners.forEach(practitioner => {
+                                const option = document.createElement('option');
+                                option.value = practitioner.id;
+                                option.textContent = `${practitioner.name} (${practitioner.age} ans, ${practitioner.grade})`;
+                                option.selected = selectedOptions.includes(practitioner.id.toString());
+                                practitionersSelect.appendChild(option);
+                            });
+                            
+                            // Réactiver le select
+                            practitionersSelect.disabled = false;
+                        })
+                        .catch(error => {
+                            console.error('Erreur lors du chargement des pratiquants:', error);
+                            practitionersSelect.disabled = false;
+                        });
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

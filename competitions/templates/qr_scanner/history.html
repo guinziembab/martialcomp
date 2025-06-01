@@ -1,0 +1,259 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .history-container {
+        background-color: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .filter-form {
+        margin-bottom: 2rem;
+        padding: 1rem;
+        background-color: #e9ecef;
+        border-radius: 8px;
+    }
+    
+    .scan-entry {
+        border-left: 5px solid #6c757d;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background-color: #fff;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    
+    .scan-entry.valid {
+        border-left-color: #28a745;
+    }
+    
+    .scan-entry.invalid {
+        border-left-color: #dc3545;
+    }
+    
+    .scan-entry.offline {
+        border-left-color: #fd7e14;
+    }
+    
+    .scan-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    
+    .scan-date {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .scan-type-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+    
+    .scan-type-attendance {
+        background-color: #cff4fc;
+        color: #055160;
+    }
+    
+    .scan-type-competition {
+        background-color: #d1e7dd;
+        color: #0f5132;
+    }
+    
+    .scan-type-event {
+        background-color: #fff3cd;
+        color: #664d03;
+    }
+    
+    .scan-type-training {
+        background-color: #e2e3e5;
+        color: #41464b;
+    }
+    
+    .scan-type-check_in {
+        background-color: #d3d3ff;
+        color: #3a3a7e;
+    }
+    
+    .scan-details {
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        color: #6c757d;
+    }
+    
+    .pagination {
+        margin-top: 2rem;
+        justify-content: center;
+    }
+    
+    @media (max-width: 768px) {
+        .scan-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .scan-date {
+            margin-top: 0.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="text-center">{% trans "Historique des scans QR" %}</h1>
+            <p class="text-center text-muted">
+                {% trans "Consultez l'historique des QR codes scannés pour votre club." %}
+            </p>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="filter-form">
+                <form method="get" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="type" class="form-label">{% trans "Type de scan" %}</label>
+                        <select name="type" id="type" class="form-select">
+                            <option value="">{% trans "Tous les types" %}</option>
+                            {% for value, label in scan_types %}
+                                <option value="{{ value }}" {% if selected_type == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="from" class="form-label">{% trans "Du" %}</label>
+                        <input type="date" class="form-control" id="from" name="from" value="{{ date_from }}">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="to" class="form-label">{% trans "Au" %}</label>
+                        <input type="date" class="form-control" id="to" name="to" value="{{ date_to }}">
+                    </div>
+                    
+                    <div class="col-12 text-center">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-filter me-2"></i>{% trans "Filtrer" %}
+                        </button>
+                        <a href="{% url 'competitions:qr:history' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-2"></i>{% trans "Réinitialiser" %}
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="history-container">
+                <h3 class="mb-4">{% trans "Derniers scans" %}
+                    {% if selected_type %}
+                        - {{ selected_type|title }}
+                    {% endif %}
+                    {% if date_from or date_to %}
+                        <small class="text-muted">
+                            {% if date_from %}{% trans "Du" %} {{ date_from }}{% endif %}
+                            {% if date_to %}{% trans "au" %} {{ date_to }}{% endif %}
+                        </small>
+                    {% endif %}
+                </h3>
+                
+                {% if scans %}
+                    {% for scan in scans %}
+                        <div class="scan-entry {% if scan.is_valid %}valid{% else %}invalid{% endif %} {% if scan.is_offline_scan %}offline{% endif %}">
+                            <div class="scan-header">
+                                <div>
+                                    <h5>{{ scan.qr_code.practitioner.full_name }}</h5>
+                                    <span class="scan-type-badge scan-type-{{ scan.scan_type }}">
+                                        {{ scan.get_scan_type_display }}
+                                    </span>
+                                    {% if scan.is_offline_scan %}
+                                        <span class="scan-type-badge" style="background-color: #fd7e14; color: white;">
+                                            <i class="fas fa-signal-slash me-1"></i>{% trans "Hors-ligne" %}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <span class="scan-date">
+                                    <i class="far fa-calendar-alt me-1"></i>{{ scan.scan_date|date:"d/m/Y H:i" }}
+                                </span>
+                            </div>
+                            
+                            <div class="scan-details">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p><strong>{% trans "Club:" %}</strong> {{ scan.qr_code.practitioner.organization.name|default:"N/A" }}</p>
+                                        <p><strong>{% trans "Licence:" %}</strong> {{ scan.qr_code.practitioner.license_number|default:"N/A" }}</p>
+                                        <p><strong>{% trans "Scanné par:" %}</strong> {{ scan.scanned_by.get_full_name|default:scan.scanned_by.username }}</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        {% if scan.scan_type == 'competition' and scan.competition %}
+                                            <p><strong>{% trans "Compétition:" %}</strong> {{ scan.competition.name }}</p>
+                                        {% elif scan.scan_type == 'training' and scan.training_session %}
+                                            <p><strong>{% trans "Entraînement:" %}</strong> {{ scan.training_session.training_slot.name }}</p>
+                                            <p><strong>{% trans "Date:" %}</strong> {{ scan.training_session.date|date:"d/m/Y" }}</p>
+                                        {% elif scan.scan_type == 'event' and scan.event %}
+                                            <p><strong>{% trans "Événement:" %}</strong> {{ scan.event.name }}</p>
+                                        {% endif %}
+                                        
+                                        {% if scan.validation_message %}
+                                            <p class="{% if scan.is_valid %}text-success{% else %}text-danger{% endif %}">
+                                                <strong>{% trans "Message:" %}</strong> {{ scan.validation_message }}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    
+                    <div class="text-center mt-3">
+                        <p>{% trans "Affichage des 100 derniers scans." %}</p>
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-search fa-3x mb-3"></i>
+                        <h4>{% trans "Aucun scan trouvé" %}</h4>
+                        <p>
+                            {% if selected_type or date_from or date_to %}
+                                {% trans "Aucun scan ne correspond aux critères de filtrage. Essayez de modifier vos filtres." %}
+                            {% else %}
+                                {% trans "Aucun QR code n'a été scanné pour votre club." %}
+                            {% endif %}
+                        </p>
+                    </div>
+                {% endif %}
+                
+                <div class="text-center mt-4">
+                    <a href="{% url 'competitions:qr:scan' %}" class="btn btn-primary">
+                        <i class="fas fa-qrcode me-2"></i>{% trans "Scanner un QR code" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Catégories de Grade" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .category-card {
+        transition: all 0.3s ease;
+    }
+    
+    .category-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .badge-discipline {
+        background-color: #6c757d;
+        color: white;
+    }
+    
+    .status-badge {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+    }
+    
+    .status-active {
+        background-color: #28a745;
+    }
+    
+    .status-inactive {
+        background-color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{% trans "Catégories de Grade" %}</h1>
+        
+        <div>
+            <a href="{% url 'grades:category_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus-circle me-2"></i>{% trans "Ajouter une catégorie" %}
+            </a>
+        </div>
+    </div>
+    
+    <!-- Filtres -->
+    <div class="filter-section">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="discipline" class="form-label">{% trans "Discipline" %}</label>
+                <select name="discipline" id="discipline" class="form-select">
+                    <option value="">{% trans "Toutes les disciplines" %}</option>
+                    {% for discipline in disciplines %}
+                        <option value="{{ discipline.id }}" {% if selected_discipline == discipline.id|stringformat:"i" %}selected{% endif %}>
+                            {{ discipline.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label for="is_active" class="form-label">{% trans "Statut" %}</label>
+                <select name="is_active" id="is_active" class="form-select">
+                    <option value="">{% trans "Tous" %}</option>
+                    <option value="true" {% if is_active == 'true' %}selected{% endif %}>{% trans "Actif" %}</option>
+                    <option value="false" {% if is_active == 'false' %}selected{% endif %}>{% trans "Inactif" %}</option>
+                </select>
+            </div>
+            
+            <div class="col-md-5">
+                <label for="q" class="form-label">{% trans "Recherche" %}</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="q" name="q" value="{{ search_query }}" placeholder="{% trans 'Rechercher une catégorie...' %}">
+                    <button class="btn btn-outline-secondary" type="submit">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    {% if search_query or selected_discipline or is_active %}
+                        <a href="{% url 'grades:category_list' %}" class="btn btn-outline-danger">
+                            <i class="fas fa-times"></i>
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="col-12 d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-filter me-2"></i>{% trans "Filtrer" %}
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Liste des catégories -->
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% for category in categories %}
+            <div class="col">
+                <div class="card h-100 category-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <span class="status-badge {% if category.is_active %}status-active{% else %}status-inactive{% endif %}"></span>
+                            {{ category.name }}
+                        </h5>
+                        
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownMenuButton{{ category.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton{{ category.id }}">
+                                <li><a class="dropdown-item" href="{% url 'grades:category_update' category.id %}">
+                                    <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#deleteCategoryModal{{ category.id }}">
+                                    <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        {% if category.discipline %}
+                            <span class="badge badge-discipline mb-2">{{ category.discipline.name }}</span>
+                        {% endif %}
+                        
+                        <p class="card-text">
+                            {% if category.description %}
+                                {{ category.description|truncatechars:100 }}
+                            {% else %}
+                                <span class="text-muted">{% trans "Aucune description disponible" %}</span>
+                            {% endif %}
+                        </p>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <i class="fas fa-sort-numeric-up me-1"></i>{% trans "Ordre" %}: {{ category.order }}
+                            </small>
+                            
+                            <span class="badge bg-{{ category.is_active|yesno:'success,danger' }}">
+                                {{ category.is_active|yesno:_("Actif,Inactif") }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer">
+                        <a href="{% url 'grades:category_update' category.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-edit me-1"></i>{% trans "Modifier" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Modal de confirmation de suppression -->
+            <div class="modal fade" id="deleteCategoryModal{{ category.id }}" tabindex="-1" aria-labelledby="deleteCategoryModalLabel{{ category.id }}" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title" id="deleteCategoryModalLabel{{ category.id }}">
+                                {% trans "Supprimer la catégorie" %} "{{ category.name }}"
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>{% trans "Êtes-vous sûr de vouloir supprimer cette catégorie de grade ?" %}</p>
+                            <p class="text-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                {% trans "Cette action est irréversible. Si des grades utilisent cette catégorie, ils seront affectés." %}
+                            </p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                {% trans "Annuler" %}
+                            </button>
+                            <form action="{% url 'grades:category_delete' category.id %}" method="post">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% if search_query or selected_discipline or is_active %}
+                        {% trans "Aucune catégorie de grade ne correspond à vos critères de recherche." %}
+                    {% else %}
+                        {% trans "Aucune catégorie de grade n'a été créée pour le moment." %}
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    {% if is_paginated %}
+        <nav aria-label="Pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if is_active %}&is_active={{ is_active }}{% endif %}" aria-label="{% trans 'Première' %}">
+                            <span aria-hidden="true">&laquo;&laquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if is_active %}&is_active={{ is_active }}{% endif %}" aria-label="{% trans 'Précédente' %}">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">&laquo;&laquo;</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">&laquo;</span>
+                    </li>
+                {% endif %}
+                
+                {% for i in page_obj.paginator.page_range %}
+                    {% if page_obj.number == i %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ i }}</span>
+                        </li>
+                    {% elif i > page_obj.number|add:'-3' and i < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ i }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if is_active %}&is_active={{ is_active }}{% endif %}">{{ i }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if is_active %}&is_active={{ is_active }}{% endif %}" aria-label="{% trans 'Suivante' %}">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if is_active %}&is_active={{ is_active }}{% endif %}" aria-label="{% trans 'Dernière' %}">
+                            <span aria-hidden="true">&raquo;&raquo;</span>
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">&raquo;</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">&raquo;&raquo;</span>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animation des cartes au chargement
+        const cards = document.querySelectorAll('.category-card');
+        cards.forEach((card, index) => {
+            setTimeout(() => {
+                card.style.opacity = '1';
+            }, 100 * index);
+        });
+    });
+</script>
+{% endblock %}

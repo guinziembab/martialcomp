@@ -1,0 +1,534 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Tableau de bord du juge" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-container {
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+    
+    .dashboard-header {
+        background-color: #fff;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .dashboard-card {
+        background-color: #fff;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        height: 100%;
+        transition: all 0.3s ease;
+    }
+    
+    .dashboard-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+    }
+    
+    .card-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+    }
+    
+    .card-title i {
+        margin-right: 0.75rem;
+        color: #007bff;
+    }
+    
+    .status-badge {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 50px;
+        margin-left: 0.5rem;
+    }
+    
+    .status-badge.active {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .status-badge.pending {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    
+    .status-badge.completed {
+        background-color: #6c757d;
+        color: white;
+    }
+    
+    .competition-card {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: all 0.2s ease;
+    }
+    
+    .competition-card:hover {
+        background-color: #e9ecef;
+    }
+    
+    .competition-name {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+    
+    .competition-info {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .active-performance {
+        background-color: #d4edda;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-left: 4px solid #28a745;
+    }
+    
+    .active-performance-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    
+    .active-performance-name {
+        font-weight: 600;
+    }
+    
+    .active-performance-info {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .action-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+    
+    .no-data {
+        color: #6c757d;
+        font-style: italic;
+        text-align: center;
+        padding: 2rem 0;
+    }
+    
+    .no-data i {
+        font-size: 2rem;
+        color: #dee2e6;
+        margin-bottom: 1rem;
+    }
+    
+    .quicklinks {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: 1rem;
+    }
+    
+    .quicklink {
+        background-color: #f8f9fa;
+        border-radius: 50px;
+        padding: 0.5rem 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #212529;
+        text-decoration: none;
+        transition: all 0.2s ease;
+    }
+    
+    .quicklink:hover {
+        background-color: #e9ecef;
+        color: #007bff;
+        transform: translateY(-2px);
+    }
+    
+    .notification-badge {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background-color: #dc3545;
+        color: white;
+        font-size: 0.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .live-indicator {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.75rem;
+        background-color: #dc3545;
+        color: white;
+        border-radius: 50px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-left: 1rem;
+    }
+    
+    .live-indicator .dot {
+        width: 8px;
+        height: 8px;
+        background-color: white;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+    
+    .stats-card {
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        text-align: center;
+        min-height: 100px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        transition: all 0.3s ease;
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .stats-value {
+        font-size: 2rem;
+        font-weight: bold;
+        line-height: 1;
+    }
+    
+    .stats-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+    }
+    
+    .bg-light-primary {
+        background-color: rgba(0, 123, 255, 0.1);
+        color: #007bff;
+    }
+    
+    .bg-light-success {
+        background-color: rgba(40, 167, 69, 0.1);
+        color: #28a745;
+    }
+    
+    .bg-light-info {
+        background-color: rgba(23, 162, 184, 0.1);
+        color: #17a2b8;
+    }
+    
+    .bg-light-warning {
+        background-color: rgba(255, 193, 7, 0.1);
+        color: #ffc107;
+    }
+    
+    .performance-list {
+        max-height: 350px;
+        overflow-y: auto;
+    }
+    
+    .breadcrumb-nav {
+        margin-bottom: 1.5rem;
+    }
+    
+    @media (max-width: 768px) {
+        .dashboard-card {
+            margin-bottom: 1rem;
+        }
+        
+        .stats-card {
+            min-height: auto;
+            padding: 1rem 0.5rem;
+        }
+        
+        .stats-value {
+            font-size: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="dashboard-container">
+        <!-- En-tête du tableau de bord -->
+        <div class="dashboard-header">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1 class="h3 mb-0">{% trans "Tableau de bord du juge technique" %}</h1>
+                
+                {% if live_competitions %}
+                    <div class="live-indicator">
+                        <span class="dot"></span>
+                        {% trans "EN DIRECT" %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Breadcrumb navigation -->
+            <nav aria-label="breadcrumb" class="breadcrumb-nav">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{% url 'competitions:dashboard:referee' %}">{% trans "Tableau de bord principal" %}</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{% trans "Notation technique" %}</li>
+                </ol>
+            </nav>
+            
+            <div class="quicklinks">
+                <a href="{% url 'competitions:technical_scoring:judge_competition_list' %}" class="quicklink">
+                    <i class="fas fa-trophy"></i>
+                    {% trans "Mes compétitions" %}
+                </a>
+                
+                <a href="{% url 'competitions:technical_scoring:judge_settings' %}" class="quicklink">
+                    <i class="fas fa-cog"></i>
+                    {% trans "Paramètres" %}
+                </a>
+                
+                <a href="{% url 'competitions:technical_scoring:judge_help' %}" class="quicklink">
+                    <i class="fas fa-question-circle"></i>
+                    {% trans "Aide" %}
+                </a>
+            </div>
+        </div>
+        
+        <!-- Statistiques -->
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4 g-3 mb-4">
+            <div class="col">
+                <div class="stats-card bg-light-primary">
+                    <div class="stats-value">{{ stats.total_competitions|default:"0" }}</div>
+                    <div class="stats-label">{% trans "Compétitions" %}</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="stats-card bg-light-success">
+                    <div class="stats-value">{{ stats.active_competitions|default:"0" }}</div>
+                    <div class="stats-label">{% trans "En cours" %}</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="stats-card bg-light-info">
+                    <div class="stats-value">{{ stats.pending_performances|default:"0" }}</div>
+                    <div class="stats-label">{% trans "À noter" %}</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="stats-card bg-light-warning">
+                    <div class="stats-value">{{ stats.completed_performances|default:"0" }}</div>
+                    <div class="stats-label">{% trans "Notées" %}</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row g-4">
+            <!-- Performances actives/en attente -->
+            <div class="col-md-6">
+                <div class="dashboard-card">
+                    <h2 class="card-title">
+                        <i class="fas fa-stopwatch"></i> {% trans "Performances en cours" %}
+                        {% if active_performances %}
+                            <span class="status-badge active">{{ active_performances|length }}</span>
+                        {% endif %}
+                    </h2>
+                    
+                    {% if active_performances %}
+                        <div class="performance-list">
+                            {% for performance in active_performances %}
+                                <div class="active-performance">
+                                    <div class="active-performance-header">
+                                        <span class="active-performance-name">{{ performance.participant.full_name }}</span>
+                                        <span class="badge bg-success">{% trans "En cours" %}</span>
+                                    </div>
+                                    <div class="active-performance-info">
+                                        <div><strong>{% trans "Compétition" %}:</strong> {{ performance.competition.title }}</div>
+                                        <div><strong>{% trans "Catégorie" %}:</strong> {{ performance.category.name }}</div>
+                                        <div><strong>{% trans "Club" %}:</strong> {{ performance.participant.club.name }}</div>
+                                    </div>
+                                    <a href="{% url 'competitions:technical_scoring:judge_category_view' performance.category.id %}?performance={{ performance.id }}" class="btn btn-success action-btn">
+                                        <i class="fas fa-gavel"></i> {% trans "Noter maintenant" %}
+                                    </a>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="no-data">
+                            <i class="fas fa-hourglass-start d-block mb-2"></i>
+                            <p>{% trans "Aucune performance en cours actuellement." %}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Performances en attente -->
+            <div class="col-md-6">
+                <div class="dashboard-card">
+                    <h2 class="card-title">
+                        <i class="fas fa-clipboard-list"></i> {% trans "Performances à venir" %}
+                        {% if pending_performances %}
+                            <span class="status-badge pending">{{ pending_performances|length }}</span>
+                        {% endif %}
+                    </h2>
+                    
+                    {% if pending_performances %}
+                        <div class="performance-list">
+                            {% for performance in pending_performances %}
+                                <div class="competition-card">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <div class="competition-name">{{ performance.participant.full_name }}</div>
+                                            <div class="competition-info">
+                                                <div><strong>{% trans "Compétition" %}:</strong> {{ performance.competition.title }}</div>
+                                                <div><strong>{% trans "Catégorie" %}:</strong> {{ performance.category.name }}</div>
+                                                {% if performance.scheduled_time %}
+                                                    <div><strong>{% trans "Heure prévue" %}:</strong> {{ performance.scheduled_time|time:"H:i" }}</div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <span class="badge bg-warning text-dark">{% trans "À venir" %}</span>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="no-data">
+                            <i class="fas fa-calendar-check d-block mb-2"></i>
+                            <p>{% trans "Aucune performance en attente." %}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Compétitions assignées -->
+            <div class="col-md-6">
+                <div class="dashboard-card">
+                    <h2 class="card-title">
+                        <i class="fas fa-trophy"></i> {% trans "Mes compétitions actuelles" %}
+                    </h2>
+                    
+                    {% if active_competitions %}
+                        {% for competition in active_competitions %}
+                            <div class="competition-card">
+                                <div class="competition-name">{{ competition.title }}</div>
+                                <div class="competition-info">
+                                    <div><strong>{% trans "Dates" %}:</strong> {{ competition.start_date|date:"d/m/Y" }} - {{ competition.end_date|date:"d/m/Y" }}</div>
+                                    <div><strong>{% trans "Catégories" %}:</strong> {{ competition.assigned_categories.count }}</div>
+                                    <div>
+                                        <strong>{% trans "Performances" %}:</strong> 
+                                        <span class="badge bg-success">{{ competition.completed_performances }}</span> / 
+                                        <span class="badge bg-secondary">{{ competition.total_performances }}</span>
+                                    </div>
+                                </div>
+                                <a href="{% url 'competitions:technical_scoring:judge_competition_detail' competition.id %}" class="btn btn-sm btn-outline-primary action-btn">
+                                    <i class="fas fa-eye"></i> {% trans "Détails" %}
+                                </a>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="no-data">
+                            <i class="fas fa-calendar-times d-block mb-2"></i>
+                            <p>{% trans "Aucune compétition active en cours." %}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Dernières notes soumises -->
+            <div class="col-md-6">
+                <div class="dashboard-card">
+                    <h2 class="card-title">
+                        <i class="fas fa-clipboard-check"></i> {% trans "Dernières notations" %}
+                    </h2>
+                    
+                    {% if recent_scorings %}
+                        <div class="performance-list">
+                            {% for scoring in recent_scorings %}
+                                <div class="competition-card">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <div class="competition-name">{{ scoring.performance.participant.full_name }}</div>
+                                            <div class="competition-info">
+                                                <div><strong>{% trans "Catégorie" %}:</strong> {{ scoring.performance.category.name }}</div>
+                                                <div><strong>{% trans "Note" %}:</strong> {{ scoring.final_score|floatformat:2 }}</div>
+                                                <div><strong>{% trans "Date" %}:</strong> {{ scoring.date_scored|date:"d/m/Y H:i" }}</div>
+                                            </div>
+                                        </div>
+                                        <span class="badge bg-secondary">{% trans "Noté" %}</span>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="no-data">
+                            <i class="fas fa-star d-block mb-2"></i>
+                            <p>{% trans "Aucune notation récente." %}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Messages système ou annonces -->
+        {% if system_messages %}
+            <div class="dashboard-card mt-4">
+                <h2 class="card-title">
+                    <i class="fas fa-bell"></i> {% trans "Annonces" %}
+                </h2>
+                
+                {% for message in system_messages %}
+                    <div class="alert alert-{{ message.level }} mb-2">
+                        <h5 class="alert-heading">{{ message.title }}</h5>
+                        <p class="mb-0">{{ message.content }}</p>
+                        {% if message.date %}
+                            <small class="text-muted">{{ message.date|date:"d/m/Y H:i" }}</small>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Rafraîchissement automatique toutes les 30 secondes si des performances sont en cours
+        {% if active_performances or live_competitions %}
+            setInterval(function() {
+                window.location.reload();
+            }, 30000);
+        {% endif %}
+    });
+</script>
+{% endblock %}

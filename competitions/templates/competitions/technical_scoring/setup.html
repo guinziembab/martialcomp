@@ -1,0 +1,375 @@
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="h3">{{ title }}</h1>
+            <p class="text-muted">{{ competition.title }} - {{ category.name }}</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'competitions:competitions:categories' competition_id=competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour aux catégories" %}
+            </a>
+        </div>
+    </div>
+    
+    {% if messages %}
+        <div class="row mb-4">
+            <div class="col-12">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+    
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="row">
+            <!-- Colonne des critères de notation -->
+            <div class="col-lg-7">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">{% trans "Critères d'évaluation" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="criteria-container">
+                            {{ criterion_formset.management_form }}
+                            
+                            {% for form in criterion_formset %}
+                                <div class="criteria-item{% if form.DELETE.value %} d-none{% endif %}">
+                                    {% if form.instance.pk %}{{ form.DELETE }}{% endif %}
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="{{ form.name.id_for_label }}" class="form-label">{% trans "Nom du critère" %}</label>
+                                                {{ form.name }}
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="{{ form.weight.id_for_label }}" class="form-label">{% trans "Pondération" %}</label>
+                                                <div class="input-group">
+                                                    {{ form.weight }}
+                                                    <span class="input-group-text">X</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="{{ form.description.id_for_label }}" class="form-label">{% trans "Description" %}</label>
+                                        {{ form.description }}
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-0">
+                                                <label for="{{ form.order.id_for_label }}" class="form-label">{% trans "Ordre d'affichage" %}</label>
+                                                {{ form.order }}
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-0 d-flex align-items-center h-100">
+                                                <div class="form-check mt-2">
+                                                    {{ form.is_active }}
+                                                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                                        {% trans "Critère actif" %}
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if form.instance.pk %}
+                                        <a href="#" class="delete-btn delete-criterion" data-formid="{{ form.prefix }}">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                            
+                            <button type="button" class="add-criterion-btn" id="add-criterion">
+                                <i class="fas fa-plus-circle"></i> {% trans "Ajouter un critère" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Colonne des paramètres de notation -->
+            <div class="col-lg-5">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">{% trans "Paramètres de notation" %}</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="config-section">
+                            <h6 class="mb-3">{% trans "Plage de notes" %}</h6>
+                            
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label for="{{ config_form.min_score.id_for_label }}" class="form-label">{% trans "Note minimale" %}</label>
+                                    {{ config_form.min_score }}
+                                </div>
+                                <div class="col-6">
+                                    <label for="{{ config_form.max_score.id_for_label }}" class="form-label">{% trans "Note maximale" %}</label>
+                                    {{ config_form.max_score }}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ config_form.score_step.id_for_label }}" class="form-label">{% trans "Pas de notation" %}</label>
+                                {{ config_form.score_step }}
+                                <div class="form-text">{% trans "Incréments de notes autorisés (ex: 0.25 pour des quarts de points)" %}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="config-section">
+                            <h6 class="mb-3">{% trans "Options de notation" %}</h6>
+                            
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    {{ config_form.exclude_extreme_scores }}
+                                    <label class="form-check-label" for="{{ config_form.exclude_extreme_scores.id_for_label }}">
+                                        {% trans "Exclure les notes extrêmes" %}
+                                    </label>
+                                </div>
+                                <div class="form-text">{% trans "Exclut la meilleure et la pire note pour chaque critère (nécessite au moins 3 juges)" %}</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    {{ config_form.allow_ties }}
+                                    <label class="form-check-label" for="{{ config_form.allow_ties.id_for_label }}">
+                                        {% trans "Autoriser les ex-aequos en 3e place" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="config-section">
+                            <h6 class="mb-3">{% trans "Options des juges" %}</h6>
+                            
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    {{ config_form.allow_score_modification }}
+                                    <label class="form-check-label" for="{{ config_form.allow_score_modification.id_for_label }}">
+                                        {% trans "Autoriser la modification des notes après soumission" %}
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    {{ config_form.training_judges_included }}
+                                    <label class="form-check-label" for="{{ config_form.training_judges_included.id_for_label }}">
+                                        {% trans "Inclure les juges en formation" %}
+                                    </label>
+                                </div>
+                                <div class="form-text">{% trans "Les notes des juges en formation ne sont pas prises en compte dans le classement" %}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="config-section">
+                            <h6 class="mb-3">{% trans "Options d'affichage" %}</h6>
+                            
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    {{ config_form.real_time_results }}
+                                    <label class="form-check-label" for="{{ config_form.real_time_results.id_for_label }}">
+                                        {% trans "Afficher les résultats en temps réel" %}
+                                    </label>
+                                </div>
+                                <div class="form-text">{% trans "Les résultats sont visibles par le public dès qu'ils sont disponibles" %}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12 text-center">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-save me-2"></i>{% trans "Enregistrer la configuration" %}
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const addCriterionBtn = document.getElementById('add-criterion');
+        const criteriaContainer = document.querySelector('.criteria-container');
+        const totalFormsInput = document.getElementById('id_criteria-TOTAL_FORMS');
+        
+        // Fonction pour mettre à jour le compteur de formulaires
+        function updateFormCount() {
+            const criteriaItems = document.querySelectorAll('.criteria-item:not(.d-none)');
+            totalFormsInput.value = criteriaItems.length;
+        }
+        
+        // Gestion de l'ajout d'un critère
+        if (addCriterionBtn) {
+            addCriterionBtn.addEventListener('click', function() {
+                // Récupérer le nombre actuel de formulaires
+                const formCount = parseInt(totalFormsInput.value);
+                
+                // Cloner le premier formulaire
+                const firstForm = document.querySelector('.criteria-item');
+                const newForm = firstForm.cloneNode(true);
+                
+                // Mettre à jour les IDs et noms des champs
+                const inputs = newForm.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    // Mettre à jour l'ID
+                    const oldId = input.id;
+                    const newId = oldId.replace('-0-', `-${formCount}-`);
+                    input.id = newId;
+                    
+                    // Mettre à jour le nom
+                    const oldName = input.name;
+                    const newName = oldName.replace('-0-', `-${formCount}-`);
+                    input.name = newName;
+                    
+                    // Réinitialiser la valeur
+                    if (input.type === 'checkbox') {
+                        input.checked = false;
+                    } else {
+                        input.value = '';
+                    }
+                });
+                
+                // Mettre à jour les labels
+                const labels = newForm.querySelectorAll('label');
+                labels.forEach(label => {
+                    const forAttr = label.getAttribute('for');
+                    if (forAttr) {
+                        const newForAttr = forAttr.replace('-0-', `-${formCount}-`);
+                        label.setAttribute('for', newForAttr);
+                    }
+                });
+                
+                // Réinitialiser les valeurs
+                newForm.querySelector(`[name="criteria-${formCount}-name"]`).value = '';
+                newForm.querySelector(`[name="criteria-${formCount}-description"]`).value = '';
+                newForm.querySelector(`[name="criteria-${formCount}-weight"]`).value = '1.0';
+                newForm.querySelector(`[name="criteria-${formCount}-order"]`).value = formCount + 1;
+                newForm.querySelector(`[name="criteria-${formCount}-is_active"]`).checked = true;
+                
+                // Supprimer la classe d-none si présente
+                newForm.classList.remove('d-none');
+                
+                // Insérer le nouveau formulaire avant le bouton d'ajout
+                criteriaContainer.insertBefore(newForm, addCriterionBtn);
+                
+                // Mettre à jour le compteur
+                totalFormsInput.value = formCount + 1;
+            });
+        }
+        
+        // Gestion de la suppression d'un critère
+        criteriaContainer.addEventListener('click', function(e) {
+            if (e.target.closest('.delete-criterion')) {
+                e.preventDefault();
+                const deleteBtn = e.target.closest('.delete-criterion');
+                const criteriaItem = deleteBtn.closest('.criteria-item');
+                const formId = deleteBtn.dataset.formid;
+                
+                // Si c'est un critère existant, marquer pour suppression
+                const deleteCheckbox = criteriaItem.querySelector('input[name$="-DELETE"]');
+                if (deleteCheckbox) {
+                    deleteCheckbox.checked = true;
+                    criteriaItem.classList.add('d-none');
+                } else {
+                    // Sinon, supprimer le formulaire
+                    criteriaItem.remove();
+                }
+                
+                // Mettre à jour le compteur
+                updateFormCount();
+            }
+        });
+    });
+</script>
+{% endblock %}
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .criteria-container {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        background-color: #f8f9fa;
+    }
+    
+    .criteria-item {
+        background-color: white;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid #dee2e6;
+        position: relative;
+    }
+    
+    .criteria-item:hover {
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .delete-btn {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        color: #dc3545;
+        cursor: pointer;
+    }
+    
+    .add-criterion-btn {
+        width: 100%;
+        border: 2px dashed #dee2e6;
+        background-color: white;
+        border-radius: 8px;
+        padding: 0.5rem;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    
+    .add-criterion-btn:hover {
+        border-color: #28a745;
+        background-color: #f8f9fa;
+    }
+    
+    .add-criterion-btn i {
+        color: #28a745;
+        margin-right: 0.5rem;
+    }
+    
+    .config-section {
+        background-color: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #dee2e6;
+    }
+    
+    .slider-container {
+        padding: 0 10px;
+    }
+    
+    .range-value {
+        font-weight: bold;
+        color: #495057;
+    }

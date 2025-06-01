@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Sessions d'entraînement" %} - {{ club.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>{% trans "Sessions d'entraînement" %}</h1>
+                <div>
+                    <a href="{% url 'competitions:club:create_training_session' %}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> {% trans "Nouvelle session" %}
+                    </a>
+                    <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> {% trans "Retour au tableau de bord" %}
+                    </a>
+                </div>
+            </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Créneaux actifs -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3>{% trans "Créneaux d'entraînement actifs" %}</h3>
+                </div>
+                <div class="card-body">
+                    {% if active_slots %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>{% trans "Nom" %}</th>
+                                        <th>{% trans "Discipline" %}</th>
+                                        <th>{% trans "Jour" %}</th>
+                                        <th>{% trans "Horaire" %}</th>
+                                        <th>{% trans "Instructeur" %}</th>
+                                        <th>{% trans "Niveau" %}</th>
+                                        <th>{% trans "Places max" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for slot in active_slots %}
+                                    <tr>
+                                        <td>{{ slot.name }}</td>
+                                        <td>{{ slot.discipline.name }}</td>
+                                        <td>{{ slot.get_day_of_week_display }}</td>
+                                        <td>{{ slot.start_time|time:"H:i" }} - {{ slot.end_time|time:"H:i" }}</td>
+                                        <td>
+                                            {% if slot.instructor %}
+                                                {{ slot.instructor.get_full_name|default:slot.instructor.username }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ slot.get_level_display }}</td>
+                                        <td>{{ slot.max_participants }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">{% trans "Aucun créneau d'entraînement actif." %}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Sessions récentes -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>{% trans "Sessions récentes" %}</h3>
+                </div>
+                <div class="card-body">
+                    {% if sessions %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>{% trans "Date" %}</th>
+                                        <th>{% trans "Créneau" %}</th>
+                                        <th>{% trans "Discipline" %}</th>
+                                        <th>{% trans "Instructeur" %}</th>
+                                        <th>{% trans "Présents" %}</th>
+                                        <th>{% trans "Taux" %}</th>
+                                        <th>{% trans "Statut" %}</th>
+                                        <th>{% trans "Actions" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for session in sessions %}
+                                    <tr>
+                                        <td>{{ session.date|date:"d/m/Y" }}</td>
+                                        <td>
+                                            <strong>{{ session.training_slot.name }}</strong><br>
+                                            <small class="text-muted">
+                                                {{ session.start_time|time:"H:i" }} - {{ session.end_time|time:"H:i" }}
+                                            </small>
+                                        </td>
+                                        <td>{{ session.training_slot.discipline.name }}</td>
+                                        <td>
+                                            {% if session.instructor %}
+                                                {{ session.instructor.get_full_name|default:session.instructor.username }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <strong>{{ session.presents_count }}</strong> / {{ session.total_count }}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-{% if session.attendance_rate >= 80 %}success{% elif session.attendance_rate >= 60 %}warning{% else %}danger{% endif %}">
+                                                {{ session.attendance_rate|floatformat:0 }}%
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {% if session.is_cancelled %}
+                                                <span class="badge bg-danger">{% trans "Annulée" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-success">{% trans "Confirmée" %}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'competitions:club:attendance_list' session.id %}" 
+                                               class="btn btn-sm btn-info">
+                                                <i class="fas fa-list"></i> {% trans "Présences" %}
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        {% if is_paginated %}
+                            <nav aria-label="Page navigation">
+                                <ul class="pagination justify-content-center">
+                                    {% if page_obj.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                                {% trans "Précédent" %}
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                    
+                                    {% for num in page_obj.paginator.page_range %}
+                                        {% if num == page_obj.number %}
+                                            <li class="page-item active">
+                                                <span class="page-link">{{ num }}</span>
+                                            </li>
+                                        {% else %}
+                                            <li class="page-item">
+                                                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                            </li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    
+                                    {% if page_obj.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                                {% trans "Suivant" %}
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        {% endif %}
+                    {% else %}
+                        <p class="text-muted text-center py-4">
+                            <i class="fas fa-info-circle"></i> {% trans "Aucune session d'entraînement enregistrée." %}
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

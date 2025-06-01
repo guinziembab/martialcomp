@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ competition.title }} | {% trans "Détails" %}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:club:dashboard' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:club:club_competitions' %}">{% trans "Compétitions" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ competition.title }}</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="h3 mb-0">{{ competition.title }}</h1>
+            <p class="text-muted">
+                <i class="fas fa-calendar-alt me-2"></i>
+                {{ competition.start_date|date:"d/m/Y" }}
+                {% if competition.end_date != competition.start_date %}
+                    - {{ competition.end_date|date:"d/m/Y" }}
+                {% endif %}
+                <i class="fas fa-map-marker-alt ms-3 me-2"></i>
+                {{ competition.venue_name|default:competition.city }}
+            </p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <a href="{% url 'competitions:club:register_practitioner' competition.id %}" class="btn btn-primary">
+                <i class="fas fa-user-plus me-2"></i>{% trans "Inscrire un pratiquant" %}
+            </a>
+        </div>
+    </div>
+
+    {% if competition.description %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h5 mb-3">{% trans "Description" %}</h2>
+                <p>{{ competition.description|linebreaks }}</p>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Participants inscrits -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{% trans "Participants inscrits" %} ({{ registrations|length }})</h2>
+        </div>
+        <div class="card-body">
+            {% if registrations %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Pratiquant" %}</th>
+                                <th>{% trans "Types de compétition" %}</th>
+                                <th>{% trans "Catégories" %}</th>
+                                <th>{% trans "Statut" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for registration in registrations %}
+                                <tr>
+                                    <td>
+                                        <a href="{% url 'competitions:club:practitioners' %}#practitioner-{{ registration.practitioner.id }}">
+                                            {{ registration.practitioner.full_name }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% for competition_type in registration.competition_types.all %}
+                                            <span class="badge bg-info">{{ competition_type.name }}</span>
+                                        {% empty %}
+                                            <span class="text-muted">-</span>
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        {% for category in registration.categories.all %}
+                                            <span class="badge bg-secondary">{{ category.name }}</span>
+                                        {% empty %}
+                                            <span class="text-muted">-</span>
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        {% if registration.status == 'pending' %}
+                                            <span class="badge bg-warning">{% trans "En attente" %}</span>
+                                        {% elif registration.status == 'approved' %}
+                                            <span class="badge bg-success">{% trans "Approuvée" %}</span>
+                                        {% elif registration.status == 'rejected' %}
+                                            <span class="badge bg-danger">{% trans "Rejetée" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{% url 'competitions:club:register_practitioner' competition.id %}?practitioner_id={{ registration.practitioner.id }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-edit"></i> {% trans "Modifier" %}
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "Aucun pratiquant inscrit à cette compétition." %}
+                </div>
+                <a href="{% url 'competitions:club:register_practitioner' competition.id %}" class="btn btn-primary">
+                    <i class="fas fa-user-plus me-2"></i>{% trans "Inscrire un pratiquant" %}
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Types de compétition disponibles -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h2 class="h5 mb-0">{% trans "Types de compétition disponibles" %}</h2>
+        </div>
+        <div class="card-body">
+            {% if competition.competition_types.exists %}
+                <div class="row">
+                    {% for comp_type in competition.competition_types.all %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h3 class="h6">{{ comp_type.name }}</h3>
+                                    {% if comp_type.description %}
+                                        <p class="small text-muted">{{ comp_type.description|truncatechars:100 }}</p>
+                                    {% endif %}
+                                    
+                                    {% if comp_type.categories.exists %}
+                                        <p class="mb-1 small fw-bold">{% trans "Catégories" %}:</p>
+                                        <div class="mb-2">
+                                            {% for category in comp_type.categories.all %}
+                                                <span class="badge bg-light text-dark me-1 mb-1">{{ category.name }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>{% trans "Aucun type de compétition défini." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Démarrer la prestation" %} - {{ practitioner.full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .participant-card {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    .participant-header {
+        background-color: var(--primary);
+        color: white;
+        padding: 20px;
+    }
+    
+    .participant-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background-color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 20px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .info-item {
+        margin-bottom: 10px;
+    }
+    
+    .info-label {
+        font-weight: bold;
+        min-width: 120px;
+    }
+    
+    .countdown {
+        font-size: 2.5rem;
+        font-weight: bold;
+        text-align: center;
+        color: var(--primary);
+    }
+    
+    .countdown-container {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+    }
+    
+    .judges-info {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:competitions:detail' pk=competition.id %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:competitions:categories' competition_id=competition.id %}">{% trans "Catégories" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:technical_scoring:manage_performances' category_id=category.id %}">{% trans "Prestations" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% trans "Démarrer la prestation" %}</li>
+        </ol>
+    </nav>
+    
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="h3">{% trans "Démarrer la prestation" %}</h1>
+            <p class="text-muted">{% trans "Passage N°" %}{{ performance.performance_order }} - {{ practitioner.full_name }}</p>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="row">
+        <div class="col-lg-5">
+            <div class="card shadow-sm participant-card mb-4">
+                <div class="participant-header d-flex align-items-center">
+                    <div class="participant-avatar">
+                        <i class="fas fa-user fa-3x text-secondary"></i>
+                    </div>
+                    <div>
+                        <h2 class="h4 mb-0">{{ practitioner.full_name }}</h2>
+                        <p class="mb-0">{{ practitioner.grade }}</p>
+                        {% if practitioner.club %}
+                            <p class="mb-0 small">{{ practitioner.club.name }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    <h3 class="h5 mb-3">{% trans "Informations sur le participant" %}</h3>
+                    
+                    <div class="info-item d-flex">
+                        <div class="info-label">{% trans "Catégorie:" %}</div>
+                        <div>{{ category.name }}</div>
+                    </div>
+                    
+                    <div class="info-item d-flex">
+                        <div class="info-label">{% trans "Ordre de passage:" %}</div>
+                        <div>{{ performance.performance_order }}</div>
+                    </div>
+                    
+                    <div class="info-item d-flex">
+                        <div class="info-label">{% trans "Statut:" %}</div>
+                        <div>
+                            <span class="badge bg-secondary">{% trans "En attente" %}</span>
+                        </div>
+                    </div>
+                    
+                    <h3 class="h5 mb-3 mt-4">{% trans "Informations supplémentaires" %}</h3>
+                    
+                    {% if practitioner.birth_date %}
+                        <div class="info-item d-flex">
+                            <div class="info-label">{% trans "Âge:" %}</div>
+                            <div>{{ practitioner.age }} {% trans "ans" %}</div>
+                        </div>
+                    {% endif %}
+                    
+                    {% if practitioner.license_number %}
+                        <div class="info-item d-flex">
+                            <div class="info-label">{% trans "N° de licence:" %}</div>
+                            <div>{{ practitioner.license_number }}</div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-7">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h5 mb-0">{% trans "Démarrer la prestation" %}</h2>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Lorsque vous démarrerez cette prestation, les juges pourront commencer la notation." %}
+                    </div>
+                    
+                    <div class="countdown-container mb-4">
+                        <div class="text-center mb-3">
+                            <h3 class="h5">{% trans "Prêt à démarrer" %}</h3>
+                            <p class="text-muted mb-3">{% trans "Appuyez sur le bouton pour lancer la prestation" %}</p>
+                        </div>
+                        
+                        <div id="countdown" class="countdown d-none">10</div>
+                        
+                        <form method="post" id="start-form" class="text-center mt-4">
+                            {% csrf_token %}
+                            {{ form }}
+                            <button type="submit" id="start-button" class="btn btn-lg btn-success">
+                                <i class="fas fa-play me-2"></i>{% trans "Démarrer la prestation" %}
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <h3 class="h5 mb-3">{% trans "Juges assignés" %}</h3>
+                    
+                    <div class="judges-info">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>{% trans "Nom" %}</th>
+                                        <th>{% trans "Rôle" %}</th>
+                                        <th>{% trans "Statut" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for assignment in judge_assignments %}
+                                        <tr>
+                                            <td>{{ assignment.user.get_full_name }}</td>
+                                            <td>
+                                                {% if assignment.is_chief_judge %}
+                                                    <span class="badge bg-warning text-dark">{% trans "Juge en chef" %}</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{% trans "Juge" %}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary">{% trans "En attente" %}</span>
+                                            </td>
+                                        </tr>
+                                    {% empty %}
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted">
+                                                {% trans "Aucun juge n'a été assigné à cette catégorie." %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="h5 mb-0">{% trans "Configuration de la notation" %}</h2>
+                </div>
+                <div class="card-body">
+                    <div class="criteria-list">
+                        <h5>{% trans "Critères de notation" %}</h5>
+                        <ul class="list-group mb-4">
+                            {% for criterion in criteria %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {{ criterion.name }}
+                                    <span class="badge bg-primary rounded-pill">{{ criterion.weight }}</span>
+                                </li>
+                            {% empty %}
+                                <li class="list-group-item text-center text-muted">
+                                    {% trans "Aucun critère défini pour cette catégorie." %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    
+                    <div class="scoring-config">
+                        <h5>{% trans "Paramètres de notation" %}</h5>
+                        <table class="table table-sm">
+                            <tr>
+                                <th>{% trans "Score minimum" %}</th>
+                                <td>{{ config.min_score|default:"0" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Score maximum" %}</th>
+                                <td>{{ config.max_score|default:"10" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Exclusion des scores extrêmes" %}</th>
+                                <td>
+                                    {% if config.exclude_highest_lowest %}
+                                        <i class="fas fa-check-circle text-success"></i> {% trans "Oui" %}
+                                    {% else %}
+                                        <i class="fas fa-times-circle text-danger"></i> {% trans "Non" %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="d-flex justify-content-between mt-4">
+        <a href="{% url 'competitions:technical_scoring:manage_performances' category_id=category.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+        </a>
+    </div>
+ </div>
+ {% endblock %}
+ 
+ {% block extra_js %}
+ <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const startButton = document.getElementById('start-button');
+        const countdownElement = document.getElementById('countdown');
+        const startForm = document.getElementById('start-form');
+        
+        let countdown = 10;
+        let countdownInterval;
+        
+        startButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Démarrer le compte à rebours
+            startButton.disabled = true;
+            countdownElement.classList.remove('d-none');
+            
+            countdownInterval = setInterval(function() {
+                countdown--;
+                countdownElement.innerText = countdown;
+                
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval);
+                    startForm.submit();
+                }
+            }, 1000);
+        });
+    });
+ </script>
+ {% endblock %}

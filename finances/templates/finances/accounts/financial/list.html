@@ -1,0 +1,131 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Comptes financiers" %}{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">{% trans "Comptes financiers" %}</h1>
+        {% if permissions.can_manage_accounts %}
+        <a href="{% url 'finances:accounts:financial_account_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> {% trans "Nouveau compte" %}
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Résumé des soldes -->
+    {% if financial_accounts %}
+    <div class="row mb-4">
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                {% trans "Solde total" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ total_balance|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-university fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Comptes financiers -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Liste des comptes financiers" %}</h6>
+        </div>
+        <div class="card-body">
+            {% if financial_accounts %}
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Nom" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Solde actuel" %}</th>
+                            <th>{% trans "Description" %}</th>
+                            <th>{% trans "Statut" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for account in financial_accounts %}
+                        <tr>
+                            <td>{{ account.name }}</td>
+                            <td>
+                                {% if account.account_type == 'cash' %}
+                                <span class="badge bg-success">{% trans "Caisse" %}</span>
+                                {% elif account.account_type == 'bank' %}
+                                <span class="badge bg-primary">{% trans "Banque" %}</span>
+                                {% elif account.account_type == 'savings' %}
+                                <span class="badge bg-info">{% trans "Épargne" %}</span>
+                                {% elif account.account_type == 'investment' %}
+                                <span class="badge bg-warning">{% trans "Investissement" %}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ account.account_type }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end {% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ account.current_balance|floatformat:2 }} €
+                            </td>
+                            <td>{{ account.description|default:"-" }}</td>
+                            <td>
+                                {% if account.is_active %}
+                                <span class="badge bg-success">{% trans "Actif" %}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{% trans "Inactif" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'finances:accounts:financial_account_detail' account.id %}" 
+                                       class="btn btn-info" title="{% trans 'Voir' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if permissions.can_manage_accounts %}
+                                    <a href="{% url 'finances:accounts:financial_account_update' account.id %}" 
+                                       class="btn btn-primary" title="{% trans 'Modifier' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'finances:accounts:financial_account_delete' account.id %}" 
+                                       class="btn btn-danger" title="{% trans 'Supprimer' %}">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <!-- État vide -->
+            <div class="text-center py-5">
+                <i class="fas fa-piggy-bank fa-4x text-muted mb-3"></i>
+                <h5 class="text-muted">{% trans "Aucun compte financier" %}</h5>
+                <p class="text-muted mb-4">
+                    {% trans "Créez des comptes financiers pour gérer vos différents comptes bancaires et caisses." %}
+                </p>
+                {% if permissions.can_manage_accounts %}
+                <a href="{% url 'finances:accounts:financial_account_create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> {% trans "Créer le premier compte" %}
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

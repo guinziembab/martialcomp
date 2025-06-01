@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+  body {
+    background-color: black;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    color: white;
+  }
+  
+  .fullscreen-display {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .display-header {
+    background-color: #212529;
+    color: white;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    border-bottom: 3px solid gold;
+  }
+  
+  .display-timer {
+    font-size: 3rem;
+    font-weight: bold;
+    font-family: monospace;
+    color: gold;
+  }
+  
+  .display-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .score-row {
+    flex: 1;
+    display: flex;
+  }
+  
+  .score-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+  }
+  
+  .score-red {
+    background-color: #8b0000;
+    color: white;
+  }
+  
+  .score-white {
+    background-color: #f0f0f0;
+    color: #212529;
+  }
+  
+  .score-value {
+    font-size: 12rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 1rem;
+  }
+  
+  .competitor-name {
+    font-size: 3rem;
+    font-weight: 600;
+    text-align: center;
+  }
+  
+  .competitor-club {
+    font-size: 1.5rem;
+    margin-top: 0.5rem;
+  }
+  
+  .score-divider {
+    width: 5px;
+    background-color: gold;
+  }
+  
+  .display-footer {
+    background-color: #212529;
+    color: white;
+    padding: 0.5rem;
+    text-align: center;
+    border-top: 3px solid gold;
+  }
+  
+  .competition-info {
+    font-size: 1.5rem;
+  }
+  
+  .flash-red, .flash-white {
+    animation: flash-animation 1.5s;
+  }
+  
+  @keyframes flash-animation {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+  }
+  
+  .winner-mark {
+    position: absolute;
+    font-size: 12rem;
+    opacity: 0.3;
+    color: gold;
+  }
+  
+  .match-nul {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 6rem;
+    color: gold;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 1rem 2rem;
+    border-radius: 1rem;
+    z-index: 10;
+    border: 3px solid gold;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fullscreen-display" id="combat-display">
+  <!-- Entête -->
+  <div class="display-header">
+    <div class="row align-items-center">
+      <div class="col-md-4 text-start">
+        <h2 class="mb-0">{{ combat.competition.title }}</h2>
+        {% if combat.poule %}
+        <div>{{ combat.poule.get_phase_display }} - {{ combat.poule.nom }}</div>
+        {% endif %}
+      </div>
+      <div class="col-md-4 text-center">
+        <div class="display-timer" id="combat-timer">00:00</div>
+        <div>
+          {% if combat.status == 'en_cours' %}
+          <span class="badge bg-success">{% translate "Combat en cours" %}</span>
+          {% elif combat.status == 'termine' %}
+          <span class="badge bg-primary">{% translate "Combat terminé" %}</span>
+          {% else %}
+          <span class="badge bg-secondary">{{ combat.get_status_display }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-md-4 text-end">
+        <div>{{ combat.get_type_combat_display }}</div>
+        <div>{{ combat.date_planifiee|date:"d/m/Y H:i"|default:"-" }}</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Contenu principal avec les scores -->
+  <div class="display-content">
+    <div class="score-row">
+      <!-- Score Rouge -->
+      <div class="score-column score-red" id="red-column">
+        <div class="score-value" id="score-red">{{ combat.score_rouge }}</div>
+        <div class="competitor-name">
+          {% if combat.type_combat == 'individuel' %}
+          {{ combat.pratiquant_rouge.full_name|default:"Rouge" }}
+          {% else %}
+          {{ combat.equipe_rouge.nom|default:"Équipe Rouge" }}
+          {% endif %}
+        </div>
+        <div class="competitor-club">
+          {% if combat.type_combat == 'individuel' and combat.pratiquant_rouge.organization %}
+          {{ combat.pratiquant_rouge.organization.name }}
+          {% elif combat.type_combat == 'equipe' and combat.equipe_rouge.club %}
+          {{ combat.equipe_rouge.club.name }}
+          {% endif %}
+        </div>
+        
+        {% if combat.status == 'termine' and combat.vainqueur == 'rouge' %}
+        <div class="winner-mark">✓</div>
+        {% endif %}
+      </div>
+      
+      <!-- Séparateur -->
+      <div class="score-divider"></div>
+      
+      <!-- Score Blanc -->
+      <div class="score-column score-white" id="white-column">
+        <div class="score-value" id="score-white">{{ combat.score_blanc }}</div>
+        <div class="competitor-name">
+          {% if combat.type_combat == 'individuel' %}
+          {{ combat.pratiquant_blanc.full_name|default:"Blanc" }}
+          {% else %}
+          {{ combat.equipe_blanc.nom|default:"Équipe Blanche" }}
+          {% endif %}
+        </div>
+        <div class="competitor-club">
+          {% if combat.type_combat == 'individuel' and combat.pratiquant_blanc.organization %}
+          {{ combat.pratiquant_blanc.organization.name }}
+          {% elif combat.type_combat == 'equipe' and combat.equipe_blanc.club %}
+          {{ combat.equipe_blanc.club.name }}
+          {% endif %}
+        </div>
+        
+        {% if combat.status == 'termine' and combat.vainqueur == 'blanc' %}
+        <div class="winner-mark">✓</div>
+        {% endif %}
+      </div>
+    </div>
+    
+    {% if combat.status == 'termine' and combat.est_nul %}
+    <div class="match-nul">{% translate "MATCH NUL" %}</div>
+    {% endif %}
+  </div>
+  
+  <!-- Pied de page -->
+  <div class="display-footer">
+    <div class="competition-info">
+      {{ combat.competition.title }} | {{ combat.get_type_combat_display }}
+      {% if combat.arbitre_central %}
+      | {% translate "Arbitre" %}: {{ combat.arbitre_central }}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Références aux éléments DOM
+  const combatTimer = document.getElementById('combat-timer');
+  const scoreRed = document.getElementById('score-red');
+  const scoreWhite = document.getElementById('score-white');
+  const redColumn = document.getElementById('red-column');
+  const whiteColumn = document.getElementById('white-column');
+  
+  // Variables du chronomètre
+  let timerInterval;
+  let seconds = 0;
+  let isRunning = {% if combat.status == 'en_cours' %}true{% else %}false{% endif %};
+  
+  {% if combat.status == 'en_cours' and combat.debut_combat %}
+  // Calculer le temps écoulé depuis le début du combat
+  const startTime = new Date('{{ combat.debut_combat|date:"c" }}');
+  const now = new Date();
+  const elapsedTime = Math.floor((now - startTime) / 1000);
+  seconds = elapsedTime;
+  {% endif %}
+  
+  // Fonction pour mettre à jour l'affichage du chronomètre
+  function updateTimer() {
+    if (isRunning) {
+      seconds++;
+    }
+    
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    combatTimer.textContent = 
+      (minutes < 10 ? '0' : '') + minutes + ':' + 
+      (remainingSeconds < 10 ? '0' : '') + remainingSeconds;
+  }
+  
+  // Démarrer le chronomètre
+  if (isRunning) {
+    timerInterval = setInterval(updateTimer, 1000);
+    updateTimer(); // Mise à jour immédiate
+  }
+  
+  // Mode plein écran
+  document.addEventListener('click', function() {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen();
+    } else if (document.documentElement.mozRequestFullScreen) {
+      document.documentElement.mozRequestFullScreen();
+    } else if (document.documentElement.webkitRequestFullscreen) {
+      document.documentElement.webkitRequestFullscreen();
+    } else if (document.documentElement.msRequestFullscreen) {
+      document.documentElement.msRequestFullscreen();
+    }
+  });
+  
+  // Mettre à jour les scores
+  function updateScores() {
+    fetch('{% url "competitions:combat:api_statut_combat" combat_id=combat.id %}')
+      .then(response => response.json())
+      .then(data => {
+        const oldScoreRed = parseFloat(scoreRed.textContent);
+        const oldScoreWhite = parseFloat(scoreWhite.textContent);
+        const newScoreRed = parseFloat(data.score_rouge);
+        const newScoreWhite = parseFloat(data.score_blanc);
+        
+        // Mettre à jour les scores et ajouter une animation si nécessaire
+        if (oldScoreRed !== newScoreRed) {
+          scoreRed.textContent = newScoreRed.toFixed(2);
+          redColumn.classList.add('flash-red');
+          setTimeout(() => redColumn.classList.remove('flash-red'), 1500);
+        }
+        
+        if (oldScoreWhite !== newScoreWhite) {
+          scoreWhite.textContent = newScoreWhite.toFixed(2);
+          whiteColumn.classList.add('flash-white');
+          setTimeout(() => whiteColumn.classList.remove('flash-white'), 1500);
+        }
+        
+        // Vérifier si le combat est toujours en cours
+        if (data.status !== '{{ combat.status }}') {
+          location.reload(); // Recharger pour afficher les changements de statut
+        }
+      })
+      .catch(error => console.error('Error:', error));
+  }
+  
+  // Mettre à jour les scores périodiquement
+  if ('{{ combat.status }}' === 'en_cours') {
+    setInterval(updateScores, 2000); // Toutes les 2 secondes
+  }
+});
+</script>
+{% endblock %}

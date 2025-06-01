@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+{% load i18n %}
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnostic de traduction</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+        }
+        .section h2 {
+            margin-top: 0;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        .sub-section {
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .code {
+            font-family: monospace;
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+        .language-selector {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .language-selector form {
+            margin: 0;
+        }
+        .language-selector select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .language-selector button {
+            padding: 8px 15px;
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Diagnostic de traduction Django</h1>
+    
+    <div class="language-selector">
+        <form action="{% url 'set_language' %}" method="post">
+            {% csrf_token %}
+            <input name="next" type="hidden" value="/translation-debug/">
+            <select name="language" onchange="this.form.submit()">
+                {% for lang_code, lang_name in LANGUAGES %}
+                    <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>
+                        {{ lang_name }}
+                    </option>
+                {% endfor %}
+            </select>
+            <noscript>
+                <button type="submit">Changer</button>
+            </noscript>
+        </form>
+    </div>
+    
+    <div class="section">
+        <h2>Informations de configuration</h2>
+        <table>
+            <tr>
+                <th>Paramètre</th>
+                <th>Valeur</th>
+            </tr>
+            <tr>
+                <td>Langue active (LANGUAGE_CODE)</td>
+                <td>{{ LANGUAGE_CODE }}</td>
+            </tr>
+            <tr>
+                <td>Langues disponibles (LANGUAGES)</td>
+                <td>
+                    <ul>
+                        {% for lang_code, lang_name in LANGUAGES %}
+                            <li>{{ lang_code }}: {{ lang_name }}</li>
+                        {% endfor %}
+                    </ul>
+                </td>
+            </tr>
+            <tr>
+                <td>Translation Middleware</td>
+                <td>{% if 'django.middleware.locale.LocaleMiddleware' in middleware %}
+                        <span class="success">✓ Activé</span>
+                    {% else %}
+                        <span class="error">✗ Non activé</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td>USE_I18N</td>
+                <td>{% if USE_I18N %}
+                        <span class="success">✓ Activé</span>
+                    {% else %}
+                        <span class="error">✗ Non activé</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td>LOCALE_PATHS</td>
+                <td>
+                    <ul>
+                        {% for path in LOCALE_PATHS %}
+                            <li>{{ path }}</li>
+                        {% endfor %}
+                    </ul>
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    <div class="section">
+        <h2>Tests de traduction</h2>
+        
+        <div class="sub-section">
+            <h3>Test avec la balise {% trans %}</h3>
+            <p>Original: "Accueil"</p>
+            <p>Traduction: <strong>"{% trans "Accueil" %}"</strong></p>
+            
+            <p>Original: "Connexion"</p>
+            <p>Traduction: <strong>"{% trans "Connexion" %}"</strong></p>
+            
+            <p>Original: "Fonctionnalités"</p>
+            <p>Traduction: <strong>"{% trans "Fonctionnalités" %}"</strong></p>
+        </div>
+        
+        <div class="sub-section">
+            <h3>Test avec la fonction gettext</h3>
+            <p>Original: "Accueil"</p>
+            <p>Traduction: <strong>"{{ "Accueil"|trans }}"</strong></p>
+            
+            <p>Original: "Connexion"</p>
+            <p>Traduction: <strong>"{{ "Connexion"|trans }}"</strong></p>
+        </div>
+        
+        <div class="sub-section">
+            <h3>Test de blocktrans</h3>
+            <p>Original: "Bienvenue sur notre site"</p>
+            <p>Traduction: <strong>
+                {% blocktrans %}Bienvenue sur notre site{% endblocktrans %}
+            </strong></p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Cookie et Session</h2>
+        <p>Cookies:</p>
+        <pre>{{ cookies_display }}</pre>
+        
+        <p>Session:</p>
+        <pre>{{ session_display }}</pre>
+    </div>
+    
+    <div class="section">
+        <h2>Fichiers de traduction</h2>
+        <p>Fichiers .mo détectés:</p>
+        <pre>{{ mo_files }}</pre>
+    </div>
+    
+    <div class="section">
+        <h2>URL et préfixes</h2>
+        <p>URL complète: <code>{{ request.build_absolute_uri }}</code></p>
+        <p>Chemin: <code>{{ request.path }}</code></p>
+        <p>URL préfixée par langue: <code>/{{ LANGUAGE_CODE }}{{ request.path }}</code></p>
+    </div>
+    
+    <div class="section">
+        <h2>Documentation</h2>
+        <p>Si vous rencontrez des problèmes avec les traductions, vérifiez:</p>
+        <ol>
+            <li>Que tous les fichiers de traduction .mo existent pour chaque langue</li>
+            <li>Que les balises {% verbatim %}{% trans %}{% endverbatim %} sont correctement utilisées</li>
+            <li>Que le middleware LocaleMiddleware est activé et dans le bon ordre</li>
+            <li>Que le cookie de langue est correctement défini</li>
+            <li>Que les URLs sont correctement préfixées si vous utilisez i18n_patterns</li>
+        </ol>
+    </div>
+</body>
+</html>

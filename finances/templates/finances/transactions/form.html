@@ -1,0 +1,221 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+{% if transaction %}
+{% trans "Modifier la transaction" %} - {{ transaction.reference_number }}
+{% else %}
+{% trans "Nouvelle transaction" %}
+{% endif %}
+{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            {% if transaction %}
+            {% trans "Modifier la transaction" %} - {{ transaction.reference_number }}
+            {% else %}
+            {% trans "Nouvelle transaction" %}
+            {% endif %}
+        </h1>
+        <a href="{% if transaction %}{% url 'finances:transaction_detail' transaction.id %}{% else %}{% url 'finances:transaction_list' %}{% endif %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> {% trans "Annuler" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        {% if transaction %}
+                        {% trans "Modifier les détails de la transaction" %}
+                        {% else %}
+                        {% trans "Détails de la nouvelle transaction" %}
+                        {% endif %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5 class="mb-3">{% trans "Informations générales" %}</h5>
+                                
+                                <div class="mb-3">
+                                    {{ form.description|as_crispy_field }}
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        {{ form.type|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        {{ form.date|as_crispy_field }}
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        {{ form.amount|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        {{ form.currency|as_crispy_field }}
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        {{ form.category|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        {{ form.financial_account|as_crispy_field }}
+                                    </div>
+                                </div>
+                                
+                                {% if form.reference_number %}
+                                <div class="mb-3">
+                                    {{ form.reference_number|as_crispy_field }}
+                                </div>
+                                {% endif %}
+                                
+                                <div class="mb-3">
+                                    {{ form.notes|as_crispy_field }}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <h5 class="mb-3">{% trans "Paramètres additionnels" %}</h5>
+                                
+                                {% if form.status %}
+                                <div class="mb-3">
+                                    {{ form.status|as_crispy_field }}
+                                </div>
+                                {% endif %}
+                                
+                                <div class="mb-3">
+                                    <label>{% trans "Associer à une entité (optionnel)" %}</label>
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    {{ form.entity_content_type|as_crispy_field }}
+                                                </div>
+                                                <div class="col-md-6">
+                                                    {{ form.entity_id|as_crispy_field }}
+                                                </div>
+                                            </div>
+                                            <small class="form-text text-muted">
+                                                {% trans "Vous pouvez associer cette transaction à une facture, une inscription, etc." %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {% if form.attachments %}
+                                <div class="mb-3">
+                                    {{ form.attachments|as_crispy_field }}
+                                    <small class="form-text text-muted">
+                                        {% trans "Vous pouvez télécharger plusieurs fichiers à la fois (factures, reçus, etc.)" %}
+                                    </small>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> 
+                                {% if transaction %}
+                                {% trans "Mettre à jour" %}
+                                {% else %}
+                                {% trans "Enregistrer" %}
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Initialize datepicker
+        $('#id_date').datepicker({
+            format: 'dd/mm/yyyy',
+            language: 'fr',
+            autoclose: true
+        });
+        
+        // Initialize select2 for dropdowns
+        $('.select2').select2({
+            theme: 'bootstrap4'
+        });
+        
+        // Set up entity ID field based on content type selection
+        $('#id_entity_content_type').on('change', function() {
+            const contentTypeId = $(this).val();
+            if (!contentTypeId) {
+                $('#id_entity_id').val('').prop('disabled', true);
+                return;
+            }
+            
+            // Enable the entity ID field
+            $('#id_entity_id').prop('disabled', false);
+            
+            // Load related entities based on selected content type
+            $.ajax({
+                url: "{% url 'finances:api_get_entities' %}",
+                data: {
+                    content_type_id: contentTypeId
+                },
+                dataType: 'json',
+                success: function(data) {
+                    const entitySelect = $('#id_entity_id');
+                    entitySelect.empty();
+                    
+                    entitySelect.append(new Option('', '', true, true));
+                    $.each(data.entities, function(index, entity) {
+                        entitySelect.append(new Option(entity.name, entity.id));
+                    });
+                    
+                    entitySelect.trigger('change');
+                }
+            });
+        });
+        
+        // Handle transaction type change
+        $('#id_type').on('change', function() {
+            const type = $(this).val();
+            const amountField = $('#id_amount');
+            
+            if (type === 'expense') {
+                // For expenses, ensure amount is negative
+                if (parseFloat(amountField.val()) > 0) {
+                    amountField.val(-Math.abs(parseFloat(amountField.val())));
+                }
+            } else if (type === 'income') {
+                // For income, ensure amount is positive
+                if (parseFloat(amountField.val()) < 0) {
+                    amountField.val(Math.abs(parseFloat(amountField.val())));
+                }
+            }
+        });
+        
+        // Initial setup for entity ID field
+        if (!$('#id_entity_content_type').val()) {
+            $('#id_entity_id').prop('disabled', true);
+        }
+    });
+</script>
+{% endblock %}

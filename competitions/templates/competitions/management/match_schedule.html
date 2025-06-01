@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Planning des matchs" %} - {{ category_schedule.category.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .timeline {
+        position: relative;
+        padding: 1rem 0;
+    }
+    .timeline::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 50px;
+        height: 100%;
+        width: 4px;
+        background-color: #e9ecef;
+    }
+    .time-slot {
+        position: relative;
+        margin-bottom: 1.5rem;
+        padding-left: 70px;
+    }
+    .time-slot-circle {
+        position: absolute;
+        left: 42px;
+        top: 0;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background-color: #0d6efd;
+        border: 4px solid #fff;
+        z-index: 1;
+    }
+    .time-slot-time {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 40px;
+        text-align: right;
+        font-weight: bold;
+        color: #495057;
+    }
+    .match-card {
+        border-left: 4px solid #0d6efd;
+        transition: all 0.2s ease;
+    }
+    .match-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .participant-label {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        margin-bottom: 0.25rem;
+        font-weight: 500;
+    }
+    .participant-winner {
+        background-color: #d1e7dd;
+        border: 1px solid #badbcc;
+        color: #0f5132;
+    }
+    .participant-default {
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+    }
+    .generate-options {
+        background-color: #f8f9fa;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .match-status {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    .status-scheduled {
+        background-color: #ffc107;
+    }
+    .status-in-progress {
+        background-color: #0d6efd;
+    }
+    .status-completed {
+        background-color: #198754;
+    }
+    .status-cancelled {
+        background-color: #dc3545;
+    }
+    .unscheduled-match {
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        border-left: 4px solid #ffc107;
+    }
+    .actions-container {
+        position: sticky;
+        top: 60px;
+        z-index: 100;
+        background-color: rgba(255, 255, 255, 0.9);
+        padding: 10px 0;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>{% trans "Planning des matchs" %}</h1>
+            <p class="lead">{{ category_schedule.category.name }}</p>
+            <div class="d-flex flex-wrap">
+                <span class="badge bg-primary me-2">{{ category_schedule.category.discipline.name }}</span>
+                <span class="badge bg-secondary me-2">{{ category_schedule.tatami.name }}</span>
+                {% if category_schedule.estimated_start_time %}
+                <span class="badge bg-info">
+                    <i class="far fa-clock"></i> {{ category_schedule.estimated_start_time|time:"H:i" }}
+                    {% if category_schedule.estimated_end_time %}
+                    - {{ category_schedule.estimated_end_time|time:"H:i" }}
+                    {% endif %}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'competitions:management:schedule_overview' competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "Retour au planning" %}
+            </a>
+            <a href="{% url 'competitions:management:edit_category_schedule' competition.id category_schedule.id %}" class="btn btn-outline-primary">
+                <i class="fas fa-edit"></i> {% trans "Modifier" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Generation Options Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="generate-options">
+                <h4>{% trans "Génération automatique" %}</h4>
+                <p>{% trans "Générez automatiquement le planning des matchs pour cette catégorie." %}</p>
+                
+                <form method="post" class="row g-3">
+                    {% csrf_token %}
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="clear_existing" id="clearExisting">
+                            <label class="form-check-label" for="clearExisting">
+                                {% trans "Effacer le planning existant" %}
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <button type="submit" name="generate_schedule" class="btn btn-primary">
+                            <i class="fas fa-magic"></i> {% trans "Générer le planning" %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="row actions-container">
+        <div class="col-12">
+            <div class="btn-group">
+                <a href="{% url 'competitions:management:add_match_time_slot' competition.id category_schedule.id %}" class="btn btn-success">
+                    <i class="fas fa-plus"></i> {% trans "Ajouter un créneau" %}
+                </a>
+                <a href="#unscheduled-matches" class="btn btn-warning">
+                    <i class="fas fa-list"></i> {% trans "Matchs non planifiés" %}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="row">
+        <!-- Left Column: Match Timeline -->
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0">{% trans "Planning chronologique" %}</h4>
+                </div>
+                <div class="card-body">
+                    {% if time_slots %}
+                    <div class="timeline">
+                        {% for slot in time_slots %}
+                        <div class="time-slot">
+                            <div class="time-slot-time">{{ slot.start_time|time:"H:i" }}</div>
+                            <div class="time-slot-circle"></div>
+                            
+                            <div class="card match-card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="match-status status-{{ slot.status }}"></span>
+                                        <span class="fw-bold">{{ slot.start_time|time:"H:i" }} - {{ slot.end_time|time:"H:i" }}</span>
+                                    </div>
+                                    <div>
+                                        <a href="{% url 'competitions:management:edit_match_time_slot' competition.id slot.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <form class="d-inline" method="post" action="{% url 'competitions:management:delete_match_time_slot' competition.id slot.id %}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('{% trans "Êtes-vous sûr de vouloir supprimer ce créneau ?" %}')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                                
+                                <div class="card-body">
+                                    {% if slot.match %}
+                                    <h5 class="card-title">{% trans "Match" %} #{{ slot.match.order }}</h5>
+                                    
+                                    <div class="match-participants mb-3">
+                                        {% if slot.match.participant1 %}
+                                        <div class="participant-label {% if slot.match.winner == slot.match.participant1 %}participant-winner{% else %}participant-default{% endif %}">
+                                            {{ slot.match.participant1.full_name }}
+                                            {% if slot.match.score_participant1 is not None %}
+                                            <span class="badge bg-secondary">{{ slot.match.score_participant1 }}</span>
+                                            {% endif %}
+                                        </div>
+                                        {% else %}
+                                        <div class="participant-label participant-default">
+                                            {% trans "Participant à déterminer" %}
+                                        </div>
+                                        {% endif %}
+                                        
+                                        <div class="text-center my-1">{% trans "VS" %}</div>
+                                        
+                                        {% if slot.match.participant2 %}
+                                        <div class="participant-label {% if slot.match.winner == slot.match.participant2 %}participant-winner{% else %}participant-default{% endif %}">
+                                            {{ slot.match.participant2.full_name }}
+                                            {% if slot.match.score_participant2 is not None %}
+                                            <span class="badge bg-secondary">{{ slot.match.score_participant2 }}</span>
+                                            {% endif %}
+                                        </div>
+                                        {% else %}
+                                        <div class="participant-label participant-default">
+                                            {% trans "Participant à déterminer" %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    {% if slot.match.status == 'completed' %}
+                                    <div class="match-result">
+                                        <strong>{% trans "Résultat:" %}</strong>
+                                        {% if slot.match.winner %}
+                                        {{ slot.match.winner.full_name }} {% trans "vainqueur" %}
+                                        {% else %}
+                                        {% trans "Match nul ou sans résultat" %}
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if slot.match.notes %}
+                                    <div class="match-notes mt-2">
+                                        <small class="text-muted">{{ slot.match.notes }}</small>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% else %}
+                                    <div class="text-center p-3">
+                                        <em>{% trans "Aucun match assigné à ce créneau." %}</em>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> {% trans "Aucun créneau horaire n'a été défini pour cette catégorie." %}
+                        <div class="mt-3">
+                            <a href="{% url 'competitions:management:add_match_time_slot' competition.id category_schedule.id %}" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> {% trans "Ajouter un créneau" %}
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Column: Category Info and Unscheduled Matches -->
+        <div class="col-md-4">
+            <!-- Category Information -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h4 class="mb-0">{% trans "Informations de la catégorie" %}</h4>
+                </div>
+                <div class="card-body">
+                    <h5>{{ category_schedule.category.name }}</h5>
+                    
+                    <div class="mb-3">
+                        <strong>{% trans "Discipline:" %}</strong> {{ category_schedule.category.discipline.name }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>{% trans "Type de compétition:" %}</strong> 
+                        {% if category_schedule.category.competition_type %}
+                        {{ category_schedule.category.competition_type.name }}
+                        {% else %}
+                        {% trans "Non défini" %}
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>{% trans "Participants:" %}</strong> 
+                        {% if category_schedule.category.registrations %}
+                        {{ category_schedule.category.registrations.count }}
+                        {% else %}
+                        0
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>{% trans "Tatami:" %}</strong> {{ category_schedule.tatami.name }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>{% trans "Heure de début:" %}</strong> 
+                        {% if category_schedule.estimated_start_time %}
+                        {{ category_schedule.estimated_start_time|time:"H:i" }}
+                        {% else %}
+                        {% trans "Non définie" %}
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>{% trans "Heure de fin estimée:" %}</strong> 
+                        {% if category_schedule.estimated_end_time %}
+                        {{ category_schedule.estimated_end_time|time:"H:i" }}
+                        {% else %}
+                        {% trans "Non définie" %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Unscheduled Matches -->
+            <div class="card" id="unscheduled-matches">
+                <div class="card-header">
+                    <h4 class="mb-0">{% trans "Matchs non planifiés" %}</h4>
+                </div>
+                <div class="card-body">
+                    {% if unscheduled_matches %}
+                    <p>{% trans "Ces matchs n'ont pas encore été assignés à un créneau horaire." %}</p>
+                    
+                    <div class="unscheduled-matches-list">
+                        {% for match in unscheduled_matches %}
+                        <div class="unscheduled-match">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong>{% trans "Match" %} #{{ match.order }}</strong>
+                                <span class="badge bg-warning">{% trans "Non planifié" %}</span>
+                            </div>
+                            
+                            <div class="match-participants mb-2">
+                                {% if match.participant1 %}
+                                <div>{{ match.participant1.full_name }}</div>
+                                {% else %}
+                                <div>{% trans "Participant à déterminer" %}</div>
+                                {% endif %}
+                                
+                                <div class="text-center my-1">{% trans "VS" %}</div>
+                                
+                                {% if match.participant2 %}
+                                <div>{{ match.participant2.full_name }}</div>
+                                {% else %}
+                                <div>{% trans "Participant à déterminer" %}</div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="text-end">
+                                <a href="{% url 'competitions:management:add_match_time_slot' competition.id category_schedule.id %}?match={{ match.id }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-calendar-plus"></i> {% trans "Planifier" %}
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> {% trans "Tous les matchs sont planifiés." %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Script pour gérer le statut des matchs
+        function updateMatchStatus() {
+            const now = new Date();
+            const timeSlots = document.querySelectorAll('.time-slot');
+            
+            timeSlots.forEach(function(slot) {
+                const startTime = slot.querySelector('.time-slot-time').textContent;
+                const endTime = slot.querySelector('.fw-bold').textContent.split(' - ')[1];
+                
+                // Convertir les heures en Date
+                const startDate = new Date();
+                const [startHours, startMinutes] = startTime.split(':');
+                startDate.setHours(parseInt(startHours, 10), parseInt(startMinutes, 10), 0);
+                
+                const endDate = new Date();
+                const [endHours, endMinutes] = endTime.split(':');
+                endDate.setHours(parseInt(endHours, 10), parseInt(endMinutes, 10), 0);
+                
+                // Mettre à jour le statut visuel (uniquement pour l'affichage, pas pour le backend)
+                const statusIndicator = slot.querySelector('.match-status');
+                if (statusIndicator) {
+                    if (now < startDate) {
+                        statusIndicator.className = 'match-status status-scheduled';
+                    } else if (now >= startDate && now <= endDate) {
+                        statusIndicator.className = 'match-status status-in-progress';
+                    } else {
+                        statusIndicator.className = 'match-status status-completed';
+                    }
+                }
+            });
+        }
+        
+        // Mettre à jour le statut au chargement de la page
+        updateMatchStatus();
+        
+        // Mettre à jour le statut toutes les minutes
+        setInterval(updateMatchStatus, 60000);
+    });
+</script>
+{% endblock %}

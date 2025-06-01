@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Sélection des pratiquants" %} | {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .practitioner-card {
+        transition: all 0.3s ease;
+    }
+    .practitioner-card:hover {
+        border-color: var(--bs-primary);
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    .practitioner-checkbox:checked + .practitioner-card {
+        border-color: var(--bs-primary);
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+    .already-registered {
+        opacity: 0.6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:dashboard:club' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:club:available_competitions' %}">{% trans "Compétitions disponibles" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% trans "Inscription" %}</li>
+        </ol>
+    </nav>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h1 class="h4 mb-0">{% trans "Inscription à la compétition" %}: {{ competition.title }}</h1>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <p><i class="fas fa-calendar-alt me-2"></i> {{ competition.start_date|date:"d/m/Y" }}
+                    {% if competition.end_date != competition.start_date %}
+                        - {{ competition.end_date|date:"d/m/Y" }}
+                    {% endif %}</p>
+                    
+                    <p><i class="fas fa-map-marker-alt me-2"></i> {{ competition.address }}</p>
+                    
+                    {% if competition.discipline %}
+                        <p><i class="fas fa-dumbbell me-2"></i> {{ competition.discipline.name }}</p>
+                    {% endif %}
+                    
+                    {% if competition.registration_deadline %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-clock me-2"></i>{% trans "Date limite d'inscription" %}: {{ competition.registration_deadline|date:"d/m/Y" }}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-6">
+                    {% if competition.logo %}
+                        <img src="{{ competition.logo.url }}" alt="{{ competition.title }}" class="img-fluid rounded" style="max-height: 150px;">
+                    {% endif %}
+                </div>
+            </div>
+            
+            <hr>
+            
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+            
+            {% if practitioners %}
+                <form method="post" action="{% url 'competitions:club:register_multiple_practitioners' competition.id %}">
+                    {% csrf_token %}
+                    
+                    <h3 class="h5 mb-3">{% trans "Sélectionnez les pratiquants à inscrire" %}</h3>
+                    
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3 mb-4">
+                        {% for practitioner in practitioners %}
+                            <div class="col">
+                                {% if practitioner.id in registered_ids %}
+                                    <div class="card h-100 border already-registered">
+                                        <div class="card-body">
+                                            <div class="d-flex align-items-center">
+                                                <div class="flex-grow-1">
+                                                    <h5 class="card-title mb-1">{{ practitioner.full_name }}</h5>
+                                                    <p class="card-text text-muted mb-0">{{ practitioner.grade }}</p>
+                                                    <p class="card-text"><small class="text-muted">{{ practitioner.age }} ans</small></p>
+                                                </div>
+                                                <span class="badge bg-success">{% trans "Déjà inscrit" %}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <input type="checkbox" class="d-none practitioner-checkbox" id="practitioner-{{ practitioner.id }}" name="practitioners" value="{{ practitioner.id }}">
+                                    <label for="practitioner-{{ practitioner.id }}" class="card h-100 border practitioner-card mb-0">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between">
+                                                <div>
+                                                    <h5 class="card-title mb-1">{{ practitioner.full_name }}</h5>
+                                                    <p class="card-text text-muted mb-0">{{ practitioner.grade }}</p>
+                                                    <p class="card-text"><small class="text-muted">{{ practitioner.age }} ans</small></p>
+                                                </div>
+                                                <div class="form-check d-flex align-items-center">
+                                                    <i class="far fa-square fa-lg check-icon"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'competitions:club:available_competitions' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-user-plus me-2"></i>{% trans "Inscrire les pratiquants sélectionnés" %}
+                        </button>
+                    </div>
+                </form>
+            {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{% trans "Aucun pratiquant disponible pour l'inscription." %}
+                </div>
+                <a href="{% url 'competitions:club:practitioners' %}" class="btn btn-outline-primary">
+                    <i class="fas fa-plus me-2"></i>{% trans "Ajouter des pratiquants" %}
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Change icon when checkbox is checked
+        const checkboxes = document.querySelectorAll('.practitioner-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const label = this.nextElementSibling;
+                const icon = label.querySelector('.check-icon');
+                
+                if (this.checked) {
+                    icon.classList.remove('fa-square');
+                    icon.classList.add('fa-check-square');
+                } else {
+                    icon.classList.remove('fa-check-square');
+                    icon.classList.add('fa-square');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

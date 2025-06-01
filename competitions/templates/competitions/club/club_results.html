@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title }} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .club-header {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .club-logo {
+        width: 100px;
+        height: 100px;
+        object-fit: contain;
+        border-radius: 50%;
+        background-color: white;
+        padding: 5px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .competition-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .competition-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .medal-count {
+        display: flex;
+        align-items: center;
+        margin-right: 1rem;
+    }
+    
+    .medal-icon {
+        font-size: 1.2rem;
+        margin-right: 0.5rem;
+    }
+    
+    .medal-gold {
+        color: #FFD700;
+    }
+    
+    .medal-silver {
+        color: #C0C0C0;
+    }
+    
+    .medal-bronze {
+        color: #CD7F32;
+    }
+    
+    .stats-card {
+        transition: all 0.3s ease;
+        border-radius: 0.5rem;
+        border: none;
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .stats-icon {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+    }
+    
+    .no-results {
+        background-color: #f8f9fa;
+        padding: 2rem;
+        border-radius: 0.5rem;
+        text-align: center;
+    }
+    
+    .results-table th {
+        background-color: #f8f9fa;
+        position: sticky;
+        top: 0;
+    }
+    
+    .table-wrapper {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .modal-header {
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .prize-badge {
+        display: inline-block;
+        padding: 0.5em 0.8em;
+        font-size: 0.8em;
+        font-weight: 700;
+        border-radius: 0.25rem;
+        margin-right: 0.5rem;
+    }
+    
+    .prize-badge-gold {
+        background-color: #FFD700;
+        color: #212529;
+    }
+    
+    .prize-badge-silver {
+        background-color: #C0C0C0;
+        color: #212529;
+    }
+    
+    .prize-badge-bronze {
+        background-color: #CD7F32;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- En-tête du club -->
+    <div class="club-header d-flex align-items-center">
+        {% if club.logo %}
+            <img src="{{ club.logo.url }}" alt="{{ club.name }}" class="club-logo me-4">
+        {% else %}
+            <div class="club-logo d-flex align-items-center justify-content-center bg-light me-4">
+                <i class="fas fa-dojo fa-3x text-secondary"></i>
+            </div>
+        {% endif %}
+        
+        <div>
+            <h1 class="mb-1">{{ club.name }}</h1>
+            <p class="lead mb-0">{% trans "Résultats des compétitions" %}</p>
+        </div>
+    </div>
+    
+    <!-- Statistiques -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center stats-card bg-primary text-white">
+                <div class="card-body">
+                    <div class="stats-icon">
+                        <i class="fas fa-trophy"></i>
+                    </div>
+                    <h5 class="card-title">{% trans "Compétitions" %}</h5>
+                    <p class="card-text display-4">{{ past_competitions.count }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card text-center stats-card bg-success text-white">
+                <div class="card-body">
+                    <div class="stats-icon">
+                        <i class="fas fa-medal"></i>
+                    </div>
+                    <h5 class="card-title">{% trans "Médailles d'or" %}</h5>
+                    <p class="card-text display-4">{{ gold_medals|default:"0" }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card text-center stats-card bg-secondary text-white">
+                <div class="card-body">
+                    <div class="stats-icon">
+                        <i class="fas fa-medal"></i>
+                    </div>
+                    <h5 class="card-title">{% trans "Médailles d'argent" %}</h5>
+                    <p class="card-text display-4">{{ silver_medals|default:"0" }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card text-center stats-card bg-danger text-white">
+                <div class="card-body">
+                    <div class="stats-icon">
+                        <i class="fas fa-medal"></i>
+                    </div>
+                    <h5 class="card-title">{% trans "Médailles de bronze" %}</h5>
+                    <p class="card-text display-4">{{ bronze_medals|default:"0" }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Meilleurs résultats -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h2 class="h4 mb-0">{% trans "Top 5 des performances" %}</h2>
+        </div>
+        <div class="card-body">
+            {% if top_performances %}
+                <div class="table-wrapper">
+                    <table class="table table-striped results-table">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Place" %}</th>
+                                <th>{% trans "Athlète" %}</th>
+                                <th>{% trans "Compétition" %}</th>
+                                <th>{% trans "Date" %}</th>
+                                <th>{% trans "Catégorie" %}</th>
+                                <th>{% trans "Score" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for performance in top_performances %}
+                                <tr>
+                                    <td>
+                                        {% if performance.rank == 1 %}
+                                            <i class="fas fa-medal medal-icon medal-gold"></i>
+                                        {% elif performance.rank == 2 %}
+                                            <i class="fas fa-medal medal-icon medal-silver"></i>
+                                        {% elif performance.rank == 3 %}
+                                            <i class="fas fa-medal medal-icon medal-bronze"></i>
+                                        {% else %}
+                                            {{ performance.rank }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ performance.practitioner.full_name }}</td>
+                                    <td>{{ performance.competition.title }}</td>
+                                    <td>{{ performance.competition.end_date|date:"d/m/Y" }}</td>
+                                    <td>{{ performance.category.name }}</td>
+                                    <td>{{ performance.score }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucune performance enregistrée pour votre club." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Liste des compétitions -->
+    <h2 class="h4 mb-3">{% trans "Compétitions passées" %}</h2>
+    
+    {% if past_competitions %}
+        <div class="row row-cols-1 row-cols-md-2 g-4">
+            {% for competition in past_competitions %}
+                <div class="col">
+                    <div class="card h-100 shadow-sm competition-card">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ competition.title }}</h5>
+                            <p class="card-text text-muted mb-3">
+                                <i class="fas fa-calendar-alt me-2"></i>{{ competition.start_date|date:"d/m/Y" }}
+                                {% if competition.end_date != competition.start_date %}
+                                    - {{ competition.end_date|date:"d/m/Y" }}
+                                {% endif %}
+                            </p>
+                            
+                            {% if competition.discipline %}
+                                <p class="card-text mb-3">
+                                    <span class="badge bg-secondary">{{ competition.discipline.name }}</span>
+                                </p>
+                            {% endif %}
+                            
+                            <div class="d-flex mb-3">
+                                {% with gold_count=competition|get_medals:club:1|default:0 %}
+                                    {% if gold_count > 0 %}
+                                        <div class="medal-count">
+                                            <i class="fas fa-medal medal-icon medal-gold"></i>
+                                            <span>{{ gold_count }}</span>
+                                        </div>
+                                    {% endif %}
+                                {% endwith %}
+                                
+                                {% with silver_count=competition|get_medals:club:2|default:0 %}
+                                    {% if silver_count > 0 %}
+                                        <div class="medal-count">
+                                            <i class="fas fa-medal medal-icon medal-silver"></i>
+                                            <span>{{ silver_count }}</span>
+                                        </div>
+                                    {% endif %}
+                                {% endwith %}
+                                
+                                {% with bronze_count=competition|get_medals:club:3|default:0 %}
+                                    {% if bronze_count > 0 %}
+                                        <div class="medal-count">
+                                            <i class="fas fa-medal medal-icon medal-bronze"></i>
+                                            <span>{{ bronze_count }}</span>
+                                        </div>
+                                    {% endif %}
+                                {% endwith %}
+                            </div>
+                            
+                            <div class="d-flex justify-content-between">
+                                <button type="button" class="btn btn-outline-primary" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#competitionModal{{ competition.id }}">
+                                    <i class="fas fa-trophy me-2"></i>{% trans "Voir les résultats" %}
+                                </button>
+                                
+                                <a href="{% url 'competitions:results:detail' competition.id %}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-external-link-alt me-2"></i>{% trans "Détails" %}
+                                </a>
+                            </div>
+                            
+                            <!-- Modal pour les résultats détaillés -->
+                            <div class="modal fade" id="competitionModal{{ competition.id }}" tabindex="-1" aria-labelledby="competitionModalLabel{{ competition.id }}" aria-hidden="true">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="competitionModalLabel{{ competition.id }}">{{ competition.title }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <h6 class="mb-3">{% trans "Résultats du club" %}</h6>
+                                            
+                                            {% with club_results=competition|get_club_results:club %}
+                                                {% if club_results %}
+                                                    <div class="table-responsive">
+                                                        <table class="table table-striped">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>{% trans "Athlète" %}</th>
+                                                                    <th>{% trans "Catégorie" %}</th>
+                                                                    <th>{% trans "Place" %}</th>
+                                                                    <th>{% trans "Score" %}</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {% for result in club_results %}
+                                                                    <tr>
+                                                                        <td>{{ result.practitioner.full_name }}</td>
+                                                                        <td>{{ result.category.name }}</td>
+                                                                        <td>
+                                                                            {% if result.rank == 1 %}
+                                                                                <span class="prize-badge prize-badge-gold">
+                                                                                    <i class="fas fa-trophy me-1"></i>1
+                                                                                </span>
+                                                                            {% elif result.rank == 2 %}
+                                                                                <span class="prize-badge prize-badge-silver">
+                                                                                    <i class="fas fa-trophy me-1"></i>2
+                                                                                </span>
+                                                                            {% elif result.rank == 3 %}
+                                                                                <span class="prize-badge prize-badge-bronze">
+                                                                                    <i class="fas fa-trophy me-1"></i>3
+                                                                                </span>
+                                                                            {% else %}
+                                                                                {{ result.rank }}
+                                                                            {% endif %}
+                                                                        </td>
+                                                                        <td>{{ result.score }}</td>
+                                                                    </tr>
+                                                                {% endfor %}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                {% else %}
+                                                    <div class="alert alert-info">
+                                                        <i class="fas fa-info-circle me-2"></i>
+                                                        {% trans "Aucun résultat disponible pour cette compétition." %}
+                                                    </div>
+                                                {% endif %}
+                                            {% endwith %}
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Fermer" %}</button>
+                                            <a href="{% url 'competitions:results:detail' competition.id %}" class="btn btn-primary">
+                                                <i class="fas fa-external-link-alt me-2"></i>{% trans "Voir tous les résultats" %}
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="no-results">
+            <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+            <h3>{% trans "Aucune compétition passée" %}</h3>
+            <p class="text-muted">{% trans "Votre club n'a pas encore participé à des compétitions ou aucune compétition passée n'a été trouvée." %}</p>
+        </div>
+    {% endif %}
+    
+    <!-- Boutons de navigation -->
+    <div class="d-flex justify-content-between mt-4">
+        <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+        </a>
+        
+        <a href="{% url 'competitions:competitions:list' %}" class="btn btn-outline-primary">
+            <i class="fas fa-list me-2"></i>{% trans "Toutes les compétitions" %}
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animation des cartes de statistiques
+        const statsCards = document.querySelectorAll('.stats-card');
+        statsCards.forEach((card, index) => {
+            // Animation retardée séquentiellement
+            setTimeout(() => {
+                card.style.opacity = 0;
+                card.style.transform = 'translateY(20px)';
+                
+                setTimeout(() => {
+                    card.style.transition = 'all 0.5s ease';
+                    card.style.opacity = 1;
+                    card.style.transform = 'translateY(0)';
+                }, 100);
+            }, index * 100);
+        });
+    });
+</script>
+{% endblock %}

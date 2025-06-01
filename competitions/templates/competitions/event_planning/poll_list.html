@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Sondages d'événements" %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">{% translate "Sondages d'événements" %}</h1>
+        <a href="{% url 'competitions:event_planning:create_poll' %}" class="btn btn-primary">
+            <i class="fas fa-plus-circle me-1"></i> {% translate "Créer un sondage" %}
+        </a>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-3">
+            <div class="list-group mb-4 shadow-sm">
+                <a href="#created-polls" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center active" data-bs-toggle="list">
+                    <span><i class="fas fa-calendar-plus me-2"></i>{% translate "Mes sondages" %}</span>
+                    <span class="badge bg-light text-dark rounded-pill">{{ created_polls|length }}</span>
+                </a>
+                <a href="#responded-polls" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-bs-toggle="list">
+                    <span><i class="fas fa-reply me-2"></i>{% translate "Répondu" %}</span>
+                    <span class="badge bg-light text-dark rounded-pill">{{ responded_polls|length }}</span>
+                </a>
+                <a href="#organization-polls" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-bs-toggle="list">
+                    <span><i class="fas fa-building me-2"></i>{% translate "Organisations" %}</span>
+                    <span class="badge bg-light text-dark rounded-pill">{{ organization_polls|length }}</span>
+                </a>
+                <a href="#event-polls" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-bs-toggle="list">
+                    <span><i class="fas fa-calendar-alt me-2"></i>{% translate "Événements" %}</span>
+                    <span class="badge bg-light text-dark rounded-pill">{{ event_polls|length }}</span>
+                </a>
+            </div>
+            
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h2 class="h6 mb-0">{% translate "Filtres" %}</h2>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% translate "Statut" %}</label>
+                        <div class="form-check">
+                            <input class="form-check-input filter-checkbox" type="checkbox" value="active" id="filter-active" checked>
+                            <label class="form-check-label" for="filter-active">
+                                <span class="badge bg-success">{% translate "Actifs" %}</span>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input filter-checkbox" type="checkbox" value="closed" id="filter-closed" checked>
+                            <label class="form-check-label" for="filter-closed">
+                                <span class="badge bg-warning">{% translate "Clôturés" %}</span>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input filter-checkbox" type="checkbox" value="finalized" id="filter-finalized" checked>
+                            <label class="form-check-label" for="filter-finalized">
+                                <span class="badge bg-primary">{% translate "Finalisés" %}</span>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input filter-checkbox" type="checkbox" value="cancelled" id="filter-cancelled">
+                            <label class="form-check-label" for="filter-cancelled">
+                                <span class="badge bg-danger">{% translate "Annulés" %}</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label for="search-input" class="form-label">{% translate "Recherche" %}</label>
+                        <input type="text" class="form-control" id="search-input" placeholder="{% translate 'Rechercher...' %}">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-9">
+            <div class="tab-content">
+                <!-- Mes sondages -->
+                <div class="tab-pane fade show active" id="created-polls">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                            <h2 class="h5 mb-0">
+                                <i class="fas fa-calendar-plus me-2"></i>{% translate "Mes sondages" %}
+                            </h2>
+                            <span class="badge bg-light text-dark">{{ created_polls|length }}</span>
+                        </div>
+                        
+                        <div class="card-body p-0">
+                            {% if created_polls %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>{% translate "Titre" %}</th>
+                                                <th>{% translate "Organisation" %}</th>
+                                                <th>{% translate "Créé le" %}</th>
+                                                <th>{% translate "Statut" %}</th>
+                                                <th>{% translate "Réponses" %}</th>
+                                                <th class="text-end">{% translate "Actions" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for poll in created_polls %}
+                                            <tr class="poll-item" data-status="{{ poll.status }}">
+                                                <td>
+                                                    <a href="{% url 'competitions:event_planning:poll_detail' poll_id=poll.id %}" class="fw-bold text-decoration-none">{{ poll.title }}</a>
+                                                    {% if poll.event %}
+                                                        <br><small class="text-muted"><i class="fas fa-link me-1"></i>{% translate "Lié à un événement" %}</small>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ poll.organization.name }}</td>
+                                                <td>{{ poll.created_at|date:"d/m/Y" }}</td>
+                                                <td>
+                                                    <span class="badge bg-{% if poll.status == 'active' %}success{% elif poll.status == 'closed' %}warning{% elif poll.status == 'finalized' %}primary{% else %}danger{% endif %}">
+                                                        {{ poll.get_status_display }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ poll.options.0.responses.count }}</td>
+                                                <td class="text-end">
+                                                    <div class="btn-group btn-group-sm">
+                                                        <a href="{% url 'competitions:event_planning:poll_detail' poll_id=poll.id %}" class="btn btn-outline-primary" title="{% translate 'Voir' %}">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                        {% if poll.status == 'active' %}
+                                                            <a href="{% url 'competitions:event_planning:edit_poll' poll_id=poll.id %}" class="btn btn-outline-secondary" title="{% translate 'Modifier' %}">
+                                                                <i class="fas fa-edit"></i>
+                                                            </a>
+                                                        {% endif %}
+                                                        <a href="{% url 'competitions:event_planning:poll_results' poll_id=poll.id %}" class="btn btn-outline-info" title="{% translate 'Résultats' %}">
+                                                            <i class="fas fa-chart-bar"></i>
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="p-4 text-center">
+                                    <p>{% translate "Vous n'avez pas encore créé de sondages." %}</p>
+                                    <a href="{% url 'competitions:event_planning:create_poll' %}" class="btn btn-primary">
+                                        <i class="fas fa-plus-circle me-1"></i> {% translate "Créer un sondage" %}
+                                    </a>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sondages répondus -->
+                <div class="tab-pane fade" id="responded-polls">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                            <h2 class="h5 mb-0">
+                                <i class="fas fa-reply me-2"></i>{% translate "Sondages auxquels j'ai répondu" %}
+                            </h2>
+                            <span class="badge bg-light text-dark">{{ responded_polls|length }}</span>
+                        </div>
+                        
+                        <div class="card-body p-0">
+                            {% if responded_polls %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>{% translate "Titre" %}</th>
+                                                <th>{% translate "Organisation" %}</th>
+                                                <th>{% translate "Créé par" %}</th>
+                                                <th>{% translate "Statut" %}</th>
+                                                <th class="text-end">{% translate "Actions" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for poll in responded_polls %}
+                                            <tr class="poll-item" data-status="{{ poll.status }}">
+                                                <td>
+                                                    <a href="{% url 'competitions:event_planning:poll_detail' poll_id=poll.id %}" class="fw-bold text-decoration-none">{{ poll.title }}</a>
+                                                    {% if poll.event %}
+                                                        <br><small class="text-muted"><i class="fas fa-link me-1"></i>{% translate "Lié à un événement" %}</small>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ poll.organization.name }}</td>
+                                                <td>{{ poll.created_by.get_full_name|default:poll.created_by.username }}</td>
+                                                <td>
+                                                    <span class="badge bg-{% if poll.status == 'active' %}success{% elif poll.status == 'closed' %}warning{% elif poll.status == 'finalized' %}primary{% else %}danger{% endif %}">
+                                                        {{ poll.get_status_display }}
+                                                    </span>
+                                                </td>
+                                                <td class="text-end">
+                                                    <div class="btn-group btn-group-sm">
+                                                        <a href="{% url 'competitions:event_planning:poll_detail' poll_id=poll.id %}" class="btn btn-outline-primary" title="{% translate 'Voir' %}">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                        <a href="{% url 'competitions:event_planning:poll_results' poll_id=poll.id %}" class="btn btn-outline-info" title="{% translate 'Résultats' %}">
+                                                            <i class="fas fa-chart-bar"></i>
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="p-4 text-center text-muted">
+                                    <p>{% translate "Vous n'avez pas encore répondu à des sondages." %}</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sondages de l'organisation -->
+                <div class="tab-pane fade" id="organization-polls">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                            <h2 class="h5 mb-0">
+                                <i class="fas fa-building me-2"></i>{% translate "Sondages de mes organisations" %}
+                            </h2>
+                            <span class="badge bg-light text-dark">{{ organization_polls|length }}</span>
+                        </div>
+                        
+                        <div class="card-body p-0">
+                            {% if organization_polls %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>{% translate "Titre" %}</th>
+                                                <th>{% translate "Organisation" %}</th>
+                                                <th>{% translate "Créé par" %}</th>
+                                                <th>{% translate "Créé le" %}</th>
+                                                <th class="text-end">{% translate "Actions" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for poll in organization_polls %}
+                                            <tr class="poll-item" data-status="{{ poll.status }}">
+                                                <td>
+                                                    <a href="{% url 'competitions:event_planning:poll_detail' poll_id=poll.id %}" class="fw-bold text-decoration-none">{{ poll.title }}</a>
+                                                </td>
+                                                <td>{{ poll.organization.name }}</td>
+                                                <td>{{ poll.created_by.get_full_name|default:poll.created_by.username }}</td>
+                                                <td>{{ poll.created_at|date:"d/m/Y" }}</td>
+                                                <td class="text-end">
+                                                    <div class="btn-group btn-group-sm">
+                                                        <a href="{% url 'competitions:event_planning:poll_detail' poll_id=poll.id %}" class="btn btn-outline-primary" title="{% translate 'Voir' %}">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="p-4 text-center text-muted">
+                                    <p>{% translate "Aucun sondage actif dans vos organisations." %}</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sondages d'événements -->
+                <div class="tab-pane fade" id="event-polls">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                            <h2 class="h5 mb-0">
+                                <i class="fas fa-calendar-alt me-2"></i>{% translate "Sondages d'événements" %}
+                            </h2>
+                            <span class="badge bg-light text-dark">{{ event_polls|length }}</span>
+                        </div>
+                        
+                        <div class="card-body p-0">
+                            {% if event_polls %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>{% translate "Titre" %}</th>
+                                                <th>{% translate "Événement" %}</th>
+                                                <th>{% translate "Organisation" %}</th>
+                                                <th>{% translate "Créé par" %}</th>
+                                                <th class="text-end">{% translate "Actions" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for poll in event_polls %}
+                                            <tr class="poll-item" data-status="{{ poll.status }}">
+                                                <td>
+                                                    <a href="{% url 'competitions:event_planning:poll_detail' poll_id=poll.id %}" class="fw-bold text-decoration-none">{{ poll.title }}</a>
+                                                </td>
+                                                <td>
+                                                    {% if poll.event %}
+                                                        <a href="#" class="text-decoration-none">
+                                                            {{ poll.event.title }}
+                                                        </a>
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ poll.organization.name }}</td>
+                                                <td>{{ poll.created_by.get_full_name|default:poll.created_by.username }}</td>
+                                                <td class="text-end">
+                                                    <div class="btn-group btn-group-sm">
+                                                        <a href="{% url 'competitions:event_planning:poll_detail' poll_id=poll.id %}" class="btn btn-outline-primary" title="{% translate 'Voir' %}">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="p-4 text-center text-muted">
+                                    <p>{% translate "Aucun sondage pour vos événements." %}</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Filtrage par statut
+    const filterCheckboxes = document.querySelectorAll('.filter-checkbox');
+    const pollItems = document.querySelectorAll('.poll-item');
+    
+    function applyFilters() {
+        // Récupérer les statuts activés
+        const activeStatuses = Array.from(filterCheckboxes)
+            .filter(checkbox => checkbox.checked)
+            .map(checkbox => checkbox.value);
+        
+        // Filtrer les éléments par statut
+        pollItems.forEach(item => {
+            const status = item.dataset.status;
+            if (activeStatuses.includes(status)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+    
+    filterCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', applyFilters);
+    });
+    
+    // Recherche
+    const searchInput = document.getElementById('search-input');
+    
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        
+        pollItems.forEach(item => {
+            const text = item.textContent.toLowerCase();
+            const matchesSearch = searchTerm === '' || text.includes(searchTerm);
+            
+            if (matchesSearch) {
+                // Vérifier également le filtre de statut
+                const status = item.dataset.status;
+                const statusCheckbox = document.getElementById(`filter-${status}`);
+                
+                if (statusCheckbox && statusCheckbox.checked) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

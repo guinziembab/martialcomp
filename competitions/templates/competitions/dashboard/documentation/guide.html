@@ -1,0 +1,153 @@
+{% extends "competitions/dashboard/base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{% translate "Navigation" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="btn-group-vertical w-100">
+                        <a href="{% url 'competitions:dashboard:dashboard_documentation' dashboard_type=dashboard_type %}" class="btn btn-outline-primary mb-2">
+                            <i class="fas fa-arrow-left"></i> {% translate "Retour à l'aperçu" %}
+                        </a>
+                        <a href="{% url 'competitions:dashboard:documentation' %}" class="btn btn-outline-primary mb-2">
+                            <i class="fas fa-book"></i> {% translate "Documentation générale" %}
+                        </a>
+                        <a href="#" class="btn btn-outline-primary mb-2" onclick="window.print(); return false;">
+                            <i class="fas fa-print"></i> {% translate "Imprimer le guide" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card shadow-sm mt-3">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">{% translate "Table des matières" %}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-of-contents p-3">
+                        <!-- La table des matières sera générée dynamiquement par JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">{{ title }}</h4>
+                        <a href="{% url 'competitions:dashboard:index' %}" class="btn btn-light btn-sm">
+                            <i class="fas fa-arrow-left"></i> {% translate "Retour au Dashboard" %}
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body markdown-content guide-content">
+                    {{ content|safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .markdown-content h1 { font-size: 2.25rem; margin-top: 2rem; margin-bottom: 1.25rem; }
+    .markdown-content h2 { font-size: 1.85rem; margin-top: 1.75rem; margin-bottom: 1rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+    .markdown-content h3 { font-size: 1.5rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+    .markdown-content h4 { font-size: 1.25rem; margin-top: 1.25rem; margin-bottom: 0.5rem; }
+    .markdown-content ul, .markdown-content ol { margin-bottom: 1rem; padding-left: 2rem; }
+    .markdown-content p { margin-bottom: 1rem; }
+    .markdown-content img { max-width: 100%; height: auto; margin: 1rem 0; }
+    .markdown-content table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+    .markdown-content th, .markdown-content td { border: 1px solid #ddd; padding: 0.5rem; }
+    .markdown-content th { background-color: #f5f5f5; }
+    .markdown-content code { background-color: #f5f5f5; padding: 0.2rem 0.4rem; border-radius: 3px; }
+    .markdown-content pre { background-color: #f5f5f5; padding: 1rem; border-radius: 3px; overflow-x: auto; margin-bottom: 1rem; }
+    
+    .table-of-contents { max-height: 500px; overflow-y: auto; }
+    .table-of-contents ul { list-style-type: none; padding-left: 0; }
+    .table-of-contents ul ul { padding-left: 1.5rem; }
+    .table-of-contents a { color: #007bff; text-decoration: none; display: block; padding: 0.25rem 0; }
+    .table-of-contents a:hover { text-decoration: underline; }
+    
+    /* Styles pour l'impression */
+    @media print {
+        .container-fluid { width: 100%; }
+        .col-md-3 { display: none; }
+        .col-md-9 { width: 100%; }
+        .card { border: none; }
+        .card-header { display: none; }
+        .card-body { padding: 0; }
+        .markdown-content { font-size: 12pt; }
+        .markdown-content h1 { font-size: 18pt; page-break-before: always; }
+        .markdown-content h2 { font-size: 16pt; }
+        .markdown-content h3 { font-size: 14pt; }
+        .markdown-content a { text-decoration: none; color: black; }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Générer la table des matières
+        const content = document.querySelector('.guide-content');
+        const toc = document.querySelector('.table-of-contents');
+        
+        if (content && toc) {
+            const headings = content.querySelectorAll('h2, h3, h4');
+            if (headings.length > 0) {
+                const tocList = document.createElement('ul');
+                tocList.className = 'list-unstyled mb-0';
+                
+                let currentLevel = 2;
+                let currentList = tocList;
+                let parentLists = [tocList];
+                
+                headings.forEach((heading, index) => {
+                    // Ajouter un ID à l'en-tête s'il n'en a pas
+                    if (!heading.id) {
+                        heading.id = 'section-' + index;
+                    }
+                    
+                    const level = parseInt(heading.tagName.substring(1));
+                    
+                    // Ajuster les listes imbriquées en fonction du niveau d'en-tête
+                    if (level > currentLevel) {
+                        const newList = document.createElement('ul');
+                        newList.className = 'list-unstyled ml-3 mb-0';
+                        parentLists[currentLevel - 2].lastChild.appendChild(newList);
+                        parentLists[level - 2] = newList;
+                        currentList = newList;
+                    } else if (level < currentLevel) {
+                        currentList = parentLists[level - 2];
+                    }
+                    
+                    currentLevel = level;
+                    
+                    // Créer l'élément de liste
+                    const listItem = document.createElement('li');
+                    const link = document.createElement('a');
+                    link.href = '#' + heading.id;
+                    link.textContent = heading.textContent;
+                    link.className = level === 2 ? 'font-weight-bold' : '';
+                    
+                    listItem.appendChild(link);
+                    currentList.appendChild(listItem);
+                });
+                
+                toc.appendChild(tocList);
+            } else {
+                toc.innerHTML = '<p class="text-muted p-3">{% translate "Aucune section trouvée dans ce guide." %}</p>';
+            }
+        }
+    });
+</script>
+{% endblock %}

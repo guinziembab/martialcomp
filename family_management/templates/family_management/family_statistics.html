@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Statistiques" %} - {{ family.family_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-left: 4px solid #007bff;
+        transition: all 0.3s;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .stat-card.success { border-left-color: #28a745; }
+    .stat-card.warning { border-left-color: #ffc107; }
+    .stat-card.danger { border-left-color: #dc3545; }
+    .stat-card.info { border-left-color: #17a2b8; }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stat-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .chart-container {
+        background: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+    }
+    
+    .progress-custom {
+        height: 8px;
+        border-radius: 4px;
+        background: #e9ecef;
+    }
+    
+    .progress-bar-custom {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.6s ease;
+    }
+    
+    .timeline-item {
+        border-left: 2px solid #dee2e6;
+        padding-left: 1rem;
+        margin-bottom: 1rem;
+        position: relative;
+    }
+    
+    .timeline-item:before {
+        content: '';
+        position: absolute;
+        left: -5px;
+        top: 0;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #007bff;
+    }
+    
+    .timeline-item.success:before { background: #28a745; }
+    .timeline-item.warning:before { background: #ffc107; }
+    
+    .member-progress {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- En-tête -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">
+                        <i class="fas fa-chart-bar me-2 text-primary"></i>
+                        {% trans "Statistiques familiales" %}
+                    </h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{% url 'family_management:dashboard' %}">{% trans "Familles" %}</a></li>
+                            <li class="breadcrumb-item"><a href="{% url 'family_management:family_detail' family.id %}">{{ family.family_name }}</a></li>
+                            <li class="breadcrumb-item active">{% trans "Statistiques" %}</li>
+                        </ol>
+                    </nav>
+                </div>
+                <div>
+                    <div class="dropdown me-2">
+                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-download me-2"></i>{% trans "Exporter" %}
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'family_management:export_family_data' family.id %}?format=pdf">
+                                <i class="fas fa-file-pdf me-2"></i>{% trans "Rapport PDF" %}
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'family_management:export_family_data' family.id %}?format=csv">
+                                <i class="fas fa-file-csv me-2"></i>{% trans "Données CSV" %}
+                            </a></li>
+                        </ul>
+                    </div>
+                    <a href="{% url 'family_management:family_detail' family.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistiques principales -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stat-card">
+                <div class="stat-number text-primary">{{ stats.total_members }}</div>
+                <div class="stat-label">{% trans "Membres totaux" %}</div>
+                <small class="text-muted">
+                    {{ stats.total_practitioners }} {% trans "pratiquants actifs" %}
+                </small>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stat-card success">
+                <div class="stat-number text-success">{{ stats.competitions_stats.total_competitions|default:0 }}</div>
+                <div class="stat-label">{% trans "Compétitions totales" %}</div>
+                <small class="text-muted">
+                    {{ stats.competitions_stats.this_year|default:0 }} {% trans "cette année" %}
+                </small>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stat-card warning">
+                <div class="stat-number text-warning">{{ stats.financial_stats.total_pending }}€</div>
+                <div class="stat-label">{% trans "Paiements en attente" %}</div>
+                <small class="text-muted">
+                    {{ stats.financial_stats.pending_count }} {% trans "groupes de paiement" %}
+                </small>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stat-card info">
+                <div class="stat-number text-info">{{ stats.recent_events }}</div>
+                <div class="stat-label">{% trans "Événements récents" %}</div>
+                <small class="text-muted">{% trans "30 derniers jours" %}</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Répartition par rôle -->
+        <div class="col-lg-6 mb-4">
+            <div class="chart-container">
+                <h5 class="mb-4">
+                    <i class="fas fa-users me-2"></i>
+                    {% trans "Répartition par rôle familial" %}
+                </h5>
+                
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span>{% trans "Parents/Tuteurs" %}</span>
+                        <span>{{ stats.total_parents }}</span>
+                    </div>
+                    <div class="progress-custom">
+                        <div class="progress-bar-custom bg-success" 
+                             style="width: {% widthratio stats.total_parents stats.total_members 100 %}%"></div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span>{% trans "Enfants" %}</span>
+                        <span>{{ stats.total_children }}</span>
+                    </div>
+                    <div class="progress-custom">
+                        <div class="progress-bar-custom bg-primary" 
+                             style="width: {% widthratio stats.total_children stats.total_members 100 %}%"></div>
+                    </div>
+                </div>
+                
+                {% comment %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span>{% trans "Autres" %}</span>
+                        <span>{{ stats.other_members|default:0 }}</span>
+                    </div>
+                    <div class="progress-custom">
+                        <div class="progress-bar-custom bg-info" 
+                             style="width: {% widthratio stats.other_members|default:0 stats.total_members 100 %}%"></div>
+                    </div>
+                </div>
+                {% endcomment %}
+            </div>
+        </div>
+
+        <!-- Évolution financière -->
+        <div class="col-lg-6 mb-4">
+            <div class="chart-container">
+                <h5 class="mb-4">
+                    <i class="fas fa-euro-sign me-2"></i>
+                    {% trans "Résumé financier" %}
+                </h5>
+                
+                <div class="row text-center mb-3">
+                    <div class="col-6">
+                        <h4 class="text-success mb-1">{{ stats.financial_stats.total_paid }}€</h4>
+                        <small class="text-muted">{% trans "Payé" %}</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-warning mb-1">{{ stats.financial_stats.total_pending }}€</h4>
+                        <small class="text-muted">{% trans "En attente" %}</small>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="text-center">
+                        <small class="text-muted">
+                            {% trans "Période:" %} {{ stats.financial_stats.period_start|date:"m/Y" }} - {{ stats.financial_stats.period_end|date:"m/Y" }}
+                        </small>
+                    </div>
+                </div>
+                
+                {% with total_amount=stats.financial_stats.total_paid|add:stats.financial_stats.total_pending %}
+                {% if total_amount > 0 %}
+                <div class="progress-custom" style="height: 20px;">
+                    <div class="progress-bar-custom bg-success" 
+                         style="width: {% widthratio stats.financial_stats.total_paid total_amount 100 %}%"></div>
+                    <div class="progress-bar-custom bg-warning" 
+                         style="width: {% widthratio stats.financial_stats.total_pending total_amount 100 %}%"></div>
+                </div>
+                {% endif %}
+                {% endwith %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Activité récente -->
+        <div class="col-lg-8 mb-4">
+            <div class="chart-container">
+                <h5 class="mb-4">
+                    <i class="fas fa-clock me-2"></i>
+                    {% trans "Activité récente" %}
+                </h5>
+                
+                <div class="timeline-item success">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{% trans "Famille créée" %}</h6>
+                            <small class="text-muted">{{ family.created_at|date:"d/m/Y à H:i" }}</small>
+                        </div>
+                        <span class="badge bg-success">{% trans "Système" %}</span>
+                    </div>
+                </div>
+                
+                {% if stats.competitions_stats.this_year > 0 %}
+                <div class="timeline-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{% trans "Compétitions cette année" %}</h6>
+                            <small class="text-muted">{{ stats.competitions_stats.this_year }} {% trans "inscriptions" %}</small>
+                        </div>
+                        <span class="badge bg-primary">{% trans "Compétition" %}</span>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if stats.financial_stats.payment_count > 0 %}
+                <div class="timeline-item warning">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{% trans "Paiements enregistrés" %}</h6>
+                            <small class="text-muted">{{ stats.financial_stats.payment_count }} {% trans "groupes de paiement" %}</small>
+                        </div>
+                        <span class="badge bg-warning">{% trans "Finance" %}</span>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if stats.recent_events > 0 %}
+                <div class="timeline-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{% trans "Événements récents" %}</h6>
+                            <small class="text-muted">{{ stats.recent_events }} {% trans "dans les 30 derniers jours" %}</small>
+                        </div>
+                        <span class="badge bg-info">{% trans "Événement" %}</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Membres et leur progression -->
+        <div class="col-lg-4 mb-4">
+            <div class="chart-container">
+                <h5 class="mb-4">
+                    <i class="fas fa-user-graduate me-2"></i>
+                    {% trans "Progression des membres" %}
+                </h5>
+                
+                <!-- Exemple de progression pour les pratiquants -->
+                {% comment %}
+                {% for member in family.get_all_members %}
+                    {% if member.practitioner %}
+                    <div class="member-progress">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>{{ member.get_display_name }}</strong>
+                            <span class="badge bg-primary">{{ member.practitioner.grade_display }}</span>
+                        </div>
+                        <small class="text-muted">
+                            {% if member.practitioner.primary_discipline %}
+                                {{ member.practitioner.primary_discipline.name }}
+                                <span class="mx-1">•</span>
+                            {% endif %}
+                            {{ member.practitioner.age }} ans
+                        </small>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+                {% endcomment %}
+                
+                <div class="text-center py-4">
+                    <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                    <h6 class="text-muted">{% trans "Progression détaillée" %}</h6>
+                    <p class="text-muted small">
+                        {% trans "Les données de progression seront disponibles avec l'intégration complète du module grades." %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Résumé et actions -->
+    <div class="row">
+        <div class="col-12">
+            <div class="chart-container">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h5 class="mb-2">
+                            <i class="fas fa-lightbulb me-2 text-warning"></i>
+                            {% trans "Recommandations" %}
+                        </h5>
+                        <ul class="list-unstyled mb-0">
+                            {% if stats.financial_stats.pending_count > 0 %}
+                            <li class="mb-2">
+                                <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                                {% blocktrans with count=stats.financial_stats.pending_count %}
+                                Vous avez {{ count }} paiement(s) en attente qui nécessite(nt) votre attention.
+                                {% endblocktrans %}
+                            </li>
+                            {% endif %}
+                            
+                            {% if stats.total_practitioners > 0 and stats.competitions_stats.this_year == 0 %}
+                            <li class="mb-2">
+                                <i class="fas fa-trophy text-info me-2"></i>
+                                {% trans "Aucune compétition cette année. Consultez les compétitions disponibles pour vos pratiquants." %}
+                            </li>
+                            {% endif %}
+                            
+                            {% if stats.recent_events == 0 %}
+                            <li class="mb-2">
+                                <i class="fas fa-calendar-plus text-success me-2"></i>
+                                {% trans "Créez des événements familiaux pour améliorer la cohésion et planifier vos activités." %}
+                            </li>
+                            {% endif %}
+                            
+                            {% if stats.total_members <= 2 %}
+                            <li class="mb-2">
+                                <i class="fas fa-users text-primary me-2"></i>
+                                {% trans "Invitez d'autres membres de votre famille à rejoindre MartialComp pour une gestion centralisée." %}
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <a href="{% url 'family_management:group_registration' family.id %}" class="btn btn-primary mb-2 w-100">
+                            <i class="fas fa-users-cog me-2"></i>{% trans "Inscriptions groupées" %}
+                        </a>
+                        <a href="{% url 'family_management:payment_center' family.id %}" class="btn btn-outline-warning w-100">
+                            <i class="fas fa-euro-sign me-2"></i>{% trans "Gérer les paiements" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Animation des barres de progression
+    setTimeout(function() {
+        const progressBars = document.querySelectorAll('.progress-bar-custom');
+        progressBars.forEach(bar => {
+            const width = bar.style.width;
+            bar.style.width = '0%';
+            setTimeout(() => {
+                bar.style.width = width;
+            }, 100);
+        });
+    }, 500);
+    
+    // Animation des compteurs
+    const statNumbers = document.querySelectorAll('.stat-number');
+    statNumbers.forEach(stat => {
+        const target = parseInt(stat.textContent);
+        let current = 0;
+        const increment = target / 50;
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= target) {
+                current = target;
+                clearInterval(timer);
+            }
+            stat.textContent = Math.floor(current);
+        }, 40);
+    });
+});
+</script>
+{% endblock %}

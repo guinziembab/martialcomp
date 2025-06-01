@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }} - {{ federation.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">{{ title }}</h1>
+        <a href="{% url 'competitions:federations:create_certification' federation.id %}" class="btn btn-success">
+            <i class="fas fa-plus-circle me-2"></i>{% trans "Ajouter une certification" %}
+        </a>
+    </div>
+
+    {% include "competitions/federations/tabs.html" with active="certifications" %}
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Filtres -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Filtres" %}</h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label for="status" class="form-label">{% trans "Statut" %}</label>
+                    <select name="status" id="status" class="form-select">
+                        <option value="">{% trans "Tous" %}</option>
+                        <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>{% trans "Actives" %}</option>
+                        <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>{% trans "Inactives" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="discipline" class="form-label">{% trans "Discipline" %}</label>
+                    <select name="discipline" id="discipline" class="form-select">
+                        <option value="">{% trans "Toutes" %}</option>
+                        {% for discipline in disciplines %}
+                            <option value="{{ discipline.id }}" {% if request.GET.discipline == discipline.id|stringformat:'i' %}selected{% endif %}>{{ discipline.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary">{% trans "Filtrer" %}</button>
+                    <a href="{% url 'competitions:federations:certifications' federation.id %}" class="btn btn-outline-secondary ms-2">{% trans "Réinitialiser" %}</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Statistiques -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                {% trans "Total des certifications" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.total_certifications }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-certificate fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                {% trans "Certifications actives" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.active_certifications }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                {% trans "Certifications inactives" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.inactive_certifications }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-ban fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Liste des certifications -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Liste des certifications" %}</h6>
+        </div>
+        <div class="card-body">
+            {% if certifications %}
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Titre" %}</th>
+                                <th>{% trans "Discipline" %}</th>
+                                <th>{% trans "Niveau" %}</th>
+                                <th>{% trans "Validité (mois)" %}</th>
+                                <th>{% trans "Statut" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for certification in certifications %}
+                                <tr>
+                                    <td>{{ certification.title }}</td>
+                                    <td>{{ certification.discipline.name }}</td>
+                                    <td>{{ certification.get_level_display }}</td>
+                                    <td>{{ certification.validity_period }}</td>
+                                    <td>
+                                        {% if certification.is_active %}
+                                            <span class="badge bg-success">{% trans "Active" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{% trans "Inactive" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'competitions:federations:certification_registrations' federation.id certification.id %}" class="btn btn-info btn-sm">
+                                                <i class="fas fa-users"></i>
+                                            </a>
+                                            <a href="{% url 'competitions:federations:edit_certification' federation.id certification.id %}" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'competitions:federations:delete_certification' federation.id certification.id %}" class="btn btn-danger btn-sm">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info" role="alert">
+                    {% trans "Aucune certification trouvée." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

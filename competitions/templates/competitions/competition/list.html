@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Liste des compétitions" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card {
+        height: 100%;
+        transition: transform 0.2s;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .card-header {
+        background-color: white;
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+    .card-body {
+        padding-top: 0.5rem;
+    }
+    .badge-status {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-weight: normal;
+    }
+    .discipline-badge {
+        font-size: 0.85rem;
+        padding: 0.35rem 0.65rem;
+        border-radius: 50rem;
+    }
+    .date-badge {
+        display: flex;
+        align-items: center;
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+    .action-buttons .btn {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+        border-radius: 0.25rem;
+    }
+    .filter-btn {
+        margin: 0.25rem;
+        white-space: nowrap;
+    }
+    .filter-container {
+        overflow-x: auto;
+        padding: 0.5rem 0;
+        scrollbar-width: thin;
+    }
+    .filter-container::-webkit-scrollbar {
+        height: 5px;
+    }
+    .filter-container::-webkit-scrollbar-thumb {
+        background-color: rgba(0,0,0,0.2);
+        border-radius: 10px;
+    }
+    .create-btn {
+        white-space: nowrap;
+    }
+    @media (max-width: 768px) {
+        .action-buttons {
+            flex-wrap: wrap;
+        }
+        .page-header {
+            flex-direction: column;
+            align-items: start !important;
+        }
+        .create-btn {
+            margin-top: 1rem;
+            align-self: stretch;
+        }
+        .filter-container {
+            padding-bottom: 0.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header avec titre et bouton créer -->
+    <div class="d-flex justify-content-between align-items-center mb-4 page-header">
+        <h1 class="mb-0">{% trans "Liste des compétitions" %}</h1>
+        {% if perms.competitions.add_competition %}
+        <a href="{% url 'competitions:competitions:create' %}" class="btn btn-primary create-btn">
+            <i class="fas fa-plus-circle me-1"></i> {% trans "Créer une compétition" %}
+        </a>
+        {% endif %}
+    </div>
+    
+    {% if messages %}
+    <div class="messages mb-4">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <!-- Filtres par discipline -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="mb-2">{% trans "Filtrer par discipline" %}</h5>
+            <div class="filter-container">
+                <div class="d-flex">
+                    <a href="{% url 'competitions:competitions:list' %}" class="btn {% if not selected_discipline %}btn-primary{% else %}btn-outline-primary{% endif %} filter-btn">
+                        {% trans "Toutes les disciplines" %}
+                    </a>
+                    {% for discipline in disciplines %}
+                    <a href="{% url 'competitions:competitions:list' %}?discipline={{ discipline.id }}" 
+                       class="btn {% if selected_discipline.id == discipline.id %}btn-primary{% else %}btn-outline-primary{% endif %} filter-btn">
+                        {{ discipline.name }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Liste des compétitions -->
+    {% if competitions %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% for competition in competitions %}
+        <div class="col">
+            <div class="card h-100">
+                <div class="card-header pt-3">
+                    <span class="badge bg-{{ competition.status|default:'info' }} badge-status">
+                        {{ competition.get_status_display }}
+                    </span>
+                    <h5 class="card-title">{{ competition.title }}</h5>
+                    <div class="date-badge">
+                        <i class="far fa-calendar-alt me-1"></i>
+                        {{ competition.start_date|date:"d/m/Y" }}
+                        {% if competition.end_date != competition.start_date %}
+                        - {{ competition.end_date|date:"d/m/Y" }}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <!-- Discipline -->
+                    {% if competition.discipline %}
+                    <div class="mb-2">
+                        <span class="badge bg-primary discipline-badge">{{ competition.discipline.name }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Adresse -->
+                    {% if competition.address %}
+                    <div class="mb-2 small text-muted">
+                        <i class="fas fa-map-marker-alt me-1"></i> {{ competition.address|truncatechars:50 }}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Description -->
+                    {% if competition.description %}
+                    <p class="card-text flex-grow-1">{{ competition.description|truncatechars:100 }}</p>
+                    {% else %}
+                    <p class="card-text flex-grow-1 text-muted fst-italic">{% trans "Aucune description disponible" %}</p>
+                    {% endif %}
+                    
+                    <!-- Boutons d'action -->
+                    <div class="action-buttons mt-auto">
+                        <a href="{% url 'competitions:competitions:detail' pk=competition.pk %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-eye me-1"></i> {% trans "Détails" %}
+                        </a>
+                        {% if perms.competitions.change_competition or user == competition.owner %}
+                        <a href="{% url 'competitions:competitions:update' pk=competition.pk %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-edit me-1"></i> {% trans "Modifier" %}
+                        </a>
+                        {% endif %}
+                        {% if perms.competitions.delete_competition or user == competition.owner %}
+                        <a href="{% url 'competitions:competitions:delete' pk=competition.pk %}" class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-trash me-1"></i> {% trans "Supprimer" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i> 
+        {% if selected_discipline %}
+        {% trans "Aucune compétition n'est disponible pour la discipline" %} {{ selected_discipline.name }}.
+        {% else %}
+        {% trans "Aucune compétition n'est disponible pour le moment." %}
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

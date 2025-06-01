@@ -1,0 +1,314 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block dashboard_content %}
+<div class="page-header">
+    <h1 class="page-title">{% trans "Cotisations et Paiements" %}</h1>
+    <p class="page-subtitle">{% trans "Gérez vos adhésions et suivez vos paiements" %}</p>
+</div>
+
+<!-- État actuel de l'adhésion -->
+<div class="row">
+    <div class="col-lg-8">
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "État de l'adhésion" %}</h3>
+            </div>
+            <div class="card-body">
+                {% if current_membership %}
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="membership-status text-center p-4">
+                            <div class="status-icon mb-3">
+                                {% if membership_status == 'active' %}
+                                    <i class="fas fa-check-circle text-success fa-4x"></i>
+                                {% elif membership_status == 'expiring' %}
+                                    <i class="fas fa-exclamation-circle text-warning fa-4x"></i>
+                                {% else %}
+                                    <i class="fas fa-times-circle text-danger fa-4x"></i>
+                                {% endif %}
+                            </div>
+                            <h4>
+                                {% if membership_status == 'active' %}
+                                    {% trans "Adhésion active" %}
+                                {% elif membership_status == 'expiring' %}
+                                    {% trans "Adhésion à renouveler" %}
+                                {% else %}
+                                    {% trans "Adhésion expirée" %}
+                                {% endif %}
+                            </h4>
+                            <p class="text-muted">
+                                {% if days_remaining > 0 %}
+                                    {{ days_remaining }} {% trans "jours restants" %}
+                                {% else %}
+                                    {% trans "Expirée depuis" %} {{ days_remaining|abs }} {% trans "jours" %}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tr>
+                                <th>{% trans "Type d'adhésion" %} :</th>
+                                <td>{{ current_membership.membership_type }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Organisation" %} :</th>
+                                <td>{{ current_membership.organization.name }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Date de début" %} :</th>
+                                <td>{{ current_membership.start_date|date:"d/m/Y" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Date de fin" %} :</th>
+                                <td>{{ current_membership.end_date|date:"d/m/Y" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Montant" %} :</th>
+                                <td>{{ current_membership.amount }} €</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="progress mt-4" style="height: 30px;">
+                    {% widthratio days_remaining 365 100 as progress_percentage %}
+                    <div class="progress-bar 
+                        {% if membership_status == 'active' %}bg-success{% elif membership_status == 'expiring' %}bg-warning{% else %}bg-danger{% endif %}" 
+                        role="progressbar" 
+                        style="width: {% if progress_percentage < 0 %}0{% else %}{{ progress_percentage }}{% endif %}%"
+                        aria-valuenow="{{ progress_percentage }}" 
+                        aria-valuemin="0" 
+                        aria-valuemax="100">
+                        {% if days_remaining > 0 %}
+                            {{ days_remaining }} {% trans "jours restants" %}
+                        {% else %}
+                            {% trans "Expirée" %}
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if membership_status != 'active' %}
+                <div class="text-center mt-4">
+                    <button class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i> {% trans "Renouveler l'adhésion" %}
+                    </button>
+                </div>
+                {% endif %}
+                
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-exclamation-triangle fa-4x text-warning mb-3"></i>
+                    <h4>{% trans "Aucune adhésion active" %}</h4>
+                    <p class="text-muted">{% trans "Vous n'avez actuellement aucune adhésion active." %}</p>
+                    <button class="btn btn-primary mt-3">
+                        <i class="fas fa-plus"></i> {% trans "Souscrire une adhésion" %}
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Historique des adhésions -->
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "Historique des adhésions" %}</h3>
+            </div>
+            <div class="card-body">
+                {% if memberships %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Période" %}</th>
+                                <th>{% trans "Type" %}</th>
+                                <th>{% trans "Organisation" %}</th>
+                                <th>{% trans "Montant" %}</th>
+                                <th>{% trans "Statut" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for membership in memberships %}
+                            <tr>
+                                <td>
+                                    {{ membership.start_date|date:"d/m/Y" }} - {{ membership.end_date|date:"d/m/Y" }}
+                                </td>
+                                <td>{{ membership.membership_type }}</td>
+                                <td>{{ membership.organization.name }}</td>
+                                <td>{{ membership.amount }} €</td>
+                                <td>
+                                    {% if membership.is_active %}
+                                        <span class="badge badge-success">{% trans "Active" %}</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary">{% trans "Expirée" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" title="{% trans 'Télécharger la facture' %}">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-4">{% trans "Aucun historique d'adhésion disponible" %}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Informations de paiement -->
+    <div class="col-lg-4">
+        <!-- Prochaine échéance -->
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "Prochaine échéance" %}</h3>
+            </div>
+            <div class="card-body">
+                {% if current_membership and membership_status == 'expiring' %}
+                <div class="text-center">
+                    <i class="fas fa-calendar-alt fa-3x text-warning mb-3"></i>
+                    <h4>{{ current_membership.end_date|date:"d/m/Y" }}</h4>
+                    <p class="text-muted">{{ days_remaining }} {% trans "jours restants" %}</p>
+                    <button class="btn btn-warning btn-block">
+                        {% trans "Renouveler maintenant" %}
+                    </button>
+                </div>
+                {% elif not current_membership or membership_status == 'expired' %}
+                <div class="text-center">
+                    <i class="fas fa-exclamation-circle fa-3x text-danger mb-3"></i>
+                    <p>{% trans "Votre adhésion a expiré ou vous n'avez pas d'adhésion active." %}</p>
+                    <button class="btn btn-danger btn-block">
+                        {% trans "Souscrire une adhésion" %}
+                    </button>
+                </div>
+                {% else %}
+                <div class="text-center">
+                    <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                    <p>{% trans "Votre adhésion est à jour" %}</p>
+                    <small class="text-muted">
+                        {% trans "Prochain renouvellement" %} : {{ current_membership.end_date|date:"d/m/Y" }}
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Moyens de paiement -->
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "Moyens de paiement" %}</h3>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li class="mb-2">
+                        <i class="fas fa-credit-card text-primary"></i> {% trans "Carte bancaire" %}
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-money-check text-info"></i> {% trans "Virement bancaire" %}
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-money-bill-wave text-success"></i> {% trans "Espèces" %}
+                    </li>
+                    <li>
+                        <i class="fas fa-check text-secondary"></i> {% trans "Chèque" %}
+                    </li>
+                </ul>
+                <button class="btn btn-outline-primary btn-block mt-3">
+                    <i class="fas fa-plus"></i> {% trans "Ajouter un moyen de paiement" %}
+                </button>
+            </div>
+        </div>
+
+        <!-- Récapitulatif financier -->
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "Récapitulatif financier" %}</h3>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm table-borderless">
+                    <tr>
+                        <td>{% trans "Total payé cette année" %} :</td>
+                        <td class="text-right"><strong>{{ total_paid_this_year|default:"0" }} €</strong></td>
+                    </tr>
+                    <tr>
+                        <td>{% trans "Paiements en attente" %} :</td>
+                        <td class="text-right"><strong>{{ pending_payments|default:"0" }} €</strong></td>
+                    </tr>
+                    <tr>
+                        <td>{% trans "Derniers 12 mois" %} :</td>
+                        <td class="text-right"><strong>{{ last_12_months_total|default:"0" }} €</strong></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Graphique des paiements -->
+<div class="dashboard-card">
+    <div class="card-header">
+        <h3>{% trans "Évolution des paiements" %}</h3>
+    </div>
+    <div class="card-body">
+        <canvas id="paymentsChart" height="100"></canvas>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Graphique des paiements
+    const ctx = document.getElementById('paymentsChart').getContext('2d');
+    
+    // Données simulées pour le graphique (à remplacer par de vraies données)
+    const months = ['{% trans "Jan" %}', '{% trans "Fév" %}', '{% trans "Mar" %}', '{% trans "Avr" %}', 
+                   '{% trans "Mai" %}', '{% trans "Juin" %}', '{% trans "Juil" %}', '{% trans "Août" %}', 
+                   '{% trans "Sep" %}', '{% trans "Oct" %}', '{% trans "Nov" %}', '{% trans "Déc" %}'];
+    
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: months,
+            datasets: [{
+                label: '{% trans "Montant payé (€)" %}',
+                data: [0, 0, 50, 0, 0, 0, 50, 0, 0, 0, 50, 0], // Données simulées
+                backgroundColor: 'rgba(0, 123, 255, 0.7)',
+                borderColor: 'rgba(0, 123, 255, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value + ' €';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                title: {
+                    display: true,
+                    text: '{% trans "Paiements mensuels" %}'
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,698 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Gestion des Grades" %} | {{ club.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Variables CSS pour cohérence */
+    :root {
+        --primary-color: #dc3545;
+        --secondary-color: #6c757d;
+        --success-color: #198754;
+        --info-color: #0dcaf0;
+        --warning-color: #ffc107;
+        --danger-color: #dc3545;
+        --light-color: #f8f9fa;
+        --dark-color: #212529;
+        --border-radius: 0.5rem;
+        --box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        --transition: all 0.3s ease;
+    }
+
+    /* Amélioration générale de la mise en page */
+    .dashboard-container {
+        padding: 1rem;
+        min-height: 100vh;
+        background-color: #f5f6fa;
+    }
+
+    @media (min-width: 768px) {
+        .dashboard-container {
+            padding: 2rem;
+        }
+    }
+
+    /* Header responsive */
+    .dashboard-header {
+        background: linear-gradient(135deg, var(--primary-color), #ff4757);
+        color: white;
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--box-shadow);
+    }
+
+    .dashboard-header h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    @media (min-width: 768px) {
+        .dashboard-header h1 {
+            font-size: 2rem;
+        }
+    }
+
+    .dashboard-header .subtitle {
+        opacity: 0.9;
+        font-size: 0.9rem;
+    }
+
+    /* Cards responsives */
+    .dashboard-card {
+        background: white;
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow);
+        border: none;
+        transition: var(--transition);
+        margin-bottom: 1.5rem;
+    }
+
+    .dashboard-card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+    }
+
+    /* Filtres compacts */
+    .filter-section {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: 1rem;
+        box-shadow: var(--box-shadow);
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 767px) {
+        .filter-section .col-md-4 {
+            margin-bottom: 1rem;
+        }
+    }
+
+    /* Tables responsives améliorées */
+    .responsive-table {
+        background: white;
+        border-radius: var(--border-radius);
+        overflow: hidden;
+        box-shadow: var(--box-shadow);
+    }
+
+    .table-mobile-friendly {
+        font-size: 0.9rem;
+    }
+
+    @media (max-width: 767px) {
+        .table-mobile-friendly {
+            font-size: 0.8rem;
+        }
+        
+        .table-mobile-friendly th:nth-child(3),
+        .table-mobile-friendly td:nth-child(3) {
+            display: none; /* Masquer colonne disciplines sur mobile */
+        }
+        
+        .mobile-info {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--secondary-color);
+        }
+        
+        .desktop-info {
+            display: none;
+        }
+    }
+
+    @media (min-width: 768px) {
+        .mobile-info {
+            display: none;
+        }
+        
+        .desktop-info {
+            display: block;
+        }
+    }
+
+    /* Badges de grade améliorés */
+    .grade-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        border-radius: var(--border-radius);
+        background-color: var(--light-color);
+        color: var(--dark-color);
+        margin-right: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .grade-circle {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        flex-shrink: 0;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    /* Couleurs des grades */
+    .grade-white { background-color: #FFFFFF; }
+    .grade-yellow { background-color: #FFFF00; }
+    .grade-orange { background-color: #FFA500; }
+    .grade-green { background-color: #008000; }
+    .grade-blue { background-color: #0000FF; }
+    .grade-brown { background-color: #A52A2A; }
+    .grade-black { background-color: #000000; }
+    .grade-red { background-color: #FF0000; }
+    .grade-purple { background-color: #800080; }
+
+    /* Boutons d'action responsive */
+    .action-buttons {
+        display: flex;
+        gap: 0.25rem;
+        flex-wrap: wrap;
+    }
+
+    .action-btn {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--border-radius);
+        transition: var(--transition);
+    }
+
+    @media (max-width: 767px) {
+        .action-btn {
+            width: 28px;
+            height: 28px;
+            font-size: 0.75rem;
+        }
+    }
+
+    /* Barre de sélection par lot améliorée */
+    .batch-update-bar {
+        background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+        border: 1px solid #90caf9;
+        border-radius: var(--border-radius);
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        display: none;
+    }
+
+    .batch-update-bar.show {
+        display: block;
+        animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Pagination responsive */
+    .pagination {
+        justify-content: center;
+        margin-bottom: 0;
+    }
+
+    @media (max-width: 767px) {
+        .pagination .page-item:not(.active):not(:first-child):not(:last-child) {
+            display: none;
+        }
+    }
+
+    /* États et animations */
+    .loading {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+
+    .fade-in {
+        animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    /* Messages d'alerte responsifs */
+    .alert {
+        border-radius: var(--border-radius);
+        margin-bottom: 1rem;
+    }
+
+    /* Amélioration de l'accessibilité */
+    .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        border: 0;
+    }
+
+    /* Focus visible pour accessibilité */
+    button:focus-visible,
+    .btn:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+
+    /* Toolbar responsive */
+    .dashboard-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+    }
+
+    @media (max-width: 767px) {
+        .dashboard-toolbar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .dashboard-toolbar > * {
+            margin-bottom: 0.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Header responsive -->
+    <div class="dashboard-header">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center">
+            <div>
+                <h1 class="mb-1">
+                    <i class="fas fa-award me-2"></i>
+                    {% trans "Gestion des Grades" %}
+                </h1>
+                <p class="subtitle mb-0">
+                    <i class="fas fa-building me-1"></i>
+                    {{ club.name|default:"Club" }}
+                </p>
+            </div>
+            <div class="mt-2 mt-md-0">
+                <span class="badge bg-light text-dark fs-6">
+                    {% if practitioners.paginator %}
+                        {{ practitioners.paginator.count }} {% trans "pratiquants" %}
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                <i class="fas fa-info-circle me-2"></i>
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Filtres compacts -->
+    <div class="filter-section">
+        <h6 class="text-muted mb-3">
+            <i class="fas fa-filter me-2"></i>
+            {% trans "Filtres et recherche" %}
+        </h6>
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="discipline" class="form-label small">{% trans "Discipline" %}</label>
+                <select id="discipline" name="discipline" class="form-select form-select-sm">
+                    <option value="">{% trans "Toutes" %}</option>
+                    {% for discipline in disciplines %}
+                        <option value="{{ discipline.id }}" {% if discipline.id|stringformat:"s" == selected_discipline %}selected{% endif %}>
+                            {{ discipline.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="grade_status" class="form-label small">{% trans "Statut" %}</label>
+                <select id="grade_status" name="grade_status" class="form-select form-select-sm">
+                    <option value="">{% trans "Tous" %}</option>
+                    <option value="with_grade" {% if selected_grade_status == 'with_grade' %}selected{% endif %}>
+                        {% trans "Avec grade" %}
+                    </option>
+                    <option value="without_grade" {% if selected_grade_status == 'without_grade' %}selected{% endif %}>
+                        {% trans "Sans grade" %}
+                    </option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="q" class="form-label small">{% trans "Recherche" %}</label>
+                <div class="input-group input-group-sm">
+                    <input type="text" class="form-control" id="q" name="q" 
+                           placeholder="{% trans 'Nom...' %}" value="{{ search_query|default:'' }}">
+                    <button class="btn btn-outline-primary" type="submit">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="dashboard-toolbar">
+        <div>
+            <button type="button" class="btn btn-outline-primary btn-sm me-2" id="toggleBatchSelection">
+                <i class="fas fa-check-square me-1"></i>
+                <span class="d-none d-md-inline">{% trans "Sélection" %}</span>
+                <span class="d-md-none">{% trans "Multi" %}</span>
+            </button>
+            <a href="{% url 'competitions:club:grade_systems_management' %}" 
+               class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-cog me-1"></i>
+                <span class="d-none d-md-inline">{% trans "Systèmes" %}</span>
+                <span class="d-md-none">{% trans "Config" %}</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Barre de sélection par lot -->
+    <div class="batch-update-bar" id="batchUpdateBar">
+        <form method="post" action="{% url 'competitions:club:batch_update_grades' %}" id="batchUpdateForm">
+            {% csrf_token %}
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-4">
+                    <small class="text-muted">
+                        <span id="selectedCount" class="fw-bold">0</span> {% trans "sélectionnés" %}
+                    </small>
+                </div>
+                <div class="col-6 col-md-3">
+                    <select name="discipline" class="form-select form-select-sm" id="batchDiscipline">
+                        <option value="">{% trans "Discipline" %}</option>
+                        {% for discipline in disciplines %}
+                            <option value="{{ discipline.id }}">{{ discipline.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-md-3">
+                    <select name="grade" class="form-select form-select-sm" id="batchGrade">
+                        <option value="">{% trans "Grade" %}</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-2">
+                    <button type="submit" class="btn btn-danger btn-sm w-100" id="batchUpdateButton" disabled>
+                        <i class="fas fa-save me-1"></i>
+                        {% trans "Mettre à jour" %}
+                    </button>
+                </div>
+            </div>
+            <div id="selectedPractitioners"></div>
+        </form>
+    </div>
+
+    <!-- Table responsive -->
+    <div class="responsive-table">
+        <div class="table-responsive">
+            <table class="table table-hover table-mobile-friendly mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="batch-selection-column d-none" style="width: 40px;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="selectAllPractitioners">
+                                <span class="sr-only">{% trans "Sélectionner tout" %}</span>
+                            </div>
+                        </th>
+                        <th>{% trans "Pratiquant" %}</th>
+                        <th class="d-none d-md-table-cell">{% trans "Disciplines" %}</th>
+                        <th>{% trans "Grade" %}</th>
+                        <th style="width: 100px;">{% trans "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for practitioner in practitioners %}
+                        <tr>
+                            <td class="batch-selection-column d-none">
+                                <div class="form-check">
+                                    <input class="form-check-input practitioner-checkbox" 
+                                           type="checkbox" 
+                                           name="practitioners" 
+                                           value="{{ practitioner.id }}"
+                                           aria-label="{% trans 'Sélectionner' %} {{ practitioner.full_name }}">
+                                </div>
+                            </td>
+                            <td>
+                                <div>
+                                    <a href="{% url 'competitions:club:practitioner_detail' pk=practitioner.id %}" 
+                                       class="text-decoration-none fw-semibold">
+                                        {{ practitioner.last_name }}, {{ practitioner.first_name }}
+                                    </a>
+                                    <div class="small text-muted">
+                                        {% if practitioner.age %}{{ practitioner.age }} ans{% endif %}
+                                        <span class="mobile-info d-md-none">
+                                            {% for discipline in practitioner.disciplines.all %}
+                                                <span class="badge bg-info badge-sm">{{ discipline.name }}</span>
+                                            {% endfor %}
+                                        </span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="desktop-info">
+                                {% for discipline in practitioner.disciplines.all %}
+                                    <span class="badge bg-info me-1">{{ discipline.name }}</span>
+                                {% empty %}
+                                    <span class="text-muted small">{% trans "Aucune" %}</span>
+                                {% endfor %}
+                            </td>
+                            <td>
+                                {% if practitioner.grade %}
+                                    <div class="grade-badge">
+                                        {% if "Blanche" in practitioner.grade %}
+                                            <span class="grade-circle grade-white"></span>
+                                        {% elif "Jaune" in practitioner.grade %}
+                                            <span class="grade-circle grade-yellow"></span>
+                                        {% elif "Orange" in practitioner.grade %}
+                                            <span class="grade-circle grade-orange"></span>
+                                        {% elif "Verte" in practitioner.grade %}
+                                            <span class="grade-circle grade-green"></span>
+                                        {% elif "Bleue" in practitioner.grade %}
+                                            <span class="grade-circle grade-blue"></span>
+                                        {% elif "Marron" in practitioner.grade %}
+                                            <span class="grade-circle grade-brown"></span>
+                                        {% elif "Noire" in practitioner.grade %}
+                                            <span class="grade-circle grade-black"></span>
+                                        {% elif "Rouge" in practitioner.grade %}
+                                            <span class="grade-circle grade-red"></span>
+                                        {% else %}
+                                            <span class="grade-circle"></span>
+                                        {% endif %}
+                                        <span class="d-none d-md-inline">{{ practitioner.grade }}</span>
+                                        <span class="d-md-none">{{ practitioner.grade|truncatechars:10 }}</span>
+                                    </div>
+                                {% else %}
+                                    <span class="badge bg-light text-muted">{% trans "Non défini" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="action-buttons">
+                                    <a href="{% url 'competitions:club:update_practitioner_grade' practitioner_id=practitioner.id %}" 
+                                       class="btn btn-outline-primary btn-sm action-btn" 
+                                       title="{% trans 'Modifier grade' %}"
+                                       aria-label="{% trans 'Modifier grade de' %} {{ practitioner.full_name }}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'competitions:club:practitioner_grade_history' practitioner_id=practitioner.id %}" 
+                                       class="btn btn-outline-info btn-sm action-btn"
+                                       title="{% trans 'Historique' %}"
+                                       aria-label="{% trans 'Historique de' %} {{ practitioner.full_name }}">
+                                        <i class="fas fa-history"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center py-4">
+                                <div class="text-muted">
+                                    <i class="fas fa-info-circle fa-2x mb-3 d-block"></i>
+                                    <p class="mb-0">{% trans "Aucun pratiquant trouvé." %}</p>
+                                    <small>{% trans "Modifiez vos filtres pour voir plus de résultats." %}</small>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if is_paginated %}
+            <div class="border-top p-3">
+                <nav aria-label="{% trans 'Pagination' %}">
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if practitioners.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade_status %}&grade_status={{ selected_grade_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" 
+                                   aria-label="{% trans 'Première page' %}">
+                                    <i class="fas fa-angle-double-left"></i>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ practitioners.previous_page_number }}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade_status %}&grade_status={{ selected_grade_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" 
+                                   aria-label="{% trans 'Page précédente' %}">
+                                    <i class="fas fa-angle-left"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        <li class="page-item active">
+                            <span class="page-link">
+                                {{ practitioners.number }} / {{ practitioners.paginator.num_pages }}
+                            </span>
+                        </li>
+                        
+                        {% if practitioners.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ practitioners.next_page_number }}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade_status %}&grade_status={{ selected_grade_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" 
+                                   aria-label="{% trans 'Page suivante' %}">
+                                    <i class="fas fa-angle-right"></i>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ practitioners.paginator.num_pages }}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade_status %}&grade_status={{ selected_grade_status }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}" 
+                                   aria-label="{% trans 'Dernière page' %}">
+                                    <i class="fas fa-angle-double-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Variables
+    const toggleBatchBtn = document.getElementById('toggleBatchSelection');
+    const batchColumns = document.querySelectorAll('.batch-selection-column');
+    const batchUpdateBar = document.getElementById('batchUpdateBar');
+    const selectAllCheckbox = document.getElementById('selectAllPractitioners');
+    const practitionerCheckboxes = document.querySelectorAll('.practitioner-checkbox');
+    const selectedContainer = document.getElementById('selectedPractitioners');
+    const selectedCount = document.getElementById('selectedCount');
+    const batchUpdateBtn = document.getElementById('batchUpdateButton');
+    const batchDiscipline = document.getElementById('batchDiscipline');
+    const batchGrade = document.getElementById('batchGrade');
+    
+    // Fonction de mise à jour de l'interface
+    function updateSelectionUI() {
+        const checked = document.querySelectorAll('.practitioner-checkbox:checked');
+        const count = checked.length;
+        
+        selectedCount.textContent = count;
+        batchUpdateBtn.disabled = count === 0 || !batchGrade.value;
+        
+        // Mettre à jour les champs cachés
+        selectedContainer.innerHTML = '';
+        checked.forEach(checkbox => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'practitioners';
+            input.value = checkbox.value;
+            selectedContainer.appendChild(input);
+        });
+    }
+    
+    // Toggle sélection par lot
+    if (toggleBatchBtn) {
+        toggleBatchBtn.addEventListener('click', function() {
+            const isActive = this.classList.contains('active');
+            
+            if (isActive) {
+                this.classList.remove('active');
+                batchColumns.forEach(col => col.classList.add('d-none'));
+                batchUpdateBar.classList.remove('show');
+                selectAllCheckbox.checked = false;
+                practitionerCheckboxes.forEach(cb => cb.checked = false);
+            } else {
+                this.classList.add('active');
+                batchColumns.forEach(col => col.classList.remove('d-none'));
+                batchUpdateBar.classList.add('show');
+            }
+            
+            updateSelectionUI();
+        });
+    }
+    
+    // Sélectionner tout
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            practitionerCheckboxes.forEach(cb => cb.checked = this.checked);
+            updateSelectionUI();
+        });
+    }
+    
+    // Écouter les checkboxes individuelles
+    practitionerCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectionUI);
+    });
+    
+    // Charger les grades par discipline
+    if (batchDiscipline) {
+        batchDiscipline.addEventListener('change', function() {
+            const disciplineId = this.value;
+            batchGrade.innerHTML = '<option value="">{% trans "Grade" %}</option>';
+            
+            if (disciplineId) {
+                batchGrade.innerHTML += '<option value="" disabled>{% trans "Chargement..." %}</option>';
+                
+                fetch(`{% url 'competitions:club:api_get_discipline_grades' discipline_id=0 %}`.replace('0', disciplineId))
+                    .then(response => response.json())
+                    .then(data => {
+                        batchGrade.innerHTML = '<option value="">{% trans "Grade" %}</option>';
+                        data.grades.forEach(grade => {
+                            const option = new Option(grade.name, grade.name);
+                            batchGrade.appendChild(option);
+                        });
+                        updateSelectionUI();
+                    })
+                    .catch(error => {
+                        console.error('Erreur:', error);
+                        batchGrade.innerHTML = '<option value="">{% trans "Erreur" %}</option>';
+                    });
+            }
+            updateSelectionUI();
+        });
+    }
+    
+    // Écouter les changements de grade
+    if (batchGrade) {
+        batchGrade.addEventListener('change', updateSelectionUI);
+    }
+    
+    // Animation des cartes au chargement
+    const cards = document.querySelectorAll('.dashboard-card, .filter-section, .responsive-table');
+    cards.forEach((card, index) => {
+        setTimeout(() => {
+            card.classList.add('fade-in');
+        }, index * 100);
+    });
+    
+    // Initialiser
+    updateSelectionUI();
+});
+</script>
+{% endblock %}

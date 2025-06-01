@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .profile-container {
+        background-color: #f8f9fa;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .profile-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    .profile-img-placeholder {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        margin: 0 auto 1rem;
+        background-color: #6c757d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .validation-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        font-weight: bold;
+        display: inline-block;
+        margin-top: 1rem;
+    }
+    
+    .validation-badge.validated {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .validation-badge.not-validated {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+    
+    .verification-info {
+        background-color: #e2f3ff;
+        border-left: 5px solid #0d6efd;
+        padding: 1rem;
+        margin-top: 2rem;
+    }
+    
+    .info-section {
+        margin-bottom: 1.5rem;
+    }
+    
+    .info-card {
+        height: 100%;
+    }
+    
+    @media print {
+        .no-print {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="text-center">{% trans "Profil Hors-ligne" %}</h1>
+            
+            <div class="verification-info">
+                <h5><i class="fas fa-shield-alt me-2"></i>{% trans "Vérification d'identité" %}</h5>
+                <p>{% trans "Ce profil a été vérifié numériquement et est authentique." %}</p>
+                <p><strong>{% trans "Vérifié le:" %}</strong> {% now "d/m/Y H:i" %}</p>
+                <p><strong>{% trans "Valide jusqu'au:" %}</strong> {{ profile.expiration|date:"d/m/Y H:i" }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card profile-container">
+                <div class="profile-header">
+                    {% if profile.photo %}
+                        <img src="data:image/png;base64,{{ profile.photo }}" class="img-fluid rounded-circle" style="width: 150px; height: 150px; object-fit: cover;" alt="{{ profile.first_name }} {{ profile.last_name }}">
+                    {% else %}
+                        <div class="profile-img-placeholder">
+                            <i class="fas fa-user fa-4x text-white"></i>
+                        </div>
+                    {% endif %}
+                    
+                    <h3>{{ profile.first_name }} {{ profile.last_name }}</h3>
+                    
+                    {% if profile.federation_validated %}
+                        <div class="validation-badge validated">
+                            <i class="fas fa-check-circle me-2"></i>{% trans "Validé par la fédération" %}
+                        </div>
+                    {% else %}
+                        <div class="validation-badge not-validated">
+                            <i class="fas fa-exclamation-circle me-2"></i>{% trans "Non validé par la fédération" %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="d-grid gap-2 mt-3 no-print">
+                    <button class="btn btn-outline-primary" onclick="window.print()">
+                        <i class="fas fa-print me-2"></i>{% trans "Imprimer" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="row">
+                <div class="col-md-6 info-section">
+                    <div class="card info-card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-user me-2"></i>{% trans "Informations personnelles" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>{% trans "Nom:" %}</strong> {{ profile.last_name }}</p>
+                            <p><strong>{% trans "Prénom:" %}</strong> {{ profile.first_name }}</p>
+                            <p><strong>{% trans "Date de naissance:" %}</strong> {{ profile.birth_date|default:"N/A" }}</p>
+                            <p><strong>{% trans "Genre:" %}</strong> {{ profile.gender|default:"N/A" }}</p>
+                            <p><strong>{% trans "Nationalité:" %}</strong> {{ profile.nationality|default:"N/A" }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 info-section">
+                    <div class="card info-card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-id-card me-2"></i>{% trans "Identité sportive" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>{% trans "Numéro de licence:" %}</strong> {{ profile.license_number|default:"N/A" }}</p>
+                            <p><strong>{% trans "Club:" %}</strong> {{ profile.club_name|default:"N/A" }}</p>
+                            <p><strong>{% trans "Fédération:" %}</strong> {{ profile.federation_name|default:"N/A" }}</p>
+                            <p><strong>{% trans "Validité licence:" %}</strong> 
+                                {% if profile.license_expiry %}
+                                    {{ profile.license_expiry }}
+                                {% else %}
+                                    {% trans "Non spécifiée" %}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-12 info-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-graduation-cap me-2"></i>{% trans "Grades et qualifications" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                {% if profile.disciplines %}
+                                    {% for discipline in profile.disciplines %}
+                                        <div class="col-md-6 mb-3">
+                                            <div class="border p-3 rounded">
+                                                <h6>{{ discipline.name }}</h6>
+                                                <p>
+                                                    <strong>{% trans "Grade actuel:" %}</strong> 
+                                                    {{ discipline.grade|default:"Non spécifié" }}
+                                                </p>
+                                                <p>
+                                                    <strong>{% trans "Obtenu le:" %}</strong> 
+                                                    {{ discipline.grade_date|default:"Non spécifié" }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="col-12">
+                                        <p class="text-muted">{% trans "Aucune discipline ou grade enregistré." %}</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if profile.certifications %}
+                    <div class="col-md-12 info-section">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="fas fa-certificate me-2"></i>{% trans "Certifications" %}</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    {% for cert in profile.certifications %}
+                                        <div class="col-md-6 mb-3">
+                                            <div class="border p-3 rounded">
+                                                <h6>{{ cert.name }}</h6>
+                                                <p>
+                                                    <strong>{% trans "Obtenue le:" %}</strong> 
+                                                    {{ cert.date|default:"Non spécifié" }}
+                                                </p>
+                                                <p>
+                                                    <strong>{% trans "Délivrée par:" %}</strong> 
+                                                    {{ cert.issuer|default:"Non spécifié" }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Gestion des Grades" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .grade-color-badge {
+        display: inline-block;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        margin-right: 8px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    .grade-label {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 8px;
+        border-radius: 16px;
+        font-size: 0.85rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .dan-grade {
+        font-weight: bold;
+        background-color: #212529;
+        color: white;
+    }
+    
+    .card-grade {
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 2px solid transparent;
+    }
+    
+    .card-grade:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .discipline-filter {
+        position: sticky;
+        top: 1rem;
+        z-index: 10;
+    }
+    
+    .timeline {
+        position: relative;
+        padding: 1rem 0;
+    }
+    
+    .timeline::before {
+        content: '';
+        position: absolute;
+        width: 2px;
+        background-color: #dee2e6;
+        top: 0;
+        bottom: 0;
+        left: 31px;
+        margin-left: -1px;
+    }
+    
+    .timeline-item {
+        position: relative;
+        margin-bottom: 1.5rem;
+        margin-left: 45px;
+    }
+    
+    .timeline-badge {
+        position: absolute;
+        left: -45px;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        text-align: center;
+        color: white;
+        background-color: #6c757d;
+        line-height: 30px;
+        z-index: 100;
+    }
+    
+    .timeline-panel {
+        padding: 1rem;
+        background-color: white;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .progress-indicator {
+        display: flex;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+    
+    .progress-step {
+        position: relative;
+        flex: 1;
+        text-align: center;
+        padding-top: 30px;
+    }
+    
+    .progress-step::before {
+        content: '';
+        position: absolute;
+        top: 10px;
+        left: calc(50% - 10px);
+        width: 20px;
+        height: 20px;
+        background-color: #dee2e6;
+        border-radius: 50%;
+        z-index: 10;
+    }
+    
+    .progress-step::after {
+        content: '';
+        position: absolute;
+        top: 19px;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background-color: #dee2e6;
+        z-index: 5;
+    }
+    
+    .progress-step:first-child::after {
+        left: 50%;
+        width: 50%;
+    }
+    
+    .progress-step:last-child::after {
+        width: 50%;
+    }
+    
+    .progress-step.completed::before {
+        background-color: #28a745;
+    }
+    
+    .progress-step.active::before {
+        background-color: #007bff;
+    }
+    
+    .progress-step.completed::after {
+        background-color: #28a745;
+    }
+    
+    .user-badge {
+        display: inline-flex;
+        align-items: center;
+        background-color: #f8f9fa;
+        border-radius: 20px;
+        padding: 0.25rem 0.75rem;
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.85rem;
+    }
+    
+    .user-badge img {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+    }
+    
+    /* Tableaux pour les passages de grade */
+    .exam-table th {
+        background-color: #f8f9fa;
+    }
+    
+    .exam-table th, .exam-table td {
+        vertical-align: middle;
+    }
+    
+    .status-badge {
+        padding: 0.25rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .status-pending {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    
+    .status-approved {
+        background-color: #d1e7dd;
+        color: #0f5132;
+    }
+    
+    .status-rejected {
+        background-color: #f8d7da;
+        color: #842029;
+    }
+    
+    .status-passed {
+        background-color: #d1e7dd;
+        color: #0f5132;
+    }
+    
+    .status-failed {
+        background-color: #f8d7da;
+        color: #842029;
+    }
+    
+    .status-absent {
+        background-color: #e2e3e5;
+        color: #41464b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-md-3 col-lg-2">
+            <!-- Sidebar de navigation -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{% trans "Gestion des Grades" %}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        <a href="{% url 'grades:grade_list' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'grade_list' %}active{% endif %}">
+                            <i class="fas fa-list me-2"></i> {% trans "Liste des grades" %}
+                        </a>
+                        <a href="{% url 'grades:category_list' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'category_list' %}active{% endif %}">
+                            <i class="fas fa-layer-group me-2"></i> {% trans "Catégories de grades" %}
+                        </a>
+                        <a href="{% url 'grades:bulk_assignment' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'bulk_assignment' %}active{% endif %}">
+                            <i class="fas fa-users-cog me-2"></i> {% trans "Attribution en masse" %}
+                        </a>
+                        <a href="{% url 'grades:exam_list' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'exam_list' %}active{% endif %}">
+                            <i class="fas fa-clipboard-check me-2"></i> {% trans "Examens de passage" %}
+                        </a>
+                        <a href="{% url 'grades:requirement_list' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'requirement_list' %}active{% endif %}">
+                            <i class="fas fa-tasks me-2"></i> {% trans "Exigences de grade" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Actions rapides -->
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">{% trans "Actions rapides" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'grades:grade_create' %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-plus-circle me-2"></i> {% trans "Ajouter un grade" %}
+                        </a>
+                        <a href="{% url 'grades:exam_create' %}" class="btn btn-sm btn-success">
+                            <i class="fas fa-calendar-plus me-2"></i> {% trans "Créer un examen" %}
+                        </a>
+                        <a href="{% url 'grades:import_grades' %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-file-import me-2"></i> {% trans "Importer" %}
+                        </a>
+                        <a href="{% url 'grades:export_grades' %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-file-export me-2"></i> {% trans "Exporter" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-9 col-lg-10">
+            <!-- Titre et contenu principal -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h2">{% block page_title %}{% trans "Gestion des Grades" %}{% endblock %}</h1>
+                {% block page_actions %}{% endblock %}
+            </div>
+            
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+            
+            <!-- Contenu principal -->
+            {% block main_content %}{% endblock %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Activer les filtres de discipline
+        const disciplineSelect = document.getElementById('discipline-filter');
+        if (disciplineSelect) {
+            disciplineSelect.addEventListener('change', function() {
+                const url = new URL(window.location);
+                if (this.value) {
+                    url.searchParams.set('discipline', this.value);
+                } else {
+                    url.searchParams.delete('discipline');
+                }
+                window.location = url.toString();
+            });
+        }
+        
+        // Activer les boutons de filtre
+        const filterButtons = document.querySelectorAll('.btn-filter');
+        filterButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const url = new URL(window.location);
+                const filterType = this.dataset.filterType;
+                const filterValue = this.dataset.filterValue;
+                
+                if (this.classList.contains('active')) {
+                    url.searchParams.delete(filterType);
+                    this.classList.remove('active');
+                } else {
+                    url.searchParams.set(filterType, filterValue);
+                    
+                    // Désactiver les autres boutons du même groupe
+                    document.querySelectorAll(`.btn-filter[data-filter-type="${filterType}"]`).forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    
+                    this.classList.add('active');
+                }
+                
+                window.location = url.toString();
+            });
+        });
+        
+        // Fonctionnalité pour les champs de recherche
+        const searchForm = document.getElementById('search-form');
+        if (searchForm) {
+            searchForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const url = new URL(window.location);
+                const searchInput = document.getElementById('search-input');
+                
+                if (searchInput.value.trim()) {
+                    url.searchParams.set('q', searchInput.value.trim());
+                } else {
+                    url.searchParams.delete('q');
+                }
+                
+                window.location = url.toString();
+            });
+        }
+        
+        // Pour les previews d'image
+        const fileInputs = document.querySelectorAll('input[type="file"]');
+        fileInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                const preview = document.getElementById(`${this.id}-preview`);
+                if (preview && this.files && this.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(this.files[0]);
+                }
+            });
+        });
+        
+        // Note: La gestion des sélections dynamiques de grades est maintenant 
+        // gérée par le script grade_filtering.js dans chaque template spécifique
+    });
+</script>
+{% block page_js %}{% endblock %}
+{% endblock %}

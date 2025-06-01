@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Sélection des disciplines" %} - MartialComp{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="mb-0">{% trans "Sélection des disciplines" %}</h2>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-4">
+                        <div class="progress-bar" role="progressbar" style="width: 60%;" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100">60%</div>
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="alert alert-info mb-4">
+                            <i class="fas fa-info-circle"></i> 
+                            {% trans "Sélectionnez votre discipline principale et les disciplines secondaires que vous enseignez." %}
+                        </div>
+                        
+                        <h4 class="mb-3">{% trans "Discipline principale" %}</h4>
+                        <p class="text-muted">{% trans "C'est votre spécialité principale, celle que vous maîtrisez le mieux." %}</p>
+                        
+                        <div class="form-group mb-4">
+                            <select name="primary_discipline" class="form-control" required>
+                                <option value="">{% trans "-- Sélectionnez une discipline --" %}</option>
+                                {% for discipline in disciplines %}
+                                <option value="{{ discipline.id }}" 
+                                    {% if practitioner.primary_discipline.id == discipline.id %}selected{% endif %}>
+                                    {{ discipline.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <h4 class="mb-3 mt-5">{% trans "Disciplines secondaires" %}</h4>
+                        <p class="text-muted">{% trans "Sélectionnez toutes les autres disciplines que vous enseignez." %}</p>
+                        
+                        <div class="row">
+                            {% for discipline in disciplines %}
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check">
+                                    <input type="checkbox" 
+                                           class="form-check-input discipline-checkbox" 
+                                           name="secondary_disciplines" 
+                                           value="{{ discipline.id }}"
+                                           id="discipline_{{ discipline.id }}"
+                                           {% if discipline in practitioner.secondary_disciplines.all %}checked{% endif %}>
+                                    <label class="form-check-label" for="discipline_{{ discipline.id }}">
+                                        {{ discipline.name }}
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <h4 class="mb-3 mt-5">{% trans "Expertises actuelles" %}</h4>
+                        {% if current_expertises %}
+                        <div class="list-group mb-4">
+                            {% for expertise in current_expertises %}
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h5 class="mb-1">
+                                        {{ expertise.discipline.name }}
+                                        {% if expertise.is_primary %}
+                                        <span class="badge badge-primary">{% trans "Principale" %}</span>
+                                        {% endif %}
+                                    </h5>
+                                    <small>{{ expertise.get_level_display }}</small>
+                                </div>
+                                <p class="mb-1">
+                                    {% trans "Expérience" %}: {{ expertise.years_experience }} {% trans "ans" %} |
+                                    {% trans "Enseignement" %}: {{ expertise.years_teaching }} {% trans "ans" %}
+                                </p>
+                                {% if expertise.current_grade %}
+                                <small>{% trans "Grade" %}: {{ expertise.current_grade }}</small>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted">{% trans "Aucune expertise définie pour le moment." %}</p>
+                        {% endif %}
+                        
+                        <div class="mt-5">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                {% trans "Suivant" %} <i class="fas fa-arrow-right"></i>
+                            </button>
+                            <a href="{% url 'onboarding:coach_profile' %}" class="btn btn-secondary btn-lg">
+                                <i class="fas fa-arrow-left"></i> {% trans "Retour" %}
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const primarySelect = document.querySelector('select[name="primary_discipline"]');
+    const checkboxes = document.querySelectorAll('.discipline-checkbox');
+    
+    // Empêcher de sélectionner la discipline principale comme secondaire
+    primarySelect.addEventListener('change', function() {
+        const selectedValue = this.value;
+        checkboxes.forEach(checkbox => {
+            if (checkbox.value === selectedValue) {
+                checkbox.checked = false;
+                checkbox.disabled = true;
+            } else {
+                checkbox.disabled = false;
+            }
+        });
+    });
+    
+    // Déclencher l'événement au chargement initial
+    primarySelect.dispatchEvent(new Event('change'));
+});
+</script>
+{% endblock %}

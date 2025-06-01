@@ -1,0 +1,331 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "Détails du Tenant" %} - {{ tenant.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                {{ tenant.name }}
+                <span class="badge badge-{% if tenant.is_active %}success{% else %}danger{% endif %}">
+                    {% if tenant.is_active %}{% trans "Actif" %}{% else %}{% trans "Inactif" %}{% endif %}
+                </span>
+            </h1>
+            <div class="mb-3">
+                <a href="{% url 'multitenant:admin-dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> {% trans "Retour au tableau de bord" %}
+                </a>
+                <a href="{% url 'multitenant:admin-tenant-update' tenant.id %}" class="btn btn-warning ml-2">
+                    <i class="fas fa-edit"></i> {% trans "Modifier" %}
+                </a>
+                <form method="post" action="{% url 'multitenant:admin-tenant-toggle' tenant.id %}" 
+                      style="display: inline-block;">
+                    {% csrf_token %}
+                    <button type="submit" 
+                            class="btn btn-{% if tenant.is_active %}danger{% else %}success{% endif %} ml-2">
+                        <i class="fas fa-{% if tenant.is_active %}pause{% else %}play{% endif %}"></i>
+                        {% if tenant.is_active %}{% trans "Désactiver" %}{% else %}{% trans "Activer" %}{% endif %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <!-- Informations de base -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Informations de base" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tbody>
+                            <tr>
+                                <th>{% trans "ID" %}</th>
+                                <td>{{ tenant.id }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Nom" %}</th>
+                                <td>{{ tenant.name }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Domaine principal" %}</th>
+                                <td>
+                                    <a href="https://{{ tenant.domain }}" target="_blank">
+                                        {{ tenant.domain }} <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Schéma" %}</th>
+                                <td>{{ tenant.schema_name }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Plan d'abonnement" %}</th>
+                                <td>
+                                    <span class="badge badge-{% if tenant.subscription_plan == 'essentials' %}secondary{% elif tenant.subscription_plan == 'masters' %}primary{% else %}success{% endif %}">
+                                        {{ tenant.get_subscription_plan_display }}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Fréquence de paiement" %}</th>
+                                <td>{{ tenant.get_payment_frequency_display }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Continent" %}</th>
+                                <td>{{ tenant.get_continent_display }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Devise" %}</th>
+                                <td>{{ tenant.currency }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Fuseau horaire" %}</th>
+                                <td>{{ tenant.timezone }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% trans "Date de création" %}</th>
+                                <td>{{ tenant.created_at }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistiques du tenant -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Statistiques" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="text-center mb-3">
+                                <h3>{{ tenant_stats.practitioners }}</h3>
+                                <p class="mb-0">{% trans "Pratiquants" %}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center mb-3">
+                                <h3>{{ tenant_stats.competitions }}</h3>
+                                <p class="mb-0">{% trans "Compétitions" %}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center mb-3">
+                                <h3>{{ tenant_stats.registrations }}</h3>
+                                <p class="mb-0">{% trans "Inscriptions" %}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Utilisation des ressources -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Utilisation des ressources" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="text-center mb-3">
+                                <h3>{{ resource_usage.database_size }}</h3>
+                                <p class="mb-0">{% trans "Taille BD" %}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center mb-3">
+                                <h3>{{ resource_usage.storage_used }}</h3>
+                                <p class="mb-0">{% trans "Stockage" %}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center mb-3">
+                                <h3>{{ resource_usage.active_connections }}</h3>
+                                <p class="mb-0">{% trans "Connexions" %}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Domaines -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{% trans "Domaines" %}</h5>
+                    <a href="{% url 'multitenant:admin-domain-create' tenant.id %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus"></i> {% trans "Ajouter" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Domaine" %}</th>
+                                <th>{% trans "Type" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for domain in domains %}
+                            <tr>
+                                <td>
+                                    <a href="https://{{ domain.domain }}" target="_blank">
+                                        {{ domain.domain }} <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </td>
+                                <td>
+                                    {% if domain.is_primary %}
+                                    <span class="badge badge-primary">{% trans "Principal" %}</span>
+                                    {% else %}
+                                    <span class="badge badge-secondary">{% trans "Secondaire" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'multitenant:admin-domain-update' domain.id %}" 
+                                           class="btn btn-warning" title="{% trans 'Modifier' %}">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <form method="post" action="{% url 'multitenant:admin-domain-delete' domain.id %}" 
+                                              style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-danger"
+                                                    title="{% trans 'Supprimer' %}"
+                                                    onclick="return confirm('{% trans "Êtes-vous sûr de vouloir supprimer ce domaine ?" %}')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center">
+                                    {% trans "Aucun domaine configuré." %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{% trans "Fonctionnalités" %}</h5>
+                    <a href="{% url 'multitenant:admin-feature-create' tenant.id %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus"></i> {% trans "Ajouter" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Fonctionnalité" %}</th>
+                                <th>{% trans "Statut" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for feature in features %}
+                            <tr>
+                                <td>{{ feature.get_feature_code_display }}</td>
+                                <td>
+                                    <span class="badge badge-{% if feature.is_enabled %}success{% else %}danger{% endif %}">
+                                        {% if feature.is_enabled %}{% trans "Activée" %}{% else %}{% trans "Désactivée" %}{% endif %}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <form method="post" action="{% url 'multitenant:admin-feature-toggle' feature.id %}" 
+                                              style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" 
+                                                    class="btn btn-{% if feature.is_enabled %}warning{% else %}success{% endif %}"
+                                                    title="{% if feature.is_enabled %}{% trans 'Désactiver' %}{% else %}{% trans 'Activer' %}{% endif %}">
+                                                <i class="fas fa-{% if feature.is_enabled %}toggle-off{% else %}toggle-on{% endif %}"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center">
+                                    {% trans "Aucune fonctionnalité configurée." %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paiements récents -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{% trans "Paiements récents" %}</h5>
+                    <a href="{% url 'multitenant:admin-tenant-payments' tenant.id %}" class="btn btn-sm btn-primary">
+                        {% trans "Voir tous" %}
+                    </a>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>{% trans "ID" %}</th>
+                                <th>{% trans "Date" %}</th>
+                                <th>{% trans "Montant" %}</th>
+                                <th>{% trans "Statut" %}</th>
+                                <th>{% trans "Méthode" %}</th>
+                                <th>{% trans "Description" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in recent_payments %}
+                            <tr>
+                                <td>{{ payment.id }}</td>
+                                <td>{{ payment.created_at }}</td>
+                                <td>{{ payment.amount }} {{ payment.currency }}</td>
+                                <td>
+                                    <span class="badge badge-{% if payment.status == 'completed' %}success{% elif payment.status == 'pending' %}warning{% elif payment.status == 'failed' %}danger{% else %}secondary{% endif %}">
+                                        {{ payment.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>{{ payment.payment_method }}</td>
+                                <td>{{ payment.description }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center">
+                                    {% trans "Aucun paiement enregistré." %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

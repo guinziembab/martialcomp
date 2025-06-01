@@ -1,0 +1,849 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ practitioner.full_name }} | {% trans "Détails du pratiquant" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .detail-section {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1.25rem;
+        color: #212529;
+        display: flex;
+        align-items: center;
+    }
+    
+    .section-title i {
+        margin-right: 0.5rem;
+        color: #dc3545;
+    }
+    
+    .info-group {
+        margin-bottom: 1rem;
+    }
+    
+    .info-label {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-bottom: 0.25rem;
+    }
+    
+    .info-value {
+        font-weight: 500;
+    }
+    
+    .nav-tabs .nav-link.active {
+        border-bottom: 3px solid #dc3545;
+        font-weight: 500;
+    }
+    
+    .badge {
+        padding: 0.35em 0.65em;
+        font-size: 0.75em;
+        font-weight: 700;
+        border-radius: 0.375rem;
+    }
+    
+    .bg-success {
+        background-color: #198754 !important;
+    }
+    
+    .bg-danger {
+        background-color: #dc3545 !important;
+    }
+    
+    .bg-warning {
+        background-color: #ffc107 !important;
+    }
+    
+    .document-card {
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: all 0.2s ease;
+    }
+    
+    .document-card:hover {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    
+    .document-icon {
+        font-size: 2rem;
+        margin-right: 1rem;
+    }
+    
+    .practitioner-photo {
+        max-width: 150px;
+        max-height: 200px;
+        object-fit: cover;
+        border-radius: 0.5rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    
+    .emergency-info {
+        background-color: #f8d7da;
+        border: 1px solid #f5c2c7;
+        border-radius: 0.5rem;
+        padding: 1rem;
+    }
+    
+    .detail-card {
+        height: 100%;
+        transition: all 0.2s ease;
+    }
+    
+    .detail-card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    
+    .medical-alert {
+        background-color: #f8d7da;
+        border-left: 4px solid #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="h3">
+                    <i class="fas fa-user me-2"></i>{{ practitioner.full_name }}
+                    {% if practitioner.status == 'active' %}
+                        <span class="badge bg-success ms-2">{% trans "Actif" %}</span>
+                    {% elif practitioner.status == 'inactive' %}
+                        <span class="badge bg-secondary ms-2">{% trans "Inactif" %}</span>
+                    {% elif practitioner.status == 'suspended' %}
+                        <span class="badge bg-warning ms-2">{% trans "Suspendu" %}</span>
+                    {% elif practitioner.status == 'archived' %}
+                        <span class="badge bg-dark ms-2">{% trans "Archivé" %}</span>
+                    {% endif %}
+                </h1>
+                <div>
+                    <a href="{% url 'competitions:club:practitioner_edit' practitioner_id=practitioner.id %}" class="btn btn-primary">
+                        <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                    </a>
+                    <a href="{% url 'competitions:qr:view_qr' practitioner_id=practitioner.id %}" class="btn btn-info ms-2">
+                        <i class="fas fa-qrcode me-2"></i>{% trans "QR Code" %}
+                    </a>
+                    <a href="{% url 'competitions:club:practitioners' %}" class="btn btn-outline-secondary ms-2">
+                        <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la liste" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="messages mb-4">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    
+    <!-- Navigation par onglets -->
+    <ul class="nav nav-tabs mb-4" id="detailTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info" type="button" role="tab" aria-controls="info" aria-selected="true">
+                <i class="fas fa-user me-1"></i> {% trans "Informations générales" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="qualifications-tab" data-bs-toggle="tab" data-bs-target="#qualifications" type="button" role="tab" aria-controls="qualifications" aria-selected="false">
+                <i class="fas fa-medal me-1"></i> {% trans "Qualifications" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="medical-tab" data-bs-toggle="tab" data-bs-target="#medical" type="button" role="tab" aria-controls="medical" aria-selected="false">
+                <i class="fas fa-notes-medical me-1"></i> {% trans "Informations médicales" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="competitions-tab" data-bs-toggle="tab" data-bs-target="#competitions" type="button" role="tab" aria-controls="competitions" aria-selected="false">
+                <i class="fas fa-trophy me-1"></i> {% trans "Compétitions" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab" aria-controls="documents" aria-selected="false">
+                <i class="fas fa-file-alt me-1"></i> {% trans "Documents" %}
+            </button>
+        </li>
+    </ul>
+    
+    <!-- Contenu des onglets -->
+    <div class="tab-content" id="tabContent">
+        <!-- Onglet Informations générales -->
+        <div class="tab-pane fade show active" id="info" role="tabpanel" aria-labelledby="info-tab">
+            <div class="row">
+                <!-- Photo et informations de base -->
+                <div class="col-lg-8 mb-4">
+                    <div class="detail-section">
+                        <div class="section-title">
+                            <i class="fas fa-id-card"></i> {% trans "Identité" %}
+                        </div>
+                        <div class="row">
+                            <!-- Photo du pratiquant -->
+                            <div class="col-md-3 mb-3 text-center">
+                                {% if practitioner.photo %}
+                                    <img src="{{ practitioner.photo.url }}" alt="{{ practitioner.full_name }}" class="practitioner-photo">
+                                {% else %}
+                                    <div class="d-flex align-items-center justify-content-center bg-light" style="width: 150px; height: 200px; margin: 0 auto; border-radius: 0.5rem;">
+                                        <i class="fas fa-user fa-4x text-secondary"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Informations de base -->
+                            <div class="col-md-9">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="info-group">
+                                            <div class="info-label">{% trans "Nom complet" %}</div>
+                                            <div class="info-value">{{ practitioner.full_name }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="info-group">
+                                            <div class="info-label">{% trans "Date de naissance" %}</div>
+                                            <div class="info-value">{{ practitioner.birth_date|date:"d/m/Y" }} ({{ practitioner.age }} {% trans "ans" %})</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="info-group">
+                                            <div class="info-label">{% trans "Lieu de naissance" %}</div>
+                                            <div class="info-value">{{ practitioner.birth_place|default:"-" }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="info-group">
+                                            <div class="info-label">{% trans "Genre" %}</div>
+                                            <div class="info-value">
+                                                {% if practitioner.gender == 'male' %}
+                                                    {% trans "Homme" %}
+                                                {% elif practitioner.gender == 'female' %}
+                                                    {% trans "Femme" %}
+                                                {% elif practitioner.gender == 'other' %}
+                                                    {% trans "Autre" %}
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="info-group">
+                                            <div class="info-label">{% trans "Nationalité" %}</div>
+                                            <div class="info-value">{{ practitioner.nationality|default:"-" }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="info-group">
+                                            <div class="info-label">{% trans "Inscrit le" %}</div>
+                                            <div class="info-value">{{ practitioner.registration_date|date:"d/m/Y" }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <div class="section-title">
+                            <i class="fas fa-envelope"></i> {% trans "Coordonnées" %}
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="info-group">
+                                    <div class="info-label">{% trans "Email" %}</div>
+                                    <div class="info-value">
+                                        {% if practitioner.email %}
+                                            <a href="mailto:{{ practitioner.email }}">{{ practitioner.email }}</a>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="info-group">
+                                    <div class="info-label">{% trans "Téléphone" %}</div>
+                                    <div class="info-value">
+                                        {% if practitioner.phone %}
+                                            <a href="tel:{{ practitioner.phone }}">{{ practitioner.phone }}</a>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-12 mb-3">
+                                <div class="info-group">
+                                    <div class="info-label">{% trans "Adresse" %}</div>
+                                    <div class="info-value">
+                                        {% if practitioner.address %}
+                                            {{ practitioner.address }}{% if practitioner.postal_code or practitioner.city %},{% endif %}
+                                            {% if practitioner.postal_code %}{{ practitioner.postal_code }}{% endif %}
+                                            {% if practitioner.city %}{{ practitioner.city }}{% endif %}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Données sportives et administratives -->
+                <div class="col-lg-4 mb-4">
+                    <div class="detail-section">
+                        <div class="section-title">
+                            <i class="fas fa-medal"></i> {% trans "Informations sportives" %}
+                        </div>
+                        <div class="info-group mb-3">
+                            <div class="info-label">{% trans "Grade" %}</div>
+                            <div class="info-value">{{ practitioner.grade|default:"-" }}</div>
+                        </div>
+                        
+                        <div class="info-group mb-3">
+                            <div class="info-label">{% trans "Poids" %}</div>
+                            <div class="info-value">
+                                {% if practitioner.weight %}
+                                    {{ practitioner.weight }} kg
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="info-group mb-3">
+                            <div class="info-label">{% trans "Taille" %}</div>
+                            <div class="info-value">
+                                {% if practitioner.height %}
+                                    {{ practitioner.height }} cm
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="info-group mb-3">
+                            <div class="info-label">{% trans "Disciplines pratiquées" %}</div>
+                            <div class="info-value">
+                                {% if practitioner.disciplines.all %}
+                                    {% for discipline in practitioner.disciplines.all %}
+                                        <span class="badge bg-secondary me-1">{{ discipline.name }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <div class="section-title">
+                            <i class="fas fa-id-badge"></i> {% trans "Documents administratifs" %}
+                        </div>
+                        <div class="info-group mb-3">
+                            <div class="info-label">{% trans "Numéro de licence" %}</div>
+                            <div class="info-value">{{ practitioner.license_number|default:"-" }}</div>
+                        </div>
+                        
+                        <div class="info-group mb-3">
+                            <div class="info-label">{% trans "Validité de l'adhésion" %}</div>
+                            <div class="info-value">
+                                {% if practitioner.membership_end_date %}
+                                    {% now "Y-m-d" as today %}
+                                    {% if practitioner.membership_end_date|date:"Y-m-d" < today %}
+                                        <span class="badge bg-danger">{% trans "Expirée le" %} {{ practitioner.membership_end_date|date:"d/m/Y" }}</span>
+                                    {% else %}
+                                        <span class="badge bg-success">{% trans "Valide jusqu'au" %} {{ practitioner.membership_end_date|date:"d/m/Y" }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="info-group mb-3">
+                            <div class="info-label">{% trans "Certificat médical" %}</div>
+                            <div class="info-value">
+                                {% if practitioner.medical_certificate_date %}
+                                    {{ practitioner.medical_certificate_date|date:"d/m/Y" }}
+                                    {% if practitioner.is_medical_certificate_valid %}
+                                        <span class="badge bg-success">{% trans "Valide" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">{% trans "Expiré" %}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-danger">{% trans "Non renseigné" %}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Contact d'urgence -->
+            <div class="row">
+                <div class="col-12 mb-4">
+                    <div class="detail-section">
+                        <div class="section-title">
+                            <i class="fas fa-ambulance"></i> {% trans "Contact d'urgence" %}
+                        </div>
+                        {% if practitioner.emergency_contact_name %}
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <div class="info-group">
+                                        <div class="info-label">{% trans "Nom du contact" %}</div>
+                                        <div class="info-value">{{ practitioner.emergency_contact_name }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 mb-3">
+                                    <div class="info-group">
+                                        <div class="info-label">{% trans "Relation" %}</div>
+                                        <div class="info-value">{{ practitioner.emergency_contact_relation|default:"-" }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <div class="info-group">
+                                        <div class="info-label">{% trans "Téléphone" %}</div>
+                                        <div class="info-value">
+                                            {% if practitioner.emergency_contact_phone %}
+                                                <a href="tel:{{ practitioner.emergency_contact_phone }}">{{ practitioner.emergency_contact_phone }}</a>
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <div class="info-group">
+                                        <div class="info-label">{% trans "Email" %}</div>
+                                        <div class="info-value">
+                                            {% if practitioner.emergency_contact_email %}
+                                                <a href="mailto:{{ practitioner.emergency_contact_email }}">{{ practitioner.emergency_contact_email }}</a>
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning mb-0">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                {% trans "Aucun contact d'urgence n'a été renseigné." %}
+                                <a href="{% url 'competitions:club:practitioner_edit' practitioner_id=practitioner.id %}?tab=contact" class="alert-link ms-2">
+                                    {% trans "Ajouter un contact d'urgence" %}
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Notes -->
+            {% if practitioner.notes %}
+                <div class="row">
+                    <div class="col-12 mb-4">
+                        <div class="detail-section">
+                            <div class="section-title">
+                                <i class="fas fa-sticky-note"></i> {% trans "Notes" %}
+                            </div>
+                            <div class="p-3 bg-light rounded">
+                                {{ practitioner.notes|linebreaks }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Onglet Qualifications -->
+        <div class="tab-pane fade" id="qualifications" role="tabpanel" aria-labelledby="qualifications-tab">
+            <div class="row">
+                <div class="col-12">
+                    <div class="detail-section">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div class="section-title mb-0">
+                                <i class="fas fa-medal"></i> {% trans "Qualifications et certifications" %}
+                            </div>
+                            <a href="{% url 'competitions:club:qualification_add' practitioner_id=practitioner.id %}" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>{% trans "Ajouter une qualification" %}
+                            </a>
+                        </div>
+                        
+                        {% if practitioner.qualifications.all %}
+                            <div class="row">
+                                {% for qualification in practitioner.qualifications.all %}
+                                    <div class="col-md-6 col-lg-4 mb-3">
+                                        <div class="card detail-card h-100">
+                                            <div class="card-body">
+                                                <h5 class="card-title">{{ qualification.get_qualification_type_display }}</h5>
+                                                <h6 class="card-subtitle mb-2 text-muted">{{ qualification.get_level_display }}</h6>
+                                                {% if qualification.certified_date %}
+                                                    <p class="card-text small">
+                                                        <i class="fas fa-calendar-check me-1"></i>
+                                                        {% trans "Obtenue le" %} {{ qualification.certified_date|date:"d/m/Y" }}
+                                                    </p>
+                                                {% endif %}
+                                            </div>
+                                            <div class="card-footer bg-white">
+                                                <a href="{% url 'competitions:club:qualification_edit' practitioner_id=practitioner.id qualification_id=qualification.id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-edit me-1"></i> {% trans "Modifier" %}
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% trans "Aucune qualification n'a été enregistrée pour ce pratiquant." %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Onglet Informations médicales -->
+        <div class="tab-pane fade" id="medical" role="tabpanel" aria-labelledby="medical-tab">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="detail-section">
+                        <div class="section-title">
+                            <i class="fas fa-notes-medical"></i> {% trans "Informations médicales" %}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="info-group">
+                                    <div class="info-label">{% trans "Certificat médical" %}</div>
+                                    <div class="info-value">
+                                        {% if practitioner.medical_certificate_date %}
+                                            {{ practitioner.medical_certificate_date|date:"d/m/Y" }}
+                                            {% if practitioner.is_medical_certificate_valid %}
+                                                <span class="badge bg-success">{% trans "Valide" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">{% trans "Expiré" %}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-danger">{% trans "Non renseigné" %}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <div class="info-group">
+                                    <div class="info-label">{% trans "Groupe sanguin" %}</div>
+                                    <div class="info-value">{{ practitioner.blood_group|default:"-" }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-12 mb-3">
+                                <div class="info-group">
+                                    <div class="info-label">{% trans "Allergies" %}</div>
+                                    <div class="info-value">
+                                        {% if practitioner.allergies %}
+                                            <div class="p-2 rounded medical-alert">
+                                                {{ practitioner.allergies }}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">{% trans "Aucune allergie connue" %}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-12 mb-3">
+                                <div class="info-group">
+                                    <div class="info-label">{% trans "Conditions médicales" %}</div>
+                                    <div class="info-value">
+                                        {% if practitioner.medical_conditions %}
+                                            <div class="p-2 rounded medical-alert">
+                                                {{ practitioner.medical_conditions|linebreaks }}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">{% trans "Aucune condition médicale connue" %}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="detail-section">
+                        <div class="section-title">
+                            <i class="fas fa-file-medical"></i> {% trans "Documents médicaux" %}
+                        </div>
+                        
+                        {% if practitioner.medical_certificate %}
+                            <div class="document-card">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-file-pdf document-icon text-danger"></i>
+                                    <div class="flex-grow-1">
+                                        <div>{% trans "Certificat médical" %}</div>
+                                        <small class="text-muted">{{ practitioner.medical_certificate.name|truncatechars:25 }}</small>
+                                    </div>
+                                    <a href="{{ practitioner.medical_certificate.url }}" class="btn btn-sm btn-outline-primary me-1" target="_blank">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{{ practitioner.medical_certificate.url }}" class="btn btn-sm btn-outline-success" download>
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                {% trans "Aucun certificat médical n'a été téléchargé." %}
+                                <a href="{% url 'competitions:club:practitioner_edit' practitioner_id=practitioner.id %}?tab=medical" class="alert-link ms-2">
+                                    {% trans "Télécharger un certificat" %}
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Onglet Compétitions -->
+        <div class="tab-pane fade" id="competitions" role="tabpanel" aria-labelledby="competitions-tab">
+            <div class="detail-section">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="section-title mb-0">
+                        <i class="fas fa-trophy"></i> {% trans "Inscriptions aux compétitions" %}
+                    </div>
+                    <a href="{% url 'competitions:club:available_competitions' %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>{% trans "Inscrire à une compétition" %}
+                    </a>
+                </div>
+                
+                {% if registrations %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Compétition" %}</th>
+                                    <th>{% trans "Date" %}</th>
+                                    <th>{% trans "Types" %}</th>
+                                    <th>{% trans "Catégories" %}</th>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for registration in registrations %}
+                                    <tr>
+                                        <td>{{ registration.competition.title }}</td>
+                                        <td>
+                                            {% if registration.competition.start_date == registration.competition.end_date %}
+                                                {{ registration.competition.start_date|date:"d/m/Y" }}
+                                            {% else %}
+                                                {{ registration.competition.start_date|date:"d/m/Y" }} - {{ registration.competition.end_date|date:"d/m/Y" }}
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if registration.competition_types.all %}
+                                                {% for type in registration.competition_types.all %}
+                                                    <span class="badge bg-primary">{{ type.name }}</span>
+                                                {% endfor %}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if registration.categories.all %}
+                                                {% for category in registration.categories.all %}
+                                                    <span class="badge bg-secondary">{{ category.name }}</span>
+                                                {% endfor %}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if registration.status == 'pending' %}
+                                                <span class="badge bg-warning">{% trans "En attente" %}</span>
+                                            {% elif registration.status == 'approved' %}
+                                                <span class="badge bg-success">{% trans "Approuvée" %}</span>
+                                            {% elif registration.status == 'rejected' %}
+                                                <span class="badge bg-danger">{% trans "Rejetée" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ registration.status }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{% url 'competitions:detail' pk=registration.competition.id %}" class="btn btn-outline-primary">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                {% if registration.status != 'rejected' %}
+                                                    <a href="{% url 'competitions:club:register_practitioner' competition_id=registration.competition.id practitioner_id=practitioner.id %}" class="btn btn-outline-secondary">
+                                                        <i class="fas fa-edit"></i>
+                                                    </a>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Ce pratiquant n'est inscrit à aucune compétition actuellement." %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Onglet Documents -->
+        <div class="tab-pane fade" id="documents" role="tabpanel" aria-labelledby="documents-tab">
+            <div class="detail-section">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="section-title mb-0">
+                        <i class="fas fa-file-alt"></i> {% trans "Documents administratifs" %}
+                    </div>
+                    <a href="{% url 'competitions:club:practitioner_edit' practitioner_id=practitioner.id %}?tab=other" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>{% trans "Télécharger un document" %}
+                    </a>
+                </div>
+                
+                <div class="row">
+                    <!-- Certificat médical -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card detail-card h-100">
+                            <div class="card-header bg-light">
+                                <i class="fas fa-file-medical me-2"></i>{% trans "Certificat médical" %}
+                            </div>
+                            <div class="card-body">
+                                {% if practitioner.medical_certificate %}
+                                    <div class="d-flex align-items-center mb-3">
+                                        <i class="fas fa-file-pdf fa-2x text-danger me-3"></i>
+                                        <div>
+                                            <div>{{ practitioner.medical_certificate.name|truncatechars:25 }}</div>
+                                            <small class="text-muted">
+                                                {% if practitioner.medical_certificate_date %}
+                                                    {% trans "Daté du" %} {{ practitioner.medical_certificate_date|date:"d/m/Y" }}
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex">
+                                        <a href="{{ practitioner.medical_certificate.url }}" class="btn btn-sm btn-outline-primary me-2" target="_blank">
+                                            <i class="fas fa-eye me-1"></i> {% trans "Voir" %}
+                                        </a>
+                                        <a href="{{ practitioner.medical_certificate.url }}" class="btn btn-sm btn-outline-success" download>
+                                            <i class="fas fa-download me-1"></i> {% trans "Télécharger" %}
+                                        </a>
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-warning mb-0">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        {% trans "Aucun certificat médical n'a été téléchargé." %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Autorisation parentale -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card detail-card h-100">
+                            <div class="card-header bg-light">
+                                <i class="fas fa-file-contract me-2"></i>{% trans "Autorisation parentale" %}
+                            </div>
+                            <div class="card-body">
+                                {% if practitioner.parental_authorization %}
+                                    <div class="d-flex align-items-center mb-3">
+                                        <i class="fas fa-file-pdf fa-2x text-danger me-3"></i>
+                                        <div>
+                                            <div>{{ practitioner.parental_authorization.name|truncatechars:25 }}</div>
+                                            <small class="text-muted">
+                                                {% if practitioner.age < 18 %}
+                                                    <span class="badge bg-success">{% trans "Obligatoire pour les mineurs" %}</span>
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex">
+                                        <a href="{{ practitioner.parental_authorization.url }}" class="btn btn-sm btn-outline-primary me-2" target="_blank">
+                                            <i class="fas fa-eye me-1"></i> {% trans "Voir" %}
+                                        </a>
+                                        <a href="{{ practitioner.parental_authorization.url }}" class="btn btn-sm btn-outline-success" download>
+                                            <i class="fas fa-download me-1"></i> {% trans "Télécharger" %}
+                                        </a>
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-warning mb-0">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        {% trans "Aucune autorisation parentale n'a été téléchargée." %}
+                                        {% if practitioner.age < 18 %}
+                                            <span class="badge bg-danger ms-2">{% trans "Obligatoire pour les mineurs" %}</span>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion des onglets et de l'URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTab = urlParams.get('tab');
+        
+        if (activeTab) {
+            const tabElement = document.querySelector(`#${activeTab}-tab`);
+            if (tabElement) {
+                const tab = new bootstrap.Tab(tabElement);
+                tab.show();
+            }
+        }
+        
+        // Navigation entre les onglets avec mise à jour de l'URL
+        const tabLinks = document.querySelectorAll('button[data-bs-toggle="tab"]');
+        tabLinks.forEach(tabLink => {
+            tabLink.addEventListener('shown.bs.tab', function(event) {
+                const id = event.target.id.replace('-tab', '');
+                const url = new URL(window.location);
+                url.searchParams.set('tab', id);
+                window.history.replaceState(null, '', url.toString());
+            });
+        });
+    });
+</script>
+{% endblock %}

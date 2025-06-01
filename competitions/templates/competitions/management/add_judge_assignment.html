@@ -1,0 +1,583 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Ajouter une assignation de juge" %} - {{ competition.title }} - Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .main-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .form-card {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        margin-bottom: 30px;
+    }
+    
+    .form-header {
+        padding: 25px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .form-body {
+        padding: 25px;
+    }
+    
+    .judge-preview-card {
+        border-radius: 10px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        margin-bottom: 20px;
+        border: 2px solid transparent;
+        cursor: pointer;
+    }
+    
+    .judge-preview-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .judge-preview-card.selected {
+        border-color: #0d6efd;
+        box-shadow: 0 5px 15px rgba(13, 110, 253, 0.3);
+    }
+    
+    .judge-preview-header {
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .judge-preview-body {
+        padding: 15px;
+    }
+    
+    .judge-preview-img {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-right: 15px;
+    }
+    
+    .judge-info-name {
+        font-weight: 500;
+        margin-bottom: 5px;
+    }
+    
+    .judge-qualification-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+    
+    .search-box {
+        position: relative;
+        margin-bottom: 20px;
+    }
+    
+    .search-box .form-control {
+        padding-left: 40px;
+        border-radius: 20px;
+        transition: all 0.3s ease;
+    }
+    
+    .search-box .form-control:focus {
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    .search-icon {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+    }
+    
+    .filter-badge {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 20px;
+        margin-right: 10px;
+        margin-bottom: 10px;
+        background-color: #f8f9fa;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .filter-badge:hover {
+        background-color: #e9ecef;
+    }
+    
+    .filter-badge.active {
+        background-color: #0d6efd;
+        color: white;
+    }
+    
+    .no-results {
+        padding: 20px;
+        text-align: center;
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .no-results-icon {
+        font-size: 48px;
+        color: #6c757d;
+        margin-bottom: 15px;
+    }
+    
+    .category-selector {
+        margin-bottom: 20px;
+    }
+    
+    .time-picker {
+        margin-bottom: 20px;
+    }
+    
+    .assignment-type-selector {
+        margin-bottom: 20px;
+    }
+    
+    .assignment-type-option {
+        display: inline-block;
+        padding: 10px 15px;
+        margin-right: 10px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 1px solid #dee2e6;
+    }
+    
+    .assignment-type-option:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .assignment-type-option.selected {
+        background-color: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+    }
+    
+    .assignment-type-icon {
+        margin-right: 8px;
+    }
+    
+    .tatami-selector {
+        margin-bottom: 20px;
+    }
+    
+    .tatami-option {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        width: 40px;
+        height: 40px;
+        margin-right: 10px;
+        margin-bottom: 10px;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 1px solid #dee2e6;
+        background-color: #f8f9fa;
+        font-weight: 500;
+    }
+    
+    .tatami-option:hover {
+        background-color: #e9ecef;
+    }
+    
+    .tatami-option.selected {
+        background-color: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+    }
+    
+    .breadcrumb-item + .breadcrumb-item::before {
+        content: "›";
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Fil d'Ariane -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:management:competition_detail' competition.id %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:management:judges_list' competition.id %}">{% trans "Juges" %}</a></li>
+            <li class="breadcrumb-item active">{% trans "Ajouter une assignation" %}</li>
+        </ol>
+    </nav>
+    
+    <!-- Messages d'alerte -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="main-container">
+        <!-- Titre de la page -->
+        <div class="text-center mb-4">
+            <h1 class="h2">{% trans "Ajouter une assignation de juge" %}</h1>
+            <p class="text-muted">
+                {% trans "Sélectionnez un juge et assignez-le à une catégorie de la compétition." %}
+            </p>
+        </div>
+        
+        <!-- Formulaire d'assignation -->
+        <form method="post" id="assignment-form">
+            {% csrf_token %}
+            <input type="hidden" name="competition_id" value="{{ competition.id }}">
+            <input type="hidden" name="judge_id" id="selected_judge_id" value="">
+            
+            <div class="row">
+                <!-- Sélection du juge -->
+                <div class="col-lg-6">
+                    <div class="form-card">
+                        <div class="form-header">
+                            <h2 class="h5 mb-0">{% trans "1. Sélectionnez un juge" %}</h2>
+                        </div>
+                        <div class="form-body">
+                            <!-- Recherche et filtres -->
+                            <div class="search-box">
+                                <i class="fas fa-search search-icon"></i>
+                                <input type="text" id="judge-search" class="form-control" placeholder="{% trans 'Rechercher un juge...' %}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <span class="filter-badge active" data-filter="all">{% trans "Tous" %}</span>
+                                <span class="filter-badge" data-filter="technical">{% trans "Juge Technique" %}</span>
+                                <span class="filter-badge" data-filter="combat">{% trans "Arbitre Combat" %}</span>
+                                <span class="filter-badge" data-filter="available">{% trans "Disponibles" %}</span>
+                            </div>
+                            
+                            <!-- Liste des juges -->
+                            <div id="judge-list">
+                                {% if available_judges %}
+                                    {% for judge in available_judges %}
+                                        <div class="judge-preview-card" data-judge-id="{{ judge.id }}" data-filter-types="{{ judge.filter_types }}">
+                                            <div class="judge-preview-header">
+                                                <div class="d-flex align-items-center">
+                                                    {% if judge.practitioner.photo %}
+                                                        <img src="{{ judge.practitioner.photo.url }}" alt="{{ judge.practitioner.full_name }}" class="judge-preview-img">
+                                                    {% else %}
+                                                        <img src="{% static 'img/avatars/default.jpg' %}" alt="{{ judge.practitioner.full_name }}" class="judge-preview-img">
+                                                    {% endif %}
+                                                    <div>
+                                                        <div class="judge-info-name">{{ judge.practitioner.full_name }}</div>
+                                                        {% if judge.qualification_level %}
+                                                            <span class="judge-qualification-badge {% if judge.qualification_level == 'international' %}bg-danger{% elif judge.qualification_level == 'national' %}bg-success{% elif judge.qualification_level == 'regional' %}bg-primary{% else %}bg-secondary{% endif %} text-white">
+                                                                {{ judge.get_qualification_level_display }}
+                                                            </span>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="judge-preview-body">
+                                                <div class="d-flex flex-wrap mb-2">
+                                                    {% if judge.is_technical_judge %}
+                                                        <span class="judge-qualification-badge bg-info text-white me-1">
+                                                            <i class="fas fa-gavel me-1"></i>{% trans "Juge Technique" %}
+                                                        </span>
+                                                    {% endif %}
+                                                    {% if judge.is_combat_referee %}
+                                                        <span class="judge-qualification-badge bg-danger text-white me-1">
+                                                            <i class="fas fa-fist-raised me-1"></i>{% trans "Arbitre Combat" %}
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="small text-muted">
+                                                    <i class="fas fa-clock me-1"></i> {{ judge.experience_years }} {% trans "ans d'expérience" %}
+                                                </div>
+                                                {% if judge.availability_status %}
+                                                    <div class="mt-2 small {% if judge.availability_status == 'available' %}text-success{% elif judge.availability_status == 'partially' %}text-warning{% else %}text-danger{% endif %}">
+                                                        <i class="fas {% if judge.availability_status == 'available' %}fa-check-circle{% elif judge.availability_status == 'partially' %}fa-exclamation-circle{% else %}fa-times-circle{% endif %} me-1"></i>
+                                                        {{ judge.get_availability_display }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="no-results">
+                                        <div class="no-results-icon">
+                                            <i class="fas fa-user-slash"></i>
+                                        </div>
+                                        <h5>{% trans "Aucun juge disponible" %}</h5>
+                                        <p class="text-muted mb-0">
+                                            {% trans "Aucun juge n'est inscrit pour cette compétition ou tous ont déjà été assignés." %}
+                                        </p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Détails de l'assignation -->
+                <div class="col-lg-6">
+                    <div class="form-card">
+                        <div class="form-header">
+                            <h2 class="h5 mb-0">{% trans "2. Configurez l'assignation" %}</h2>
+                        </div>
+                        <div class="form-body">
+                            <!-- Sélection de la catégorie -->
+                            <div class="category-selector">
+                                <label class="form-label fw-bold">{% trans "Catégorie" %}</label>
+                                <select name="category_id" id="category_select" class="form-select" required>
+                                    <option value="">{% trans "Sélectionnez une catégorie" %}</option>
+                                    {% for category in competition.categories.all %}
+                                        <option value="{{ category.id }}">{{ category.name }} ({{ category.discipline.name }})</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">{% trans "Sélectionnez la catégorie à laquelle ce juge sera assigné." %}</div>
+                            </div>
+                            
+                            <!-- Type d'assignation -->
+                            <div class="assignment-type-selector">
+                                <label class="form-label fw-bold">{% trans "Type d'assignation" %}</label>
+                                <div>
+                                    <div class="assignment-type-option" data-value="technical_judge">
+                                        <i class="fas fa-gavel assignment-type-icon"></i>{% trans "Juge Technique" %}
+                                    </div>
+                                    <div class="assignment-type-option" data-value="combat_referee">
+                                        <i class="fas fa-fist-raised assignment-type-icon"></i>{% trans "Arbitre Combat" %}
+                                    </div>
+                                    <div class="assignment-type-option" data-value="chief_judge">
+                                        <i class="fas fa-user-tie assignment-type-icon"></i>{% trans "Juge en Chef" %}
+                                    </div>
+                                    <div class="assignment-type-option" data-value="timekeeper">
+                                        <i class="fas fa-stopwatch assignment-type-icon"></i>{% trans "Chronométreur" %}
+                                    </div>
+                                </div>
+                                <input type="hidden" name="assignment_type" id="assignment_type_input" required>
+                                <div class="form-text">{% trans "Sélectionnez le rôle que ce juge aura dans cette catégorie." %}</div>
+                            </div>
+                            
+                            <!-- Horaire -->
+                            <div class="time-picker row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="start_time" class="form-label fw-bold">{% trans "Heure de début" %}</label>
+                                    <input type="datetime-local" id="start_time" name="start_time" class="form-control">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="end_time" class="form-label fw-bold">{% trans "Heure de fin" %}</label>
+                                    <input type="datetime-local" id="end_time" name="end_time" class="form-control">
+                                </div>
+                                <div class="form-text">{% trans "Définissez l'horaire de l'assignation (optionnel)." %}</div>
+                            </div>
+                            
+                            <!-- Sélection du tatami -->
+                            <div class="tatami-selector">
+                                <label class="form-label fw-bold">{% trans "Tatami" %}</label>
+                                <div>
+                                    {% for i in tatami_range %}
+                                        <div class="tatami-option" data-value="{{ i }}">{{ i }}</div>
+                                    {% endfor %}
+                                </div>
+                                <input type="hidden" name="tatami" id="tatami_input">
+                                <div class="form-text">{% trans "Sélectionnez le tatami pour cette assignation (optionnel)." %}</div>
+                            </div>
+                            
+                            <!-- Notes -->
+                            <div class="mb-3">
+                                <label for="notes" class="form-label fw-bold">{% trans "Notes" %}</label>
+                                <textarea id="notes" name="notes" class="form-control" rows="3"></textarea>
+                                <div class="form-text">{% trans "Ajoutez des notes ou instructions spécifiques pour cette assignation (optionnel)." %}</div>
+                            </div>
+                            
+                            <!-- Boutons d'action -->
+                            <div class="d-flex justify-content-end mt-4">
+                                <a href="{% url 'competitions:management:judges_list' competition.id %}" class="btn btn-outline-secondary me-2">
+                                    <i class="fas fa-times me-2"></i>{% trans "Annuler" %}
+                                </a>
+                                <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
+                                    <i class="fas fa-plus me-2"></i>{% trans "Ajouter l'assignation" %}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Variables pour suivre les sélections
+        let selectedJudgeId = null;
+        let selectedAssignmentType = null;
+        let selectedTatami = null;
+        
+        // Sélection du juge
+        const judgeCards = document.querySelectorAll('.judge-preview-card');
+        const judgeIdInput = document.getElementById('selected_judge_id');
+        const submitBtn = document.getElementById('submit-btn');
+        
+        judgeCards.forEach(card => {
+            card.addEventListener('click', function() {
+                // Supprimer la classe "selected" de tous les juges
+                judgeCards.forEach(c => c.classList.remove('selected'));
+                
+                // Ajouter la classe "selected" au juge cliqué
+                this.classList.add('selected');
+                
+                // Mettre à jour la valeur de l'input hidden
+                selectedJudgeId = this.dataset.judgeId;
+                judgeIdInput.value = selectedJudgeId;
+                
+                // Mettre à jour l'état du bouton de soumission
+                updateSubmitButtonState();
+            });
+        });
+        
+        // Recherche et filtrage des juges
+        const searchInput = document.getElementById('judge-search');
+        const filterBadges = document.querySelectorAll('.filter-badge');
+        let activeFilter = 'all';
+        
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            filterJudges(searchTerm, activeFilter);
+        });
+        
+        filterBadges.forEach(badge => {
+            badge.addEventListener('click', function() {
+                // Mettre à jour la classe active
+                filterBadges.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Mettre à jour le filtre actif
+                activeFilter = this.dataset.filter;
+                
+                // Appliquer le filtre
+                filterJudges(searchInput.value.toLowerCase(), activeFilter);
+            });
+        });
+        
+        function filterJudges(searchTerm, filter) {
+            judgeCards.forEach(card => {
+                const judgeName = card.querySelector('.judge-info-name').textContent.toLowerCase();
+                const filterTypes = card.dataset.filterTypes || '';
+                
+                // Vérifier si le juge correspond au filtre et au terme de recherche
+                const matchesFilter = filter === 'all' || filterTypes.includes(filter);
+                const matchesSearch = judgeName.includes(searchTerm);
+                
+                // Afficher ou masquer la carte
+                if (matchesFilter && matchesSearch) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+            
+            // Vérifier s'il y a des résultats visibles
+            const hasVisibleCards = Array.from(judgeCards).some(card => card.style.display !== 'none');
+            
+            // Afficher ou masquer le message "Aucun résultat"
+            const noResultsElement = document.querySelector('.no-results');
+            if (noResultsElement) {
+                if (hasVisibleCards) {
+                    noResultsElement.style.display = 'none';
+                } else {
+                    noResultsElement.style.display = 'block';
+                }
+            }
+        }
+        
+        // Type d'assignation
+        const assignmentTypeOptions = document.querySelectorAll('.assignment-type-option');
+        const assignmentTypeInput = document.getElementById('assignment_type_input');
+        
+        assignmentTypeOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                // Supprimer la classe "selected" de toutes les options
+                assignmentTypeOptions.forEach(o => o.classList.remove('selected'));
+                
+                // Ajouter la classe "selected" à l'option cliquée
+                this.classList.add('selected');
+                
+                // Mettre à jour la valeur de l'input hidden
+                selectedAssignmentType = this.dataset.value;
+                assignmentTypeInput.value = selectedAssignmentType;
+                
+                // Mettre à jour l'état du bouton de soumission
+                updateSubmitButtonState();
+            });
+        });
+        
+        // Sélection du tatami
+        const tatamiOptions = document.querySelectorAll('.tatami-option');
+        const tatamiInput = document.getElementById('tatami_input');
+        
+        tatamiOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                // Supprimer la classe "selected" de toutes les options
+                tatamiOptions.forEach(o => o.classList.remove('selected'));
+                
+                // Ajouter la classe "selected" à l'option cliquée
+                this.classList.add('selected');
+                
+                // Mettre à jour la valeur de l'input hidden
+                selectedTatami = this.dataset.value;
+                tatamiInput.value = selectedTatami;
+            });
+        });
+        
+        // Mise à jour de l'état du bouton de soumission
+        function updateSubmitButtonState() {
+            const categorySelect = document.getElementById('category_select');
+            
+            // Activer le bouton si un juge et une catégorie sont sélectionnés et un type d'assignation est choisi
+            if (selectedJudgeId && categorySelect.value && selectedAssignmentType) {
+                submitBtn.disabled = false;
+            } else {
+                submitBtn.disabled = true;
+            }
+        }
+        
+        // Détecter les changements dans la sélection des catégories
+        const categorySelect = document.getElementById('category_select');
+        categorySelect.addEventListener('change', updateSubmitButtonState);
+        
+        // Validation du formulaire avant soumission
+        const assignmentForm = document.getElementById('assignment-form');
+        assignmentForm.addEventListener('submit', function(event) {
+            // Vérifier si les champs requis sont remplis
+            if (!selectedJudgeId || !categorySelect.value || !selectedAssignmentType) {
+                event.preventDefault();
+                alert("{% trans 'Veuillez sélectionner un juge, une catégorie et un type d''assignation.' %}");
+            }
+            
+            // Vérifier la cohérence des heures de début et de fin
+            const startTime = document.getElementById('start_time').value;
+            const endTime = document.getElementById('end_time').value;
+            
+            if (startTime && endTime && new Date(startTime) >= new Date(endTime)) {
+                event.preventDefault();
+                alert("{% trans 'L''heure de fin doit être postérieure à l''heure de début.' %}");
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Tableau de bord Juge" %} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-card {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .dashboard-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    
+    .card-header-bg {
+        background-image: linear-gradient(to right, #dc3545, #eb6a5c);
+        color: white;
+    }
+    
+    .assignment-badge {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 30px;
+        font-weight: 500;
+    }
+    
+    .quick-action {
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+    
+    .quick-action:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .profile-overview {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+    }
+    
+    .competition-date {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .competition-card {
+        border-left: 4px solid #dc3545;
+    }
+    
+    .empty-state {
+        padding: 3rem;
+        text-align: center;
+    }
+    
+    .empty-state-icon {
+        font-size: 3rem;
+        color: #dee2e6;
+        margin-bottom: 1.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">{% trans "Tableau de bord Juge" %}</h1>
+        
+        <a href="{% url 'competitions:technical_scoring:judge_settings' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-user-edit me-2"></i>{% trans "Éditer mon profil" %}
+        </a>
+    </div>
+    
+    <!-- Résumé du profil -->
+    <div class="profile-overview mb-5">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="me-3">
+                        <div class="rounded-circle bg-light d-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
+                            <i class="fas fa-gavel fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <h2 class="h4 mb-0">{{ practitioner.full_name }}</h2>
+                        <p class="text-muted mb-0">
+                            {% if judge %}
+                                {{ judge.get_qualification_level_display }}
+                                {% if judge.years_experience > 0 %}
+                                    • {{ judge.years_experience }} {% trans "an(s) d'expérience" %}
+                                {% endif %}
+                            {% else %}
+                                {% trans "Profil de juge incomplet" %}
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="border-start ps-3">
+                            <p class="text-muted mb-1">{% trans "Compétitions" %}</p>
+                            <h3 class="h5">{{ registrations|length }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="border-start ps-3">
+                            <p class="text-muted mb-1">{% trans "Affectations" %}</p>
+                            <h3 class="h5">
+                                {% with total_assignments=0 %}
+                                    {% for competition, assignments in assignments_by_competition.items %}
+                                        {% with total_assignments=total_assignments|add:assignments|length %}{% endwith %}
+                                    {% endfor %}
+                                    {{ total_assignments }}
+                                {% endwith %}
+                            </h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Actions rapides -->
+    <h2 class="h4 mb-3">{% trans "Actions rapides" %}</h2>
+    <div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
+        <div class="col">
+            <a href="{% url 'competitions:technical_scoring:judge_competition_list' %}" class="quick-action card h-100 text-decoration-none text-dark">
+                <div class="card-body text-center p-4">
+                    <div class="mb-3">
+                        <i class="fas fa-calendar-plus fa-2x text-primary"></i>
+                    </div>
+                    <h5 class="card-title">{% trans "Voir les compétitions à venir" %}</h5>
+                    <p class="text-muted">{% trans "Découvrez les prochaines compétitions" %}</p>
+                </div>
+            </a>
+        </div>
+        
+        <div class="col">
+            <a href="{% url 'competitions:standalone_scoring:judge_performances' %}" class="quick-action card h-100 text-decoration-none text-dark">
+                <div class="card-body text-center p-4">
+                    <div class="mb-3">
+                        <i class="fas fa-star fa-2x text-success"></i>
+                    </div>
+                    <h5 class="card-title">{% trans "Système de notation autonome" %}</h5>
+                    <p class="text-muted">{% trans "Interface de notation moderne et fiable" %}</p>
+                </div>
+            </a>
+        </div>
+        
+        <div class="col">
+            <a href="{% url 'competitions:technical_scoring:judge_settings' %}" class="quick-action card h-100 text-decoration-none text-dark">
+                <div class="card-body text-center p-4">
+                    <div class="mb-3">
+                        <i class="fas fa-id-card fa-2x text-primary"></i>
+                    </div>
+                    <h5 class="card-title">{% trans "Profil et qualifications" %}</h5>
+                    <p class="text-muted">{% trans "Mettez à jour vos informations" %}</p>
+                </div>
+            </a>
+        </div>
+        
+        <div class="col">
+            <a href="{% url 'competitions:technical_scoring:apply_as_judge' %}" class="quick-action card h-100 text-decoration-none text-dark">
+                <div class="card-body text-center p-4">
+                    <div class="mb-3">
+                        <i class="fas fa-certificate fa-2x text-primary"></i>
+                    </div>
+                    <h5 class="card-title">{% trans "Ajouter une qualification" %}</h5>
+                    <p class="text-muted">{% trans "Complétez votre profil technique" %}</p>
+                </div>
+            </a>
+        </div>
+
+        <!-- Nouvelle carte pour le suivi des candidatures -->
+        <div class="col">
+            <a href="{% url 'competitions:technical_scoring:judge_applications_status' %}" class="quick-action card h-100 text-decoration-none text-dark">
+                <div class="card-body text-center p-4">
+                    <div class="mb-3">
+                        <i class="fas fa-clipboard-check fa-2x text-primary"></i>
+                    </div>
+                    <h5 class="card-title">{% trans "Suivi des candidatures" %}</h5>
+                    <p class="text-muted">{% trans "Consultez l'état de vos candidatures" %}</p>
+                </div>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Compétitions à venir avec affectations -->
+    <h2 class="h4 mb-3">{% trans "Mes affectations" %}</h2>
+    
+    {% if assignments_by_competition %}
+        {% for competition, assignments in assignments_by_competition.items %}
+            <div class="dashboard-card mb-4">
+                <div class="card-header card-header-bg py-3">
+                    <h3 class="h5 mb-0">{{ competition.title }}</h3>
+                    <div class="competition-date">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        {{ competition.start_date|date:"d/m/Y" }}
+                        {% if competition.end_date and competition.end_date != competition.start_date %}
+                            - {{ competition.end_date|date:"d/m/Y" }}
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th>{% trans "Rôle" %}</th>
+                                    <th class="text-end">{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for assignment in assignments %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ assignment.category.name }}</strong>
+                                        </td>
+                                        <td>
+                                            {% if assignment.assignment_type == 'technical_judge' %}
+                                                <span class="badge bg-primary assignment-badge">
+                                                    <i class="fas fa-gavel me-1"></i>{% trans "Juge Technique" %}
+                                                </span>
+                                            {% elif assignment.assignment_type == 'combat_referee' %}
+                                                <span class="badge bg-danger assignment-badge">
+                                                    <i class="fas fa-fist-raised me-1"></i>{% trans "Arbitre Combat" %}
+                                                </span>
+                                            {% elif assignment.assignment_type == 'chief_judge' %}
+                                                <span class="badge bg-success assignment-badge">
+                                                    <i class="fas fa-user-tie me-1"></i>{% trans "Juge en Chef" %}
+                                                </span>
+                                            {% elif assignment.assignment_type == 'timekeeper' %}
+                                                <span class="badge bg-secondary assignment-badge">
+                                                    <i class="fas fa-stopwatch me-1"></i>{% trans "Chronométreur" %}
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            <a href="{% url 'competitions:technical_scoring:judge_category_view' assignment.category.id %}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye me-1"></i>{% trans "Détails" %}
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="dashboard-card empty-state">
+            <div class="empty-state-icon">
+                <i class="fas fa-clipboard-list"></i>
+            </div>
+            <h3 class="h5 mb-3">{% trans "Aucune affectation pour le moment" %}</h3>
+            <p class="text-muted mb-4">{% trans "Vous n'avez pas encore été affecté à des catégories de compétition." %}</p>
+            <a href="{% url 'competitions:technical_scoring:judge_competition_list' %}" class="btn btn-primary">
+                <i class="fas fa-calendar-plus me-2"></i>{% trans "Voir les compétitions à venir" %}
+            </a>
+        </div>
+    {% endif %}
+    
+    <!-- Compétitions à venir -->
+    {% if upcoming_competitions %}
+        <h2 class="h4 mb-3 mt-5">{% trans "Compétitions à venir" %}</h2>
+        <div class="row row-cols-1 row-cols-md-2 g-4">
+            {% for competition in upcoming_competitions %}
+                <div class="col">
+                    <div class="card h-100 competition-card">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ competition.title }}</h5>
+                            <p class="card-text text-muted mb-3">
+                                <i class="fas fa-calendar-alt me-1"></i>
+                                {{ competition.start_date|date:"d/m/Y" }}
+                                {% if competition.end_date and competition.end_date != competition.start_date %}
+                                    - {{ competition.end_date|date:"d/m/Y" }}
+                                {% endif %}
+                            </p>
+                            
+                            {% if competition.address %}
+                                <p class="card-text small">
+                                    <i class="fas fa-map-marker-alt me-1"></i> {{ competition.address }}
+                                </p>
+                            {% endif %}
+                            
+                            <div class="d-flex justify-content-end mt-3">
+                                <a href="{% url 'competitions:technical_scoring:apply_as_judge' %}?competition_id={{ competition.id }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-clipboard-check me-1"></i>{% trans "S'inscrire" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

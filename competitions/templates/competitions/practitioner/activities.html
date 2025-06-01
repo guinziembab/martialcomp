@@ -1,0 +1,274 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block dashboard_content %}
+<div class="page-header">
+    <h1 class="page-title">{% trans "Mes Activités" %}</h1>
+    <p class="page-subtitle">{% trans "Suivez vos entraînements et votre progression" %}</p>
+</div>
+
+<!-- Résumé des activités -->
+<div class="stats-grid">
+    <div class="stats-card">
+        <div class="stats-icon" style="background-color: rgba(0, 123, 255, 0.1); color: #007bff;">
+            <i class="fas fa-dumbbell"></i>
+        </div>
+        <div class="stats-value">{{ total_trainings|default:"0" }}</div>
+        <div class="stats-label">{% trans "Entraînements ce mois" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon" style="background-color: rgba(40, 167, 69, 0.1); color: #28a745;">
+            <i class="fas fa-calendar-check"></i>
+        </div>
+        <div class="stats-value">{{ training_streak|default:"0" }}</div>
+        <div class="stats-label">{% trans "Jours consécutifs" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon" style="background-color: rgba(255, 193, 7, 0.1); color: #ffc107;">
+            <i class="fas fa-clock"></i>
+        </div>
+        <div class="stats-value">{{ total_hours|default:"0" }}h</div>
+        <div class="stats-label">{% trans "Heures d'entraînement" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon" style="background-color: rgba(23, 162, 184, 0.1); color: #17a2b8;">
+            <i class="fas fa-list"></i>
+        </div>
+        <div class="stats-value">{{ disciplines|length }}</div>
+        <div class="stats-label">{% trans "Disciplines pratiquées" %}</div>
+    </div>
+</div>
+
+<!-- Calendrier d'activités -->
+<div class="dashboard-card">
+    <div class="card-header">
+        <h3>{% trans "Calendrier des activités" %}</h3>
+    </div>
+    <div class="card-body">
+        <div id="activities-calendar"></div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Disciplines pratiquées -->
+    <div class="col-lg-6">
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h3>{% trans "Disciplines pratiquées" %}</h3>
+            </div>
+            <div class="card-body">
+                {% if disciplines %}
+                <div class="list-group">
+                    {% for discipline in disciplines %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-1">{{ discipline.name }}</h5>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar"></i> {% trans "Pratiqué depuis" %} {{ discipline.start_date|default:"N/A" }}
+                                </small>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-primary">
+                                    <i class="fas fa-clock"></i> {{ discipline.training_hours|default:"0" }}h
+                                </div>
+                                <div class="text-success">
+                                    <i class="fas fa-chart-line"></i> {{ discipline.progress|default:"0" }}%
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-4">{% trans "Aucune discipline enregistrée" %}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Derniers entraînements -->
+    <div class="col-lg-6">
+        <div class="dashboard-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3>{% trans "Derniers entraînements" %}</h3>
+                <button class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus"></i> {% trans "Ajouter" %}
+                </button>
+            </div>
+            <div class="card-body">
+                <!-- Note: Ceci nécessiterait un modèle TrainingSession -->
+                <div class="text-center py-5">
+                    <i class="fas fa-dumbbell fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">{% trans "Fonctionnalité en cours de développement" %}</p>
+                    <p class="text-muted small">{% trans "Bientôt, vous pourrez enregistrer vos entraînements ici" %}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Graphique de progression -->
+<div class="dashboard-card">
+    <div class="card-header">
+        <h3>{% trans "Progression par discipline" %}</h3>
+    </div>
+    <div class="card-body">
+        <canvas id="progressionChart" height="100"></canvas>
+    </div>
+</div>
+
+<!-- Objectifs personnels -->
+<div class="dashboard-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3>{% trans "Objectifs personnels" %}</h3>
+        <button class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-plus"></i> {% trans "Nouvel objectif" %}
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="goals-list">
+            <!-- Objectifs simulés -->
+            <div class="goal-item mb-3 p-3 border rounded">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1">{% trans "Obtenir ceinture noire en Karaté" %}</h5>
+                        <small class="text-muted">{% trans "Date cible" %}: 31/12/2024</small>
+                    </div>
+                    <div class="text-right">
+                        <span class="badge badge-warning">{% trans "En cours" %}</span>
+                    </div>
+                </div>
+                <div class="progress mt-3" style="height: 10px;">
+                    <div class="progress-bar bg-warning" role="progressbar" style="width: 60%"></div>
+                </div>
+            </div>
+            
+            <div class="goal-item mb-3 p-3 border rounded">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1">{% trans "Participer à 5 compétitions cette année" %}</h5>
+                        <small class="text-muted">{% trans "Progression" %}: 3/5</small>
+                    </div>
+                    <div class="text-right">
+                        <span class="badge badge-info">{% trans "En cours" %}</span>
+                    </div>
+                </div>
+                <div class="progress mt-3" style="height: 10px;">
+                    <div class="progress-bar bg-info" role="progressbar" style="width: 60%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Graphique de progression
+    const ctx = document.getElementById('progressionChart').getContext('2d');
+    
+    const disciplineNames = [
+        {% for discipline in disciplines %}
+        '{{ discipline.name }}',
+        {% endfor %}
+    ];
+    
+    new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: ['{% trans "Technique" %}', '{% trans "Forme" %}', '{% trans "Combat" %}', 
+                    '{% trans "Conditions" %}', '{% trans "Mental" %}'],
+            datasets: [
+                {% for discipline in disciplines %}
+                {
+                    label: '{{ discipline.name }}',
+                    data: [80, 75, 70, 85, 90], // Données simulées
+                    borderColor: 'rgba({{ forloop.counter0|multiply:40 }}, 123, 255, 1)',
+                    backgroundColor: 'rgba({{ forloop.counter0|multiply:40 }}, 123, 255, 0.2)',
+                    pointBackgroundColor: 'rgba({{ forloop.counter0|multiply:40 }}, 123, 255, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba({{ forloop.counter0|multiply:40 }}, 123, 255, 1)'
+                },
+                {% endfor %}
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    angleLines: {
+                        display: false
+                    },
+                    suggestedMin: 0,
+                    suggestedMax: 100
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: '{% trans "Évaluation des compétences" %}'
+                }
+            }
+        }
+    });
+    
+    // Calendrier simplifié (pour l'exemple)
+    function generateCalendar() {
+        const calendarEl = document.getElementById('activities-calendar');
+        const today = new Date();
+        const currentMonth = today.getMonth();
+        const currentYear = today.getFullYear();
+        
+        let calendarHTML = '<table class="table table-bordered text-center">';
+        calendarHTML += '<thead><tr>';
+        
+        const days = ['{% trans "Dim" %}', '{% trans "Lun" %}', '{% trans "Mar" %}', 
+                     '{% trans "Mer" %}', '{% trans "Jeu" %}', '{% trans "Ven" %}', '{% trans "Sam" %}'];
+        
+        days.forEach(day => {
+            calendarHTML += `<th>${day}</th>`;
+        });
+        
+        calendarHTML += '</tr></thead><tbody>';
+        
+        const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        
+        let date = 1;
+        for (let i = 0; i < 6; i++) {
+            calendarHTML += '<tr>';
+            for (let j = 0; j < 7; j++) {
+                if (i === 0 && j < firstDay) {
+                    calendarHTML += '<td></td>';
+                } else if (date > daysInMonth) {
+                    calendarHTML += '<td></td>';
+                } else {
+                    const hasActivity = Math.random() > 0.7; // Simuler des activités
+                    const cellClass = hasActivity ? 'bg-success text-white' : '';
+                    calendarHTML += `<td class="${cellClass}">${date}</td>`;
+                    date++;
+                }
+            }
+            calendarHTML += '</tr>';
+            if (date > daysInMonth) break;
+        }
+        
+        calendarHTML += '</tbody></table>';
+        calendarEl.innerHTML = calendarHTML;
+    }
+    
+    generateCalendar();
+</script>
+{% endblock %}

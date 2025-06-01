@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Rapport des médailles" %} - {{ competition.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Titre et navigation -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Rapport des médailles" %}</h1>
+        <div class="btn-group">
+            <a href="{% url 'competitions:management:results_dashboard' competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+            </a>
+            <a href="{% url 'competitions:management:club_results' competition.id %}" class="btn btn-primary">
+                <i class="fas fa-building me-2"></i>{% trans "Résultats par club" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Information sur la compétition -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{{ competition.title }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><i class="fas fa-calendar-alt me-2"></i>{% trans "Dates" %}: {{ competition.start_date|date:"d/m/Y" }} {% if competition.end_date and competition.end_date != competition.start_date %}- {{ competition.end_date|date:"d/m/Y" }}{% endif %}</p>
+                    <p class="mb-1"><i class="fas fa-map-marker-alt me-2"></i>{% trans "Lieu" %}: {{ competition.location }}</p>
+                    <p class="mb-0"><i class="fas fa-medal me-2"></i>{% trans "Total des médailles" %}: {{ total_medals.total }}</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-outline-primary" onclick="window.print();">
+                            <i class="fas fa-print me-1"></i>{% trans "Imprimer" %}
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#exportModal">
+                            <i class="fas fa-file-export me-1"></i>{% trans "Exporter" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Récapitulatif des médailles -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-center mb-3">
+                <div class="card-body">
+                    <span class="display-1 text-warning">
+                        <i class="fas fa-medal"></i>
+                    </span>
+                    <h3 class="h4 mt-3">{% trans "Or" %}</h3>
+                    <p class="display-4 mb-0">{{ total_medals.gold }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center mb-3">
+                <div class="card-body">
+                    <span class="display-1 text-secondary">
+                        <i class="fas fa-medal"></i>
+                    </span>
+                    <h3 class="h4 mt-3">{% trans "Argent" %}</h3>
+                    <p class="display-4 mb-0">{{ total_medals.silver }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center mb-3">
+                <div class="card-body">
+                    <span class="display-1 text-danger">
+                        <i class="fas fa-medal"></i>
+                    </span>
+                    <h3 class="h4 mt-3">{% trans "Bronze" %}</h3>
+                    <p class="display-4 mb-0">{{ total_medals.bronze }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphiques -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light">
+                    <h3 class="h5 mb-0">{% trans "Médailles par type" %}</h3>
+                </div>
+                <div class="card-body">
+                    <canvas id="medalsByTypeChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light">
+                    <h3 class="h5 mb-0">{% trans "Top 5 des clubs" %}</h3>
+                </div>
+                <div class="card-body">
+                    <canvas id="medalsByClubChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Détail des médailles par club -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="h5 mb-0">{% trans "Médailles par club" %}</h3>
+                <div class="input-group" style="max-width: 300px;">
+                    <input type="text" class="form-control" id="clubSearch" placeholder="{% trans 'Rechercher un club...' %}">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "Club" %}</th>
+                        <th class="text-center">{% trans "Or" %}</th>
+                        <th class="text-center">{% trans "Argent" %}</th>
+                        <th class="text-center">{% trans "Bronze" %}</th>
+                        <th class="text-center">{% trans "Total" %}</th>
+                        <th class="text-center">{% trans "Score" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for club in clubs_medals %}
+                        <tr class="club-row">
+                            <td>
+                                <span class="club-name">{{ club.practitioner__club__name }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-warning px-3 py-2">{{ club.gold }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary px-3 py-2">{{ club.silver }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-danger px-3 py-2">{{ club.bronze }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-primary px-3 py-2">{{ club.total }}</span>
+                            </td>
+                            <td class="text-center">
+                                {{ club.gold|multiply:3|add:club.silver|multiply:2|add:club.bronze }}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4">
+                                <div class="d-flex flex-column align-items-center">
+                                    <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                                    <p class="mb-0">{% trans "Aucune médaille attribuée aux clubs." %}</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Détail des médailles par catégorie -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="h5 mb-0">{% trans "Médailles par catégorie" %}</h3>
+                <div class="input-group" style="max-width: 300px;">
+                    <input type="text" class="form-control" id="categorySearch" placeholder="{% trans 'Rechercher une catégorie...' %}">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "Catégorie" %}</th>
+                        <th>{% trans "Discipline" %}</th>
+                        <th class="text-center">{% trans "Or" %}</th>
+                        <th class="text-center">{% trans "Argent" %}</th>
+                        <th class="text-center">{% trans "Bronze" %}</th>
+                        <th class="text-center">{% trans "Total" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for category_id, medal_data in medals_by_category.items %}
+                        <tr class="category-row">
+                            <td>
+                                <span class="category-name">{{ medal_data.category.name }}</span>
+                            </td>
+                            <td>{{ medal_data.category.competition_type.name }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-warning px-3 py-2">{{ medal_data.gold }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary px-3 py-2">{{ medal_data.silver }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-danger px-3 py-2">{{ medal_data.bronze }}</span>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-primary px-3 py-2">{{ medal_data.total }}</span>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4">
+                                <div class="d-flex flex-column align-items-center">
+                                    <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                                    <p class="mb-0">{% trans "Aucune médaille attribuée aux catégories." %}</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal d'export -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="exportModalLabel">
+                    <i class="fas fa-file-export me-2"></i>{% trans "Exporter le rapport des médailles" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Choisissez le format d'exportation du rapport des médailles." %}</p>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'competitions:management:export_all_results' competition.id %}?type=medals&format=pdf" class="btn btn-outline-danger">
+                        <i class="fas fa-file-pdf me-2"></i>{% trans "Exporter en PDF" %}
+                    </a>
+                    <a href="{% url 'competitions:management:export_all_results' competition.id %}?type=medals&format=csv" class="btn btn-outline-success">
+                        <i class="fas fa-file-csv me-2"></i>{% trans "Exporter en CSV" %}
+                    </a>
+                    <a href="{% url 'competitions:management:export_all_results' competition.id %}?type=medals&format=excel" class="btn btn-outline-primary">
+                        <i class="fas fa-file-excel me-2"></i>{% trans "Exporter en Excel" %}
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>{% trans "Fermer" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Recherche de clubs
+        const clubSearchInput = document.getElementById('clubSearch');
+        if (clubSearchInput) {
+            clubSearchInput.addEventListener('keyup', function() {
+                const searchTerm = this.value.toLowerCase();
+                const clubRows = document.querySelectorAll('.club-row');
+                
+                clubRows.forEach(row => {
+                    const clubName = row.querySelector('.club-name').textContent.toLowerCase();
+                    
+                    if (clubName.includes(searchTerm)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+        
+        // Recherche de catégories
+        const categorySearchInput = document.getElementById('categorySearch');
+        if (categorySearchInput) {
+            categorySearchInput.addEventListener('keyup', function() {
+                const searchTerm = this.value.toLowerCase();
+                const categoryRows = document.querySelectorAll('.category-row');
+                
+                categoryRows.forEach(row => {
+                    const categoryName = row.querySelector('.category-name').textContent.toLowerCase();
+                    const disciplineName = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                    
+                    if (categoryName.includes(searchTerm) || disciplineName.includes(searchTerm)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+            });
+        }
+        
+        // Graphique des médailles par type
+        const medalsByTypeCtx = document.getElementById('medalsByTypeChart');
+        if (medalsByTypeCtx) {
+            new Chart(medalsByTypeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [
+                        '{% trans "Or" %}',
+                        '{% trans "Argent" %}',
+                        '{% trans "Bronze" %}'
+                    ],
+                    datasets: [{
+                        data: [
+                            {{ total_medals.gold }},
+                            {{ total_medals.silver }},
+                            {{ total_medals.bronze }}
+                        ],
+                        backgroundColor: [
+                            'rgba(255, 193, 7, 0.7)',
+                            'rgba(108, 117, 125, 0.7)',
+                            'rgba(220, 53, 69, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgb(255, 193, 7)',
+                            'rgb(108, 117, 125)',
+                            'rgb(220, 53, 69)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: '{% trans "Distribution des médailles par type" %}'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Graphique des médailles par club (Top 5)
+        const medalsByClubCtx = document.getElementById('medalsByClubChart');
+        if (medalsByClubCtx) {
+            new Chart(medalsByClubCtx, {
+                type: 'bar',
+                data: {
+                    labels: [
+                        {% for club in clubs_medals|slice:":5" %}
+                            '{{ club.practitioner__club__name }}',
+                        {% endfor %}
+                    ],
+                    datasets: [
+                        {
+                            label: '{% trans "Or" %}',
+                            data: [
+                                {% for club in clubs_medals|slice:":5" %}
+                                    {{ club.gold }},
+                                {% endfor %}
+                            ],
+                            backgroundColor: 'rgba(255, 193, 7, 0.7)',
+                            borderColor: 'rgb(255, 193, 7)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '{% trans "Argent" %}',
+                            data: [
+                                {% for club in clubs_medals|slice:":5" %}
+                                    {{ club.silver }},
+                                {% endfor %}
+                            ],
+                            backgroundColor: 'rgba(108, 117, 125, 0.7)',
+                            borderColor: 'rgb(108, 117, 125)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '{% trans "Bronze" %}',
+                            data: [
+                                {% for club in clubs_medals|slice:":5" %}
+                                    {{ club.bronze }},
+                                {% endfor %}
+                            ],
+                            backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                            borderColor: 'rgb(220, 53, 69)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            stacked: true,
+                        },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: '{% trans "Top 5 des clubs par médailles" %}'
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,349 @@
+{% extends "grades/base.html" %}
+{% load static %}
+{% load i18n %}
+{% load grade_filters %}
+
+{% block page_title %}
+    {% trans "Grades de" %} {{ practitioner.full_name }}
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group">
+    <a href="{% url 'grades:add_practitioner_grade' practitioner.id %}" class="btn btn-primary">
+        <i class="fas fa-plus-circle me-2"></i> {% trans "Ajouter un grade" %}
+    </a>
+    <a href="{% url 'competitions:club:practitioner_edit' practitioner.id %}" class="btn btn-outline-secondary">
+        <i class="fas fa-user-edit me-2"></i> {% trans "Modifier le pratiquant" %}
+    </a>
+</div>
+{% endblock %}
+
+{% block main_content %}
+    <!-- Résumé du pratiquant -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <div class="d-flex align-items-center">
+                {% if practitioner.photo %}
+                    <img src="{{ practitioner.photo.url }}" alt="{{ practitioner.full_name }}" 
+                         class="rounded-circle me-3" style="width: 64px; height: 64px; object-fit: cover;">
+                {% else %}
+                    <div class="rounded-circle bg-secondary text-white me-3 d-flex align-items-center justify-content-center" 
+                         style="width: 64px; height: 64px; font-size: 1.5rem;">
+                        {{ practitioner.first_name|first }}{{ practitioner.last_name|first }}
+                    </div>
+                {% endif %}
+                <div>
+                    <h5 class="mb-0">{{ practitioner.full_name }}</h5>
+                    <p class="text-muted mb-0">
+                        {% if practitioner.club %}
+                            <i class="fas fa-dojo me-1"></i> {{ practitioner.club.name }}
+                        {% endif %}
+                        <span class="mx-2">|</span>
+                        <i class="fas fa-birthday-cake me-1"></i> {{ practitioner.birth_date|date:"d/m/Y" }} ({{ practitioner.age }} {% trans "ans" %})
+                        {% if practitioner.grade %}
+                            <span class="mx-2">|</span>
+                            <i class="fas fa-award me-1"></i> {{ practitioner.grade }}
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Onglets par discipline -->
+    {% if grades_by_discipline %}
+        <ul class="nav nav-tabs mb-4" id="disciplineTabs" role="tablist">
+            {% for discipline, grades in grades_by_discipline.items %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if forloop.first %}active{% endif %}" 
+                            id="discipline-{{ discipline.id }}-tab" 
+                            data-bs-toggle="tab" 
+                            data-bs-target="#discipline-{{ discipline.id }}" 
+                            type="button" 
+                            role="tab" 
+                            aria-controls="discipline-{{ discipline.id }}" 
+                            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">
+                        {{ discipline.name }}
+                        <span class="badge bg-primary rounded-pill ms-2">{{ grades|length }}</span>
+                    </button>
+                </li>
+            {% endfor %}
+        </ul>
+        
+        <div class="tab-content" id="disciplineTabsContent">
+            {% for discipline, grades in grades_by_discipline.items %}
+                <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" 
+                     id="discipline-{{ discipline.id }}" 
+                     role="tabpanel" 
+                     aria-labelledby="discipline-{{ discipline.id }}-tab">
+                    
+                    <!-- Chronologie des grades -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">{% trans "Progression des grades" %} - {{ discipline.name }}</h5>
+                            <a href="{% url 'grades:add_practitioner_grade' practitioner.id %}?discipline={{ discipline.id }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-plus-circle me-2"></i> {% trans "Ajouter" %}
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <div class="timeline">
+                                {% for grade in grades %}
+                                    <div class="timeline-item">
+                                        <div class="timeline-badge" style="background-color: {{ grade.grade.color_code|default:'#6c757d' }}">
+                                            <i class="fas fa-award"></i>
+                                        </div>
+                                        <div class="timeline-panel">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <h6 class="mb-0 {% if grade.grade.is_dan_grade %}dan-grade{% endif %}">
+                                                    {{ grade.grade.name }}
+                                                    {% if grade.is_current %}
+                                                        <span class="badge bg-success ms-2">{% trans "Actuel" %}</span>
+                                                    {% endif %}
+                                                </h6>
+                                                <small class="text-muted">{{ grade.date_obtained|date:"d/m/Y" }}</small>
+                                            </div>
+                                            
+                                            {% if grade.awarded_by or grade.location %}
+                                                <p class="mb-1 text-muted small">
+                                                    {% if grade.awarded_by %}
+                                                        <i class="fas fa-user-tie me-1"></i> {{ grade.awarded_by }}
+                                                    {% endif %}
+                                                    {% if grade.location %}
+                                                        {% if grade.awarded_by %}<span class="mx-1">|</span>{% endif %}
+                                                        <i class="fas fa-map-marker-alt me-1"></i> {{ grade.location }}
+                                                    {% endif %}
+                                                </p>
+                                            {% endif %}
+                                            
+                                            {% if grade.certificate_number %}
+                                                <p class="mb-1 text-muted small">
+                                                    <i class="fas fa-certificate me-1"></i> {% trans "Certificat" %} #{{ grade.certificate_number }}
+                                                </p>
+                                            {% endif %}
+                                            
+                                            {% if grade.notes %}
+                                                <p class="mb-1 small">{{ grade.notes }}</p>
+                                            {% endif %}
+                                            
+                                            <div class="mt-2">
+                                                <div class="btn-group btn-group-sm">
+                                                    <a href="{% url 'grades:edit_practitioner_grade' grade.id %}" class="btn btn-outline-secondary">
+                                                        <i class="fas fa-edit me-1"></i> {% trans "Modifier" %}
+                                                    </a>
+                                                    
+                                                    {% if grade.certificate_file %}
+                                                        <a href="{{ grade.certificate_file.url }}" class="btn btn-outline-info" target="_blank">
+                                                            <i class="fas fa-file-alt me-1"></i> {% trans "Certificat" %}
+                                                        </a>
+                                                    {% endif %}
+                                                    
+                                                    {% if grade.is_current %}
+                                                        <a href="{% url 'grades:revoke_grade' grade.id %}" class="btn btn-outline-danger">
+                                                            <i class="fas fa-ban me-1"></i> {% trans "Retirer" %}
+                                                        </a>
+                                                    {% else %}
+                                                        <form method="post" action="{% url 'grades:set_current_grade' grade.id %}" class="d-inline">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-outline-success">
+                                                                <i class="fas fa-check-circle me-1"></i> {% trans "Définir actuel" %}
+                                                            </button>
+                                                        </form>
+                                                    {% endif %}
+                                                    
+                                                    <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" 
+                                                            data-bs-toggle="dropdown" aria-expanded="false">
+                                                        <span class="visually-hidden">Toggle Dropdown</span>
+                                                    </button>
+                                                    <ul class="dropdown-menu">
+                                                        <li>
+                                                            <a class="dropdown-item" href="{% url 'grades:edit_practitioner_grade' grade.id %}">
+                                                                <i class="fas fa-edit me-2 text-primary"></i>{% trans "Modifier les détails" %}
+                                                            </a>
+                                                        </li>
+                                                        
+                                                        {% if grade.certificate_file %}
+                                                            <li>
+                                                                <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#certificateModal{{ grade.id }}">
+                                                                    <i class="fas fa-certificate me-2 text-info"></i>{% trans "Voir le certificat" %}
+                                                                </a>
+                                                            </li>
+                                                        {% endif %}
+                                                        
+                                                        {% if not grade.is_current %}
+                                                            <li>
+                                                                <form method="post" action="{% url 'grades:set_current_grade' grade.id %}">
+                                                                    {% csrf_token %}
+                                                                    <button type="submit" class="dropdown-item">
+                                                                        <i class="fas fa-check-circle me-2 text-success"></i>{% trans "Définir comme grade actuel" %}
+                                                                    </button>
+                                                                </form>
+                                                            </li>
+                                                        {% endif %}
+                                                        
+                                                        <li><hr class="dropdown-divider"></li>
+                                                        
+                                                        <li>
+                                                            <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#deleteGradeModal{{ grade.id }}">
+                                                                <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                                            </a>
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Modal de confirmation de suppression -->
+                                    <div class="modal fade" id="deleteGradeModal{{ grade.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header bg-danger text-white">
+                                                    <h5 class="modal-title">
+                                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                                        {% trans "Confirmer la suppression" %}
+                                                    </h5>
+                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <p>{% trans "Êtes-vous sûr de vouloir supprimer le grade suivant :" %}</p>
+                                                    <p class="fw-bold">{{ grade.grade.name }} ({{ grade.date_obtained|date:"d/m/Y" }})</p>
+                                                    <p class="text-danger">{% trans "Cette action est irréversible." %}</p>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                                        {% trans "Annuler" %}
+                                                    </button>
+                                                    <form action="{% url 'grades:delete_practitioner_grade' grade.id %}" method="post">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-danger">
+                                                            <i class="fas fa-trash me-2"></i>
+                                                            {% trans "Supprimer définitivement" %}
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Modal d'affichage du certificat (si disponible) -->
+                                    {% if grade.certificate_file %}
+                                    <div class="modal fade" id="certificateModal{{ grade.id }}" tabindex="-1" aria-labelledby="certificateModalLabel{{ grade.id }}" aria-hidden="true">
+                                        <div class="modal-dialog modal-lg">
+                                            <div class="modal-content">
+                                                <div class="modal-header bg-info text-white">
+                                                    <h5 class="modal-title" id="certificateModalLabel{{ grade.id }}">
+                                                        <i class="fas fa-certificate me-2"></i>
+                                                        {% trans "Certificat de grade" %} - {{ grade.grade.name }}
+                                                    </h5>
+                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body text-center">
+                                                    {% if grade.certificate_file.url|endswith:'.pdf' %}
+                                                        <embed src="{{ grade.certificate_file.url }}" type="application/pdf" width="100%" height="500px">
+                                                    {% else %}
+                                                        <img src="{{ grade.certificate_file.url }}" alt="Certificat" class="img-fluid">
+                                                    {% endif %}
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <a href="{{ grade.certificate_file.url }}" class="btn btn-primary" download>
+                                                        <i class="fas fa-download me-2"></i>
+                                                        {% trans "Télécharger" %}
+                                                    </a>
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                                        {% trans "Fermer" %}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Examens de grade associés -->
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">{% trans "Examens de passage de grade" %} - {{ discipline.name }}</h5>
+                        </div>
+                        <div class="card-body">
+                            {% with registrations=practitioner.grade_exam_registrations.all %}
+                                {% if registrations %}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover exam-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>{% trans "Examen" %}</th>
+                                                    <th>{% trans "Date" %}</th>
+                                                    <th>{% trans "Grade visé" %}</th>
+                                                    <th>{% trans "Statut" %}</th>
+                                                    <th>{% trans "Score" %}</th>
+                                                    <th>{% trans "Actions" %}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for registration in registrations %}
+                                                    {% if registration.target_grade.discipline == discipline %}
+                                                        <tr>
+                                                            <td>{{ registration.exam.title }}</td>
+                                                            <td>{{ registration.exam.date|date:"d/m/Y" }}</td>
+                                                            <td>
+                                                                <span class="{% if registration.target_grade.is_dan_grade %}dan-grade{% endif %}">
+                                                                    {{ registration.target_grade.name }}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <span class="status-badge status-{{ registration.status }}">
+                                                                    {{ registration.get_status_display }}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                {% if registration.score %}
+                                                                    {{ registration.score }}
+                                                                {% else %}
+                                                                    -
+                                                                {% endif %}
+                                                            </td>
+                                                            <td>
+                                                                <a href="{% url 'grades:exam_detail' registration.exam.id %}" class="btn btn-sm btn-outline-info">
+                                                                    <i class="fas fa-eye me-1"></i> {% trans "Détails" %}
+                                                                </a>
+                                                            </td>
+                                                        </tr>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-info mb-0">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        {% trans "Aucun examen de passage de grade n'est associé à ce pratiquant pour cette discipline." %}
+                                    </div>
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card">
+            <div class="card-body">
+                <div class="alert alert-info mb-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucun grade n'a encore été attribué à ce pratiquant." %}
+                </div>
+                
+                <!-- Suggestion d'ajout de grade -->
+                <div class="text-center">
+                    <p>{% trans "Vous pouvez attribuer un grade à ce pratiquant en cliquant sur le bouton ci-dessous :" %}</p>
+                    <a href="{% url 'grades:add_practitioner_grade' practitioner.id %}" class="btn btn-primary">
+                        <i class="fas fa-plus-circle me-2"></i> {% trans "Attribuer un grade" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}

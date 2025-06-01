@@ -1,0 +1,610 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}
+    {% if is_creation %}
+        {% translate "Créer un sondage" %}
+    {% else %}
+        {% translate "Modifier le sondage" %}
+    {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .question-formset {
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        position: relative;
+    }
+    .question-formset.deleted {
+        background-color: #ffeeee;
+        opacity: 0.6;
+    }
+    .delete-question {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+    }
+    .question-type-specific {
+        display: none;
+    }
+    .question-type-specific.active {
+        display: block;
+    }
+    .drag-handle {
+        cursor: move;
+        color: #6c757d;
+    }
+    .mandatory-field::after {
+        content: " *";
+        color: red;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            {% if is_creation %}
+                {% translate "Créer un sondage" %}
+                {% if event %}
+                    {% translate "pour" %} {{ event.title }}
+                {% endif %}
+            {% else %}
+                {% translate "Modifier le sondage" %}: {{ survey.title }}
+            {% endif %}
+        </h1>
+        
+        {% if not is_creation %}
+            <div>
+                <a href="{% url 'competitions:events:surveys:survey_detail' survey_id=survey.id %}" class="btn btn-outline-primary">
+                    <i class="fas fa-eye"></i> {% translate "Voir le sondage" %}
+                </a>
+                <a href="{% url 'competitions:events:surveys:survey_results' survey_id=survey.id %}" class="btn btn-outline-info ms-2">
+                    <i class="fas fa-chart-bar"></i> {% translate "Résultats" %}
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
+    <form method="post" id="surveyForm">
+        {% csrf_token %}
+        
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">{% translate "Informations générales" %}</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.title.id_for_label }}" class="form-label mandatory-field">{% translate "Titre" %}</label>
+                            {{ form.title }}
+                            {% if form.title.errors %}
+                                <div class="text-danger">{{ form.title.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">{% translate "Description" %}</label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                                <div class="text-danger">{{ form.description.errors }}</div>
+                            {% endif %}
+                            <div class="form-text">{% translate "Expliquez le but de ce sondage et les informations que vous souhaitez recueillir." %}</div>
+                        </div>
+                        
+                        {% if not event %}
+                            <div class="mb-3">
+                                <label for="{{ form.event.id_for_label }}" class="form-label">{% translate "Événement associé" %}</label>
+                                {{ form.event }}
+                                {% if form.event.errors %}
+                                    <div class="text-danger">{{ form.event.errors }}</div>
+                                {% endif %}
+                                <div class="form-text">{% translate "Facultatif. Associer ce sondage à un événement existant." %}</div>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.start_date.id_for_label }}" class="form-label">{% translate "Date de début" %}</label>
+                            {{ form.start_date }}
+                            {% if form.start_date.errors %}
+                                <div class="text-danger">{{ form.start_date.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ form.end_date.id_for_label }}" class="form-label">{% translate "Date de fin" %}</label>
+                            {{ form.end_date }}
+                            {% if form.end_date.errors %}
+                                <div class="text-danger">{{ form.end_date.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check mb-3">
+                                    {{ form.is_active }}
+                                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                        {% translate "Actif" %}
+                                    </label>
+                                    {% if form.is_active.errors %}
+                                        <div class="text-danger">{{ form.is_active.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="form-check mb-3">
+                                    {{ form.is_required }}
+                                    <label class="form-check-label" for="{{ form.is_required.id_for_label }}">
+                                        {% translate "Obligatoire" %}
+                                    </label>
+                                    {% if form.is_required.errors %}
+                                        <div class="text-danger">{{ form.is_required.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-check mb-3">
+                                    {{ form.is_anonymous }}
+                                    <label class="form-check-label" for="{{ form.is_anonymous.id_for_label }}">
+                                        {% translate "Anonyme" %}
+                                    </label>
+                                    {% if form.is_anonymous.errors %}
+                                        <div class="text-danger">{{ form.is_anonymous.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="form-check mb-3">
+                                    {{ form.allow_multiple_submissions }}
+                                    <label class="form-check-label" for="{{ form.allow_multiple_submissions.id_for_label }}">
+                                        {% translate "Autoriser plusieurs réponses" %}
+                                    </label>
+                                    {% if form.allow_multiple_submissions.errors %}
+                                        <div class="text-danger">{{ form.allow_multiple_submissions.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">{% translate "Questions" %}</h5>
+                <button type="button" class="btn btn-light btn-sm" id="addQuestion">
+                    <i class="fas fa-plus"></i> {% translate "Ajouter une question" %}
+                </button>
+            </div>
+            <div class="card-body">
+                {{ formset.management_form }}
+                
+                <div id="questions-container">
+                    {% for question_form in formset %}
+                        <div class="question-formset" id="question-{{ forloop.counter0 }}">
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="drag-handle me-2"><i class="fas fa-grip-vertical"></i></span>
+                                <h5 class="mb-0">{% translate "Question" %} #<span class="question-number">{{ forloop.counter }}</span></h5>
+                                {{ question_form.id }}
+                                
+                                {% if question_form.instance.pk %}
+                                    <input type="hidden" name="question_id" value="{{ question_form.instance.pk }}">
+                                {% endif %}
+                                
+                                <button type="button" class="btn btn-danger btn-sm ms-auto delete-question">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                            
+                            {{ question_form.DELETE }}
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <label for="{{ question_form.question_text.id_for_label }}" class="form-label mandatory-field">
+                                        {% translate "Texte de la question" %}
+                                    </label>
+                                    {{ question_form.question_text }}
+                                    {% if question_form.question_text.errors %}
+                                        <div class="text-danger">{{ question_form.question_text.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <label for="{{ question_form.question_type.id_for_label }}" class="form-label mandatory-field">
+                                        {% translate "Type de question" %}
+                                    </label>
+                                    {{ question_form.question_type }}
+                                    {% if question_form.question_type.errors %}
+                                        <div class="text-danger">{{ question_form.question_type.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <label for="{{ question_form.help_text.id_for_label }}" class="form-label">
+                                        {% translate "Texte d'aide" %}
+                                    </label>
+                                    {{ question_form.help_text }}
+                                    {% if question_form.help_text.errors %}
+                                        <div class="text-danger">{{ question_form.help_text.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="form-check mt-4">
+                                        {{ question_form.is_required }}
+                                        <label class="form-check-label" for="{{ question_form.is_required.id_for_label }}">
+                                            {% translate "Réponse obligatoire" %}
+                                        </label>
+                                        {% if question_form.is_required.errors %}
+                                            <div class="text-danger">{{ question_form.is_required.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Paramètres spécifiques selon le type de question -->
+                            <div class="question-type-specific question-type-choice">
+                                <div class="mb-3">
+                                    <label for="{{ question_form.choices_text.id_for_label }}" class="form-label mandatory-field">
+                                        {% translate "Options de réponse" %}
+                                    </label>
+                                    {{ question_form.choices_text }}
+                                    {% if question_form.choices_text.errors %}
+                                        <div class="text-danger">{{ question_form.choices_text.errors }}</div>
+                                    {% endif %}
+                                    <div class="form-text">{% translate "Entrez une option par ligne." %}</div>
+                                </div>
+                            </div>
+                            
+                            <div class="question-type-specific question-type-rating">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="{{ question_form.min_value.id_for_label }}" class="form-label mandatory-field">
+                                                {% translate "Valeur minimale" %}
+                                            </label>
+                                            {{ question_form.min_value }}
+                                            {% if question_form.min_value.errors %}
+                                                <div class="text-danger">{{ question_form.min_value.errors }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="{{ question_form.max_value.id_for_label }}" class="form-label mandatory-field">
+                                                {% translate "Valeur maximale" %}
+                                            </label>
+                                            {{ question_form.max_value }}
+                                            {% if question_form.max_value.errors %}
+                                                <div class="text-danger">{{ question_form.max_value.errors }}</div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ question_form.order.id_for_label }}" class="form-label">
+                                    {% translate "Ordre d'affichage" %}
+                                </label>
+                                {{ question_form.order }}
+                                {% if question_form.order.errors %}
+                                    <div class="text-danger">{{ question_form.order.errors }}</div>
+                                {% endif %}
+                                <div class="form-text">{% translate "Les questions seront affichées dans l'ordre croissant." %}</div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                {% if formset.non_form_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in formset.non_form_errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                
+                <div class="alert alert-info" id="noQuestionsMessage" {% if formset %}style="display: none;"{% endif %}>
+                    <i class="fas fa-info-circle"></i> {% translate "Ajoutez au moins une question à votre sondage." %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="d-grid gap-2 d-md-flex justify-content-md-center mb-5">
+            <button type="submit" class="btn btn-primary btn-lg">
+                {% if is_creation %}
+                    <i class="fas fa-plus-circle"></i> {% translate "Créer le sondage" %}
+                {% else %}
+                    <i class="fas fa-save"></i> {% translate "Enregistrer les modifications" %}
+                {% endif %}
+            </button>
+            
+            {% if not is_creation and survey %}
+                <a href="{% url 'competitions:events:surveys:survey_detail' survey_id=survey.id %}" class="btn btn-outline-secondary btn-lg">
+                    <i class="fas fa-times"></i> {% translate "Annuler" %}
+                </a>
+            {% else %}
+                <a href="{% if event %}{% url 'competitions:events:event_detail' event_id=event.id %}{% else %}{% url 'competitions:events:surveys:survey_list' %}{% endif %}" class="btn btn-outline-secondary btn-lg">
+                    <i class="fas fa-times"></i> {% translate "Annuler" %}
+                </a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<!-- Templates pour le JS -->
+<div id="empty-form-template" style="display: none;">
+    <div class="question-formset" id="question-__prefix__">
+        <div class="d-flex align-items-center mb-3">
+            <span class="drag-handle me-2"><i class="fas fa-grip-vertical"></i></span>
+            <h5 class="mb-0">{% translate "Question" %} #<span class="question-number">__prefix__</span></h5>
+            
+            <button type="button" class="btn btn-danger btn-sm ms-auto delete-question">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+        
+        {{ formset.empty_form.DELETE }}
+        
+        <div class="row mb-3">
+            <div class="col-md-8">
+                <label for="{{ formset.empty_form.question_text.id_for_label }}" class="form-label mandatory-field">
+                    {% translate "Texte de la question" %}
+                </label>
+                {{ formset.empty_form.question_text }}
+            </div>
+            
+            <div class="col-md-4">
+                <label for="{{ formset.empty_form.question_type.id_for_label }}" class="form-label mandatory-field">
+                    {% translate "Type de question" %}
+                </label>
+                {{ formset.empty_form.question_type }}
+            </div>
+        </div>
+        
+        <div class="row mb-3">
+            <div class="col-md-8">
+                <label for="{{ formset.empty_form.help_text.id_for_label }}" class="form-label">
+                    {% translate "Texte d'aide" %}
+                </label>
+                {{ formset.empty_form.help_text }}
+            </div>
+            
+            <div class="col-md-4">
+                <div class="form-check mt-4">
+                    {{ formset.empty_form.is_required }}
+                    <label class="form-check-label" for="{{ formset.empty_form.is_required.id_for_label }}">
+                        {% translate "Réponse obligatoire" %}
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Paramètres spécifiques selon le type de question -->
+        <div class="question-type-specific question-type-choice">
+            <div class="mb-3">
+                <label for="{{ formset.empty_form.choices_text.id_for_label }}" class="form-label mandatory-field">
+                    {% translate "Options de réponse" %}
+                </label>
+                {{ formset.empty_form.choices_text }}
+                <div class="form-text">{% translate "Entrez une option par ligne." %}</div>
+            </div>
+        </div>
+        
+        <div class="question-type-specific question-type-rating">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="{{ formset.empty_form.min_value.id_for_label }}" class="form-label mandatory-field">
+                            {% translate "Valeur minimale" %}
+                        </label>
+                        {{ formset.empty_form.min_value }}
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="{{ formset.empty_form.max_value.id_for_label }}" class="form-label mandatory-field">
+                            {% translate "Valeur maximale" %}
+                        </label>
+                        {{ formset.empty_form.max_value }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mb-3">
+            <label for="{{ formset.empty_form.order.id_for_label }}" class="form-label">
+                {% translate "Ordre d'affichage" %}
+            </label>
+            {{ formset.empty_form.order }}
+            <div class="form-text">{% translate "Les questions seront affichées dans l'ordre croissant." %}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const formsetPrefix = '{{ formset.prefix }}';
+        const addButton = document.getElementById('addQuestion');
+        const questionsContainer = document.getElementById('questions-container');
+        const noQuestionsMessage = document.getElementById('noQuestionsMessage');
+        const totalFormsInput = document.getElementById('id_' + formsetPrefix + '-TOTAL_FORMS');
+        const emptyFormTemplate = document.getElementById('empty-form-template').innerHTML;
+        
+        // Rendre les questions triables
+        new Sortable(questionsContainer, {
+            handle: '.drag-handle',
+            animation: 150,
+            onEnd: function() {
+                updateQuestionNumbers();
+                updateOrderField();
+            }
+        });
+        
+        // Ajouter une nouvelle question
+        addButton.addEventListener('click', function() {
+            let formCount = parseInt(totalFormsInput.value);
+            let newForm = emptyFormTemplate.replace(/__prefix__/g, formCount);
+            
+            // Ajouter le nouveau formulaire
+            questionsContainer.insertAdjacentHTML('beforeend', newForm);
+            
+            // Mettre à jour le compteur
+            totalFormsInput.value = formCount + 1;
+            
+            // Mettre à jour les numéros et cacher le message
+            updateQuestionNumbers();
+            noQuestionsMessage.style.display = 'none';
+            
+            // Initialiser les handlers de la nouvelle question
+            initQuestionTypeHandlers(questionsContainer.lastElementChild);
+            initDeleteHandler(questionsContainer.lastElementChild);
+            
+            // Définir un ordre par défaut
+            const orderInput = document.querySelector('#question-' + formCount + ' [id$=-order]');
+            if (orderInput) {
+                orderInput.value = formCount;
+            }
+        });
+        
+        // Mettre à jour les numéros de questions
+        function updateQuestionNumbers() {
+            const questions = questionsContainer.querySelectorAll('.question-formset:not(.deleted)');
+            questions.forEach((question, index) => {
+                question.querySelector('.question-number').textContent = index + 1;
+            });
+            
+            if (questions.length === 0) {
+                noQuestionsMessage.style.display = 'block';
+            } else {
+                noQuestionsMessage.style.display = 'none';
+            }
+        }
+        
+        // Mettre à jour les champs d'ordre après tri
+        function updateOrderField() {
+            const questions = questionsContainer.querySelectorAll('.question-formset:not(.deleted)');
+            questions.forEach((question, index) => {
+                const orderInput = question.querySelector('[id$=-order]');
+                if (orderInput) {
+                    orderInput.value = index;
+                }
+            });
+        }
+        
+        // Initialiser les gestionnaires pour les types de questions
+        function initQuestionTypeHandlers(question) {
+            const typeSelect = question.querySelector('[id$=-question_type]');
+            
+            if (typeSelect) {
+                // Fonction pour mettre à jour l'affichage des champs spécifiques
+                const updateTypeSpecificFields = function() {
+                    const type = typeSelect.value;
+                    const typeSpecificDivs = question.querySelectorAll('.question-type-specific');
+                    
+                    typeSpecificDivs.forEach(div => {
+                        div.classList.remove('active');
+                    });
+                    
+                    if (type === 'single_choice' || type === 'multiple_choice') {
+                        question.querySelector('.question-type-choice').classList.add('active');
+                    } else if (type === 'rating' || type === 'scale') {
+                        question.querySelector('.question-type-rating').classList.add('active');
+                    }
+                };
+                
+                // Appliquer immédiatement et ajouter un écouteur pour les changements
+                updateTypeSpecificFields();
+                typeSelect.addEventListener('change', updateTypeSpecificFields);
+            }
+        }
+        
+        // Initialiser les gestionnaires de suppression
+        function initDeleteHandler(question) {
+            const deleteBtn = question.querySelector('.delete-question');
+            const deleteCheckbox = question.querySelector('[id$=-DELETE]');
+            
+            if (deleteBtn && deleteCheckbox) {
+                deleteBtn.addEventListener('click', function() {
+                    if (confirm('{% translate "Êtes-vous sûr de vouloir supprimer cette question ?" %}')) {
+                        if (deleteCheckbox) {
+                            deleteCheckbox.checked = true;
+                            question.classList.add('deleted');
+                            question.style.display = 'none';
+                            updateQuestionNumbers();
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Initialiser tous les gestionnaires existants
+        document.querySelectorAll('.question-formset').forEach(question => {
+            initQuestionTypeHandlers(question);
+            initDeleteHandler(question);
+        });
+        
+        // Validation du formulaire avant soumission
+        document.getElementById('surveyForm').addEventListener('submit', function(e) {
+            const visibleQuestions = questionsContainer.querySelectorAll('.question-formset:not(.deleted)');
+            
+            if (visibleQuestions.length === 0) {
+                e.preventDefault();
+                alert('{% translate "Vous devez ajouter au moins une question au sondage." %}');
+                return false;
+            }
+            
+            // Vérifier les champs obligatoires selon le type
+            let hasErrors = false;
+            visibleQuestions.forEach(question => {
+                const questionType = question.querySelector('[id$=-question_type]').value;
+                
+                // Vérifier le texte de la question
+                if (!question.querySelector('[id$=-question_text]').value.trim()) {
+                    hasErrors = true;
+                }
+                
+                // Vérifier les options pour les questions à choix
+                if ((questionType === 'single_choice' || questionType === 'multiple_choice')) {
+                    const choicesText = question.querySelector('[id$=-choices_text]').value.trim();
+                    if (!choicesText) {
+                        hasErrors = true;
+                    }
+                }
+                
+                // Vérifier les valeurs min/max pour les questions de notation
+                if (questionType === 'rating' || questionType === 'scale') {
+                    const minValue = parseInt(question.querySelector('[id$=-min_value]').value);
+                    const maxValue = parseInt(question.querySelector('[id$=-max_value]').value);
+                    
+                    if (isNaN(minValue) || isNaN(maxValue) || minValue >= maxValue) {
+                        hasErrors = true;
+                    }
+                }
+            });
+            
+            if (hasErrors) {
+                e.preventDefault();
+                alert('{% translate "Veuillez remplir tous les champs obligatoires et vérifier les valeurs." %}');
+                return false;
+            }
+        });
+    });
+</script>
+{% endblock %}

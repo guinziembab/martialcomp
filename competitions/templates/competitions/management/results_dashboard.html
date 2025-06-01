@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Tableau de bord des résultats" %} - {{ competition.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Titre et navigation -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Tableau de bord des résultats" %}</h1>
+        <div class="btn-group">
+            <a href="{% url 'competitions:management:competition_detail' competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la compétition" %}
+            </a>
+            <a href="{% url 'competitions:management:all_competition_results' competition.id %}" class="btn btn-primary">
+                <i class="fas fa-trophy me-2"></i>{% trans "Tous les résultats" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Information sur la compétition -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{{ competition.title }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><i class="fas fa-calendar-alt me-2"></i>{% trans "Dates" %}: {{ competition.start_date|date:"d/m/Y" }} {% if competition.end_date and competition.end_date != competition.start_date %}- {{ competition.end_date|date:"d/m/Y" }}{% endif %}</p>
+                    <p class="mb-1"><i class="fas fa-map-marker-alt me-2"></i>{% trans "Lieu" %}: {{ competition.location }}</p>
+                    <p class="mb-0"><i class="fas fa-info-circle me-2"></i>{% trans "Statut" %}: 
+                        {% if competition.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">{% trans "En attente" %}</span>
+                        {% elif competition.status == 'ongoing' %}
+                            <span class="badge bg-info">{% trans "En cours" %}</span>
+                        {% elif competition.status == 'completed' %}
+                            <span class="badge bg-success">{% trans "Terminée" %}</span>
+                        {% elif competition.status == 'cancelled' %}
+                            <span class="badge bg-danger">{% trans "Annulée" %}</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <div class="btn-group">
+                        <a href="{% url 'competitions:management:club_results' competition.id %}" class="btn btn-outline-primary">
+                            <i class="fas fa-building me-1"></i>{% trans "Résultats par club" %}
+                        </a>
+                        <a href="{% url 'competitions:management:medals_report' competition.id %}" class="btn btn-outline-primary">
+                            <i class="fas fa-medal me-1"></i>{% trans "Rapport des médailles" %}
+                        </a>
+                        <a href="{% url 'competitions:management:public_results_link' competition.id %}" class="btn btn-outline-primary">
+                            <i class="fas fa-share-alt me-1"></i>{% trans "Partager" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Publication des résultats -->
+    {% if competition.status != 'completed' %}
+    <div class="alert alert-info mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="alert-heading"><i class="fas fa-info-circle me-2"></i>{% trans "Publication des résultats" %}</h5>
+                <p class="mb-0">{% trans "Les résultats de cette compétition ne sont pas encore publiés. Cliquez sur le bouton pour finaliser et publier tous les résultats." %}</p>
+            </div>
+            <form method="POST" action="{% url 'competitions:management:publish_all_results' competition.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success" onclick="return confirm('{% trans "Êtes-vous sûr de vouloir publier tous les résultats ? Cette action marquera la compétition comme terminée." %}')">
+                    <i class="fas fa-globe me-2"></i>{% trans "Publier tous les résultats" %}
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Résumé des catégories -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm bg-light text-center mb-3">
+                <div class="card-body">
+                    <div class="display-5">{{ categories|length }}</div>
+                    <p class="mb-0">{% trans "Catégories" %}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm bg-primary text-white text-center mb-3">
+                <div class="card-body">
+                    <div class="display-5">{{ categories|regroup_by:'has_results'|first|length }}</div>
+                    <p class="mb-0">{% trans "Avec résultats" %}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm bg-success text-white text-center mb-3">
+                <div class="card-body">
+                    <div class="display-5">{{ categories|regroup_by:'is_completed'|first|length }}</div>
+                    <p class="mb-0">{% trans "Terminées" %}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm bg-warning text-dark text-center mb-3">
+                <div class="card-body">
+                    <div class="display-5">{{ categories|regroup_by:'is_completed'|last|length }}</div>
+                    <p class="mb-0">{% trans "En cours" %}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Liste des catégories -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="h5 mb-0">{% trans "Catégories et résultats" %}</h3>
+                <div class="input-group" style="max-width: 300px;">
+                    <input type="text" class="form-control" id="categorySearch" placeholder="{% trans 'Rechercher une catégorie...' %}">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% trans "Catégorie" %}</th>
+                        <th>{% trans "Type" %}</th>
+                        <th class="text-center">{% trans "Participants" %}</th>
+                        <th class="text-center">{% trans "Performances" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                        <th class="text-center">{% trans "Résultats" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for category in categories %}
+                    <tr class="category-row">
+                        <td>
+                            <strong>{{ category.name }}</strong>
+                        </td>
+                        <td>{{ category.competition_type.name }}</td>
+                        <td class="text-center">{{ category.registrations.count }}</td>
+                        <td class="text-center">
+                            {{ category.completed_performances_count }}/{{ category.total_performances_count }}
+                            {% if category.total_performances_count > 0 %}
+                                <div class="progress" style="height: 5px;">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                        style="width: {% widthratio category.completed_performances_count category.total_performances_count 100 %}%;" 
+                                        aria-valuenow="{% widthratio category.completed_performances_count category.total_performances_count 100 %}" 
+                                        aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if category.is_completed %}
+                                <span class="badge bg-success">{% trans "Terminée" %}</span>
+                            {% elif category.status == 'ongoing' %}
+                                <span class="badge bg-info">{% trans "En cours" %}</span>
+                            {% elif category.status == 'pending' %}
+                                <span class="badge bg-warning text-dark">{% trans "En attente" %}</span>
+                            {% elif category.status == 'cancelled' %}
+                                <span class="badge bg-danger">{% trans "Annulée" %}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if category.has_results %}
+                                <span class="badge bg-success"><i class="fas fa-check me-1"></i>{% trans "Disponibles" %}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{% trans "Non disponibles" %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                {% if category.has_results %}
+                                    <a href="{% url 'competitions:management:category_results' competition.id category.id %}" class="btn btn-primary">
+                                        <i class="fas fa-trophy"></i>
+                                    </a>
+                                    <a href="{% url 'competitions:management:podium_preview' competition.id category.id %}" class="btn btn-info">
+                                        <i class="fas fa-medal"></i>
+                                    </a>
+                                {% else %}
+                                    <a href="{% url 'competitions:management:calculate_category_results' competition.id category.id %}" class="btn btn-outline-primary">
+                                        <i class="fas fa-calculator me-1"></i>{% trans "Calculer" %}
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <p class="text-muted mb-0"><i class="fas fa-info-circle me-2"></i>{% trans "Aucune catégorie trouvée pour cette compétition." %}</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Recherche sur les catégories
+        const searchInput = document.getElementById('categorySearch');
+        const rows = document.querySelectorAll('.category-row');
+        
+        searchInput.addEventListener('keyup', function() {
+            const searchTerm = this.value.toLowerCase();
+            
+            rows.forEach(row => {
+                const categoryName = row.querySelector('td:first-child').textContent.toLowerCase();
+                const categoryType = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                
+                if (categoryName.includes(searchTerm) || categoryType.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

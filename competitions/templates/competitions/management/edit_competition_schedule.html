@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Modifier le planning" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-section {
+        margin-bottom: 2rem;
+    }
+    .form-header {
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .time-fields .form-group {
+        margin-bottom: 1rem;
+    }
+    .field-info {
+        color: #6c757d;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>{% trans "Modifier le planning" %}</h1>
+            <p class="lead">{{ competition.title }}</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'competitions:management:schedule_overview' competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "Retour au planning" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                            <p>{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Horaires de la compétition -->
+                        <div class="form-section">
+                            <div class="form-header">
+                                <h2>{% trans "Horaires généraux" %}</h2>
+                                <p>{% trans "Définissez les heures de début et de fin de la compétition." %}</p>
+                            </div>
+                            
+                            <div class="row time-fields">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ form.start_time.id_for_label }}" class="form-label">{% trans "Heure de début" %}</label>
+                                        {{ form.start_time.errors }}
+                                        {{ form.start_time }}
+                                        {% if form.start_time.help_text %}
+                                        <div class="field-info">{{ form.start_time.help_text }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ form.end_time.id_for_label }}" class="form-label">{% trans "Heure de fin" %}</label>
+                                        {{ form.end_time.errors }}
+                                        {{ form.end_time }}
+                                        {% if form.end_time.help_text %}
+                                        <div class="field-info">{{ form.end_time.help_text }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Configuration des tatamis -->
+                        <div class="form-section">
+                            <div class="form-header">
+                                <h2>{% trans "Configuration des tatamis" %}</h2>
+                                <p>{% trans "Définissez le nombre de tatamis disponibles pour la compétition." %}</p>
+                            </div>
+                            
+                            <div class="form-group mb-4">
+                                <label for="{{ form.tatami_count.id_for_label }}" class="form-label">{% trans "Nombre de tatamis" %}</label>
+                                {{ form.tatami_count.errors }}
+                                {{ form.tatami_count }}
+                                {% if form.tatami_count.help_text %}
+                                <div class="field-info">{{ form.tatami_count.help_text }}</div>
+                                {% endif %}
+                            </div>
+                            
+                            {% if schedule.tatami_count < form.tatami_count.value %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> {% trans "L'augmentation du nombre de tatamis créera automatiquement de nouveaux tatamis." %}
+                            </div>
+                            {% elif schedule.tatami_count > form.tatami_count.value %}
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i> {% trans "La réduction du nombre de tatamis déplacera automatiquement les catégories planifiées vers le tatami 1." %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Paramètres des matchs -->
+                        <div class="form-section">
+                            <div class="form-header">
+                                <h2>{% trans "Paramètres des matchs" %}</h2>
+                                <p>{% trans "Configurez les durées par défaut pour les matchs." %}</p>
+                            </div>
+                            
+                            <div class="form-group mb-4">
+                                <label for="{{ form.match_duration.id_for_label }}" class="form-label">{% trans "Durée par défaut des matchs (minutes)" %}</label>
+                                {{ form.match_duration.errors }}
+                                {{ form.match_duration }}
+                                {% if form.match_duration.help_text %}
+                                <div class="field-info">{{ form.match_duration.help_text }}</div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="form-group mb-4">
+                                <label for="{{ form.transition_time.id_for_label }}" class="form-label">{% trans "Temps de transition entre les matchs (minutes)" %}</label>
+                                {{ form.transition_time.errors }}
+                                {{ form.transition_time }}
+                                {% if form.transition_time.help_text %}
+                                <div class="field-info">{{ form.transition_time.help_text }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Notes et commentaires -->
+                        <div class="form-section">
+                            <div class="form-header">
+                                <h2>{% trans "Notes et commentaires" %}</h2>
+                            </div>
+                            
+                            <div class="form-group mb-4">
+                                <label for="{{ form.notes.id_for_label }}" class="form-label">{% trans "Notes" %}</label>
+                                {{ form.notes.errors }}
+                                {{ form.notes }}
+                                {% if form.notes.help_text %}
+                                <div class="field-info">{{ form.notes.help_text }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Boutons d'action -->
+                        <div class="form-actions d-flex justify-content-between mt-4">
+                            <a href="{% url 'competitions:management:schedule_overview' competition.id %}" class="btn btn-outline-secondary">
+                                {% trans "Annuler" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> {% trans "Enregistrer les modifications" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Informations sur le planning -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Informations sur le planning" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6>{% trans "Statut" %}</h6>
+                        {% if schedule.is_published %}
+                        <span class="badge bg-success">{% trans "Publié" %}</span>
+                        {% else %}
+                        <span class="badge bg-warning">{% trans "Non publié" %}</span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>{% trans "Dernière mise à jour" %}</h6>
+                        <p>{{ schedule.updated_at|date:"d/m/Y H:i" }}</p>
+                        {% if schedule.updated_by %}
+                        <p>{% trans "Par" %} {{ schedule.updated_by.get_full_name|default:schedule.updated_by.username }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div>
+                        <h6>{% trans "Statistiques" %}</h6>
+                        <p>{% trans "Tatamis configurés:" %} {{ schedule.tatami_count }}</p>
+                        
+                        {% with category_count=schedule.category_schedules.count %}
+                        <p>{% trans "Catégories planifiées:" %} {{ category_count }}</p>
+                        {% endwith %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Aide et conseils -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Conseils" %}</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <i class="fas fa-info-circle text-info"></i> 
+                            {% trans "La modification du nombre de tatamis peut affecter les catégories déjà planifiées." %}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-info-circle text-info"></i> 
+                            {% trans "La durée des matchs est utilisée pour estimer les créneaux horaires lors de la génération automatique des plannings." %}
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-info-circle text-info"></i> 
+                            {% trans "Vous pourrez ajuster manuellement le planning de chaque catégorie après cette configuration générale." %}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Script pour formater automatiquement les champs d'heure
+    document.addEventListener('DOMContentLoaded', function() {
+        // Ajouter des classes Bootstrap aux champs de formulaire
+        var formControls = document.querySelectorAll('input, select, textarea');
+        formControls.forEach(function(element) {
+            if (!element.classList.contains('form-control') && !element.classList.contains('form-select')) {
+                if (element.tagName === 'SELECT') {
+                    element.classList.add('form-select');
+                } else if (element.type !== 'checkbox' && element.type !== 'radio') {
+                    element.classList.add('form-control');
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

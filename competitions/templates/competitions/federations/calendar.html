@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Calendrier" %} - {{ federation.name }} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .calendar-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .calendar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+    
+    .calendar-navigation {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .btn-calendar-nav {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 0.5rem 1rem;
+        border-radius: 0.25rem;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    
+    .btn-calendar-nav:hover {
+        background-color: #e9ecef;
+    }
+    
+    .btn-calendar-nav.active {
+        background-color: var(--primary);
+        color: white;
+        border-color: var(--primary);
+    }
+    
+    .calendar-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+    
+    .calendar-month {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .calendar-weekday {
+        text-align: center;
+        font-weight: 600;
+        color: #6c757d;
+        padding: 0.5rem;
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    .calendar-day {
+        min-height: 120px;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        padding: 0.5rem;
+        position: relative;
+    }
+    
+    .calendar-day-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+    
+    .calendar-day-number {
+        font-weight: 600;
+    }
+    
+    .calendar-day.today {
+        background-color: rgba(var(--primary-rgb), 0.05);
+        border-color: var(--primary);
+    }
+    
+    .calendar-day.other-month {
+        background-color: #f8f9fa;
+        color: #adb5bd;
+    }
+    
+    .calendar-event {
+        background-color: rgba(var(--primary-rgb), 0.1);
+        border-left: 3px solid var(--primary);
+        padding: 0.25rem 0.5rem;
+        margin-bottom: 0.25rem;
+        border-radius: 0.25rem;
+        font-size: 0.85rem;
+        cursor: pointer;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: all 0.2s;
+    }
+    
+    .calendar-event:hover {
+        background-color: rgba(var(--primary-rgb), 0.2);
+    }
+    
+    .event-list {
+        margin-top: 2rem;
+    }
+    
+    .event-list-header {
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .event-card {
+        margin-bottom: 1rem;
+        border-radius: 0.5rem;
+        transition: all 0.3s;
+    }
+    
+    .event-card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+    }
+    
+    @media (max-width: 768px) {
+        .calendar-month {
+            grid-template-columns: repeat(1, 1fr);
+        }
+        
+        .calendar-weekday {
+            display: none;
+        }
+        
+        .calendar-day {
+            min-height: auto;
+            margin-bottom: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    {% if federation %}
+    <!-- Si le sidebar existe -->
+    {% include "competitions/federations/_sidebar.html" with active="calendar" %}
+    {% else %}
+    <!-- Message si pas de fédération ou si le sidebar n'existe pas -->
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-info-circle me-2"></i>{% trans "Vous visualisez le calendrier de toutes les compétitions." %}
+    </div>
+    {% endif %}
+
+    <div class="content-wrapper">
+        <div class="calendar-container">
+            <div class="calendar-header">
+                <div class="calendar-navigation">
+                    <button class="btn-calendar-nav" id="prevMonth">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <h2 class="calendar-title" id="currentMonth">{{ current_month|default:"Juin 2025" }}</h2>
+                    <button class="btn-calendar-nav" id="nextMonth">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <button class="btn-calendar-nav active" id="viewMonth">
+                        <i class="fas fa-calendar-alt me-2"></i>{% trans "Mois" %}
+                    </button>
+                    <button class="btn-calendar-nav" id="viewList">
+                        <i class="fas fa-list me-2"></i>{% trans "Liste" %}
+                    </button>
+                </div>
+            </div>
+            
+            <div id="calendarView">
+                <!-- Jours de la semaine -->
+                <div class="calendar-month">
+                    <div class="calendar-weekday">{% trans "Lun" %}</div>
+                    <div class="calendar-weekday">{% trans "Mar" %}</div>
+                    <div class="calendar-weekday">{% trans "Mer" %}</div>
+                    <div class="calendar-weekday">{% trans "Jeu" %}</div>
+                    <div class="calendar-weekday">{% trans "Ven" %}</div>
+                    <div class="calendar-weekday">{% trans "Sam" %}</div>
+                    <div class="calendar-weekday">{% trans "Dim" %}</div>
+                    
+                    {% if calendar_days %}
+                        {% for day in calendar_days %}
+                            <div class="calendar-day {% if day.today %}today{% endif %} {% if day.other_month %}other-month{% endif %}">
+                                <div class="calendar-day-header">
+                                    <span class="calendar-day-number">{{ day.day }}</span>
+                                </div>
+                                {% for event in day.events %}
+                                    <div class="calendar-event" data-event-id="{{ event.id }}">
+                                        {{ event.title }}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <!-- Affichage statique par défaut si pas de données -->
+                        <!-- ... le contenu statique actuel ... -->
+                        <div class="calendar-day other-month">
+                            <div class="calendar-day-header">
+                                <span class="calendar-day-number">31</span>
+                            </div>
+                        </div>
+                        <!-- Autres jours... -->
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div id="listView" style="display: none;">
+                <div class="event-list">
+                    <div class="event-list-header">
+                        <h3>{% trans "Prochains événements" %}</h3>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-filter me-2"></i>{% trans "Filtrer" %}
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-download me-2"></i>{% trans "Exporter" %}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="list-group">
+                        {% if competitions %}
+                            {% for competition in competitions %}
+                                <div class="list-group-item list-group-item-action event-card">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1">{{ competition.title }}</h5>
+                                        <small>{{ competition.start_date|date:"d/m/Y" }}</small>
+                                    </div>
+                                    <p class="mb-1">{{ competition.description|truncatewords:20 }}</p>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            <i class="fas fa-map-marker-alt me-1"></i>{{ competition.venue_name|default:competition.address }}
+                                        </small>
+                                        <a href="{% url 'competitions:competitions:detail' competition.pk %}" class="btn btn-sm btn-primary">
+                                            {% trans "Détails" %}
+                                        </a>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <!-- Contenu statique si pas de données -->
+                            <!-- ... le contenu statique actuel ... -->
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion des vues calendrier/liste
+        const viewMonth = document.getElementById('viewMonth');
+        const viewList = document.getElementById('viewList');
+        const calendarView = document.getElementById('calendarView');
+        const listView = document.getElementById('listView');
+        
+        viewMonth.addEventListener('click', function() {
+            calendarView.style.display = 'block';
+            listView.style.display = 'none';
+            viewMonth.classList.add('active');
+            viewList.classList.remove('active');
+        });
+        
+        viewList.addEventListener('click', function() {
+            calendarView.style.display = 'none';
+            listView.style.display = 'block';
+            viewMonth.classList.remove('active');
+            viewList.classList.add('active');
+        });
+        
+        // Gestion de la navigation entre les mois
+        const prevMonth = document.getElementById('prevMonth');
+        const nextMonth = document.getElementById('nextMonth');
+        const currentMonth = document.getElementById('currentMonth');
+        
+        // Pour une démo statique, on ne fait rien
+        // Dans une vraie implémentation, on devrait recharger le calendrier avec AJAX
+        // ou mettre à jour le DOM avec JavaScript
+        
+        prevMonth.addEventListener('click', function() {
+            alert('Navigation vers le mois précédent (à implémenter)');
+        });
+        
+        nextMonth.addEventListener('click', function() {
+            alert('Navigation vers le mois suivant (à implémenter)');
+        });
+        
+        // Ajout d'interactions pour les événements du calendrier
+        const calendarEvents = document.querySelectorAll('.calendar-event');
+        
+        calendarEvents.forEach(event => {
+            event.addEventListener('click', function() {
+                alert('Détails de l\'événement : ' + this.textContent.trim() + ' (à implémenter)');
+            });
+        });
+    });
+</script>
+{% endblock %}

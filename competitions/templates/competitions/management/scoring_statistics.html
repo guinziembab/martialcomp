@@ -1,0 +1,401 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Statistiques de notation" %} - {{ category.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Statistiques de notation" %}</h1>
+        <div class="btn-group">
+            <a href="{% url 'competitions:management:category_scoring_setup' competition.id category.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la configuration" %}
+            </a>
+            <a href="javascript:window.print();" class="btn btn-outline-primary">
+                <i class="fas fa-print me-2"></i>{% trans "Imprimer" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Information de la catégorie -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{{ category.name }} - {{ competition.title }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><i class="fas fa-dumbbell me-2"></i>{% trans "Discipline" %}: {{ category.discipline.name }}</p>
+                    <p class="mb-0"><i class="fas fa-layer-group me-2"></i>{% trans "Type" %}: {{ category.type.name }}</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="mb-1"><i class="fas fa-users me-2"></i>{% trans "Performances" %}: {{ performances_count }}</p>
+                    <p class="mb-0"><i class="fas fa-star me-2"></i>{% trans "Total des scores" %}: {{ total_scores }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Statistiques des juges -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h3 class="h5 mb-0">{% trans "Analyse par juge" %}</h3>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "Juge" %}</th>
+                                    <th>{% trans "Rôle" %}</th>
+                                    <th>{% trans "Nb scores" %}</th>
+                                    <th>{% trans "Moyenne" %}</th>
+                                    <th>{% trans "Écart type" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for judge_id, stats in judge_stats.items %}
+                                <tr>
+                                    <td><strong>{{ stats.name }}</strong></td>
+                                    <td>{{ stats.role }}</td>
+                                    <td>{{ stats.score_count }}</td>
+                                    <td>{{ stats.avg_score|floatformat:2 }}</td>
+                                    <td>{{ stats.std_dev|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-3">
+                                        <p class="mb-0 text-muted">{% trans "Aucune donnée disponible." %}</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Graphique des moyennes par juge -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h3 class="h5 mb-0">{% trans "Moyennes par juge" %}</h3>
+                </div>
+                <div class="card-body">
+                    <canvas id="judgeAveragesChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistiques des critères -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h3 class="h5 mb-0">{% trans "Analyse par critère" %}</h3>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{% trans "Critère" %}</th>
+                                    <th>{% trans "Pondération" %}</th>
+                                    <th>{% trans "Nb scores" %}</th>
+                                    <th>{% trans "Moyenne" %}</th>
+                                    <th>{% trans "Écart type" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for criterion_id, stats in criteria_stats.items %}
+                                <tr>
+                                    <td><strong>{{ stats.name }}</strong></td>
+                                    <td><span class="badge bg-secondary">× {{ stats.weight }}</span></td>
+                                    <td>{{ stats.score_count }}</td>
+                                    <td>{{ stats.avg_score|floatformat:2 }}</td>
+                                    <td>{{ stats.std_dev|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-3">
+                                        <p class="mb-0 text-muted">{% trans "Aucune donnée disponible." %}</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Graphique des moyennes par critère -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h3 class="h5 mb-0">{% trans "Moyennes par critère" %}</h3>
+                </div>
+                <div class="card-body">
+                    <canvas id="criteriaAveragesChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphique de dispersion -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h3 class="h5 mb-0">{% trans "Distribution des scores" %}</h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <canvas id="scatterPlotChart" height="300"></canvas>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h4 class="h6 mb-3">{% trans "Interprétation" %}</h4>
+                            <p class="small">
+                                {% trans "Ce graphique montre la distribution des scores attribués par les juges. Chaque point représente un score donné par un juge pour un critère spécifique." %}
+                            </p>
+                            
+                            <h5 class="h6 mt-4 mb-2">{% trans "Observations" %}</h5>
+                            <ul class="small">
+                                <li>{% trans "Les points regroupés indiquent un consensus entre les juges." %}</li>
+                                <li>{% trans "Les points dispersés indiquent une plus grande variation dans les évaluations." %}</li>
+                                <li>{% trans "Les tendances horizontales peuvent indiquer des préférences de notation des juges." %}</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Style pour l'impression */
+    @media print {
+        .btn-group, .no-print {
+            display: none !important;
+        }
+        
+        .card {
+            border: 1px solid #ddd !important;
+            margin-bottom: 20px !important;
+            break-inside: avoid;
+        }
+        
+        .card-header {
+            background-color: #f8f9fa !important;
+            color: #000 !important;
+        }
+        
+        body {
+            font-size: 12pt;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Données pour les graphiques
+        const judgeLabels = [
+            {% for judge_id, stats in judge_stats.items %}
+            '{{ stats.name }}',
+            {% endfor %}
+        ];
+        
+        const judgeAverages = [
+            {% for judge_id, stats in judge_stats.items %}
+            {{ stats.avg_score|floatformat:2 }},
+            {% endfor %}
+        ];
+        
+        const judgeStdDevs = [
+            {% for judge_id, stats in judge_stats.items %}
+            {{ stats.std_dev|floatformat:2 }},
+            {% endfor %}
+        ];
+        
+        const criteriaLabels = [
+            {% for criterion_id, stats in criteria_stats.items %}
+            '{{ stats.name }}',
+            {% endfor %}
+        ];
+        
+        const criteriaAverages = [
+            {% for criterion_id, stats in criteria_stats.items %}
+            {{ stats.avg_score|floatformat:2 }},
+            {% endfor %}
+        ];
+        
+        const criteriaStdDevs = [
+            {% for criterion_id, stats in criteria_stats.items %}
+            {{ stats.std_dev|floatformat:2 }},
+            {% endfor %}
+        ];
+        
+        // Graphique des moyennes par juge
+        const judgeCtx = document.getElementById('judgeAveragesChart');
+        new Chart(judgeCtx, {
+            type: 'bar',
+            data: {
+                labels: judgeLabels,
+                datasets: [
+                    {
+                        label: '{% trans "Score moyen" %}',
+                        data: judgeAverages,
+                        backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                        borderColor: 'rgb(13, 110, 253)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: '{% trans "Écart type" %}',
+                        data: judgeStdDevs,
+                        backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                        borderColor: 'rgb(220, 53, 69)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 10
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        text: '{% trans "Statistiques par juge" %}'
+                    }
+                }
+            }
+        });
+        
+        // Graphique des moyennes par critère
+        const criteriaCtx = document.getElementById('criteriaAveragesChart');
+        new Chart(criteriaCtx, {
+            type: 'bar',
+            data: {
+                labels: criteriaLabels,
+                datasets: [
+                    {
+                        label: '{% trans "Score moyen" %}',
+                        data: criteriaAverages,
+                        backgroundColor: 'rgba(25, 135, 84, 0.7)',
+                        borderColor: 'rgb(25, 135, 84)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: '{% trans "Écart type" %}',
+                        data: criteriaStdDevs,
+                        backgroundColor: 'rgba(255, 193, 7, 0.7)',
+                        borderColor: 'rgb(255, 193, 7)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 10
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        text: '{% trans "Statistiques par critère" %}'
+                    }
+                }
+            }
+        });
+        
+        // Graphique de dispersion (données fictives pour l'exemple)
+        const scatterCtx = document.getElementById('scatterPlotChart');
+        const scatterData = {
+            datasets: [
+                {
+                    label: '{% trans "Distribution des scores" %}',
+                    data: [
+                        // Générer des données de distribution fictives basées sur les moyennes
+                        {% for judge_id, stats in judge_stats.items %}
+                        {% for criterion_id, criteria_stat in criteria_stats.items %}
+                        { x: {{ forloop.parentloop.counter }}, y: {{ stats.avg_score }} + (Math.random() - 0.5) * {{ stats.std_dev|default:1 }} * 2 },
+                        {% endfor %}
+                        {% endfor %}
+                    ],
+                    backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                }
+            ]
+        };
+        
+        new Chart(scatterCtx, {
+            type: 'scatter',
+            data: scatterData,
+            options: {
+                scales: {
+                    x: {
+                        type: 'linear',
+                        position: 'bottom',
+                        title: {
+                            display: true,
+                            text: '{% trans "Juge" %}'
+                        },
+                        ticks: {
+                            stepSize: 1,
+                            callback: function(value) {
+                                return judgeLabels[value - 1] || '';
+                            }
+                        },
+                        min: 0.5,
+                        max: judgeLabels.length + 0.5
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: 10,
+                        title: {
+                            display: true,
+                            text: '{% trans "Score" %}'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: '{% trans "Distribution des scores par juge" %}'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const index = Math.floor(context.dataIndex % criteriaLabels.length);
+                                const judgeIndex = Math.floor(context.dataIndex / criteriaLabels.length);
+                                return `${judgeLabels[judgeIndex]}: ${context.parsed.y.toFixed(2)} (${criteriaLabels[index]})`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

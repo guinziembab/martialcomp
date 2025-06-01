@@ -1,0 +1,632 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Détails du juge" %} - {{ assignment.registration.practitioner.full_name }} - Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .judge-profile-card {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        margin-bottom: 30px;
+    }
+    
+    .judge-profile-header {
+        padding: 30px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        position: relative;
+    }
+    
+    .judge-profile-img {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 3px solid #fff;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        margin-right: 20px;
+    }
+    
+    .judge-qualification-badge {
+        display: inline-block;
+        padding: 5px 10px;
+        margin-right: 5px;
+        margin-bottom: 5px;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    .profile-status {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    .judge-profile-body {
+        padding: 30px;
+    }
+    
+    .profile-data-item {
+        margin-bottom: 15px;
+    }
+    
+    .profile-data-title {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-bottom: 5px;
+    }
+    
+    .profile-data-value {
+        font-weight: 500;
+    }
+    
+    .assignment-info-card {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        margin-bottom: 30px;
+    }
+    
+    .assignment-info-header {
+        padding: 20px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .assignment-info-body {
+        padding: 20px;
+    }
+    
+    .assignment-type-badge {
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    .form-section {
+        border-radius: 10px;
+        padding: 25px;
+        margin-bottom: 30px;
+        background-color: #f8f9fa;
+    }
+    
+    .tatami-badge {
+        display: inline-block;
+        min-width: 30px;
+        height: 30px;
+        line-height: 30px;
+        text-align: center;
+        border-radius: 50%;
+        background-color: #6c757d;
+        color: white;
+        font-weight: 500;
+        margin-left: 10px;
+    }
+    
+    .assignment-history-item {
+        padding: 15px;
+        border-left: 3px solid #6c757d;
+        margin-bottom: 10px;
+        background-color: #f8f9fa;
+        border-radius: 0 5px 5px 0;
+    }
+    
+    .assignment-history-title {
+        font-weight: 500;
+        margin-bottom: 5px;
+    }
+    
+    .assignment-history-time {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    .judge-notes {
+        background-color: #fff9db;
+        border-left: 3px solid #ffc107;
+        padding: 15px;
+        border-radius: 0 5px 5px 0;
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-left: 45px;
+        margin-bottom: 20px;
+    }
+    
+    .timeline-item:before {
+        content: '';
+        position: absolute;
+        left: 15px;
+        top: 0;
+        bottom: -20px;
+        width: 2px;
+        background-color: #dee2e6;
+    }
+    
+    .timeline-item:last-child:before {
+        bottom: 0;
+    }
+    
+    .timeline-badge {
+        position: absolute;
+        left: 0;
+        width: 32px;
+        height: 32px;
+        line-height: 32px;
+        text-align: center;
+        border-radius: 50%;
+        background-color: #0d6efd;
+        color: white;
+        font-size: 16px;
+    }
+    
+    .timeline-content {
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    }
+    
+    .timeline-title {
+        margin-bottom: 5px;
+        font-weight: 500;
+    }
+    
+    .timeline-date {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-bottom: 10px;
+    }
+    
+    .breadcrumb-item + .breadcrumb-item::before {
+        content: "›";
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Fil d'Ariane -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:management:competition_detail' competition.id %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:management:judges_list' competition.id %}">{% trans "Juges" %}</a></li>
+            <li class="breadcrumb-item active">{{ assignment.registration.practitioner.full_name }}</li>
+        </ol>
+    </nav>
+    
+    <!-- Messages d'alerte -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- Titre de la page -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2 mb-0">
+            {% trans "Détails du juge" %} - {{ assignment.registration.practitioner.full_name }}
+        </h1>
+        <div>
+            <div class="btn-group">
+                <a href="{% url 'competitions:management:judges_list' competition.id %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la liste" %}
+                </a>
+                <a href="{% url 'competitions:management:edit_judge_assignment' assignment.id %}" class="btn btn-outline-primary">
+                    <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Profil du juge -->
+        <div class="col-lg-4">
+            <div class="judge-profile-card">
+                <div class="judge-profile-header">
+                    <div class="d-flex align-items-center">
+                        {% if assignment.registration.practitioner.photo %}
+                            <img src="{{ assignment.registration.practitioner.photo.url }}" alt="{{ assignment.registration.practitioner.full_name }}" class="judge-profile-img">
+                        {% else %}
+                            <img src="{% static 'img/avatars/default.jpg' %}" alt="{{ assignment.registration.practitioner.full_name }}" class="judge-profile-img">
+                        {% endif %}
+                        <div>
+                            <h2 class="h4 mb-1">{{ assignment.registration.practitioner.full_name }}</h2>
+                            {% if judge.qualification_level %}
+                                <div class="mb-2">
+                                    <span class="judge-qualification-badge {% if judge.qualification_level == 'international' %}bg-danger{% elif judge.qualification_level == 'national' %}bg-success{% elif judge.qualification_level == 'regional' %}bg-primary{% else %}bg-secondary{% endif %}">
+                                        {{ judge.get_qualification_level_display }}
+                                    </span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Badge de statut -->
+                    <div class="profile-status {% if assignment.status == 'confirmed' %}bg-success text-white{% elif assignment.status == 'pending' %}bg-warning text-dark{% elif assignment.status == 'completed' %}bg-info text-white{% else %}bg-secondary text-white{% endif %}">
+                        {{ assignment.get_status_display }}
+                    </div>
+                </div>
+                
+                <div class="judge-profile-body">
+                    <!-- Informations de contact -->
+                    <h5 class="mb-3">{% trans "Informations de contact" %}</h5>
+                    
+                    <div class="profile-data-item">
+                        <div class="profile-data-title">{% trans "Email" %}</div>
+                        <div class="profile-data-value">{{ assignment.registration.practitioner.email }}</div>
+                    </div>
+                    
+                    <div class="profile-data-item">
+                        <div class="profile-data-title">{% trans "Téléphone" %}</div>
+                        <div class="profile-data-value">{{ assignment.registration.practitioner.phone|default:"-" }}</div>
+                    </div>
+                    
+                    <div class="profile-data-item">
+                        <div class="profile-data-title">{% trans "Club" %}</div>
+                        <div class="profile-data-value">{{ assignment.registration.practitioner.club.name|default:"-" }}</div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <!-- Qualifications du juge -->
+                    <h5 class="mb-3">{% trans "Qualifications" %}</h5>
+                    
+                    {% if judge.qualifications.exists %}
+                        <div class="mb-3">
+                            <div class="profile-data-title">{% trans "Types de qualifications" %}</div>
+                            <div class="d-flex flex-wrap">
+                                {% for qualification in judge.qualifications.all %}
+                                    <span class="judge-qualification-badge bg-info me-1 mb-1">
+                                        {{ qualification.get_qualification_type_display }}
+                                    </span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <div class="profile-data-item">
+                            <div class="profile-data-title">{% trans "Années d'expérience" %}</div>
+                            <div class="profile-data-value">{{ judge.experience_years }} {% trans "ans" %}</div>
+                        </div>
+                        
+                        <div class="profile-data-item">
+                            <div class="profile-data-title">{% trans "Disciplines" %}</div>
+                            <div class="profile-data-value">
+                                {{ judge.disciplines_list|default:"-" }}
+                            </div>
+                        </div>
+                        
+                        {% if judge.certification_number %}
+                            <div class="profile-data-item">
+                                <div class="profile-data-title">{% trans "Numéro de certification" %}</div>
+                                <div class="profile-data-value">{{ judge.certification_number }}</div>
+                            </div>
+                        {% endif %}
+                        
+                        {% if judge.certified_since %}
+                            <div class="profile-data-item">
+                                <div class="profile-data-title">{% trans "Certifié depuis" %}</div>
+                                <div class="profile-data-value">{{ judge.certified_since|date:"d/m/Y" }}</div>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {% trans "Aucune qualification enregistrée pour ce juge." %}
+                        </div>
+                    {% endif %}
+                    
+                    {% if judge.notes %}
+                        <div class="judge-notes mt-4">
+                            <h6 class="mb-2">{% trans "Notes" %}</h6>
+                            <p class="mb-0">{{ judge.notes }}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Historique des compétitions précédentes -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Expérience précédente" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if previous_assignments %}
+                        {% for prev_assignment in previous_assignments %}
+                            <div class="assignment-history-item">
+                                <div class="assignment-history-title">
+                                    {{ prev_assignment.competition.title }}
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <div class="assignment-history-role">
+                                        {{ prev_assignment.get_assignment_type_display }}
+                                    </div>
+                                    <div class="assignment-history-time">
+                                        {{ prev_assignment.competition.start_date|date:"d/m/Y" }}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-muted">
+                            {% trans "Aucune expérience précédente dans notre système." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Informations d'assignation -->
+        <div class="col-lg-8">
+            <div class="assignment-info-card">
+                <div class="assignment-info-header">
+                    <h3 class="h5 mb-0">{% trans "Détails de l'assignation" %}</h3>
+                </div>
+                <div class="assignment-info-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6 class="mb-3">{% trans "Type d'assignation" %}</h6>
+                            <span class="assignment-type-badge 
+                                {% if assignment.assignment_type == 'technical_judge' %}bg-info{% 
+                                elif assignment.assignment_type == 'combat_referee' %}bg-danger{% 
+                                elif assignment.assignment_type == 'chief_judge' %}bg-primary{% 
+                                elif assignment.assignment_type == 'timekeeper' %}bg-warning{% 
+                                else %}bg-secondary{% endif %} text-white">
+                                {{ assignment.get_assignment_type_display }}
+                            </span>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="mb-3">{% trans "Catégorie" %}</h6>
+                            <p class="mb-0">{{ assignment.category.name }}</p>
+                            <small class="text-muted">{{ assignment.category.discipline.name }}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6 class="mb-3">{% trans "Horaire" %}</h6>
+                            {% if assignment.start_time and assignment.end_time %}
+                                <p class="mb-0">
+                                    {{ assignment.start_time|date:"d/m/Y H:i" }} - {{ assignment.end_time|date:"H:i" }}
+                                </p>
+                            {% else %}
+                                <p class="text-muted mb-0">{% trans "Horaire non défini" %}</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="mb-3">{% trans "Tatami" %}</h6>
+                            {% if assignment.tatami %}
+                                <p class="mb-0">
+                                    {% trans "Tatami" %} <span class="tatami-badge">{{ assignment.tatami }}</span>
+                                </p>
+                            {% else %}
+                                <p class="text-muted mb-0">{% trans "Non assigné" %}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    {% if assignment.notes %}
+                        <div class="mb-4">
+                            <h6 class="mb-3">{% trans "Notes" %}</h6>
+                            <p class="mb-0">{{ assignment.notes }}</p>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="mb-4">
+                        <h6 class="mb-3">{% trans "Assigné par" %}</h6>
+                        {% if assignment.assigned_by %}
+                            <p class="mb-0">{{ assignment.assigned_by.get_full_name }}</p>
+                            <small class="text-muted">{{ assignment.created_at|date:"d/m/Y H:i" }}</small>
+                        {% else %}
+                            <p class="text-muted mb-0">{% trans "Information non disponible" %}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Boutons d'action -->
+                    <div class="d-flex justify-content-end">
+                        {% if assignment.status == 'pending' %}
+                            <form method="post" action="{% url 'competitions:management:confirm_judge_assignment' assignment.id %}" class="me-2">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-check me-2"></i>{% trans "Confirmer" %}
+                                </button>
+                            </form>
+                            
+                            <form method="post" action="{% url 'competitions:management:cancel_judge_assignment' assignment.id %}" class="me-2">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="fas fa-times me-2"></i>{% trans "Annuler" %}
+                                </button>
+                            </form>
+                        {% elif assignment.status == 'confirmed' %}
+                            <form method="post" action="{% url 'competitions:management:complete_judge_assignment' assignment.id %}" class="me-2">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-info">
+                                    <i class="fas fa-flag-checkered me-2"></i>{% trans "Marquer comme terminé" %}
+                                </button>
+                            </form>
+                            
+                            <form method="post" action="{% url 'competitions:management:cancel_judge_assignment' assignment.id %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="fas fa-times me-2"></i>{% trans "Annuler" %}
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Formulaire de modification de l'assignation -->
+            <div class="form-section">
+                <h3 class="h5 mb-4">{% trans "Modifier l'assignation" %}</h3>
+                
+                <form method="post" action="{% url 'competitions:management:edit_judge_assignment' assignment.id %}">
+                    {% csrf_token %}
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.assignment_type.id_for_label }}" class="form-label">
+                                {% trans "Type d'assignation" %}
+                            </label>
+                            {{ form.assignment_type }}
+                            {% if form.assignment_type.errors %}
+                                <div class="invalid-feedback d-block">{{ form.assignment_type.errors }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.category.id_for_label }}" class="form-label">
+                                {% trans "Catégorie" %}
+                            </label>
+                            {{ form.category }}
+                            {% if form.category.errors %}
+                                <div class="invalid-feedback d-block">{{ form.category.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.start_time.id_for_label }}" class="form-label">
+                                {% trans "Heure de début" %}
+                            </label>
+                            {{ form.start_time }}
+                            {% if form.start_time.errors %}
+                                <div class="invalid-feedback d-block">{{ form.start_time.errors }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.end_time.id_for_label }}" class="form-label">
+                                {% trans "Heure de fin" %}
+                            </label>
+                            {{ form.end_time }}
+                            {% if form.end_time.errors %}
+                                <div class="invalid-feedback d-block">{{ form.end_time.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="{{ form.tatami.id_for_label }}" class="form-label">
+                                {% trans "Tatami" %}
+                            </label>
+                            {{ form.tatami }}
+                            {% if form.tatami.errors %}
+                                <div class="invalid-feedback d-block">{{ form.tatami.errors }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.status.id_for_label }}" class="form-label">
+                                {% trans "Statut" %}
+                            </label>
+                            {{ form.status }}
+                            {% if form.status.errors %}
+                                <div class="invalid-feedback d-block">{{ form.status.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.notes.id_for_label }}" class="form-label">
+                            {% trans "Notes" %}
+                        </label>
+                        {{ form.notes }}
+                        {% if form.notes.errors %}
+                            <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>{% trans "Enregistrer les modifications" %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Historique des modifications -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Historique des modifications" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if assignment_history %}
+                        <div class="timeline">
+                            {% for history_item in assignment_history %}
+                                <div class="timeline-item">
+                                    <div class="timeline-badge">
+                                        <i class="fas fa-history"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <div class="timeline-title">{{ history_item.action }}</div>
+                                        <div class="timeline-date">{{ history_item.timestamp|date:"d/m/Y H:i" }}</div>
+                                        <div>{{ history_item.description }}</div>
+                                        <div class="mt-2 text-muted small">
+                                            {% trans "Par" %}: {{ history_item.user.get_full_name }}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-muted">
+                            {% trans "Aucun historique de modification disponible." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Styliser les champs de formulaire
+        const formSelects = document.querySelectorAll('select');
+        formSelects.forEach(select => {
+            select.classList.add('form-select');
+        });
+        
+        const formInputs = document.querySelectorAll('input:not([type="checkbox"]):not([type="radio"])');
+        formInputs.forEach(input => {
+            input.classList.add('form-control');
+        });
+        
+        const formTextareas = document.querySelectorAll('textarea');
+        formTextareas.forEach(textarea => {
+            textarea.classList.add('form-control');
+            textarea.setAttribute('rows', '3');
+        });
+        
+        // Si des champs date/heure sont présents, initialiser les datepickers
+        const datetimeInputs = document.querySelectorAll('input[type="datetime-local"]');
+        if (datetimeInputs.length > 0) {
+            // Initialiser les datepickers si une bibliothèque est disponible
+            // Exemple avec Flatpickr ou similaire
+            if (typeof flatpickr === 'function') {
+                flatpickr(datetimeInputs, {
+                    enableTime: true,
+                    dateFormat: "Y-m-d H:i",
+                    time_24hr: true
+                });
+            }
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,202 @@
+from django.utils.deprecation import MiddlewareMixin
+from django.core.exceptions import DisallowedHost
+from django.db import connection
+from django.conf import settings
+import threading
+import logging
+
+from .models import Tenant, Domain
+
+
+logger = logging.getLogger(__name__)
+
+# Thread-local storage pour le tenant courant
+_thread_local = threading.local()
+
+
+class TenantMiddleware(MiddlewareMixin):
+    """
+    Middleware pour l'identification et l'isolation des tenants.
+    
+    Ce middleware:
+    1. Identifie le tenant à partir du domaine de la requête
+    2. Configure le schéma PostgreSQL approprié
+    3. Stocke le tenant dans un contexte thread-local
+    """
+    
+    def process_request(self, request):
+        """
+        Traite chaque requête pour identifier le tenant.
+        """
+        # Réinitialiser le contexte tenant
+        _thread_local.tenant = None
+        
+        # Obtenir le hostname depuis la requête
+        hostname = request.get_host().split(':')[0].lower()
+        
+        # Rechercher le tenant par domaine
+        tenant = self._get_tenant_by_domain(hostname)
+        
+        if tenant is None:
+            # Vérifier s'il s'agit du domaine principal (non-tenant)
+            if hostname in getattr(settings, 'PUBLIC_DOMAINS', []):
+                # Utiliser le schéma public pour les domaines publics
+                connection.set_schema('public')
+                request.tenant = None
+                return
+            
+            # Si aucun tenant trouvé et pas un domaine public, lever une exception
+            raise DisallowedHost(f"Aucun tenant trouvé pour le domaine: {hostname}")
+        
+        # Vérifier que le tenant est actif
+        if not tenant.is_active:
+            raise DisallowedHost(f"Le tenant {tenant.name} n'est pas actif")
+        
+        # Stocker le tenant dans le thread local et la requête
+        _thread_local.tenant = tenant
+        request.tenant = tenant
+        
+        # Configurer le schéma PostgreSQL pour ce tenant
+        try:
+            connection.set_schema(tenant.schema_name)
+        except Exception as e:
+            logger.error(f"Erreur lors de la configuration du schéma {tenant.schema_name}: {e}")
+            raise
+        
+        # Logger l'accès pour le monitoring
+        logger.debug(f"Requête pour tenant: {tenant.name} (schéma: {tenant.schema_name})")
+    
+    def process_response(self, request, response):
+        """
+        Nettoie le contexte après le traitement de la requête.
+        """
+        # Réinitialiser le schéma à public
+        connection.set_schema('public')
+        
+        # Nettoyer le contexte thread-local
+        if hasattr(_thread_local, 'tenant'):
+            _thread_local.tenant = None
+        
+        return response
+    
+    def _get_tenant_by_domain(self, hostname):
+        """
+        Recherche un tenant par son domaine.
+        
+        Args:
+            hostname: Le nom d'hôte de la requête
+            
+        Returns:
+            Tenant ou None si non trouvé
+        """
+        try:
+            # Chercher d'abord dans le domaine principal
+            tenant = Tenant.objects.get(domain=hostname, is_active=True)
+            return tenant
+        except Tenant.DoesNotExist:
+            pass
+        
+        try:
+            # Chercher dans les domaines secondaires
+            domain = Domain.objects.select_related('tenant').get(
+                domain=hostname,
+                tenant__is_active=True
+            )
+            return domain.tenant
+        except Domain.DoesNotExist:
+            pass
+        
+        # Vérifier si c'est un sous-domaine
+        parts = hostname.split('.')
+        if len(parts) > 2:  # Sous-domaine présent
+            subdomain = parts[0]
+            base_domain = '.'.join(parts[-2:])  # domaine principal (ex: martialcomp.com)
+            
+            # Vérifier si le domaine de base est dans nos domaines autorisés
+            base_domains = getattr(settings, 'TENANT_BASE_DOMAINS', ['martialcomp.com'])
+            if base_domain in base_domains:
+                try:
+                    tenant = Tenant.objects.get(slug=subdomain, is_active=True)
+                    return tenant
+                except Tenant.DoesNotExist:
+                    logger.warning(f"Tenant not found for subdomain: {subdomain}")
+        
+        return None
+
+
+def get_current_tenant():
+    """
+    Fonction utilitaire pour obtenir le tenant actuel depuis n'importe où dans l'application.
+    
+    Returns:
+        Tenant ou None
+    """
+    return getattr(_thread_local, 'tenant', None)
+
+
+def set_current_tenant(tenant):
+    """
+    Fonction utilitaire pour définir manuellement le tenant (utile pour les tâches asynchrones).
+    
+    Args:
+        tenant: Instance de Tenant ou None
+    """
+    _thread_local.tenant = tenant
+    if tenant:
+        connection.set_schema(tenant.schema_name)
+    else:
+        connection.set_schema('public')
+
+
+class TenantDatabaseRouter:
+    """
+    Router de base de données pour diriger les requêtes vers le bon schéma.
+    """
+    
+    def db_for_read(self, model, **hints):
+        """Retourne la base de données à utiliser pour la lecture."""
+        return self._get_db()
+    
+    def db_for_write(self, model, **hints):
+        """Retourne la base de données à utiliser pour l'écriture."""
+        return self._get_db()
+    
+    def allow_relation(self, obj1, obj2, **hints):
+        """Autorise les relations si les objets sont dans la même base."""
+        return True
+    
+    def allow_migrate(self, db, app_label, model_name=None, **hints):
+        """Autorise les migrations."""
+        return True
+    
+    def _get_db(self):
+        """Retourne l'alias de la base de données à utiliser."""
+        tenant = get_current_tenant()
+        if tenant:
+            # Pour l'instant, on utilise la même base avec des schémas différents
+            return 'default'
+        return 'default'
+
+
+# Context manager pour changer temporairement de tenant
+class tenant_context:
+    """
+    Context manager pour exécuter du code dans le contexte d'un tenant spécifique.
+    
+    Utilisation:
+        with tenant_context(tenant):
+            # Code exécuté dans le contexte du tenant
+            pass
+    """
+    
+    def __init__(self, tenant):
+        self.tenant = tenant
+        self.previous_tenant = None
+    
+    def __enter__(self):
+        self.previous_tenant = get_current_tenant()
+        set_current_tenant(self.tenant)
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        set_current_tenant(self.previous_tenant)

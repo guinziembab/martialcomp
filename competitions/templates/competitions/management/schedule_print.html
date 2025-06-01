@@ -1,0 +1,209 @@
+{% extends "base_print.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Version imprimable du planning" %} - {{ competition.title }}{% endblock %}
+
+{% block print_css %}
+<style>
+    @media print {
+        body {
+            font-size: 12pt;
+            line-height: 1.3;
+        }
+        
+        .header-info {
+            margin-bottom: 20px;
+        }
+        
+        .page-break {
+            page-break-after: always;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        th, td {
+            border: 1px solid #000;
+            padding: 5px;
+        }
+        
+        th {
+            background-color: #f0f0f0;
+        }
+        
+        .time-column {
+            width: 100px;
+        }
+        
+        .category-cell {
+            font-weight: bold;
+        }
+        
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 10pt;
+            padding: 10px 0;
+        }
+        
+        .tatami-title {
+            page-break-before: always;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 18pt;
+            border-bottom: 2px solid #000;
+        }
+        
+        .tatami-title:first-of-type {
+            page-break-before: avoid;
+        }
+        
+        .category-info {
+            padding: 5px;
+        }
+        
+        .category-name {
+            font-weight: bold;
+        }
+        
+        .match-count {
+            font-style: italic;
+            margin-left: 5px;
+        }
+        
+        .overview-table {
+            margin-bottom: 30px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="print-content">
+    <!-- En-tête -->
+    <div class="header-info">
+        <h1 style="text-align: center;">{{ competition.title }}</h1>
+        <div style="text-align: center; margin-bottom: 10px;">
+            {% if competition.date %}
+            <strong>{% trans "Date" %}:</strong> {{ competition.date|date:"j F Y" }}
+            {% endif %}
+            {% if competition.location %}
+            - <strong>{% trans "Lieu" %}:</strong> {{ competition.location }}
+            {% endif %}
+        </div>
+        <div style="text-align: center; font-style: italic;">
+            {% trans "Planning de compétition" %} - {% trans "Généré le" %} {{ current_date|date:"j F Y H:i" }}
+        </div>
+    </div>
+    
+    <!-- Vue d'ensemble - Table des matières -->
+    <h2>{% trans "Vue d'ensemble" %}</h2>
+    <table class="overview-table">
+        <thead>
+            <tr>
+                <th>{% trans "Tatami" %}</th>
+                <th>{% trans "Première catégorie" %}</th>
+                <th>{% trans "Début" %}</th>
+                <th>{% trans "Dernière catégorie" %}</th>
+                <th>{% trans "Fin estimée" %}</th>
+                <th>{% trans "Catégories" %}</th>
+                <th>{% trans "Matchs" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tatami in tatamis %}
+            <tr>
+                <td>{{ tatami.name }}</td>
+                <td>{{ tatami.first_category.name|default:"-" }}</td>
+                <td>{{ tatami.first_category.start_time|date:"H:i"|default:"-" }}</td>
+                <td>{{ tatami.last_category.name|default:"-" }}</td>
+                <td>{{ tatami.last_category.end_time|date:"H:i"|default:"-" }}</td>
+                <td>{{ tatami.category_count }}</td>
+                <td>{{ tatami.match_count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- Planning par tatami -->
+    {% for tatami in tatamis %}
+    <div class="tatami-title">{{ tatami.name }}</div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th class="time-column">{% trans "Heure" %}</th>
+                <th>{% trans "Catégorie" %}</th>
+                <th>{% trans "Participants" %}</th>
+                <th>{% trans "Matchs" %}</th>
+                <th>{% trans "Notes" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for category_schedule in tatami.categories %}
+            <tr>
+                <td>{{ category_schedule.start_time|date:"H:i" }} - {{ category_schedule.estimated_end_time|date:"H:i" }}</td>
+                <td class="category-cell">{{ category_schedule.category.name }}</td>
+                <td>{{ category_schedule.participants_count }}</td>
+                <td>{{ category_schedule.match_count }}</td>
+                <td>{{ category_schedule.notes|default:"" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endfor %}
+    
+    <div class="page-break"></div>
+    
+    <!-- Catégories par ordre alphabétique -->
+    <h2>{% trans "Liste des catégories" %}</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>{% trans "Catégorie" %}</th>
+                <th>{% trans "Tatami" %}</th>
+                <th>{% trans "Heure" %}</th>
+                <th>{% trans "Participants" %}</th>
+                <th>{% trans "Matchs" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for category_schedule in alphabetical_categories %}
+            <tr>
+                <td>{{ category_schedule.category.name }}</td>
+                <td>{{ category_schedule.tatami.name }}</td>
+                <td>{{ category_schedule.start_time|date:"H:i" }}</td>
+                <td>{{ category_schedule.participants_count }}</td>
+                <td>{{ category_schedule.match_count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- Pied de page -->
+    <div class="footer">
+        {% trans "Page" %} <span class="page-number"></span> / <span class="page-count"></span> - {{ competition.title }}
+    </div>
+</div>
+{% endblock %}
+
+{% block print_js %}
+<script>
+    window.onload = function() {
+        // Numérotation des pages automatique
+        var totalPages = Math.ceil(document.body.scrollHeight / 1123); // A4 height in pixels at 96 DPI
+        var pageCountElements = document.querySelectorAll('.page-count');
+        for (var i = 0; i < pageCountElements.length; i++) {
+            pageCountElements[i].textContent = totalPages;
+        }
+        
+        // Imprimer automatiquement
+        window.print();
+    }
+</script>
+{% endblock %}

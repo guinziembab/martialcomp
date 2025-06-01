@@ -1,0 +1,572 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Planning de compétition" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .schedule-card {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 30px;
+    }
+    
+    .schedule-header {
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .schedule-body {
+        padding: 0;
+    }
+    
+    .tatami-tab-content {
+        padding: 15px;
+    }
+    
+    .category-card {
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        margin-bottom: 10px;
+        transition: all 0.3s ease;
+    }
+    
+    .category-card:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+    
+    .category-header {
+        padding: 10px 15px;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .category-body {
+        padding: 10px 15px;
+    }
+    
+    .time-badge {
+        background-color: #e9ecef;
+        border-radius: 16px;
+        padding: 5px 10px;
+        font-size: 0.85rem;
+    }
+    
+    .nav-tabs .nav-link {
+        border-radius: 0;
+        border: none;
+        padding: 10px 20px;
+        color: #6c757d;
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: #495057;
+        background-color: #fff;
+        border-bottom: 3px solid #007bff;
+    }
+    
+    .search-container {
+        position: relative;
+        margin-bottom: 20px;
+    }
+    
+    .search-results {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background-color: white;
+        border: 1px solid #dee2e6;
+        border-radius: 0 0 4px 4px;
+        z-index: 1000;
+        max-height: 300px;
+        overflow-y: auto;
+        display: none;
+    }
+    
+    .search-results.show {
+        display: block;
+    }
+    
+    .search-result-item {
+        padding: 10px 15px;
+        border-bottom: 1px solid #dee2e6;
+        cursor: pointer;
+    }
+    
+    .search-result-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .search-result-item:last-child {
+        border-bottom: none;
+    }
+    
+    .timeline-view {
+        position: relative;
+        margin-top: 20px;
+        overflow-x: auto;
+    }
+    
+    .timeline-header {
+        display: flex;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 5px;
+    }
+    
+    .time-marker {
+        width: 100px;
+        flex-shrink: 0;
+        text-align: center;
+        font-weight: bold;
+    }
+    
+    .timeline-lanes {
+        position: relative;
+    }
+    
+    .timeline-lane {
+        position: relative;
+        height: 60px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .timeline-event {
+        position: absolute;
+        height: 40px;
+        top: 10px;
+        border-radius: 4px;
+        padding: 5px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .filter-chip {
+        display: inline-block;
+        background-color: #e9ecef;
+        border-radius: 16px;
+        padding: 5px 10px;
+        margin-right: 5px;
+        margin-bottom: 5px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .filter-chip:hover {
+        background-color: #dee2e6;
+    }
+    
+    .filter-chip.active {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .competition-info {
+        margin-bottom: 20px;
+    }
+    
+    @media (max-width: 768px) {
+        .tatami-tabs {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        
+        .timeline-view {
+            overflow-x: scroll;
+            -webkit-overflow-scrolling: touch;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Information de la compétition -->
+    <div class="competition-info">
+        <h1 class="h3 mb-2">{{ competition.title }}</h1>
+        <div class="d-flex flex-wrap align-items-center text-muted mb-3">
+            {% if competition.start_date and competition.end_date %}
+                <div class="me-3">
+                    <i class="far fa-calendar-alt me-1"></i>
+                    {% if competition.start_date == competition.end_date %}
+                        {{ competition.start_date|date:"j F Y" }}
+                    {% else %}
+                        {{ competition.start_date|date:"j F" }} - {{ competition.end_date|date:"j F Y" }}
+                    {% endif %}
+                </div>
+            {% endif %}
+            
+            {% if competition.location %}
+                <div class="me-3">
+                    <i class="fas fa-map-marker-alt me-1"></i>
+                    {{ competition.location }}
+                </div>
+            {% endif %}
+            
+            {% if competition.schedule_updated_at %}
+                <div>
+                    <i class="fas fa-sync-alt me-1"></i>
+                    {% trans "Dernière mise à jour" %}: {{ competition.schedule_updated_at|date:"j F Y H:i" }}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Recherche et filtres -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="search-container">
+                        <input type="text" class="form-control" id="scheduleSearch" placeholder="{% trans "Rechercher une catégorie ou un participant..." %}">
+                        <div class="search-results" id="searchResults"></div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="d-flex flex-wrap">
+                        <div class="me-2 mb-2">
+                            <select class="form-select form-select-sm" id="dayFilter">
+                                <option value="all">{% trans "Tous les jours" %}</option>
+                                {% for day in competition_days %}
+                                    <option value="{{ day.date|date:'Y-m-d' }}">{{ day.date|date:"l j F"|capfirst }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary" id="toggleTimelineView">
+                                <i class="fas fa-calendar-day me-1"></i> {% trans "Vue Chronologique" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Filtres par catégorie -->
+            <div class="category-filters mt-3">
+                <div class="filter-chip active" data-filter="all">{% trans "Toutes les catégories" %}</div>
+                {% for category_type in category_types %}
+                    <div class="filter-chip" data-filter="category-{{ category_type.id }}">{{ category_type.name }}</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Vue Chronologique (cachée par défaut) -->
+    <div class="card mb-4" id="timelineView" style="display: none;">
+        <div class="card-header">
+            <h2 class="h5 mb-0">{% trans "Planning chronologique" %}</h2>
+        </div>
+        <div class="card-body p-0">
+            <div class="timeline-view">
+                <div class="timeline-header">
+                    {% for hour in timeline_hours %}
+                        <div class="time-marker">{{ hour }}:00</div>
+                    {% endfor %}
+                </div>
+                
+                <div class="timeline-lanes">
+                    {% for tatami in tatamis %}
+                        <div class="timeline-lane">
+                            <div class="d-flex align-items-center h-100">
+                                <div style="width: 100px; padding-left: 10px; font-weight: bold;">{{ tatami.name }}</div>
+                                <div class="position-relative flex-grow-1">
+                                    {% for category in tatami.categories %}
+                                        <div class="timeline-event" 
+                                             style="left: {{ category.left_position }}px; 
+                                                    width: {{ category.width }}px; 
+                                                    background-color: {{ category.color|default:'#e9ecef' }};"
+                                             data-category-id="{{ category.id }}">
+                                            {{ category.name }} ({{ category.start_time|date:"H:i" }})
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Planning par tatami -->
+    <div class="card schedule-card" id="tatamiView">
+        <div class="card-header schedule-header">
+            <h2 class="h5 mb-0">{% trans "Planning par tatami" %}</h2>
+        </div>
+        <div class="card-body schedule-body">
+            <ul class="nav nav-tabs tatami-tabs" id="tatamiTabs" role="tablist">
+                {% for tatami in tatamis %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link {% if forloop.first %}active{% endif %}" 
+                                id="tatami-{{ tatami.id }}-tab" 
+                                data-bs-toggle="tab" 
+                                data-bs-target="#tatami-{{ tatami.id }}" 
+                                type="button" 
+                                role="tab" 
+                                aria-controls="tatami-{{ tatami.id }}" 
+                                aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">
+                            {{ tatami.name }}
+                        </button>
+                    </li>
+                {% endfor %}
+            </ul>
+            
+            <div class="tab-content" id="tatamiTabsContent">
+                {% for tatami in tatamis %}
+                    <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" 
+                         id="tatami-{{ tatami.id }}" 
+                         role="tabpanel" 
+                         aria-labelledby="tatami-{{ tatami.id }}-tab">
+                        <div class="tatami-tab-content">
+                            {% if tatami.categories %}
+                                {% for category_schedule in tatami.categories %}
+                                    <div class="category-card" 
+                                         data-category-id="{{ category_schedule.id }}"
+                                         data-category-type="{{ category_schedule.category.type.id }}"
+                                         data-day="{{ category_schedule.start_time|date:'Y-m-d' }}">
+                                        <div class="category-header" 
+                                             {% if category_schedule.category.color %}style="background-color: {{ category_schedule.category.color }};"{% endif %}>
+                                            <h3 class="h6 mb-0">{{ category_schedule.category.name }}</h3>
+                                            <span class="time-badge">
+                                                <i class="far fa-clock me-1"></i>
+                                                {{ category_schedule.start_time|date:"H:i" }}
+                                            </span>
+                                        </div>
+                                        <div class="category-body">
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">{% trans "Participants" %}</small>
+                                                    <strong>{{ category_schedule.participants_count }}</strong>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block">{% trans "Matchs" %}</small>
+                                                    <strong>{{ category_schedule.match_count }}</strong>
+                                                </div>
+                                            </div>
+                                            
+                                            {% if category_schedule.notes %}
+                                                <div class="mt-2">
+                                                    <small class="text-muted">{% trans "Notes" %}:</small>
+                                                    <p class="small mb-0">{{ category_schedule.notes }}</p>
+                                                </div>
+                                            {% endif %}
+                                            
+                                            <div class="mt-2">
+                                                <a href="{% url 'competitions:public:category_schedule' category_schedule.id %}" class="btn btn-sm btn-outline-primary">
+                                                    {% trans "Détails" %}
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="alert alert-info">
+                                    {% trans "Aucune catégorie planifiée sur ce tatami." %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Actions -->
+    <div class="d-flex justify-content-center mt-4">
+        <a href="{% url 'competitions:schedule:print' competition.pk %}" target="_blank" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-print me-1"></i> {% trans "Version imprimable" %}
+        </a>
+        <a href="{% url 'competitions:public:index' competition.pk %}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-1"></i> {% trans "Retour aux informations" %}
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Recherche
+        const searchInput = document.getElementById('scheduleSearch');
+        const searchResults = document.getElementById('searchResults');
+        
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            
+            if (query.length < 2) {
+                searchResults.classList.remove('show');
+                return;
+            }
+            
+            // Simuler des résultats de recherche
+            const results = [];
+            
+            // Rechercher dans les catégories
+            document.querySelectorAll('.category-card').forEach(card => {
+                const categoryName = card.querySelector('.category-header h3').textContent.toLowerCase();
+                if (categoryName.includes(query)) {
+                    results.push({
+                        type: 'category',
+                        id: card.dataset.categoryId,
+                        name: categoryName,
+                        time: card.querySelector('.time-badge').textContent.trim(),
+                        tatami: card.closest('.tab-pane').querySelector('.nav-link').textContent.trim()
+                    });
+                }
+            });
+            
+            // Afficher les résultats
+            searchResults.innerHTML = '';
+            
+            if (results.length === 0) {
+                searchResults.innerHTML = `<div class="p-3 text-center">{% trans "Aucun résultat trouvé" %}</div>`;
+            } else {
+                results.forEach(result => {
+                    const resultItem = document.createElement('div');
+                    resultItem.className = 'search-result-item';
+                    
+                    if (result.type === 'category') {
+                        resultItem.innerHTML = `
+                            <div><strong>${result.name}</strong></div>
+                            <div class="small text-muted">${result.tatami} - ${result.time}</div>
+                        `;
+                        resultItem.addEventListener('click', function() {
+                            // Naviguer vers l'onglet correspondant et mettre en évidence la catégorie
+                            const categoryId = result.id;
+                            const categoryCard = document.querySelector(`.category-card[data-category-id="${categoryId}"]`);
+                            const tabId = categoryCard.closest('.tab-pane').id;
+                            
+                            // Activer l'onglet
+                            document.querySelector(`[data-bs-target="#${tabId}"]`).click();
+                            
+                            // Scroll vers la catégorie et mettre en évidence
+                            categoryCard.scrollIntoView({behavior: 'smooth', block: 'center'});
+                            categoryCard.classList.add('border-primary');
+                            setTimeout(() => {
+                                categoryCard.classList.remove('border-primary');
+                            }, 2000);
+                            
+                            // Cacher les résultats de recherche
+                            searchResults.classList.remove('show');
+                            searchInput.value = '';
+                        });
+                    }
+                    
+                    searchResults.appendChild(resultItem);
+                });
+            }
+            
+            searchResults.classList.add('show');
+        });
+        
+        // Cacher les résultats quand on clique ailleurs
+        document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.classList.remove('show');
+            }
+        });
+        
+        // Filtres de catégories
+        const categoryFilters = document.querySelectorAll('.filter-chip');
+        categoryFilters.forEach(filter => {
+            filter.addEventListener('click', function() {
+                // Mettre à jour la sélection visuelle
+                if (this.dataset.filter === 'all') {
+                    categoryFilters.forEach(f => f.classList.remove('active'));
+                    this.classList.add('active');
+                } else {
+                    document.querySelector('[data-filter="all"]').classList.remove('active');
+                    this.classList.toggle('active');
+                    
+                    // Si aucun filtre spécifique n'est actif, réactiver "Toutes les catégories"
+                    if (document.querySelectorAll('.filter-chip.active:not([data-filter="all"])').length === 0) {
+                        document.querySelector('[data-filter="all"]').classList.add('active');
+                    }
+                }
+                
+                // Appliquer les filtres
+                applyFilters();
+            });
+        });
+        
+        // Filtre par jour
+        const dayFilter = document.getElementById('dayFilter');
+        dayFilter.addEventListener('change', applyFilters);
+        
+        // Basculer entre les vues
+        const toggleTimelineViewBtn = document.getElementById('toggleTimelineView');
+        const timelineView = document.getElementById('timelineView');
+        const tatamiView = document.getElementById('tatamiView');
+        
+        toggleTimelineViewBtn.addEventListener('click', function() {
+            const isTimelineVisible = timelineView.style.display !== 'none';
+            
+            if (isTimelineVisible) {
+                timelineView.style.display = 'none';
+                tatamiView.style.display = 'block';
+                this.innerHTML = '<i class="fas fa-calendar-day me-1"></i> {% trans "Vue Chronologique" %}';
+            } else {
+                timelineView.style.display = 'block';
+                tatamiView.style.display = 'none';
+                this.innerHTML = '<i class="fas fa-list me-1"></i> {% trans "Vue par Tatami" %}';
+            }
+        });
+        
+        // Fonction pour appliquer les filtres
+        function applyFilters() {
+            const activeFilters = Array.from(document.querySelectorAll('.filter-chip.active'))
+                .map(f => f.dataset.filter);
+            
+            const showAllCategories = activeFilters.includes('all');
+            const selectedDay = dayFilter.value;
+            
+            document.querySelectorAll('.category-card').forEach(card => {
+                let shouldShow = false;
+                
+                // Filtre par catégorie
+                if (showAllCategories) {
+                    shouldShow = true;
+                } else {
+                    const categoryType = 'category-' + card.dataset.categoryType;
+                    shouldShow = activeFilters.includes(categoryType);
+                }
+                
+                // Filtre par jour
+                if (shouldShow && selectedDay !== 'all') {
+                    shouldShow = card.dataset.day === selectedDay;
+                }
+                
+                card.style.display = shouldShow ? 'block' : 'none';
+            });
+            
+            // Vérifier si un onglet est vide et afficher un message
+            document.querySelectorAll('.tab-pane').forEach(tabPane => {
+                const visibleCards = tabPane.querySelectorAll('.category-card[style="display: block"]').length;
+                const alertInfo = tabPane.querySelector('.alert-info');
+                
+                if (visibleCards === 0) {
+                    if (!alertInfo) {
+                        const alert = document.createElement('div');
+                        alert.className = 'alert alert-info';
+                        alert.textContent = '{% trans "Aucune catégorie correspondant aux filtres." %}';
+                        tabPane.querySelector('.tatami-tab-content').appendChild(alert);
+                    }
+                } else if (alertInfo) {
+                    alertInfo.remove();
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

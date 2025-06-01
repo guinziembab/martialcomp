@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Conflits de planning" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .conflict-card {
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .conflict-header {
+        font-weight: 600;
+        color: #dc3545;
+    }
+    
+    .conflict-details {
+        margin-top: 0.5rem;
+        padding-left: 1rem;
+    }
+    
+    .conflict-item {
+        margin-bottom: 0.5rem;
+        padding: 0.5rem;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+    }
+    
+    .conflict-resolution {
+        margin-top: 0.5rem;
+        font-style: italic;
+    }
+    
+    .action-buttons {
+        margin-top: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:dashboard:manager' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:competitions:detail' competition.pk %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:schedule:index' competition.pk %}">{% trans "Planning" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% trans "Conflits de planning" %}</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow">
+        <div class="card-header bg-danger text-white">
+            <h2 class="h4 mb-0">{% trans "Conflits détectés dans le planning" %}</h2>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <h3 class="h5">{% trans "Attention" %}</h3>
+                <p>{% trans "Des conflits ont été détectés dans le planning de la compétition. Veuillez les vérifier et les résoudre avant de publier le planning." %}</p>
+                
+                {% if allow_publish %}
+                <p class="mb-0">{% trans "Vous pouvez également décider de publier le planning avec ces conflits si vous estimez qu'ils peuvent être gérés par les participants et juges concernés." %}</p>
+                {% endif %}
+            </div>
+            
+            <h3 class="h5 mb-3">{% trans "Liste des conflits" %}</h3>
+            
+            {% if participant_conflicts %}
+            <div class="mb-4">
+                <h4 class="h6 mb-3">{% trans "Conflits de participants" %}</h4>
+                {% for conflict in participant_conflicts %}
+                <div class="card conflict-card">
+                    <div class="card-body">
+                        <div class="conflict-header">
+                            {% trans "Participant" %}: <strong>{{ conflict.participant.full_name }}</strong>
+                        </div>
+                        <div class="conflict-details">
+                            <div class="conflict-item">
+                                <div>{% trans "Catégorie 1" %}: {{ conflict.category1.name }}</div>
+                                <div>{% trans "Horaire" %}: {{ conflict.time1|date:"H:i" }} - {{ conflict.end_time1|date:"H:i" }}</div>
+                                <div>{% trans "Tatami" %}: {{ conflict.tatami1.name }}</div>
+                            </div>
+                            <div class="conflict-item">
+                                <div>{% trans "Catégorie 2" %}: {{ conflict.category2.name }}</div>
+                                <div>{% trans "Horaire" %}: {{ conflict.time2|date:"H:i" }} - {{ conflict.end_time2|date:"H:i" }}</div>
+                                <div>{% trans "Tatami" %}: {{ conflict.tatami2.name }}</div>
+                            </div>
+                            <div class="conflict-resolution">
+                                {% trans "Suggestion" %}: {% trans "Déplacer la catégorie" %} {{ conflict.category2.name }} {% trans "plus tard dans la journée." %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% if judge_conflicts %}
+            <div class="mb-4">
+                <h4 class="h6 mb-3">{% trans "Conflits de juges" %}</h4>
+                {% for conflict in judge_conflicts %}
+                <div class="card conflict-card">
+                    <div class="card-body">
+                        <div class="conflict-header">
+                            {% trans "Juge" %}: <strong>{{ conflict.judge.full_name }}</strong>
+                        </div>
+                        <div class="conflict-details">
+                            <div class="conflict-item">
+                                <div>{% trans "Catégorie 1" %}: {{ conflict.category1.name }}</div>
+                                <div>{% trans "Horaire" %}: {{ conflict.time1|date:"H:i" }} - {{ conflict.end_time1|date:"H:i" }}</div>
+                                <div>{% trans "Tatami" %}: {{ conflict.tatami1.name }}</div>
+                            </div>
+                            <div class="conflict-item">
+                                <div>{% trans "Catégorie 2" %}: {{ conflict.category2.name }}</div>
+                                <div>{% trans "Horaire" %}: {{ conflict.time2|date:"H:i" }} - {{ conflict.end_time2|date:"H:i" }}</div>
+                                <div>{% trans "Tatami" %}: {{ conflict.tatami2.name }}</div>
+                            </div>
+                            <div class="conflict-resolution">
+                                {% trans "Suggestion" %}: {% trans "Assigner un autre juge pour la catégorie" %} {{ conflict.category2.name }}.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% if tatami_conflicts %}
+            <div class="mb-4">
+                <h4 class="h6 mb-3">{% trans "Conflits de tatami" %}</h4>
+                {% for conflict in tatami_conflicts %}
+                <div class="card conflict-card">
+                    <div class="card-body">
+                        <div class="conflict-header">
+                            {% trans "Tatami" %}: <strong>{{ conflict.tatami.name }}</strong>
+                        </div>
+                        <div class="conflict-details">
+                            <div class="conflict-item">
+                                <div>{% trans "Catégorie 1" %}: {{ conflict.category1.name }}</div>
+                                <div>{% trans "Horaire" %}: {{ conflict.time1|date:"H:i" }} - {{ conflict.end_time1|date:"H:i" }}</div>
+                            </div>
+                            <div class="conflict-item">
+                                <div>{% trans "Catégorie 2" %}: {{ conflict.category2.name }}</div>
+                                <div>{% trans "Horaire" %}: {{ conflict.time2|date:"H:i" }} - {{ conflict.end_time2|date:"H:i" }}</div>
+                            </div>
+                            <div class="conflict-resolution">
+                                {% trans "Suggestion" %}: {% trans "Déplacer la catégorie" %} {{ conflict.category2.name }} {% trans "sur un autre tatami ou plus tard dans la journée." %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div class="action-buttons">
+                <a href="{% url 'competitions:schedule:index' competition.pk %}" class="btn btn-primary">{% trans "Revenir au planning" %}</a>
+                
+                {% if allow_publish %}
+                <form method="post" action="{% url 'competitions:schedule:publish' competition.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="force_publish" value="1">
+                    <button type="submit" class="btn btn-warning ms-2" onclick="return confirm('{% trans "Êtes-vous sûr de vouloir publier le planning malgré les conflits ?" %}')">
+                        {% trans "Publier quand même" %}
+                    </button>
+                </form>
+                {% endif %}
+                
+                <a href="{% url 'competitions:schedule:optimize' competition.pk %}" class="btn btn-outline-success ms-2">{% trans "Optimiser automatiquement" %}</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

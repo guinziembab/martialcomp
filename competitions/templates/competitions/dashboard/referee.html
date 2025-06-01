@@ -1,0 +1,920 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Tableau de bord Arbitre" %} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --referee-primary: #6f42c1;
+        --referee-secondary: #8a5bdc;
+        --referee-accent: #5e35b1;
+        --referee-light: #e9d8fd;
+        --referee-dark: #4527a0;
+        --referee-hover: #7e57c2;
+    }
+
+    /* Styles pour la mise en page du dashboard */
+    .dashboard-container {
+        display: flex;
+        min-height: calc(100vh - 56px - 89px);
+    }
+
+    /* Styles pour la barre latérale */
+    .sidebar {
+        width: 280px;
+        background: linear-gradient(135deg, var(--referee-dark) 0%, var(--referee-primary) 100%);
+        color: #fff;
+        position: sticky;
+        top: 56px;
+        height: calc(100vh - 56px);
+        overflow-y: auto;
+        transition: all 0.3s ease;
+        z-index: 1000;
+    }
+
+    @media (max-width: 768px) {
+        .sidebar {
+            position: fixed;
+            left: -280px;
+            top: 56px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .sidebar.active {
+            left: 0;
+        }
+
+        .main-content {
+            width: 100% !important;
+        }
+    }
+
+    /* Toggle button for mobile */
+    .sidebar-toggle {
+        position: fixed;
+        top: 70px;
+        left: 15px;
+        background-color: var(--referee-primary);
+        color: white;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        z-index: 1001;
+    }
+
+    @media (max-width: 768px) {
+        .sidebar-toggle {
+            display: flex;
+        }
+    }
+
+    /* Conteneur principal du contenu */
+    .main-content {
+        flex: 1;
+        padding: 2rem;
+        background-color: #f8f9fa;
+        transition: all 0.3s ease;
+    }
+
+    /* Styles des cartes de statistiques */
+    .stats-card {
+        transition: all 0.3s ease;
+        height: 100%;
+        border: none;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .stats-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+
+    .stats-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        color: var(--referee-primary);
+    }
+
+    .stats-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+        color: #333;
+    }
+
+    .stats-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* Style pour le menu utilisateur */
+    .user-profile {
+        padding: 1.8rem 1rem;
+        text-align: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+
+    .user-avatar {
+        width: 90px;
+        height: 90px;
+        background-color: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        border: 3px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .user-name {
+        font-size: 1.2rem;
+        margin-bottom: 0.25rem;
+        font-weight: 600;
+    }
+
+    .user-role {
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.8);
+        background-color: rgba(0, 0, 0, 0.2);
+        display: inline-block;
+        padding: 0.2rem 0.8rem;
+        border-radius: 20px;
+    }
+
+    /* Style pour le menu de navigation */
+    .sidebar-nav .nav-link {
+        color: rgba(255, 255, 255, 0.8);
+        padding: 0.9rem 1.2rem;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s ease;
+        border-left: 3px solid transparent;
+        margin: 2px 0;
+    }
+
+    .sidebar-nav .nav-link:hover,
+    .sidebar-nav .nav-link.active {
+        color: #fff;
+        background-color: rgba(255, 255, 255, 0.15);
+        border-left: 3px solid white;
+    }
+
+    .sidebar-nav .nav-link i {
+        margin-right: 0.75rem;
+        width: 22px;
+        text-align: center;
+        font-size: 1.1rem;
+    }
+
+    /* Style pour le pied de la barre latérale */
+    .sidebar-footer {
+        padding: 1.2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Styles pour les cartes */
+    .card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+        overflow: hidden;
+    }
+    
+    .card:hover {
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+    
+    .card-header {
+        background-color: #fff;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 1.2rem 1.5rem;
+    }
+    
+    /* Badge pour les notifications */
+    .notification-badge {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background-color: #dc3545;
+        color: white;
+        font-size: 0.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Style pour le statut en direct */
+    .live-status {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.8rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .live-status .dot {
+        width: 6px;
+        height: 6px;
+        background-color: white;
+        border-radius: 50%;
+        margin-right: 0.3rem;
+        animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+    
+    /* Style pour les modules fonctionnels */
+    .module-card {
+        border-left: 4px solid var(--referee-primary);
+        overflow: hidden;
+    }
+    
+    .module-card .card-header {
+        background-color: var(--referee-light);
+    }
+    
+    .quick-actions-card {
+        background: linear-gradient(135deg, var(--referee-light) 0%, #f8f9fa 100%);
+    }
+    
+    .action-btn {
+        padding: 0.8rem;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+        background-color: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        height: 100%;
+    }
+    
+    .action-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .action-btn i {
+        display: block;
+        font-size: 1.8rem;
+        margin-bottom: 0.5rem;
+        color: var(--referee-primary);
+    }
+    
+    /* Style pour les tableaux */
+    .table {
+        vertical-align: middle;
+    }
+    
+    .table th {
+        font-weight: 600;
+        color: #495057;
+        background-color: #f8f9fa;
+        border-top: none;
+    }
+    
+    .table td {
+        padding: 0.75rem 1rem;
+    }
+    
+    .referee-btn-primary {
+        background-color: var(--referee-primary);
+        border-color: var(--referee-primary);
+        color: white;
+    }
+    
+    .referee-btn-primary:hover {
+        background-color: var(--referee-hover);
+        border-color: var(--referee-hover);
+        color: white;
+    }
+    
+    .referee-btn-outline {
+        color: var(--referee-primary);
+        border-color: var(--referee-primary);
+    }
+    
+    .referee-btn-outline:hover {
+        background-color: var(--referee-primary);
+        color: white;
+    }
+    
+    .technical-scoring-card {
+        border-left: 4px solid #17a2b8;
+    }
+    
+    .competition-badge {
+        padding: 0.4rem 0.6rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-block;
+    }
+    
+    .referee-bg-primary {
+        background-color: var(--referee-primary);
+        color: white;
+    }
+    
+    /* Timeline pour les activités récentes */
+    .timeline {
+        position: relative;
+        padding: 0;
+        list-style: none;
+    }
+    
+    .timeline:before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 18px;
+        height: 100%;
+        width: 2px;
+        background: var(--referee-light);
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-left: 45px;
+        padding-bottom: 20px;
+    }
+    
+    .timeline-badge {
+        position: absolute;
+        top: 0;
+        left: 10px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--referee-primary);
+        color: #fff;
+        text-align: center;
+        line-height: 20px;
+        font-size: 12px;
+    }
+    
+    .timeline-date {
+        color: #6c757d;
+        font-size: 0.85rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Sidebar toggle button for mobile -->
+<div class="sidebar-toggle" id="sidebarToggle">
+    <i class="fas fa-bars"></i>
+</div>
+
+<div class="dashboard-container">
+    <!-- Barre latérale -->
+    <div class="sidebar" id="sidebar">
+        <div class="d-flex flex-column h-100">
+            <!-- En-tête du profil -->
+            <div class="user-profile">
+                <div class="user-avatar">
+                    <i class="fas fa-user fa-2x"></i>
+                </div>
+                {% if user.get_full_name %}
+                    <h5 class="user-name">{{ user.get_full_name }}</h5>
+                {% else %}
+                    <h5 class="user-name">{{ user.username }}</h5>
+                {% endif %}
+                <p class="user-role">{% trans "Arbitre / Juge" %}</p>
+            </div>
+            
+            <!-- Menu principal -->
+            <nav class="sidebar-nav flex-grow-1">
+                <ul class="nav flex-column">
+                    <!-- Tableau de bord -->
+                    <li class="nav-item">
+                        <a href="{% url 'competitions:dashboard:referee' %}" class="nav-link active">
+                            <i class="fas fa-tachometer-alt"></i> {% trans "Tableau de bord" %}
+                        </a>
+                    </li>
+                    
+                    <!-- Module de notation technique -->
+                    <li class="nav-item">
+                        <a href="{% url 'competitions:technical_scoring:judge_dashboard' %}" class="nav-link">
+                            <i class="fas fa-star"></i> {% trans "Notation technique" %}
+                            {% if technical_pending_count and technical_pending_count > 0 %}
+                                <span class="badge bg-danger ms-auto">{{ technical_pending_count }}</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    
+                    <!-- Mes compétitions -->
+                    <li class="nav-item">
+                        <a href="{% url 'competitions:competitions:list' %}" class="nav-link">
+                            <i class="fas fa-trophy"></i> {% trans "Mes compétitions" %}
+                        </a>
+                    </li>
+                    
+                    <!-- Qualifications -->
+                    <li class="nav-item">
+                        <a href="{% url 'competitions:dashboard:referee' %}?tab=qualifications" class="nav-link">
+                            <i class="fas fa-medal"></i> {% trans "Qualifications" %}
+                        </a>
+                    </li>
+                    
+                    <!-- Toutes les compétitions -->
+                    <li class="nav-item">
+                        <a href="{% url 'competitions:competitions:list' %}" class="nav-link">
+                            <i class="fas fa-list"></i> {% trans "Toutes les compétitions" %}
+                        </a>
+                    </li>
+                    
+                    <!-- Mon profil -->
+                    <li class="nav-item">
+                        <a href="{% url 'competitions:dashboard:referee' %}?tab=profile" class="nav-link">
+                            <i class="fas fa-user-circle"></i> {% trans "Mon profil" %}
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            
+            <!-- Pied de page -->
+            <div class="sidebar-footer">
+                <a href="{% url 'logout' %}" class="btn btn-outline-light btn-sm w-100">
+                    <i class="fas fa-sign-out-alt me-2"></i> {% trans "Déconnexion" %}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenu principal -->
+    <div class="main-content">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>{% trans "Tableau de bord Arbitre" %}</h1>
+            
+            <!-- Informations sur la date et dernier login -->
+            <div class="text-end">
+                <div class="d-flex flex-column align-items-end">
+                    <span class="text-muted small">
+                        <i class="far fa-calendar-alt me-1"></i> {% now "j F Y" %}
+                    </span>
+                    <span class="small text-secondary">
+                        <i class="fas fa-clock me-1"></i> {% trans "Dernière connexion:" %} 
+                        {% if user.last_login %}
+                            {{ user.last_login|date:"d/m/Y H:i" }}
+                        {% else %}
+                            {% trans "Première connexion" %}
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <!-- Actions rapides -->
+        <div class="card quick-actions-card mb-4">
+            <div class="card-body">
+                <h5 class="mb-3">{% trans "Actions rapides" %}</h5>
+                <div class="row row-cols-2 row-cols-md-4 g-3">
+                    <div class="col">
+                        <a href="{% url 'competitions:technical_scoring:judge_dashboard' %}" class="text-decoration-none">
+                            <div class="action-btn text-center">
+                                <i class="fas fa-star"></i>
+                                <span>{% trans "Notation" %}</span>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col">
+                        <a href="{% url 'competitions:competitions:list' %}" class="text-decoration-none">
+                            <div class="action-btn text-center">
+                                <i class="fas fa-trophy"></i>
+                                <span>{% trans "Compétitions" %}</span>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col">
+                        <a href="{% url 'competitions:dashboard:referee' %}?tab=qualifications" class="text-decoration-none">
+                            <div class="action-btn text-center">
+                                <i class="fas fa-medal"></i>
+                                <span>{% trans "Qualifications" %}</span>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col">
+                        <a href="{% url 'competitions:dashboard:referee' %}?tab=profile" class="text-decoration-none">
+                            <div class="action-btn text-center">
+                                <i class="fas fa-user-cog"></i>
+                                <span>{% trans "Profil" %}</span>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Cartes de statistiques -->
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4 mb-4">
+            <!-- Carte - Affectations à venir -->
+            <div class="col">
+                <div class="card h-100 stats-card">
+                    <div class="card-body text-center">
+                        <div class="stats-icon">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                        <div class="stats-value">{{ stats.upcoming_assignments|default:"0" }}</div>
+                        <div class="stats-label">{% trans "Affectations à venir" %}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Carte - Affectations terminées -->
+            <div class="col">
+                <div class="card h-100 stats-card">
+                    <div class="card-body text-center">
+                        <div class="stats-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stats-value">{{ stats.completed_assignments|default:"0" }}</div>
+                        <div class="stats-label">{% trans "Affectations terminées" %}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Carte - Niveau qualification -->
+            <div class="col">
+                <div class="card h-100 stats-card">
+                    <div class="card-body text-center">
+                        <div class="stats-icon">
+                            <i class="fas fa-certificate"></i>
+                        </div>
+                        <div class="stats-value">{{ stats.qualification_level|default:"N/A" }}</div>
+                        <div class="stats-label">{% trans "Niveau qualification" %}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Carte - Années d'expérience -->
+            <div class="col">
+                <div class="card h-100 stats-card">
+                    <div class="card-body text-center">
+                        <div class="stats-icon">
+                            <i class="fas fa-star"></i>
+                        </div>
+                        <div class="stats-value">{{ stats.experience_years|default:"0" }}</div>
+                        <div class="stats-label">{% trans "Années d'expérience" %}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Disposition en deux colonnes pour les modules avancés -->
+        <div class="row mb-4">
+            <!-- Colonne de gauche -->
+            <div class="col-lg-8 mb-4 mb-lg-0">
+                <!-- Module de notation technique -->
+                <div class="card mb-4 module-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-star me-2 text-info"></i>
+                            {% trans "Module de Notation Technique" %}
+                        </h5>
+                        
+                        {% if technical_live_competitions %}
+                            <div class="live-status">
+                                <span class="dot"></span>
+                                {% trans "EN DIRECT" %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <p>{% trans "Accédez au module de notation technique pour évaluer les performances dans les catégories techniques." %}</p>
+                                
+                                {% if technical_active_competitions %}
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        {% trans "Vous avez" %} {{ technical_active_competitions.count }} {% trans "compétition(s) technique(s) en cours qui nécessite(nt) votre attention." %}
+                                    </div>
+                                {% endif %}
+                                
+                                <div class="mt-3">
+                                    <a href="{% url 'competitions:technical_scoring:judge_dashboard' %}" class="btn referee-btn-primary me-2">
+                                        <i class="fas fa-tachometer-alt me-2"></i>{% trans "Tableau de bord notation" %}
+                                    </a>
+                                    <a href="{% url 'competitions:technical_scoring:judge_competition_list' %}" class="btn referee-btn-outline">
+                                        <i class="fas fa-list me-2"></i>{% trans "Mes compétitions techniques" %}
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <div class="scoring-icon mb-3">
+                                    <i class="fas fa-clipboard-list fa-3x text-info"></i>
+                                </div>
+                                
+                                {% if technical_pending_performances %}
+                                    <div class="position-relative d-inline-block">
+                                        <a href="{% url 'competitions:technical_scoring:judge_dashboard' %}" class="btn referee-btn-primary">
+                                            <i class="fas fa-gavel me-2"></i>{% trans "Performances à noter" %}
+                                        </a>
+                                        <span class="notification-badge">{{ technical_pending_performances }}</span>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted">{% trans "Aucune performance en attente de notation." %}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Mes prochaines affectations -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-alt me-2" style="color: var(--referee-primary);"></i>
+                            {% trans "Mes prochaines affectations" %}
+                        </h5>
+                        <a href="{% url 'competitions:competitions:list' %}" class="btn btn-sm referee-btn-outline">
+                            <i class="fas fa-eye me-1"></i> {% trans "Tout voir" %}
+                        </a>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>{% trans "Compétition" %}</th>
+                                        <th>{% trans "Date" %}</th>
+                                        <th>{% trans "Catégorie" %}</th>
+                                        <th>{% trans "Type" %}</th>
+                                        <th>{% trans "Statut" %}</th>
+                                        <th>{% trans "Actions" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if upcoming_competitions %}
+                                        {% for comp in upcoming_competitions %}
+                                        <tr>
+                                            <td>{{ comp.title }}</td>
+                                            <td>{{ comp.start_date|date:"d/m/Y" }}</td>
+                                            <td>
+                                                {% for category in comp.categories.all|slice:":2" %}
+                                                    <span class="badge bg-secondary">{{ category.name }}</span>
+                                                {% empty %}
+                                                    <span class="text-muted">{% trans "Non spécifié" %}</span>
+                                                {% endfor %}
+                                                {% if comp.categories.count > 2 %}
+                                                    <span class="badge bg-dark">+{{ comp.categories.count|add:"-2" }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if comp.is_technical %}
+                                                    <span class="badge bg-info">{% trans "Technique" %}</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{% trans "Combat" %}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="badge 
+                                                    {% if comp.status == 'published' %}bg-info
+                                                    {% elif comp.status == 'ongoing' %}bg-success
+                                                    {% else %}bg-warning{% endif %}">
+                                                    {{ comp.get_status_display|default:"Publié" }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {% if comp.is_technical %}
+                                                    <a href="{% url 'competitions:technical_scoring:judge_competition_detail' comp.pk %}" class="btn btn-sm referee-btn-outline">
+                                                        <i class="fas fa-star me-1"></i> {% trans "Notation" %}
+                                                    </a>
+                                                {% else %}
+                                                    <a href="{% url 'competitions:competitions:detail' comp.pk %}" class="btn btn-sm referee-btn-outline">
+                                                        <i class="fas fa-eye me-1"></i> {% trans "Détails" %}
+                                                    </a>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="6" class="text-center py-4">
+                                                <div class="text-muted">
+                                                    <i class="fas fa-calendar-times fa-2x mb-2"></i>
+                                                    <p>{% trans "Aucune affectation à venir" %}</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Colonne de droite -->
+            <div class="col-lg-4">
+                <!-- Activités récentes -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-history me-2" style="color: var(--referee-primary);"></i>
+                            {% trans "Activités récentes" %}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="timeline">
+                            <!-- Exemple d'activités -->
+                            {% if technical_active_competitions %}
+                                {% for comp in technical_active_competitions|slice:":3" %}
+                                <li class="timeline-item">
+                                    <div class="timeline-badge">
+                                        <i class="fas fa-star"></i>
+                                    </div>
+                                    <h6 class="fw-bold">{% trans "Notation technique" %} - {{ comp.title }}</h6>
+                                    <p class="mb-0">{% trans "Compétition en cours" %}</p>
+                                    <div class="timeline-date mt-1">
+                                        <i class="far fa-clock me-1"></i> {{ comp.start_date|date:"d/m/Y" }}
+                                    </div>
+                                </li>
+                                {% endfor %}
+                            {% endif %}
+                            
+                            {% if stats.last_scoring_date %}
+                            <li class="timeline-item">
+                                <div class="timeline-badge">
+                                    <i class="fas fa-clipboard-check"></i>
+                                </div>
+                                <h6 class="fw-bold">{% trans "Notations terminées" %}</h6>
+                                <p class="mb-0">{% trans "Vous avez terminé vos évaluations" %}</p>
+                                <div class="timeline-date mt-1">
+                                    <i class="far fa-clock me-1"></i> {{ stats.last_scoring_date|date:"d/m/Y" }}
+                                </div>
+                            </li>
+                            {% endif %}
+                            
+                            {% if stats.last_completed_competition %}
+                            <li class="timeline-item">
+                                <div class="timeline-badge">
+                                    <i class="fas fa-check"></i>
+                                </div>
+                                <h6 class="fw-bold">{% trans "Compétition terminée" %}</h6>
+                                <p class="mb-0">{{ stats.last_completed_competition.title }}</p>
+                                <div class="timeline-date mt-1">
+                                    <i class="far fa-clock me-1"></i> {{ stats.last_completed_competition.end_date|date:"d/m/Y" }}
+                                </div>
+                            </li>
+                            {% endif %}
+                            
+                            {% if not technical_active_competitions and not stats.last_scoring_date and not stats.last_completed_competition %}
+                            <li class="timeline-item">
+                                <div class="timeline-badge">
+                                    <i class="fas fa-info"></i>
+                                </div>
+                                <h6 class="fw-bold">{% trans "Aucune activité récente" %}</h6>
+                                <p class="mb-0">{% trans "Consultez les compétitions disponibles" %}</p>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Compétitions disponibles -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-trophy me-2" style="color: var(--referee-primary);"></i>
+                            {% trans "Compétitions disponibles" %}
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        {% if available_competitions %}
+                            <div class="list-group list-group-flush">
+                                {% for comp in available_competitions|slice:":5" %}
+                                <div class="list-group-item p-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="mb-0 fw-bold">{{ comp.title }}</h6>
+                                        <span class="competition-badge {% if comp.is_technical %}bg-info{% else %}bg-secondary{% endif %}">
+                                            {% if comp.is_technical %}
+                                                {% trans "Technique" %}
+                                            {% else %}
+                                                {% trans "Combat" %}
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div>
+                                            <small class="text-muted">
+                                                <i class="far fa-calendar me-1"></i> {{ comp.start_date|date:"d/m/Y" }}
+                                            </small>
+                                        </div>
+                                        <div>
+                                            <small class="text-muted">
+                                                <i class="fas fa-map-marker-alt me-1"></i> 
+                                                {% if comp.city %}
+                                                    {{ comp.city }}
+                                                {% else %}
+                                                    {% trans "Non spécifié" %}
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        {% if comp.is_technical %}
+                                            <a href="{% url 'competitions:technical_scoring:apply_as_judge' comp.id %}" class="btn btn-sm referee-btn-primary w-100">
+                                                <i class="fas fa-user-plus me-1"></i> {% trans "Postuler comme juge technique" %}
+                                            </a>
+                                        {% else %}
+                                            <a href="{% url 'competitions:competitions:register' comp.id %}" class="btn btn-sm referee-btn-primary w-100">
+                                                <i class="fas fa-check-circle me-1"></i> {% trans "Postuler comme arbitre" %}
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            {% if available_competitions|length > 5 %}
+                                <div class="card-footer text-center bg-light py-3">
+                                    <a href="{% url 'competitions:competitions:list' %}" class="text-decoration-none">
+                                        {% trans "Voir toutes les compétitions" %} ({{ available_competitions|length }})
+                                        <i class="fas fa-arrow-right ms-1"></i>
+                                    </a>
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="text-center py-4">
+                                <div class="text-muted">
+                                    <i class="fas fa-calendar-times fa-2x mb-2"></i>
+                                    <p>{% trans "Aucune compétition disponible" %}</p>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // For mobile toggle
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebar = document.getElementById('sidebar');
+        
+        if (sidebarToggle && sidebar) {
+            sidebarToggle.addEventListener('click', function() {
+                sidebar.classList.toggle('active');
+                // Change icon
+                const icon = sidebarToggle.querySelector('i');
+                if (sidebar.classList.contains('active')) {
+                    icon.classList.remove('fa-bars');
+                    icon.classList.add('fa-times');
+                } else {
+                    icon.classList.remove('fa-times');
+                    icon.classList.add('fa-bars');
+                }
+            });
+            
+            // Close sidebar when clicking outside
+            document.addEventListener('click', function(event) {
+                const isClickInside = sidebar.contains(event.target) || sidebarToggle.contains(event.target);
+                if (!isClickInside && sidebar.classList.contains('active')) {
+                    sidebar.classList.remove('active');
+                    const icon = sidebarToggle.querySelector('i');
+                    icon.classList.remove('fa-times');
+                    icon.classList.add('fa-bars');
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

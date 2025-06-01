@@ -1,0 +1,43 @@
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+
+
+class AffiliationRequest(models.Model):
+    """Demande d'affiliation d'un club à une fédération."""
+    STATUS_CHOICES = [
+        ('pending', _('En attente')),
+        ('approved', _('Approuvée')),
+        ('rejected', _('Rejetée')),
+        ('cancelled', _('Annulée')),
+    ]
+    
+    club = models.ForeignKey(
+        'competitions.Club', 
+        on_delete=models.CASCADE, 
+        related_name='affiliation_requests',
+        verbose_name=_("Club")
+    )
+    federation = models.ForeignKey(
+        'competitions.Federation', 
+        on_delete=models.CASCADE, 
+        related_name='affiliation_requests',
+        verbose_name=_("Fédération")
+    )
+    status = models.CharField(
+        _("Statut"), 
+        max_length=20, 
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+    notes = models.TextField(_("Notes"), blank=True)
+    response_message = models.TextField(_("Message de réponse"), blank=True)
+    
+    def __str__(self):
+        return f"{self.club.name} - {self.federation.name} ({self.get_status_display()})"
+    
+    class Meta:
+        verbose_name = _("Demande d'affiliation")
+        verbose_name_plural = _("Demandes d'affiliation")
+        ordering = ['-created_at']

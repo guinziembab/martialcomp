@@ -1,0 +1,212 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block title %}{% trans "Enregistrer un paiement" %} - {{ invoice.invoice_number }}{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            {% trans "Enregistrer un paiement" %}
+        </h1>
+        <a href="{% url 'finances:invoice_detail' invoice.id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> {% trans "Retour à la facture" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Détails du paiement" %}</h6>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.payment_method|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.payment_date|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.amount|as_crispy_field }}
+                                <div class="text-muted small mb-3">
+                                    {% trans "Montant restant à payer" %}: 
+                                    <strong>{{ invoice.amount_due|floatformat:2 }} €</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.reference_number|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12">
+                                {{ form.notes|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-check"></i> {% trans "Enregistrer le paiement" %}
+                            </button>
+                            <a href="{% url 'finances:invoice_detail' invoice.id %}" class="btn btn-secondary ml-2">
+                                {% trans "Annuler" %}
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Résumé de la facture" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-uppercase text-muted">{% trans "Numéro de facture" %}</small>
+                        <div class="h5">{{ invoice.invoice_number }}</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <small class="text-uppercase text-muted">{% trans "Client" %}</small>
+                        <div>{{ invoice.client_name }}</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <small class="text-uppercase text-muted">{% trans "Date d'émission" %}</small>
+                        <div>{{ invoice.issue_date|date:"d/m/Y" }}</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <small class="text-uppercase text-muted">{% trans "Date d'échéance" %}</small>
+                        <div>
+                            {{ invoice.due_date|date:"d/m/Y" }}
+                            {% if invoice.is_overdue and invoice.status != 'paid' %}
+                            <span class="badge bg-danger ml-1">{% trans "En retard" %}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <small class="text-uppercase text-muted">{% trans "Statut" %}</small>
+                        <div>
+                            {% if invoice.status == 'draft' %}
+                            <span class="badge bg-light text-dark">{% trans "Brouillon" %}</span>
+                            {% elif invoice.status == 'sent' %}
+                            <span class="badge bg-info">{% trans "Envoyée" %}</span>
+                            {% elif invoice.status == 'paid' %}
+                            <span class="badge bg-success">{% trans "Payée" %}</span>
+                            {% elif invoice.status == 'partially_paid' %}
+                            <span class="badge bg-warning">{% trans "Partiellement payée" %}</span>
+                            {% elif invoice.status == 'cancelled' %}
+                            <span class="badge bg-secondary">{% trans "Annulée" %}</span>
+                            {% elif invoice.status == 'overdue' %}
+                            <span class="badge bg-danger">{% trans "En retard" %}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ invoice.get_status_display }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="text-muted">{% trans "Montant total" %}</div>
+                            <div class="h5">{{ invoice.total|floatformat:2 }} €</div>
+                        </div>
+                        <div class="col-6 text-right">
+                            <div class="text-muted">{% trans "Déjà payé" %}</div>
+                            <div class="h5">{{ invoice.amount_paid|floatformat:2 }} €</div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert {% if invoice.amount_due > 0 %}alert-warning{% else %}alert-success{% endif %} mt-3">
+                        <div class="row">
+                            <div class="col-6">
+                                <strong>{% trans "Restant à payer" %}</strong>
+                            </div>
+                            <div class="col-6 text-right">
+                                <strong>{{ invoice.amount_due|floatformat:2 }} €</strong>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% if invoice.payments.exists %}
+                    <div class="mt-4">
+                        <h6>{% trans "Historique des paiements" %}</h6>
+                        <ul class="list-group">
+                            {% for payment in invoice.payments.all %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div>{{ payment.payment_method.name }}</div>
+                                    <small class="text-muted">{{ payment.payment_date|date:"d/m/Y" }}</small>
+                                </div>
+                                <span class="badge badge-primary badge-pill">{{ payment.amount|floatformat:2 }} €</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Initialiser le datepicker
+        $('#id_payment_date').datepicker({
+            format: 'dd/mm/yyyy',
+            language: 'fr',
+            autoclose: true
+        });
+        
+        // Initialiser select2 pour les listes déroulantes
+        $('.select2').select2({
+            theme: 'bootstrap4',
+            width: '100%'
+        });
+        
+        // Pré-remplir le montant avec le montant dû
+        if (!$('#id_amount').val()) {
+            $('#id_amount').val('{{ invoice.amount_due|floatformat:2 }}');
+        }
+        
+        // Valider que le montant n'est pas supérieur au montant dû
+        $('form').on('submit', function(e) {
+            var amount = parseFloat($('#id_amount').val());
+            var amountDue = parseFloat('{{ invoice.amount_due }}');
+            
+            if (amount <= 0) {
+                e.preventDefault();
+                alert("{% trans 'Le montant du paiement doit être supérieur à zéro.' %}");
+                return false;
+            }
+            
+            if (amount > amountDue) {
+                if (!confirm("{% trans 'Le montant saisi est supérieur au montant restant à payer. Voulez-vous continuer ?' %}")) {
+                    e.preventDefault();
+                    return false;
+                }
+            }
+            
+            return true;
+        });
+    });
+</script>
+{% endblock %}

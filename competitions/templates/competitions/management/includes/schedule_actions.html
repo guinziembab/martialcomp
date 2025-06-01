@@ -1,0 +1,148 @@
+{% load i18n %}
+
+<div class="schedule-actions card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4 mb-3 mb-md-0">
+                <div class="d-grid gap-2">
+                    <div class="dropdown">
+                        <button class="btn btn-primary dropdown-toggle w-100" type="button" id="addDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-plus me-1"></i> {% trans "Ajouter" %}
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="addDropdown">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'competitions:schedule:add_tatami' competition.id %}">
+                                    <i class="fas fa-plus-circle me-1"></i> {% trans "Ajouter un tatami" %}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'competitions:schedule:add_category' competition.id %}">
+                                    <i class="fas fa-plus-circle me-1"></i> {% trans "Ajouter une catégorie" %}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'competitions:schedule:bulk_category' competition.id %}">
+                                    <i class="fas fa-layer-group me-1"></i> {% trans "Planification en masse" %}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4 mb-3 mb-md-0">
+                <div class="d-grid gap-2">
+                    <div class="dropdown">
+                        <button class="btn btn-success dropdown-toggle w-100" type="button" id="optimizeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-magic me-1"></i> {% trans "Optimiser" %}
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="optimizeDropdown">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'competitions:schedule:optimize' competition.id %}">
+                                    <i class="fas fa-magic me-1"></i> {% trans "Optimiser tout le planning" %}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'competitions:schedule:optimize' competition.id %}?conflicts_only=1">
+                                    <i class="fas fa-exclamation-triangle me-1"></i> {% trans "Résoudre les conflits uniquement" %}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'competitions:schedule:optimize' competition.id %}?balance=1">
+                                    <i class="fas fa-balance-scale me-1"></i> {% trans "Équilibrer les tatamis" %}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="d-grid gap-2">
+                    <div class="dropdown">
+                        <button class="btn btn-info dropdown-toggle w-100" type="button" id="actionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-ellipsis-h me-1"></i> {% trans "Actions" %}
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="actionsDropdown">
+                            {% if not competition.schedule_published %}
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'competitions:schedule:publish' competition.id %}" onclick="return confirm('{% trans "Êtes-vous sûr de vouloir publier le planning ? Cette action enverra une notification aux participants." %}')">
+                                        <i class="fas fa-globe me-1"></i> {% trans "Publier le planning" %}
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'competitions:schedule:unpublish' competition.id %}" onclick="return confirm('{% trans "Êtes-vous sûr de vouloir dépublier le planning ? Les participants ne pourront plus y accéder." %}')">
+                                        <i class="fas fa-eye-slash me-1"></i> {% trans "Dépublier le planning" %}
+                                    </a>
+                                </li>
+                            {% endif %}
+                            <li>
+                                <a class="dropdown-item" href="{% url 'competitions:schedule:export' competition.id %}">
+                                    <i class="fas fa-file-export me-1"></i> {% trans "Exporter" %}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'competitions:schedule:print' competition.id %}" target="_blank">
+                                    <i class="fas fa-print me-1"></i> {% trans "Version imprimable" %}
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'competitions:schedule:edit' competition.id %}">
+                                    <i class="fas fa-cog me-1"></i> {% trans "Paramètres du planning" %}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'competitions:schedule:reorder_categories' competition.id %}">
+                                    <i class="fas fa-sort me-1"></i> {% trans "Réorganiser les catégories" %}
+                                </a>
+                            </li>
+                            {% if conflicts_count > 0 %}
+                                <li>
+                                    <a class="dropdown-item text-danger" href="{% url 'competitions:schedule:conflicts' competition.id %}">
+                                        <i class="fas fa-exclamation-triangle me-1"></i> {% trans "Voir les conflits" %} ({{ conflicts_count }})
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Informations sur l'état du planning -->
+        <div class="schedule-status-info mt-3">
+            <div class="row text-center">
+                <div class="col">
+                    <div class="small text-muted">{% trans "Tatamis" %}</div>
+                    <div class="fw-bold">{{ tatamis_count }}</div>
+                </div>
+                <div class="col">
+                    <div class="small text-muted">{% trans "Catégories planifiées" %}</div>
+                    <div class="fw-bold">{{ scheduled_categories_count }}/{{ total_categories_count }}</div>
+                </div>
+                <div class="col">
+                    <div class="small text-muted">{% trans "Matchs planifiés" %}</div>
+                    <div class="fw-bold">{{ scheduled_matches_count }}</div>
+                </div>
+                <div class="col">
+                    <div class="small text-muted">{% trans "État" %}</div>
+                    <div class="fw-bold">
+                        {% if competition.schedule_published %}
+                            <span class="text-success">{% trans "Publié" %}</span>
+                        {% else %}
+                            <span class="text-warning">{% trans "Brouillon" %}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if conflicts_count > 0 %}
+                    <div class="col">
+                        <div class="small text-muted">{% trans "Conflits" %}</div>
+                        <div class="fw-bold text-danger">{{ conflicts_count }}</div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

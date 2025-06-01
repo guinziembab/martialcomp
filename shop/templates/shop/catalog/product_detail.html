@@ -1,0 +1,426 @@
+{% extends 'shop/base.html' %}
+{% load i18n %}
+
+{% block shop_title %}{{ product.name }}{% endblock %}
+{% block shop_subtitle %}
+    {% for category in product.categories.all %}
+        {% if forloop.first %}{% trans "Catégorie" %}: {% endif %}
+        {{ category.name }}{% if not forloop.last %}, {% endif %}
+    {% endfor %}
+{% endblock %}
+
+{% block shop_content %}
+<div class="row">
+    <!-- Product images -->
+    <div class="col-md-5 mb-4">
+        <div class="card">
+            <div class="card-body">
+                {% if product.main_image %}
+                <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="img-fluid main-product-image mb-3">
+                {% else %}
+                <img src="{{ MEDIA_URL }}shop/images/placeholder.png" alt="{{ product.name }}" class="img-fluid main-product-image mb-3">
+                {% endif %}
+                
+                {% if product.images.all %}
+                <div class="d-flex flex-wrap gap-2 justify-content-center">
+                    {% for image in product.images.all %}
+                    <img src="{{ image.image.url }}" alt="{{ product.name }}" class="img-thumbnail product-thumbnail" 
+                         style="width: 80px; height: 80px; object-fit: cover; cursor: pointer;"
+                         onclick="document.querySelector('.main-product-image').src = this.src">
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Product information -->
+    <div class="col-md-7">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h1 class="card-title h2">{{ product.name }}</h1>
+                <div class="mb-3">
+                    {% for category in product.categories.all %}
+                        <a href="{% url 'shop:category' category.slug %}" class="badge bg-secondary text-decoration-none me-1">
+                            {{ category.name }}
+                        </a>
+                    {% endfor %}
+                </div>
+                
+                {% if product.brand %}
+                <p class="mb-2">
+                    <strong>{% trans "Marque" %}:</strong> 
+                    <a href="{% url 'shop:brand' product.brand.slug %}">{{ product.brand.name }}</a>
+                </p>
+                {% endif %}
+                
+                <div class="mb-3">
+                    {% if product.discount_price %}
+                    <span class="h3 price">{{ product.discount_price_display }}</span>
+                    <span class="text-muted text-decoration-line-through ms-2">{{ product.price_display }}</span>
+                    <span class="badge bg-danger ms-2">-{{ product.discount_percentage }}%</span>
+                    {% else %}
+                    <span class="h3 price">{{ product.price_display }}</span>
+                    {% endif %}
+                </div>
+                
+                {% if product.rating %}
+                <div class="mb-3">
+                    <div class="d-flex align-items-center mb-1">
+                        {% for i in "12345" %}
+                            {% if forloop.counter <= product.rating_rounded %}
+                                <i class="fas fa-star text-warning"></i>
+                            {% elif forloop.counter == product.rating_half %}
+                                <i class="fas fa-star-half-alt text-warning"></i>
+                            {% else %}
+                                <i class="far fa-star text-warning"></i>
+                            {% endif %}
+                        {% endfor %}
+                        <span class="ms-2">{{ product.rating }}</span>
+                    </div>
+                    <small class="text-muted">{{ product.reviews.count }} {% trans "avis" %}</small>
+                </div>
+                {% endif %}
+                
+                <p class="card-text mb-4">{{ product.short_description }}</p>
+                
+                <form method="post" action="{% url 'shop:add_to_cart' %}" class="mb-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="product_id" value="{{ product.id }}">
+                    
+                    {% if product.variations.all %}
+                    <div class="mb-3">
+                        <label for="variation" class="form-label">{% trans "Options" %}</label>
+                        <select name="variation_id" id="variation" class="form-select" required>
+                            <option value="">{% trans "Sélectionner une option" %}</option>
+                            {% for variation in product.variations.all %}
+                            <option value="{{ variation.id }}" data-price="{{ variation.price_display }}" 
+                                    data-stock="{{ variation.stock }}">
+                                {{ variation.get_full_name }} 
+                                {% if variation.price_difference != 0 %}
+                                    {% if variation.price_difference > 0 %}(+{{ variation.price_difference_display }})
+                                    {% else %}(-{{ variation.price_difference_display|cut:"-" }})
+                                    {% endif %}
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div id="variation_stock" class="form-text"></div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="row align-items-end">
+                        <div class="col-md-4 col-6">
+                            <label for="quantity" class="form-label">{% trans "Quantité" %}</label>
+                            <input type="number" name="quantity" id="quantity" class="form-control" value="1" min="1" 
+                                   max="{{ product.stock|default:'10' }}">
+                        </div>
+                        <div class="col-md-8 col-6">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-cart-plus me-2"></i> {% trans "Ajouter au panier" %}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                
+                <hr>
+                
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <p class="mb-1"><i class="fas fa-check-circle text-success me-2"></i> {% trans "Livraison sécurisée" %}</p>
+                        <p class="mb-1"><i class="fas fa-truck me-2"></i> {% trans "Livraison en 3-5 jours ouvrés" %}</p>
+                    </div>
+                    <div>
+                        <p class="mb-1"><i class="fas fa-lock me-2"></i> {% trans "Paiement sécurisé" %}</p>
+                        <p class="mb-1"><i class="fas fa-exchange-alt me-2"></i> {% trans "Retours sous 14 jours" %}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <!-- Product tabs -->
+        <ul class="nav nav-tabs mb-3" id="productTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="description-tab" data-bs-toggle="tab" data-bs-target="#description" 
+                        type="button" role="tab" aria-controls="description" aria-selected="true">
+                    {% trans "Description" %}
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="specifications-tab" data-bs-toggle="tab" data-bs-target="#specifications" 
+                        type="button" role="tab" aria-controls="specifications" aria-selected="false">
+                    {% trans "Caractéristiques" %}
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="reviews-tab" data-bs-toggle="tab" data-bs-target="#reviews" 
+                        type="button" role="tab" aria-controls="reviews" aria-selected="false">
+                    {% trans "Avis" %} ({{ product.reviews.count }})
+                </button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="productTabsContent">
+            <!-- Description tab -->
+            <div class="tab-pane fade show active" id="description" role="tabpanel" aria-labelledby="description-tab">
+                <div class="card">
+                    <div class="card-body">
+                        {{ product.description|safe }}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Specifications tab -->
+            <div class="tab-pane fade" id="specifications" role="tabpanel" aria-labelledby="specifications-tab">
+                <div class="card">
+                    <div class="card-body">
+                        <table class="table">
+                            <tbody>
+                                {% if product.weight %}
+                                <tr>
+                                    <th scope="row">{% trans "Poids" %}</th>
+                                    <td>{{ product.weight }} {% trans "kg" %}</td>
+                                </tr>
+                                {% endif %}
+                                
+                                {% if product.dimensions %}
+                                <tr>
+                                    <th scope="row">{% trans "Dimensions" %}</th>
+                                    <td>{{ product.dimensions }}</td>
+                                </tr>
+                                {% endif %}
+                                
+                                {% if product.material %}
+                                <tr>
+                                    <th scope="row">{% trans "Matériaux" %}</th>
+                                    <td>{{ product.material }}</td>
+                                </tr>
+                                {% endif %}
+                                
+                                {% for attribute in product.attributes.all %}
+                                <tr>
+                                    <th scope="row">{{ attribute.attribute_type.name }}</th>
+                                    <td>{{ attribute.value }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Reviews tab -->
+            <div class="tab-pane fade" id="reviews" role="tabpanel" aria-labelledby="reviews-tab">
+                <div class="card">
+                    <div class="card-body">
+                        {% if product.reviews.all %}
+                            <!-- Rating overview -->
+                            <div class="row mb-4">
+                                <div class="col-md-4 text-center border-end">
+                                    <h2 class="display-4">{{ product.rating }}</h2>
+                                    <div class="mb-2">
+                                        {% for i in "12345" %}
+                                            {% if forloop.counter <= product.rating_rounded %}
+                                                <i class="fas fa-star text-warning"></i>
+                                            {% elif forloop.counter == product.rating_half %}
+                                                <i class="fas fa-star-half-alt text-warning"></i>
+                                            {% else %}
+                                                <i class="far fa-star text-warning"></i>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    <p class="text-muted">{{ product.reviews.count }} {% trans "avis" %}</p>
+                                </div>
+                                <div class="col-md-8">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <div class="w-25">5 {% trans "étoiles" %}</div>
+                                        <div class="w-50">
+                                            <div class="progress">
+                                                <div class="progress-bar bg-warning" role="progressbar" 
+                                                     style="width: {{ product.rating_5_percent }}%" 
+                                                     aria-valuenow="{{ product.rating_5_percent }}" 
+                                                     aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+                                        </div>
+                                        <div class="w-25 ps-2">{{ product.rating_5_count }}</div>
+                                    </div>
+                                    <!-- Repeat for 4, 3, 2, 1 stars -->
+                                    <div class="d-flex align-items-center mb-2">
+                                        <div class="w-25">4 {% trans "étoiles" %}</div>
+                                        <div class="w-50">
+                                            <div class="progress">
+                                                <div class="progress-bar bg-warning" role="progressbar" 
+                                                     style="width: {{ product.rating_4_percent }}%" 
+                                                     aria-valuenow="{{ product.rating_4_percent }}" 
+                                                     aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+                                        </div>
+                                        <div class="w-25 ps-2">{{ product.rating_4_count }}</div>
+                                    </div>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <div class="w-25">3 {% trans "étoiles" %}</div>
+                                        <div class="w-50">
+                                            <div class="progress">
+                                                <div class="progress-bar bg-warning" role="progressbar" 
+                                                     style="width: {{ product.rating_3_percent }}%" 
+                                                     aria-valuenow="{{ product.rating_3_percent }}" 
+                                                     aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+                                        </div>
+                                        <div class="w-25 ps-2">{{ product.rating_3_count }}</div>
+                                    </div>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <div class="w-25">2 {% trans "étoiles" %}</div>
+                                        <div class="w-50">
+                                            <div class="progress">
+                                                <div class="progress-bar bg-warning" role="progressbar" 
+                                                     style="width: {{ product.rating_2_percent }}%" 
+                                                     aria-valuenow="{{ product.rating_2_percent }}" 
+                                                     aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+                                        </div>
+                                        <div class="w-25 ps-2">{{ product.rating_2_count }}</div>
+                                    </div>
+                                    <div class="d-flex align-items-center">
+                                        <div class="w-25">1 {% trans "étoile" %}</div>
+                                        <div class="w-50">
+                                            <div class="progress">
+                                                <div class="progress-bar bg-warning" role="progressbar" 
+                                                     style="width: {{ product.rating_1_percent }}%" 
+                                                     aria-valuenow="{{ product.rating_1_percent }}" 
+                                                     aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+                                        </div>
+                                        <div class="w-25 ps-2">{{ product.rating_1_count }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <!-- Reviews list -->
+                            {% for review in product.reviews.all %}
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h5 class="mb-1">{{ review.title }}</h5>
+                                        <div class="d-flex align-items-center mb-2">
+                                            {% for i in "12345" %}
+                                                {% if forloop.counter <= review.rating %}
+                                                    <i class="fas fa-star text-warning"></i>
+                                                {% else %}
+                                                    <i class="far fa-star text-warning"></i>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    <div class="text-muted">
+                                        {{ review.created_at|date:"d/m/Y" }}
+                                    </div>
+                                </div>
+                                <p>{{ review.comment }}</p>
+                                <div class="d-flex align-items-center">
+                                    <div class="me-3">
+                                        <i class="fas fa-user-circle me-1"></i>
+                                        {{ review.user.first_name|default:review.user.username }}
+                                    </div>
+                                    {% if review.verified_purchase %}
+                                    <div class="badge bg-success">
+                                        <i class="fas fa-check me-1"></i> {% trans "Achat vérifié" %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <hr>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="text-center py-4">
+                                <p>{% trans "Ce produit n'a pas encore d'avis." %}</p>
+                                {% if user.is_authenticated %}
+                                <a href="{% url 'shop:add_review' product.slug %}" class="btn btn-primary">
+                                    {% trans "Laisser un avis" %}
+                                </a>
+                                {% else %}
+                                <p>
+                                    <a href="{% url 'login' %}?next={% url 'shop:add_review' product.slug %}">
+                                        {% trans "Connectez-vous pour laisser un avis" %}
+                                    </a>
+                                </p>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Related products -->
+{% if related_products %}
+<div class="row mt-5">
+    <div class="col-12">
+        <h3 class="mb-4">{% trans "Produits similaires" %}</h3>
+        <div class="row">
+            {% for related in related_products %}
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="card product-card h-100">
+                    {% if related.main_image %}
+                        <img src="{{ related.main_image.url }}" alt="{{ related.name }}" class="card-img-top">
+                    {% else %}
+                        <img src="{{ MEDIA_URL }}shop/images/placeholder.png" alt="{{ related.name }}" class="card-img-top">
+                    {% endif %}
+                    <div class="card-body">
+                        <h5 class="card-title">{{ related.name }}</h5>
+                        <p class="card-text">{{ related.short_description|truncatechars:50 }}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="price">{{ related.price_display }}</span>
+                            <a href="{% url 'shop:product_detail' related.slug %}" class="btn btn-sm btn-outline-primary">
+                                {% trans "Voir" %}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle variation selection
+        const variationSelect = document.getElementById('variation');
+        const variationStock = document.getElementById('variation_stock');
+        const quantityInput = document.getElementById('quantity');
+        
+        if (variationSelect) {
+            variationSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                const stock = selectedOption.getAttribute('data-stock');
+                
+                if (stock && variationStock) {
+                    if (parseInt(stock) > 0) {
+                        variationStock.innerHTML = `<span class="text-success">
+                            <i class="fas fa-check-circle me-1"></i> {% trans "En stock" %} (${stock})
+                        </span>`;
+                        quantityInput.max = stock;
+                    } else {
+                        variationStock.innerHTML = `<span class="text-danger">
+                            <i class="fas fa-times-circle me-1"></i> {% trans "Rupture de stock" %}
+                        </span>`;
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

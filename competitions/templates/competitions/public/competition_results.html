@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Résultats" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .medal-gold {
+        color: #FFC107;
+    }
+    
+    .medal-silver {
+        color: #6C757D;
+    }
+    
+    .medal-bronze {
+        color: #DC3545;
+    }
+    
+    .category-card {
+        transition: all 0.3s ease;
+    }
+    
+    .category-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+    
+    .category-link {
+        text-decoration: none;
+        color: inherit;
+    }
+    
+    .category-link:hover {
+        color: inherit;
+    }
+    
+    .result-row:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    .podium-container {
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        margin: 2rem 0;
+        height: 200px;
+    }
+    
+    .podium-place {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+    }
+    
+    .podium-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        width: 100px;
+        text-align: center;
+        border-top-left-radius: 4px;
+        border-top-right-radius: 4px;
+        color: white;
+        font-weight: bold;
+        padding-top: 10px;
+    }
+    
+    .podium-step.first {
+        background-color: #FFC107; /* Gold */
+        height: 140px;
+        order: 2;
+    }
+    
+    .podium-step.second {
+        background-color: #6C757D; /* Silver */
+        height: 100px;
+        order: 1;
+    }
+    
+    .podium-step.third {
+        background-color: #DC3545; /* Bronze */
+        height: 70px;
+        order: 3;
+    }
+    
+    .podium-number {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .podium-medal {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .podium-avatar {
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background-color: #f8f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 3px solid;
+    }
+    
+    .first .podium-avatar {
+        border-color: #FFC107;
+    }
+    
+    .second .podium-avatar {
+        border-color: #6C757D;
+    }
+    
+    .third .podium-avatar {
+        border-color: #DC3545;
+    }
+    
+    .podium-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .podium-name {
+        font-size: 0.8rem;
+        font-weight: bold;
+        margin-top: 0.5rem;
+        text-align: center;
+        max-width: 100px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .club-medal-count {
+        display: inline-block;
+        width: 32px;
+        height: 32px;
+        line-height: 32px;
+        text-align: center;
+        border-radius: 50%;
+        color: white;
+        font-weight: bold;
+        margin-right: 5px;
+    }
+    
+    .gold-count {
+        background-color: #FFC107;
+    }
+    
+    .silver-count {
+        background-color: #6C757D;
+    }
+    
+    .bronze-count {
+        background-color: #DC3545;
+    }
+    
+    @media (max-width: 767.98px) {
+        .podium-step {
+            width: 70px;
+        }
+        
+        .podium-avatar {
+            width: 40px;
+            height: 40px;
+        }
+        
+        .podium-number {
+            font-size: 1.2rem;
+        }
+        
+        .podium-medal {
+            font-size: 1.5rem;
+        }
+        
+        .podium-name {
+            font-size: 0.7rem;
+            max-width: 70px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Titre et logo -->
+    <div class="text-center mb-4">
+        <h1 class="display-5">{{ competition.title }}</h1>
+        <p class="lead">{% trans "Résultats officiels" %}</p>
+    </div>
+
+    <!-- Information sur la compétition -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><i class="fas fa-calendar-alt me-2"></i>{% trans "Dates" %}: {{ competition.start_date|date:"d/m/Y" }} {% if competition.end_date and competition.end_date != competition.start_date %}- {{ competition.end_date|date:"d/m/Y" }}{% endif %}</p>
+                    <p class="mb-1"><i class="fas fa-map-marker-alt me-2"></i>{% trans "Lieu" %}: {{ competition.location }}</p>
+                    <p class="mb-0"><i class="fas fa-users me-2"></i>{% trans "Nombre de clubs" %}: {{ results_by_category|get_unique_clubs|length }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p class="mb-1"><i class="fas fa-layer-group me-2"></i>{% trans "Catégories" %}: {{ categories|length }}</p>
+                    <p class="mb-1"><i class="fas fa-trophy me-2"></i>{% trans "Médailles d'or" %}: {{ results_by_category|count_gold_medals }}</p>
+                    <p class="mb-0">
+                        <span class="me-2"><i class="fas fa-medal me-1 medal-gold"></i>{% trans "Or" %}</span>
+                        <span class="me-2"><i class="fas fa-medal me-1 medal-silver"></i>{% trans "Argent" %}</span>
+                        <span><i class="fas fa-medal me-1 medal-bronze"></i>{% trans "Bronze" %}</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation des catégories -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="h5 mb-0">{% trans "Catégories" %}</h2>
+                <div class="input-group" style="max-width: 300px;">
+                    <input type="text" class="form-control" id="categorySearch" placeholder="{% trans 'Rechercher une catégorie...' %}">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row row-cols-1 row-cols-md-3 g-4" id="categoriesContainer">
+                {% for category in categories %}
+                    <div class="col category-item">
+                        <a href="#category-{{ category.id }}" class="category-link">
+                            <div class="card h-100 shadow-sm category-card">
+                                <div class="card-body">
+                                    <h3 class="h6 card-title category-name">{{ category.name }}</h3>
+                                    <p class="card-text text-muted small">{{ category.competition_type.name }}</p>
+                                    <div class="d-flex justify-content-between mt-2">
+                                        <div>
+                                            <span class="badge bg-primary">{{ results_by_category|get_item:category.id|length }} {% trans "participants" %}</span>
+                                        </div>
+                                        <div>
+                                            <i class="fas fa-medal medal-gold me-1"></i>
+                                            <i class="fas fa-medal medal-silver me-1"></i>
+                                            <i class="fas fa-medal medal-bronze me-1"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Résultats par catégorie -->
+    {% for category in categories %}
+        <div id="category-{{ category.id }}" class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2 class="h5 mb-0">{{ category.name }}</h2>
+                    <span class="badge bg-light text-dark">{{ category.competition_type.name }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Podium -->
+                <div class="podium-container">
+                    {% for ranking in results_by_category|get_item:category.id %}
+                        {% if ranking.rank <= 3 %}
+                            <div class="podium-place">
+                                <div class="podium-avatar">
+                                    {% if ranking.practitioner.photo %}
+                                        <img src="{{ ranking.practitioner.photo.url }}" alt="{{ ranking.practitioner.full_name }}">
+                                    {% else %}
+                                        <i class="fas fa-user text-secondary"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="podium-step {% if ranking.rank == 1 %}first{% elif ranking.rank == 2 %}second{% elif ranking.rank == 3 %}third{% endif %}">
+                                    <div class="podium-number">{{ ranking.rank }}</div>
+                                    <div class="podium-medal">
+                                        {% if ranking.rank == 1 %}🥇{% elif ranking.rank == 2 %}🥈{% elif ranking.rank == 3 %}🥉{% endif %}
+                                    </div>
+                                </div>
+                                <div class="podium-name">{{ ranking.practitioner.full_name }}</div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                
+                <!-- Tableau des résultats -->
+                <div class="table-responsive mt-4">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="60">{% trans "Rang" %}</th>
+                                <th>{% trans "Participant" %}</th>
+                                <th>{% trans "Club" %}</th>
+                                <th class="text-center">{% trans "Score" %}</th>
+                                <th>{% trans "Médaille" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ranking in results_by_category|get_item:category.id %}
+                                <tr class="result-row">
+                                    <td>
+                                        <span class="fs-5 fw-bold">{{ ranking.rank }}</span>
+                                        {% if ranking.is_tie %}
+                                            <span class="badge bg-info ms-1">{% trans "Ex-aequo" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if ranking.practitioner.photo %}
+                                                <img src="{{ ranking.practitioner.photo.url }}" alt="{{ ranking.practitioner.full_name }}" 
+                                                    class="rounded-circle me-2" width="40" height="40">
+                                            {% else %}
+                                                <div class="rounded-circle bg-secondary text-white d-flex justify-content-center align-items-center me-2" 
+                                                    style="width: 40px; height: 40px;">
+                                                    <i class="fas fa-user"></i>
+                                                </div>
+                                            {% endif %}
+                                            <div>
+                                                <span class="fw-bold">{{ ranking.practitioner.full_name }}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if ranking.practitioner.club %}
+                                            {{ ranking.practitioner.club.name }}
+                                        {% else %}
+                                            <span class="text-muted">{% trans "Sans club" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center fw-bold">{{ ranking.final_score }}</td>
+                                    <td>
+                                        {% if ranking.rank <= 3 %}
+                                            {% if ranking.rank == 1 %}
+                                                <span class="badge bg-warning">
+                                                    <i class="fas fa-medal me-1"></i>{% trans "Or" %}
+                                                </span>
+                                            {% elif ranking.rank == 2 %}
+                                                <span class="badge bg-secondary">
+                                                    <i class="fas fa-medal me-1"></i>{% trans "Argent" %}
+                                                </span>
+                                            {% elif ranking.rank == 3 %}
+                                                <span class="badge bg-danger">
+                                                    <i class="fas fa-medal me-1"></i>{% trans "Bronze" %}
+                                                </span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-3">
+                                        <p class="text-muted mb-0">{% trans "Aucun résultat disponible pour cette catégorie." %}</p>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+
+    <!-- Classement des clubs -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h2 class="h5 mb-0">{% trans "Classement des clubs" %}</h2>
+        </div>
+        <div class="card-body">
+            <!-- Génération du classement des clubs à partir des résultats -->
+            {% with clubs_medals=results_by_category|calculate_clubs_medals %}
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Position" %}</th>
+                                <th>{% trans "Club" %}</th>
+                                <th class="text-center">{% trans "Or" %}</th>
+                                <th class="text-center">{% trans "Argent" %}</th>
+                                <th class="text-center">{% trans "Bronze" %}</th>
+                                <th class="text-center">{% trans "Total" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for club in clubs_medals %}
+                                <tr>
+                                    <td class="fw-bold">{{ forloop.counter }}</td>
+                                    <td>{{ club.name }}</td>
+                                    <td class="text-center">
+                                        {% if club.gold > 0 %}
+                                            <span class="club-medal-count gold-count">{{ club.gold }}</span>
+                                        {% else %}
+                                            <span class="text-muted">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if club.silver > 0 %}
+                                            <span class="club-medal-count silver-count">{{ club.silver }}</span>
+                                        {% else %}
+                                            <span class="text-muted">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if club.bronze > 0 %}
+                                            <span class="club-medal-count bronze-count">{{ club.bronze }}</span>
+                                        {% else %}
+                                            <span class="text-muted">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center fw-bold">
+                                        {{ club.total }}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-3">
+                                        <p class="text-muted mb-0">{% trans "Aucun club n'a remporté de médailles." %}</p>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endwith %}
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="card shadow-sm">
+        <div class="card-body text-center">
+            <p class="mb-1">{{ competition.title }} - {% trans "Résultats officiels" %}</p>
+            <p class="small text-muted mb-0">
+                {% trans "Généré le" %} {% now "d/m/Y H:i" %}
+                {% if competition.organizer %}
+                    - {{ competition.organizer }}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Recherche de catégories
+        const searchInput = document.getElementById('categorySearch');
+        const categoryItems = document.querySelectorAll('.category-item');
+        
+        if (searchInput) {
+            searchInput.addEventListener('keyup', function() {
+                const searchTerm = this.value.toLowerCase();
+                
+                categoryItems.forEach(item => {
+                    const categoryName = item.querySelector('.category-name').textContent.toLowerCase();
+                    const categoryType = item.querySelector('.card-text').textContent.toLowerCase();
+                    
+                    if (categoryName.includes(searchTerm) || categoryType.includes(searchTerm)) {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        }
+        
+        // Animation de défilement doux vers les catégories
+        const categoryLinks = document.querySelectorAll('.category-link');
+        
+        categoryLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                const targetId = this.getAttribute('href');
+                const targetElement = document.querySelector(targetId);
+                
+                if (targetElement) {
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 20,
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

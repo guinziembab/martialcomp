@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ title }} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .document-card {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: all 0.2s ease;
+    }
+    
+    .document-card:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-color: #007bff;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        text-align: center;
+    }
+    
+    .stat-number {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+    
+    .folder-icon {
+        color: #ffc107;
+        font-size: 1.5rem;
+        margin-right: 0.5rem;
+    }
+    
+    .document-icon {
+        color: #6c757d;
+        margin-right: 0.5rem;
+    }
+    
+    .quick-actions {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{{ title }}</h1>
+        <div class="quick-actions">
+            <a href="{% url 'documents:upload' %}" class="btn btn-primary">
+                <i class="fas fa-upload"></i> {% trans "Uploader un document" %}
+            </a>
+            <a href="{% url 'documents:my_documents' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-folder"></i> {% trans "Mes documents" %}
+            </a>
+        </div>
+    </div>
+    
+    <!-- Statistiques -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.my_documents }}</div>
+            <div>{% trans "Mes documents" %}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.shared_with_me }}</div>
+            <div>{% trans "Partagés avec moi" %}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.recent_uploads }}</div>
+            <div>{% trans "Uploads récents" %}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ stats.total_size|filesizeformat }}</div>
+            <div>{% trans "Espace utilisé" %}</div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Dossiers racine -->
+        <div class="col-md-6">
+            <h3>{% trans "Dossiers" %}</h3>
+            {% for folder in root_folders %}
+                <div class="document-card">
+                    <h5>
+                        <i class="fas fa-folder folder-icon"></i>
+                        <a href="{% url 'documents:folder_view' folder.id %}">{{ folder.name }}</a>
+                    </h5>
+                    <p class="text-muted">{{ folder.description|truncatewords:15 }}</p>
+                    <small class="text-muted">
+                        <i class="fas fa-file-alt"></i> {{ folder.document_count }} document{{ folder.document_count|pluralize }}
+                    </small>
+                </div>
+            {% empty %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-folder-open fa-3x mb-3"></i>
+                    <p>{% trans "Aucun dossier disponible" %}</p>
+                    <a href="{% url 'documents:folder_root' %}" class="btn btn-outline-primary">
+                        {% trans "Créer un dossier" %}
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Documents récents -->
+        <div class="col-md-6">
+            <h3>{% trans "Documents récents" %}</h3>
+            {% for document in recent_documents %}
+                <div class="document-card">
+                    <h6>
+                        <i class="fas fa-file-alt document-icon"></i>
+                        <a href="{% url 'documents:detail' document.id %}">{{ document.title }}</a>
+                    </h6>
+                    <p class="text-muted small">{{ document.description|truncatewords:10 }}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            {{ document.created_at|date:"d/m/Y H:i" }}
+                        </small>
+                        <span class="badge badge-secondary">{{ document.get_document_type_display }}</span>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-file fa-3x mb-3"></i>
+                    <p>{% trans "Aucun document récent" %}</p>
+                </div>
+            {% endfor %}
+            
+            {% if recent_shared %}
+                <h4 class="mt-4">{% trans "Partagés avec moi" %}</h4>
+                {% for document in recent_shared %}
+                    <div class="document-card">
+                        <h6>
+                            <i class="fas fa-share-alt document-icon"></i>
+                            <a href="{% url 'documents:detail' document.id %}">{{ document.title }}</a>
+                        </h6>
+                        <small class="text-muted">
+                            {% trans "Partagé par" %} {{ document.created_by.get_full_name }}
+                        </small>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Accès rapide par rôle -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <h3>{% trans "Accès rapide" %}</h3>
+            <div class="row">
+                {% if user.profile.role == 'practitioner' %}
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-user-graduate fa-3x text-primary mb-3"></i>
+                                <h5>{% trans "Documents de pratiquant" %}</h5>
+                                <p class="text-muted">{% trans "Certificats, diplômes, licences" %}</p>
+                                <a href="{% url 'documents:practitioner_documents' %}" class="btn btn-primary">
+                                    {% trans "Accéder" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+                
+                {% if user.profile.role == 'judge' %}
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-gavel fa-3x text-success mb-3"></i>
+                                <h5>{% trans "Documents de juge" %}</h5>
+                                <p class="text-muted">{% trans "Certifications, documents techniques" %}</p>
+                                <a href="{% url 'documents:judge_documents' %}" class="btn btn-success">
+                                    {% trans "Accéder" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+                
+                {% if user.profile.role == 'club_admin' %}
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-building fa-3x text-warning mb-3"></i>
+                                <h5>{% trans "Documents de club" %}</h5>
+                                <p class="text-muted">{% trans "Documents administratifs, compétitions" %}</p>
+                                <a href="{% url 'documents:club_documents' %}" class="btn btn-warning">
+                                    {% trans "Accéder" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

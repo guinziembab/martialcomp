@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Ajouter une catégorie au planning" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-section {
+        margin-bottom: 2rem;
+    }
+    .form-header {
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .time-fields .form-group {
+        margin-bottom: 1rem;
+    }
+    .field-info {
+        color: #6c757d;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+    .tatami-card {
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 2px solid transparent;
+        margin-bottom: 1rem;
+    }
+    .tatami-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .tatami-card.selected {
+        border-color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    .tatami-color {
+        width: 20px;
+        height: 20px;
+        display: inline-block;
+        border-radius: 4px;
+        margin-right: 8px;
+    }
+    .category-info {
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 0.25rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>{% trans "Ajouter une catégorie au planning" %}</h1>
+            <p class="lead">{{ competition.title }}</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'competitions:management:schedule_overview' competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "Retour au planning" %}
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <form method="post" id="categoryScheduleForm">
+                        {% csrf_token %}
+                        
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                            <p>{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Sélection de la catégorie -->
+                        <div class="form-section">
+                            <div class="form-header">
+                                <h2>{% trans "Sélection de la catégorie" %}</h2>
+                                <p>{% trans "Choisissez la catégorie à planifier." %}</p>
+                            </div>
+                            
+                            <div class="form-group mb-4">
+                                <label for="{{ form.category.id_for_label }}" class="form-label">{% trans "Catégorie" %} <span class="text-danger">*</span></label>
+                                {{ form.category.errors }}
+                                {{ form.category }}
+                                {% if form.category.help_text %}
+                                <div class="field-info">{{ form.category.help_text }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div id="categoryInfo" class="category-info" style="display: none;">
+                                <h5 id="categoryName">-</h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p><strong>{% trans "Discipline:" %}</strong> <span id="categoryDiscipline">-</span></p>
+                                        <p><strong>{% trans "Type:" %}</strong> <span id="categoryType">-</span></p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <p><strong>{% trans "Participants:" %}</strong> <span id="categoryParticipants">-</span></p>
+                                        <p><strong>{% trans "Âge:" %}</strong> <span id="categoryAge">-</span></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Sélection du tatami -->
+                        <div class="form-section">
+                            <div class="form-header">
+                                <h2>{% trans "Sélection du tatami" %}</h2>
+                                <p>{% trans "Choisissez le tatami sur lequel la catégorie sera planifiée." %}</p>
+                            </div>
+                            
+                            <div class="form-group mb-4">
+                                {{ form.tatami.errors }}
+                                
+                                <div class="tatami-selection">
+                                    <input type="hidden" name="{{ form.tatami.name }}" id="{{ form.tatami.id_for_label }}" value="{{ form.tatami.value|default:'' }}">
+                                    
+                                    <div class="row">
+                                        {% for tatami in tatamis %}
+                                        <div class="col-md-6">
+                                            <div class="card tatami-card {% if form.tatami.value == tatami.id %}selected{% endif %}" data-tatami-id="{{ tatami.id }}">
+                                                <div class="card-body">
+                                                    <h5 class="card-title">
+                                                        <div class="tatami-color" style="background-color: {{ tatami.color_code|default:'#dc3545' }};"></div>
+                                                        {{ tatami.name }}
+                                                    </h5>
+                                                    <p class="card-text text-muted">
+                                                        {% trans "Tatami" %} #{{ tatami.tatami_number }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Horaire planifié -->
+                        <div class="form-section">
+                            <div class="form-header">
+                                <h2>{% trans "Horaire planifié" %}</h2>
+                                <p>{% trans "Définissez l'heure de début estimée pour cette catégorie." %}</p>
+                            </div>
+                            
+                            <div class="row time-fields">
+                                <div class="col-md-6">
+                                    <div class="form-group mb-4">
+                                        <label for="{{ form.estimated_start_time.id_for_label }}" class="form-label">{% trans "Heure de début" %} <span class="text-danger">*</span></label>
+                                        {{ form.estimated_start_time.errors }}
+                                        {{ form.estimated_start_time }}
+                                        {% if form.estimated_start_time.help_text %}
+                                        <div class="field-info">{{ form.estimated_start_time.help_text }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-4">
+                                        <label for="{{ form.estimated_duration.id_for_label }}" class="form-label">{% trans "Durée estimée (minutes)" %}</label>
+                                        {{ form.estimated_duration.errors }}
+                                        {{ form.estimated_duration }}
+                                        {% if form.estimated_duration.help_text %}
+                                        <div class="field-info">{{ form.estimated_duration.help_text }}</div>
+                                        {% else %}
+                                        <div class="field-info">{% trans "Durée totale estimée pour cette catégorie. Laisser vide pour calculer automatiquement." %}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Ordre et priorité -->
+                        <div class="form-section">
+                            <div class="form-header">
+                                <h2>{% trans "Ordre et priorité" %}</h2>
+                            </div>
+                            
+                            <div class="form-group mb-4">
+                                <label for="{{ form.order.id_for_label }}" class="form-label">{% trans "Ordre d'affichage" %}</label>
+                                {{ form.order.errors }}
+                                {{ form.order }}
+                                {% if form.order.help_text %}
+                                <div class="field-info">{{ form.order.help_text }}</div>
+                                {% else %}
+                                <div class="field-info">{% trans "Numéro d'ordre pour le tri des catégories. Les catégories sont affichées dans l'ordre croissant." %}</div>
+                                {% endif %}
+                            </div>
+                            
+                            {% if form.is_priority %}
+                            <div class="form-check mb-3">
+                                {{ form.is_priority }}
+                                <label class="form-check-label" for="{{ form.is_priority.id_for_label }}">
+                                    {% trans "Catégorie prioritaire" %}
+                                </label>
+                                <div class="field-info">{% trans "Les catégories prioritaires sont planifiées en premier lors de l'optimisation automatique." %}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Options de planification des matchs -->
+                        <div class="form-section">
+                            <div class="form-header">
+                                <h2>{% trans "Options de planification des matchs" %}</h2>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="generate_matches" id="generateMatches">
+                                <label class="form-check-label" for="generateMatches">
+                                    {% trans "Générer automatiquement le planning des matchs" %}
+                                </label>
+                                <div class="field-info">{% trans "La génération automatique créera un planning des matchs basé sur les participants inscrits." %}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Notes -->
+                        <div class="form-section">
+                            <div class="form-header">
+                                <h2>{% trans "Notes" %}</h2>
+                            </div>
+                            
+                            <div class="form-group mb-4">
+                                <label for="{{ form.notes.id_for_label }}" class="form-label">{% trans "Notes" %}</label>
+                                {{ form.notes.errors }}
+                                {{ form.notes }}
+                                {% if form.notes.help_text %}
+                                <div class="field-info">{{ form.notes.help_text }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Boutons d'action -->
+                        <div class="form-actions d-flex justify-content-between mt-4">
+                            <a href="{% url 'competitions:management:schedule_overview' competition.id %}" class="btn btn-outline-secondary">
+                                {% trans "Annuler" %}
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> {% trans "Ajouter au planning" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Conseils pour la planification -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Conseils" %}</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        <li class="mb-3">
+                            <i class="fas fa-info-circle text-info"></i> 
+                            {% trans "Planifiez les catégories de jeunes tôt dans la journée pour permettre aux familles de partir plus tôt." %}
+                        </li>
+                        <li class="mb-3">
+                            <i class="fas fa-info-circle text-info"></i> 
+                            {% trans "Regroupez les catégories similaires sur le même tatami pour faciliter l'organisation des juges." %}
+                        </li>
+                        <li class="mb-3">
+                            <i class="fas fa-info-circle text-info"></i> 
+                            {% trans "Évitez de planifier des catégories avec les mêmes participants à des heures qui se chevauchent." %}
+                        </li>
+                        <li class="mb-3">
+                            <i class="fas fa-info-circle text-info"></i> 
+                            {% trans "Vous pouvez utiliser la fonction d'optimisation automatique pour répartir équitablement les catégories entre les tatamis." %}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Informations sur le planning -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Informations sur le planning" %}</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>{% trans "Horaires de la compétition:" %}</strong> {{ schedule.start_time }} - {{ schedule.end_time }}</p>
+                    <p><strong>{% trans "Nombre de tatamis:" %}</strong> {{ schedule.tatami_count }}</p>
+                    
+                    {% with category_count=schedule.category_schedules.count %}
+                    <p><strong>{% trans "Catégories déjà planifiées:" %}</strong> {{ category_count }}</p>
+                    {% endwith %}
+                    
+                    {% with unscheduled_count=competition.categories.count|subtract:schedule.category_schedules.count %}
+                    <p><strong>{% trans "Catégories restantes:" %}</strong> {{ unscheduled_count }}</p>
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Ajouter des classes Bootstrap aux champs de formulaire
+        var formControls = document.querySelectorAll('input, select, textarea');
+        formControls.forEach(function(element) {
+            if (!element.classList.contains('form-control') && 
+                !element.classList.contains('form-select') && 
+                !element.classList.contains('form-check-input')) {
+                if (element.tagName === 'SELECT') {
+                    element.classList.add('form-select');
+                } else if (element.type === 'checkbox' || element.type === 'radio') {
+                    element.classList.add('form-check-input');
+                } else if (element.type !== 'hidden') {
+                    element.classList.add('form-control');
+                }
+            }
+        });
+
+        // Gestion de la sélection de tatami par clic sur la carte
+        var tatamiCards = document.querySelectorAll('.tatami-card');
+        var tatamiInput = document.getElementById('{{ form.tatami.id_for_label }}');
+        
+        tatamiCards.forEach(function(card) {
+            card.addEventListener('click', function() {
+                // Retirer la sélection de toutes les cartes
+                tatamiCards.forEach(function(c) {
+                    c.classList.remove('selected');
+                });
+                
+                // Ajouter la sélection à la carte cliquée
+                this.classList.add('selected');
+                
+                // Mettre à jour la valeur de l'input caché
+                tatamiInput.value = this.dataset.tatamiId;
+            });
+        });
+
+        // Afficher les informations de la catégorie lorsqu'une est sélectionnée
+        var categorySelect = document.getElementById('{{ form.category.id_for_label }}');
+        var categoryInfo = document.getElementById('categoryInfo');
+        var categoryName = document.getElementById('categoryName');
+        var categoryDiscipline = document.getElementById('categoryDiscipline');
+        var categoryType = document.getElementById('categoryType');
+        var categoryParticipants = document.getElementById('categoryParticipants');
+        var categoryAge = document.getElementById('categoryAge');
+        
+        categorySelect.addEventListener('change', function() {
+            var selectedOption = categorySelect.options[categorySelect.selectedIndex];
+            
+            if (selectedOption.value) {
+                // Afficher les informations de la catégorie
+                categoryInfo.style.display = 'block';
+                categoryName.textContent = selectedOption.text;
+                
+                // Charger les données supplémentaires via AJAX
+                fetch('{% url "competitions:management:api_category_info" %}?category_id=' + selectedOption.value)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            categoryDiscipline.textContent = data.discipline || '-';
+                            categoryType.textContent = data.type || '-';
+                            categoryParticipants.textContent = data.participants_count || '0';
+                            
+                            if (data.min_age && data.max_age) {
+                                categoryAge.textContent = data.min_age + ' - ' + data.max_age + ' ' + "{% trans 'ans' %}";
+                            } else if (data.min_age) {
+                                categoryAge.textContent = data.min_age + '+ ' + "{% trans 'ans' %}";
+                            } else if (data.max_age) {
+                                categoryAge.textContent = '<= ' + data.max_age + ' ' + "{% trans 'ans' %}";
+                            } else {
+                                categoryAge.textContent = '-';
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erreur lors du chargement des informations de la catégorie:', error);
+                    });
+            } else {
+                categoryInfo.style.display = 'none';
+            }
+        });
+        
+        // Déclencher l'événement change si une catégorie est déjà sélectionnée
+        if (categorySelect.value) {
+            var event = new Event('change');
+            categorySelect.dispatchEvent(event);
+        }
+    });
+</script>
+{% endblock %}

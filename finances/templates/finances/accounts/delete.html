@@ -1,0 +1,145 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Supprimer le compte" %} - {{ account.name }}{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            {% trans "Supprimer le compte" %}
+        </h1>
+        <a href="{% url 'finances:account_detail' account.id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> {% trans "Annuler" %}
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Confirmation de suppression" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger">
+                        <h5 class="alert-heading">{% trans "Attention !" %}</h5>
+                        <p>
+                            {% trans "Vous êtes sur le point de supprimer définitivement ce compte financier :" %}
+                        </p>
+                        <ul>
+                            <li><strong>{% trans "Nom" %}:</strong> {{ account.name }}</li>
+                            <li><strong>{% trans "Type" %}:</strong> {{ account.get_account_type_display }}</li>
+                            <li><strong>{% trans "Solde actuel" %}:</strong> {{ account.current_balance|floatformat:2 }} €</li>
+                            <li><strong>{% trans "Date d'ouverture" %}:</strong> {{ account.opening_date|date:"d/m/Y" }}</li>
+                        </ul>
+                        <hr>
+                        <p class="mb-0">
+                            {% trans "Cette action est irréversible." %}
+                            {% if transaction_count > 0 %}
+                            <br>
+                            <strong class="text-danger">
+                                {% blocktrans with count=transaction_count %}
+                                Attention : Ce compte contient {{ count }} transaction(s). Que souhaitez-vous faire de ces transactions ?
+                                {% endblocktrans %}
+                            </strong>
+                            {% endif %}
+                        </p>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if transaction_count > 0 %}
+                        <div class="form-group">
+                            <label for="transaction_action">{% trans "Action pour les transactions existantes" %}</label>
+                            <select class="form-control" id="transaction_action" name="transaction_action" required>
+                                <option value="">{% trans "Sélectionnez une action..." %}</option>
+                                <option value="delete">{% trans "Supprimer toutes les transactions associées à ce compte" %}</option>
+                                <option value="move">{% trans "Déplacer les transactions vers un autre compte" %}</option>
+                            </select>
+                        </div>
+                        
+                        <div id="account_selection" class="form-group d-none">
+                            <label for="target_account">{% trans "Compte de destination" %}</label>
+                            <select class="form-control" id="target_account" name="target_account">
+                                <option value="">{% trans "Sélectionnez un compte..." %}</option>
+                                {% for target_account in available_accounts %}
+                                <option value="{{ target_account.id }}">{{ target_account.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">{% trans "Toutes les transactions de ce compte seront transférées vers le compte sélectionné." %}</small>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="form-group mt-4">
+                            <label for="confirm">{% trans "Pour confirmer, veuillez saisir" %} <strong>{{ account.name }}</strong></label>
+                            <input type="text" class="form-control" id="confirm" name="confirm" required>
+                        </div>
+                        
+                        <div class="d-flex justify-content-end">
+                            <a href="{% url 'finances:account_detail' account.id %}" class="btn btn-secondary mr-2">
+                                {% trans "Annuler" %}
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash"></i> {% trans "Supprimer définitivement" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Valider le formulaire avant soumission
+        $('form').on('submit', function(e) {
+            if ($('#confirm').val() !== '{{ account.name }}') {
+                e.preventDefault();
+                alert("{% trans 'Le nom du compte saisi ne correspond pas. Suppression annulée.' %}");
+                return false;
+            }
+            
+            {% if transaction_count > 0 %}
+            const action = $('#transaction_action').val();
+            if (!action) {
+                e.preventDefault();
+                alert("{% trans 'Veuillez sélectionner une action pour les transactions existantes.' %}");
+                return false;
+            }
+            
+            if (action === 'move' && !$('#target_account').val()) {
+                e.preventDefault();
+                alert("{% trans 'Veuillez sélectionner un compte de destination pour les transactions.' %}");
+                return false;
+            }
+            {% endif %}
+            
+            // Demander une confirmation finale
+            if (!confirm("{% trans 'Êtes-vous sûr de vouloir supprimer ce compte ? Cette action est irréversible.' %}")) {
+                e.preventDefault();
+                return false;
+            }
+            
+            return true;
+        });
+        
+        {% if transaction_count > 0 %}
+        // Afficher/masquer la sélection de compte en fonction de l'action choisie
+        $('#transaction_action').on('change', function() {
+            if ($(this).val() === 'move') {
+                $('#account_selection').removeClass('d-none');
+                $('#target_account').prop('required', true);
+            } else {
+                $('#account_selection').addClass('d-none');
+                $('#target_account').prop('required', false);
+            }
+        });
+        {% endif %}
+    });
+</script>
+{% endblock %}

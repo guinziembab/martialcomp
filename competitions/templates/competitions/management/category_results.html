@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Résultats" %} - {{ category.name }} - {{ competition.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Titre et navigation -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Résultats" %} - {{ category.name }}</h1>
+        <div class="btn-group">
+            <a href="{% url 'competitions:management:results_dashboard' competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+            </a>
+            <a href="{% url 'competitions:management:podium_preview' competition.id category.id %}" class="btn btn-primary">
+                <i class="fas fa-medal me-2"></i>{% trans "Voir le podium" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Information sur la catégorie -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="h5 mb-0">{{ category.name }} - {{ competition.title }}</h2>
+                <span class="badge bg-light text-dark">{{ category.competition_type.name }}</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><i class="fas fa-users me-2"></i>{% trans "Participants" %}: {{ category.registrations.count }}</p>
+                    <p class="mb-1"><i class="fas fa-calendar-alt me-2"></i>{% trans "Date" %}: 
+                        {% if category.start_time %}
+                            {{ category.start_time|date:"d/m/Y H:i" }}
+                        {% else %}
+                            {{ competition.start_date|date:"d/m/Y" }}
+                        {% endif %}
+                    </p>
+                    <p class="mb-0"><i class="fas fa-info-circle me-2"></i>{% trans "Statut" %}: 
+                        {% if category.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">{% trans "En attente" %}</span>
+                        {% elif category.status == 'ongoing' %}
+                            <span class="badge bg-info">{% trans "En cours" %}</span>
+                        {% elif category.status == 'completed' %}
+                            <span class="badge bg-success">{% trans "Terminée" %}</span>
+                        {% elif category.status == 'cancelled' %}
+                            <span class="badge bg-danger">{% trans "Annulée" %}</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    {% if not has_results %}
+                        <a href="{% url 'competitions:management:calculate_category_results' competition.id category.id %}" class="btn btn-success">
+                            <i class="fas fa-calculator me-2"></i>{% trans "Calculer les résultats" %}
+                        </a>
+                    {% else %}
+                        <div class="btn-group">
+                            <a href="{% url 'competitions:management:calculate_category_results' competition.id category.id %}" class="btn btn-outline-primary">
+                                <i class="fas fa-redo me-2"></i>{% trans "Recalculer" %}
+                            </a>
+                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#exportModal">
+                                <i class="fas fa-file-export me-2"></i>{% trans "Exporter" %}
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paramètres de calcul -->
+    {% if scoring_config %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h3 class="h5 mb-0">{% trans "Paramètres de calcul" %}</h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {% trans "Note minimale" %}
+                                <span class="badge bg-primary rounded-pill">{{ scoring_config.min_score }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {% trans "Note maximale" %}
+                                <span class="badge bg-primary rounded-pill">{{ scoring_config.max_score }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {% trans "Pas de notation" %}
+                                <span class="badge bg-primary rounded-pill">{{ scoring_config.score_step }}</span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {% trans "Exclusion des notes extrêmes" %}
+                                <span class="badge {% if scoring_config.exclude_extreme_scores %}bg-success{% else %}bg-secondary{% endif %} rounded-pill">
+                                    {% if scoring_config.exclude_extreme_scores %}{% trans "Oui" %}{% else %}{% trans "Non" %}{% endif %}
+                                </span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {% trans "Ex-aequo pour la 3e place" %}
+                                <span class="badge {% if scoring_config.allow_ties %}bg-success{% else %}bg-secondary{% endif %} rounded-pill">
+                                    {% if scoring_config.allow_ties %}{% trans "Autorisé" %}{% else %}{% trans "Non autorisé" %}{% endif %}
+                                </span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {% trans "Résultats en temps réel" %}
+                                <span class="badge {% if scoring_config.real_time_results %}bg-success{% else %}bg-secondary{% endif %} rounded-pill">
+                                    {% if scoring_config.real_time_results %}{% trans "Activé" %}{% else %}{% trans "Désactivé" %}{% endif %}
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Tableau des résultats -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h3 class="h5 mb-0">{% trans "Classement" %}</h3>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th width="80">{% trans "Rang" %}</th>
+                        <th>{% trans "Participant" %}</th>
+                        <th>{% trans "Club" %}</th>
+                        <th class="text-center">{% trans "Score" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if has_results %}
+                        {% for ranking in rankings %}
+                        <tr>
+                            <td>
+                                <span class="fs-4 fw-bold">{{ ranking.rank }}</span>
+                                {% if ranking.is_tie %}
+                                    <span class="badge bg-info ms-1">{% trans "Ex-aequo" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if ranking.practitioner.photo %}
+                                        <img src="{{ ranking.practitioner.photo.url }}" alt="{{ ranking.practitioner.full_name }}" 
+                                            class="rounded-circle me-2" width="40" height="40">
+                                    {% else %}
+                                        <div class="rounded-circle bg-secondary text-white d-flex justify-content-center align-items-center me-2" 
+                                            style="width: 40px; height: 40px;">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                    {% endif %}
+                                    <div>
+                                        <strong>{{ ranking.practitioner.full_name }}</strong>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if ranking.practitioner.club %}
+                                    {{ ranking.practitioner.club.name }}
+                                {% else %}
+                                    <span class="text-muted">{% trans "Sans club" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center fw-bold">{{ ranking.final_score }}</td>
+                            <td>
+                                {% if ranking.rank <= 3 %}
+                                    {% if ranking.rank == 1 %}
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-medal me-1"></i>{% trans "Or" %}
+                                        </span>
+                                    {% elif ranking.rank == 2 %}
+                                        <span class="badge bg-secondary">
+                                            <i class="fas fa-medal me-1"></i>{% trans "Argent" %}
+                                        </span>
+                                    {% elif ranking.rank == 3 %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-medal me-1"></i>{% trans "Bronze" %}
+                                        </span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'competitions:management:edit_ranking' competition.id ranking.id %}" class="btn btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-outline-danger" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#deleteRankingModal" 
+                                            data-ranking-id="{{ ranking.id }}"
+                                            data-practitioner-name="{{ ranking.practitioner.full_name }}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4">
+                                <p class="text-muted mb-3"><i class="fas fa-info-circle me-2"></i>{% trans "Aucun résultat disponible pour cette catégorie." %}</p>
+                                <a href="{% url 'competitions:management:calculate_category_results' competition.id category.id %}" class="btn btn-primary">
+                                    <i class="fas fa-calculator me-2"></i>{% trans "Calculer les résultats" %}
+                                </a>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de suppression -->
+<div class="modal fade" id="deleteRankingModal" tabindex="-1" aria-labelledby="deleteRankingModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteRankingModalLabel">
+                    <i class="fas fa-exclamation-triangle me-2"></i>{% trans "Confirmer la suppression" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Êtes-vous sûr de vouloir supprimer ce classement ?" %}</p>
+                <p id="deleteRankingText" class="fw-bold"></p>
+                <p class="text-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    {% trans "Cette action est irréversible et supprimera définitivement ce classement." %}
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>{% trans "Annuler" %}
+                </button>
+                <form id="deleteRankingForm" method="POST" action="">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-2"></i>{% trans "Supprimer" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal d'export -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="exportModalLabel">
+                    <i class="fas fa-file-export me-2"></i>{% trans "Exporter les résultats" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Choisissez le format d'exportation des résultats de cette catégorie." %}</p>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'competitions:management:export_all_results' competition.id %}?category={{ category.id }}&format=pdf" class="btn btn-outline-danger">
+                        <i class="fas fa-file-pdf me-2"></i>{% trans "Exporter en PDF" %}
+                    </a>
+                    <a href="{% url 'competitions:management:export_all_results' competition.id %}?category={{ category.id }}&format=csv" class="btn btn-outline-success">
+                        <i class="fas fa-file-csv me-2"></i>{% trans "Exporter en CSV" %}
+                    </a>
+                    <a href="{% url 'competitions:management:export_all_results' competition.id %}?category={{ category.id }}&format=excel" class="btn btn-outline-primary">
+                        <i class="fas fa-file-excel me-2"></i>{% trans "Exporter en Excel" %}
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>{% trans "Fermer" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Configuration de la modal de suppression
+        const deleteModal = document.getElementById('deleteRankingModal');
+        if (deleteModal) {
+            deleteModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                const rankingId = button.getAttribute('data-ranking-id');
+                const practitionerName = button.getAttribute('data-practitioner-name');
+                
+                // Mettre à jour le texte
+                document.getElementById('deleteRankingText').textContent = practitionerName;
+                
+                // Mettre à jour l'action du formulaire
+                document.getElementById('deleteRankingForm').action = "{% url 'competitions:management:delete_ranking' competition.id 0 %}".replace('0', rankingId);
+            });
+        }
+    });
+</script>
+{% endblock %}

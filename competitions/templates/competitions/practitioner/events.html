@@ -1,0 +1,383 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Événements" %} | {% trans "Espace Pratiquant" %}{% endblock %}
+
+{% block dashboard_content %}
+<!-- Page Header -->
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fas fa-calendar-alt text-primary"></i> {% trans "Événements" %}
+    </h1>
+    <p class="page-subtitle">{% trans "Consultez tous les événements à venir et passés" %}</p>
+</div>
+
+<!-- Event Stats -->
+<div class="stats-grid">
+    <div class="stats-card">
+        <div class="stats-icon stats-competitions">
+            <i class="fas fa-calendar-check"></i>
+        </div>
+        <div class="stats-value">{{ event_stats.total }}</div>
+        <div class="stats-label">{% trans "Total Événements" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon stats-upcoming">
+            <i class="fas fa-clock"></i>
+        </div>
+        <div class="stats-value">{{ event_stats.upcoming }}</div>
+        <div class="stats-label">{% trans "À venir" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon stats-podiums">
+            <i class="fas fa-user-check"></i>
+        </div>
+        <div class="stats-value">{{ event_stats.registered }}</div>
+        <div class="stats-label">{% trans "Inscrit" %}</div>
+    </div>
+    
+    <div class="stats-card">
+        <div class="stats-icon stats-memberships">
+            <i class="fas fa-history"></i>
+        </div>
+        <div class="stats-value">{{ event_stats.past }}</div>
+        <div class="stats-label">{% trans "Terminés" %}</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label for="filter_type" class="form-label">{% trans "Type" %}</label>
+                <select class="form-select" id="filter_type" name="type">
+                    <option value="">{% trans "Tous" %}</option>
+                    <option value="competition" {% if filter_type == 'competition' %}selected{% endif %}>
+                        {% trans "Compétition" %}
+                    </option>
+                    <option value="training" {% if filter_type == 'training' %}selected{% endif %}>
+                        {% trans "Formation" %}
+                    </option>
+                    <option value="seminar" {% if filter_type == 'seminar' %}selected{% endif %}>
+                        {% trans "Séminaire" %}
+                    </option>
+                    <option value="exam" {% if filter_type == 'exam' %}selected{% endif %}>
+                        {% trans "Passage de grade" %}
+                    </option>
+                    <option value="meeting" {% if filter_type == 'meeting' %}selected{% endif %}>
+                        {% trans "Réunion" %}
+                    </option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filter_status" class="form-label">{% trans "Statut" %}</label>
+                <select class="form-select" id="filter_status" name="status">
+                    <option value="">{% trans "Tous" %}</option>
+                    <option value="upcoming" {% if filter_status == 'upcoming' %}selected{% endif %}>
+                        {% trans "À venir" %}
+                    </option>
+                    <option value="ongoing" {% if filter_status == 'ongoing' %}selected{% endif %}>
+                        {% trans "En cours" %}
+                    </option>
+                    <option value="past" {% if filter_status == 'past' %}selected{% endif %}>
+                        {% trans "Terminés" %}
+                    </option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="filter_date" class="form-label">{% trans "Date début" %}</label>
+                <input type="date" class="form-control" id="filter_date" name="date_from" value="{{ filter_date_from }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-filter"></i> {% trans "Filtrer" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Upcoming Events -->
+<div class="mb-4">
+    <h4 class="mb-3">{% trans "Événements à venir" %}</h4>
+    {% if upcoming_events %}
+        <div class="row">
+            {% for event in upcoming_events %}
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="card-title">{{ event.title }}</h5>
+                                <span class="badge bg-primary">{{ event.get_type_display }}</span>
+                            </div>
+                            <p class="text-muted mb-2">
+                                <i class="fas fa-calendar"></i> {{ event.start_date|date:"d/m/Y" }}
+                                {% if event.end_date != event.start_date %}
+                                    - {{ event.end_date|date:"d/m/Y" }}
+                                {% endif %}
+                            </p>
+                            <p class="text-muted mb-2">
+                                <i class="fas fa-clock"></i> {{ event.start_time|time:"H:i" }}
+                                {% if event.end_time %}
+                                    - {{ event.end_time|time:"H:i" }}
+                                {% endif %}
+                            </p>
+                            <p class="text-muted mb-3">
+                                <i class="fas fa-map-marker-alt"></i> {{ event.location|default:"À définir" }}
+                            </p>
+                            <p class="card-text">{{ event.description|truncatechars:100 }}</p>
+                            <div class="mt-3">
+                                <a href="{% url 'competitions:practitioner:event_detail' event.id %}" 
+                                   class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-eye"></i> {% trans "Détails" %}
+                                </a>
+                                {% if event.id in registered_events %}
+                                    <span class="btn btn-success btn-sm disabled">
+                                        <i class="fas fa-check"></i> {% trans "Inscrit" %}
+                                    </span>
+                                {% elif event.registration_open %}
+                                    <a href="{% url 'competitions:practitioner:event_register' event.id %}" 
+                                       class="btn btn-primary btn-sm">
+                                        <i class="fas fa-user-plus"></i> {% trans "S'inscrire" %}
+                                    </a>
+                                {% else %}
+                                    <span class="btn btn-secondary btn-sm disabled">
+                                        {% trans "Inscriptions fermées" %}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> {% trans "Aucun événement à venir" %}
+        </div>
+    {% endif %}
+</div>
+
+<!-- My Events -->
+<div class="mb-4">
+    <h4 class="mb-3">{% trans "Mes événements" %}</h4>
+    {% if my_events %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>{% trans "Événement" %}</th>
+                        <th>{% trans "Type" %}</th>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Lieu" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in my_events %}
+                        <tr>
+                            <td>
+                                <strong>{{ event.title }}</strong>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">{{ event.get_type_display }}</span>
+                            </td>
+                            <td>
+                                {{ event.start_date|date:"d/m/Y" }}
+                                {% if event.end_date != event.start_date %}
+                                    - {{ event.end_date|date:"d/m/Y" }}
+                                {% endif %}
+                            </td>
+                            <td>{{ event.location|default:"À définir" }}</td>
+                            <td>
+                                {% if event.start_date > today %}
+                                    <span class="badge bg-info">{% trans "À venir" %}</span>
+                                {% elif event.end_date >= today %}
+                                    <span class="badge bg-success">{% trans "En cours" %}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "Terminé" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'competitions:practitioner:event_detail' event.id %}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i> {% trans "Détails" %}
+                                </a>
+                                {% if event.start_date > today %}
+                                    <button class="btn btn-sm btn-outline-danger" 
+                                            onclick="cancelRegistration('{{ event.id }}')">
+                                        <i class="fas fa-times"></i> {% trans "Annuler" %}
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> {% trans "Vous n'êtes inscrit à aucun événement" %}
+        </div>
+    {% endif %}
+</div>
+
+<!-- Past Events -->
+<div class="mb-4">
+    <h4 class="mb-3">{% trans "Événements passés" %}</h4>
+    {% if past_events %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>{% trans "Événement" %}</th>
+                        <th>{% trans "Type" %}</th>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Participation" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in past_events %}
+                        <tr>
+                            <td>{{ event.title }}</td>
+                            <td>
+                                <span class="badge bg-secondary">{{ event.get_type_display }}</span>
+                            </td>
+                            <td>{{ event.start_date|date:"d/m/Y" }}</td>
+                            <td>
+                                {% if event.id in participated_events %}
+                                    <span class="badge bg-success">{% trans "Participé" %}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{% trans "Inscrit" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'competitions:practitioner:event_detail' event.id %}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i> {% trans "Détails" %}
+                                </a>
+                                {% if event.id in participated_events %}
+                                    <button class="btn btn-sm btn-outline-success" 
+                                            onclick="downloadCertificate('{{ event.id }}')">
+                                        <i class="fas fa-certificate"></i> {% trans "Certificat" %}
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                {% trans "Précédent" %}
+                            </a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                        <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                        </li>
+                    {% endfor %}
+                    
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                {% trans "Suivant" %}
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> {% trans "Aucun événement passé" %}
+        </div>
+    {% endif %}
+</div>
+
+<script>
+function cancelRegistration(eventId) {
+    if (confirm("{% trans 'Êtes-vous sûr de vouloir annuler votre inscription ?' %}")) {
+        // Implémenter l'appel API pour annuler l'inscription
+        location.reload();
+    }
+}
+
+function downloadCertificate(eventId) {
+    window.location.href = "{% url 'competitions:practitioner:event_detail' 0 %}".replace('0', eventId) + '?download=certificate';
+}
+</script>
+
+<style>
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stats-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.stats-icon {
+    display: inline-flex;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.stats-competitions {
+    background-color: #e3f2fd;
+    color: #1976d2;
+}
+
+.stats-upcoming {
+    background-color: #fff3e0;
+    color: #f57c00;
+}
+
+.stats-podiums {
+    background-color: #e8f5e9;
+    color: #388e3c;
+}
+
+.stats-memberships {
+    background-color: #fce4ec;
+    color: #c2185b;
+}
+
+.stats-value {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.stats-label {
+    color: #666;
+    font-size: 0.875rem;
+}
+</style>
+{% endblock %}

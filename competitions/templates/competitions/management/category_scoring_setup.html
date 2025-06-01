@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Configuration de notation" %} - {{ category.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Configuration de la notation" %}</h1>
+        <div class="btn-group">
+            <a href="{% url 'competitions:management:scoring_dashboard' competition.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+            </a>
+            <a href="{% url 'competitions:management:manage_performances' competition.id category.id %}" class="btn btn-primary">
+                <i class="fas fa-users me-2"></i>{% trans "Gérer les performances" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Information de la catégorie -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{{ category.name }} - {{ competition.title }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><i class="fas fa-dumbbell me-2"></i>{% trans "Discipline" %}: {{ category.discipline.name }}</p>
+                    <p class="mb-0"><i class="fas fa-layer-group me-2"></i>{% trans "Type" %}: {{ category.type.name }}</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <a href="{% url 'competitions:management:scoring_statistics' competition.id category.id %}" class="btn btn-sm btn-outline-info">
+                        <i class="fas fa-chart-bar me-1"></i>{% trans "Statistiques de notation" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-7">
+            <!-- Critères de notation -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h3 class="h5 mb-0">{% trans "Critères de notation" %}</h3>
+                    <div class="btn-group">
+                        <a href="{% url 'competitions:management:add_scoring_criterion' competition.id category.id %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-plus me-1"></i>{% trans "Ajouter un critère" %}
+                        </a>
+                        <a href="{% url 'competitions:management:reorder_scoring_criteria' competition.id category.id %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-sort me-1"></i>{% trans "Réorganiser" %}
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>{% trans "Nom" %}</th>
+                                    <th>{% trans "Description" %}</th>
+                                    <th>{% trans "Pondération" %}</th>
+                                    <th>{% trans "Plage" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for criterion in criteria %}
+                                <tr>
+                                    <td>{{ criterion.order }}</td>
+                                    <td><strong>{{ criterion.name }}</strong></td>
+                                    <td>
+                                        <div class="text-truncate" style="max-width: 200px;">
+                                            {{ criterion.description|truncatechars:100 }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">× {{ criterion.weight }}</span>
+                                    </td>
+                                    <td>{{ criterion.min_score }} - {{ criterion.max_score }}</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'competitions:management:edit_scoring_criterion' competition.id criterion.id %}" class="btn btn-outline-primary">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteCriterionModal{{ criterion.id }}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- Modal de suppression -->
+                                        <div class="modal fade" id="deleteCriterionModal{{ criterion.id }}" tabindex="-1" aria-hidden="true">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title">{% trans "Confirmer la suppression" %}</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        {% trans "Êtes-vous sûr de vouloir supprimer ce critère de notation ?" %}
+                                                        <p class="mt-2 mb-0 fw-bold">{{ criterion.name }}</p>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                                                        <form action="{% url 'competitions:management:delete_scoring_criterion' competition.id criterion.id %}" method="post">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-danger">{% trans "Supprimer" %}</button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-3">
+                                        <p class="mb-0 text-muted">{% trans "Aucun critère de notation défini." %}</p>
+                                        <a href="{% url 'competitions:management:add_scoring_criterion' competition.id category.id %}" class="btn btn-sm btn-primary mt-2">
+                                            <i class="fas fa-plus me-1"></i>{% trans "Ajouter un critère" %}
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <!-- Configuration de notation -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h3 class="h5 mb-0">{% trans "Paramètres de notation" %}</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="{{ config_form.min_score.id_for_label }}" class="form-label">{% trans "Note minimale" %}</label>
+                            {{ config_form.min_score }}
+                            {% if config_form.min_score.errors %}
+                                <div class="invalid-feedback d-block">{{ config_form.min_score.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ config_form.max_score.id_for_label }}" class="form-label">{% trans "Note maximale" %}</label>
+                            {{ config_form.max_score }}
+                            {% if config_form.max_score.errors %}
+                                <div class="invalid-feedback d-block">{{ config_form.max_score.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="{{ config_form.score_step.id_for_label }}" class="form-label">{% trans "Pas de notation" %}</label>
+                            {{ config_form.score_step }}
+                            {% if config_form.score_step.errors %}
+                                <div class="invalid-feedback d-block">{{ config_form.score_step.errors }}</div>
+                            {% endif %}
+                            <div class="form-text">{% trans "Incrément minimal pour les notes (ex: 0.25)" %}</div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="mb-3 form-check">
+                            {{ config_form.exclude_extreme_scores }}
+                            <label class="form-check-label" for="{{ config_form.exclude_extreme_scores.id_for_label }}">
+                                {% trans "Exclure les notes extrêmes" %}
+                            </label>
+                            <div class="form-text">{% trans "Exclut la note la plus haute et la plus basse lors du calcul des résultats" %}</div>
+                        </div>
+                        
+                        <div class="mb-3 form-check">
+                            {{ config_form.allow_ties }}
+                            <label class="form-check-label" for="{{ config_form.allow_ties.id_for_label }}">
+                                {% trans "Autoriser les ex-aequos en 3e place" %}
+                            </label>
+                        </div>
+                        
+                        <div class="mb-3 form-check">
+                            {{ config_form.allow_score_modification }}
+                            <label class="form-check-label" for="{{ config_form.allow_score_modification.id_for_label }}">
+                                {% trans "Autoriser la modification des notes après soumission" %}
+                            </label>
+                        </div>
+                        
+                        <div class="mb-3 form-check">
+                            {{ config_form.real_time_results }}
+                            <label class="form-check-label" for="{{ config_form.real_time_results.id_for_label }}">
+                                {% trans "Afficher les résultats en temps réel" %}
+                            </label>
+                        </div>
+                        
+                        <div class="mb-3 form-check">
+                            {{ config_form.training_judges_included }}
+                            <label class="form-check-label" for="{{ config_form.training_judges_included.id_for_label }}">
+                                {% trans "Inclure les juges en formation" %}
+                            </label>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>{% trans "Enregistrer la configuration" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

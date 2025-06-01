@@ -1,0 +1,234 @@
+{% extends "competitions/practitioner/base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% translate "Détail du Paiement" %} #{{ payment.id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h3 mb-0">{% translate "Détail du Paiement" %} #{{ payment.id }}</h2>
+        <div>
+            <a href="{% url 'competitions:practitioner:payment_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> {% translate "Retour à la liste" %}
+            </a>
+            <button class="btn btn-primary" onclick="printPayment()">
+                <i class="fas fa-print"></i> {% translate "Imprimer" %}
+            </button>
+        </div>
+    </div>
+
+    <!-- Informations du paiement -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">{% translate "Informations Générales" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>{% translate "Référence" %}:</strong><br>
+                            {{ payment.reference|default:"#" }}{{ payment.id }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>{% translate "Date du paiement" %}:</strong><br>
+                            {{ payment.payment_date|date:"d/m/Y H:i" }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>{% translate "Montant" %}:</strong><br>
+                            <span class="h4">{{ payment.amount|floatformat:2 }} €</span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>{% translate "Statut" %}:</strong><br>
+                            {% if payment.status == 'completed' %}
+                                <span class="badge bg-success fs-6">
+                                    <i class="fas fa-check"></i> {% translate "Complété" %}
+                                </span>
+                            {% elif payment.status == 'pending' %}
+                                <span class="badge bg-warning fs-6">
+                                    <i class="fas fa-clock"></i> {% translate "En attente" %}
+                                </span>
+                            {% elif payment.status == 'failed' %}
+                                <span class="badge bg-danger fs-6">
+                                    <i class="fas fa-times"></i> {% translate "Échoué" %}
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>{% translate "Méthode de paiement" %}:</strong><br>
+                            {% if payment.payment_method == 'card' %}
+                                <i class="fas fa-credit-card"></i> {% translate "Carte bancaire" %}
+                            {% elif payment.payment_method == 'bank_transfer' %}
+                                <i class="fas fa-university"></i> {% translate "Virement bancaire" %}
+                            {% elif payment.payment_method == 'cash' %}
+                                <i class="fas fa-money-bill"></i> {% translate "Espèces" %}
+                            {% else %}
+                                {{ payment.payment_method }}
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>{% translate "Type de paiement" %}:</strong><br>
+                            {{ payment.payment_type|default:"-" }}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <strong>{% translate "Description" %}:</strong><br>
+                            {{ payment.description|default:"-" }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Détails de la transaction -->
+            {% if payment.transaction_details %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">{% translate "Détails de la Transaction" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <th>{% translate "ID de transaction" %}:</th>
+                                <td>{{ payment.transaction_id|default:"-" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% translate "Banque" %}:</th>
+                                <td>{{ payment.bank_name|default:"-" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% translate "Carte" %}:</th>
+                                <td>{{ payment.card_last_digits|default:"-" }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Facture associée -->
+            {% if payment.invoice %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">{% translate "Facture Associée" %}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <th>{% translate "Numéro de facture" %}:</th>
+                                <td>{{ payment.invoice.invoice_number }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% translate "Date d'émission" %}:</th>
+                                <td>{{ payment.invoice.issue_date|date:"d/m/Y" }}</td>
+                            </tr>
+                            <tr>
+                                <th>{% translate "Montant total" %}:</th>
+                                <td>{{ payment.invoice.total_amount|floatformat:2 }} €</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <a href="{% url 'competitions:practitioner:invoice_detail' payment.invoice.id %}" 
+                       class="btn btn-sm btn-outline-primary">
+                        {% translate "Voir la facture" %}
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-4">
+            <!-- Actions -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">{% translate "Actions" %}</h5>
+                </div>
+                <div class="card-body d-grid gap-2">
+                    {% if payment.status == 'completed' %}
+                    <button class="btn btn-success" onclick="downloadReceipt()">
+                        <i class="fas fa-download"></i> {% translate "Télécharger le reçu" %}
+                    </button>
+                    {% endif %}
+                    <button class="btn btn-primary" onclick="emailReceipt()">
+                        <i class="fas fa-envelope"></i> {% translate "Envoyer par email" %}
+                    </button>
+                    {% if payment.status == 'pending' %}
+                    <button class="btn btn-warning" onclick="retryPayment()">
+                        <i class="fas fa-redo"></i> {% translate "Réessayer le paiement" %}
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Historique -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">{% translate "Historique" %}</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-clock text-muted"></i>
+                            <small>{{ payment.created_at|date:"d/m/Y H:i" }} - {% translate "Création" %}</small>
+                        </li>
+                        {% if payment.updated_at %}
+                        <li class="mb-2">
+                            <i class="fas fa-sync text-muted"></i>
+                            <small>{{ payment.updated_at|date:"d/m/Y H:i" }} - {% translate "Mise à jour" %}</small>
+                        </li>
+                        {% endif %}
+                        {% if payment.completed_at %}
+                        <li>
+                            <i class="fas fa-check-circle text-success"></i>
+                            <small>{{ payment.completed_at|date:"d/m/Y H:i" }} - {% translate "Complété" %}</small>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function printPayment() {
+    window.print();
+}
+
+function downloadReceipt() {
+    window.location.href = "{{ request.path }}?download=receipt";
+}
+
+function emailReceipt() {
+    if (confirm("{% translate 'Envoyer le reçu par email ?' %}")) {
+        window.location.href = "{{ request.path }}?action=email";
+    }
+}
+
+function retryPayment() {
+    if (confirm("{% translate 'Réessayer le paiement ?' %}")) {
+        window.location.href = "{{ request.path }}?action=retry";
+    }
+}
+</script>
+
+<style>
+@media print {
+    .btn, .card-header h5 {
+        display: none !important;
+    }
+    
+    .card {
+        border: 1px solid #dee2e6 !important;
+    }
+}
+</style>
+{% endblock %}

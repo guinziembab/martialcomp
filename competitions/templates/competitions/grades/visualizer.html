@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Visualisation des grades" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .discipline-header {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    }
+    
+    .discipline-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #e9ecef;
+        font-size: 1.5rem;
+        color: #6c757d;
+        margin-right: 1rem;
+    }
+    
+    .system-container {
+        margin-bottom: 2rem;
+    }
+    
+    .system-header {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem 0.5rem 0 0;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .system-badge {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 30px;
+    }
+    
+    .badge-default {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .category-container {
+        margin-bottom: 1.5rem;
+    }
+    
+    .category-header {
+        background-color: #f8f9fa;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+        font-weight: 600;
+    }
+    
+    .belt-container {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 1.5rem;
+    }
+    
+    .belt {
+        height: 40px;
+        border-radius: 5px;
+        margin-bottom: 0.5rem;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        position: relative;
+        transition: all 0.3s ease;
+    }
+    
+    .belt-info {
+        display: flex;
+        justify-content: space-between;
+    }
+    
+    .belt-name {
+        font-weight: 500;
+    }
+    
+    .belt-level {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .belt:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+    
+    .filter-container {
+        background-color: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .filter-badge {
+        background-color: #dc3545;
+        color: white;
+        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 30px;
+        margin-left: 0.5rem;
+    }
+    
+    .discipline-selector {
+        transition: all 0.3s ease;
+    }
+    
+    .discipline-selector:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .discipline-selector.active {
+        border-color: #dc3545;
+        background-color: rgba(220, 53, 69, 0.05);
+    }
+    
+    .discipline-selector .card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+    
+    .discipline-origin {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    /* Styles pour les ceintures bicolores */
+    .belt-split {
+        display: flex;
+        height: 100%;
+    }
+    
+    .belt-split-left, .belt-split-right {
+        flex: 1;
+        height: 100%;
+    }
+    
+    /* Style pour les ceintures avec barrettes */
+    .belt-stripe {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .belt-stripe::after {
+        content: "";
+        position: absolute;
+        width: 20px;
+        height: 100%;
+        top: 0;
+        right: 10px;
+        background-color: var(--stripe-color, black);
+    }
+    
+    .belt-stripe.double::before {
+        content: "";
+        position: absolute;
+        width: 20px;
+        height: 100%;
+        top: 0;
+        right: 40px;
+        background-color: var(--stripe-color, black);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{% trans "Visualisation des grades par discipline" %}</h1>
+        <a href="{% url 'competitions:grades:systems_list' %}" class="btn btn-outline-primary">
+            <i class="fas fa-cog me-2"></i>{% trans "Gérer les systèmes de grades" %}
+        </a>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- Sélection de discipline -->
+    <div class="filter-container">
+        <h4 class="mb-3">{% trans "Sélectionnez une discipline" %}</h4>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-3">
+            {% for discipline in disciplines %}
+                <div class="col">
+                    <div class="card h-100 discipline-selector {% if selected_discipline.id == discipline.id %}active{% endif %}" 
+                         id="discipline-{{ discipline.id }}" 
+                         data-discipline-id="{{ discipline.id }}">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ discipline.name }}</h5>
+                            <p class="discipline-origin mb-0">{{ discipline.country_origin }}</p>
+                            
+                            {% if discipline.grade_systems.count > 0 %}
+                                <span class="filter-badge">{{ discipline.grade_systems.count }} système(s)</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Affichage des systèmes de grades -->
+    <div id="gradeSystemsContainer">
+        {% if selected_discipline %}
+            <div class="discipline-header">
+                <div class="d-flex align-items-center">
+                    <div class="discipline-icon">
+                        <i class="fas fa-fist-raised"></i>
+                    </div>
+                    <div>
+                        <h2 class="mb-1">{{ selected_discipline.name }}</h2>
+                        <p class="mb-0 text-muted">{{ selected_discipline.country_origin }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            {% if systems %}
+                {% for system in systems %}
+                    <div class="system-container">
+                        <div class="system-header d-flex justify-content-between align-items-center">
+                            <h3 class="mb-0">{{ system.name }}</h3>
+                            {% if system.is_default %}
+                                <span class="system-badge badge-default">{% trans "Par défaut" %}</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="row mt-3">
+                            {% for category in system.categories.all %}
+                                <div class="col-md-6">
+                                    <div class="category-container">
+                                        <div class="category-header">
+                                            {{ category.name }}
+                                        </div>
+                                        
+                                        <div class="p-3">
+                                            {% for grade in category.grades.all|dictsort:"order" %}
+                                                <div class="belt-container">
+                                                    {% if "barrette" in grade.name|lower %}
+                                                        {% if "deux barrettes" in grade.name|lower or "2 barrettes" in grade.name|lower %}
+                                                            <div class="belt belt-stripe double" style="background-color: {{ grade.color }}; --stripe-color: {{ grade.name|lower|find_belt_stripe_color }}"></div>
+                                                        {% else %}
+                                                            <div class="belt belt-stripe" style="background-color: {{ grade.color }}; --stripe-color: {{ grade.name|lower|find_belt_stripe_color }}"></div>
+                                                        {% endif %}
+                                                    {% elif "et" in grade.name|lower and "blanche" in grade.name|lower %}
+                                                        <div class="belt">
+                                                            <div class="belt-split">
+                                                                <div class="belt-split-left" style="background-color: {{ grade.color }}"></div>
+                                                                <div class="belt-split-right" style="background-color: #FFFFFF"></div>
+                                                            </div>
+                                                        </div>
+                                                    {% else %}
+                                                        <div class="belt" style="background-color: {{ grade.color }}"></div>
+                                                    {% endif %}
+                                                    
+                                                    <div class="belt-info">
+                                                        <span class="belt-name">{{ grade.name }}</span>
+                                                        <span class="belt-level">
+                                                            {% if grade.level %}
+                                                                {% trans "Niveau" %}: {{ grade.level }}
+                                                            {% endif %}
+                                                            {% if grade.min_age %}
+                                                                | {% trans "Âge min." %}: {{ grade.min_age }}
+                                                            {% endif %}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            {% empty %}
+                                                <div class="alert alert-info">
+                                                    {% trans "Aucun grade défini pour cette catégorie." %}
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucun système de grades défini pour cette discipline." %}
+                    
+                    {% if perms.competitions.add_gradesystem %}
+                        <div class="mt-3">
+                            <a href="{% url 'competitions:grades:system_create' selected_discipline.id %}" class="btn btn-primary">
+                                <i class="fas fa-plus-circle me-2"></i>{% trans "Créer un système de grades" %}
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                {% trans "Veuillez sélectionner une discipline pour afficher ses systèmes de grades." %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion de la sélection des disciplines
+        const disciplineSelectors = document.querySelectorAll('.discipline-selector');
+        
+        disciplineSelectors.forEach(selector => {
+            selector.addEventListener('click', function() {
+                const disciplineId = this.getAttribute('data-discipline-id');
+                window.location.href = `{% url 'competitions:grades:visualizer' %}?discipline=${disciplineId}`;
+            });
+        });
+        
+        // Définir une fonction pour extraire la couleur d'une barrette à partir du nom du grade
+        if (!String.prototype.findBeltStripeColor) {
+            String.prototype.findBeltStripeColor = function() {
+                if (this.includes('rouge')) return '#FF0000';
+                if (this.includes('bleu')) return '#0000FF';
+                if (this.includes('vert')) return '#008000';
+                if (this.includes('jaune')) return '#FFFF00';
+                if (this.includes('orange')) return '#FFA500';
+                if (this.includes('noir')) return '#000000';
+                return '#000000'; // Défaut
+            };
+        }
+    });
+</script>
+{% endblock %}

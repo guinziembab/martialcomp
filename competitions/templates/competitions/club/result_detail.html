@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title }} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .header-section {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .competition-logo {
+        max-width: 120px;
+        max-height: 120px;
+        object-fit: contain;
+    }
+    
+    .medal-icon {
+        font-size: 1.5rem;
+    }
+    
+    .medal-gold {
+        color: #FFD700;
+    }
+    
+    .medal-silver {
+        color: #C0C0C0;
+    }
+    
+    .medal-bronze {
+        color: #CD7F32;
+    }
+    
+    .ranking-table th {
+        background-color: #f8f9fa;
+    }
+    
+    .category-card {
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .category-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .category-card.active {
+        border-left: 4px solid #198754;
+        background-color: rgba(25, 135, 84, 0.05);
+    }
+    
+    .podium-container {
+        position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        height: 220px;
+        margin: 2rem 0;
+    }
+    
+    .podium-step {
+        width: 150px;
+        margin: 0 5px;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+    
+    .podium-step:hover {
+        transform: translateY(-10px);
+    }
+    
+    .podium-step-1 {
+        height: 160px;
+        background-color: #FFD700;
+        z-index: 3;
+    }
+    
+    .podium-step-2 {
+        height: 120px;
+        background-color: #C0C0C0;
+        z-index: 2;
+    }
+    
+    .podium-step-3 {
+        height: 80px;
+        background-color: #CD7F32;
+        z-index: 1;
+    }
+    
+    .podium-number {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-top: -40px;
+    }
+    
+    .podium-name {
+        padding: 10px;
+        color: white;
+        font-weight: bold;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    
+    .podium-club {
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.8);
+    }
+    
+    .score-badge {
+        display: inline-block;
+        padding: 0.35em 0.65em;
+        font-size: 0.85em;
+        font-weight: 700;
+        color: #fff;
+        background-color: #198754;
+        border-radius: 50rem;
+    }
+    
+    .criterion-detail {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    .nav-pills .nav-link.active {
+        background-color: #dc3545;
+    }
+    
+    .nav-pills .nav-link {
+        color: #212529;
+    }
+    
+    .nav-pills .nav-link:hover:not(.active) {
+        background-color: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- En-tête de la compétition -->
+    <div class="header-section">
+        <div class="row align-items-center">
+            <div class="col-md-2 text-center">
+                {% if competition.logo %}
+                    <img src="{{ competition.logo.url }}" alt="{{ competition.title }}" class="competition-logo mb-3 mb-md-0">
+                {% else %}
+                    <div class="bg-light rounded d-flex align-items-center justify-content-center competition-logo mb-3 mb-md-0 mx-auto">
+                        <i class="fas fa-trophy fa-3x text-muted"></i>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="col-md-10">
+                <h1>{{ competition.title }}</h1>
+                <div class="d-flex flex-wrap align-items-center text-muted">
+                    <span class="me-4">
+                        <i class="fas fa-calendar-alt me-2"></i>{{ competition.start_date|date:"d/m/Y" }}
+                        {% if competition.end_date != competition.start_date %}
+                            - {{ competition.end_date|date:"d/m/Y" }}
+                        {% endif %}
+                    </span>
+                    
+                    {% if competition.address or competition.city %}
+                        <span class="me-4">
+                            <i class="fas fa-map-marker-alt me-2"></i>
+                            {% if competition.address %}{{ competition.address }}{% endif %}
+                            {% if competition.city %}
+                                {% if competition.address %}, {% endif %}
+                                {{ competition.city }}
+                            {% endif %}
+                        </span>
+                    {% endif %}
+                    
+                    {% if competition.discipline %}
+                        <span class="badge bg-secondary me-4">{{ competition.discipline.name }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Navigation entre les catégories -->
+    <div class="mb-4">
+        <h2 class="h4 mb-3">{% trans "Catégories" %}</h2>
+        
+        <ul class="nav nav-pills mb-3" id="categoryTabs" role="tablist">
+            {% for category in categories %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if forloop.first %}active{% endif %}" 
+                            id="cat-tab-{{ category.id }}" 
+                            data-bs-toggle="pill" 
+                            data-bs-target="#cat-content-{{ category.id }}" 
+                            type="button" 
+                            role="tab" 
+                            aria-controls="cat-content-{{ category.id }}" 
+                            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">
+                        {{ category.name }}
+                    </button>
+                </li>
+            {% empty %}
+                <li class="nav-item">
+                    <span class="nav-link disabled">{% trans "Aucune catégorie" %}</span>
+                </li>
+            {% endfor %}
+        </ul>
+        
+        <!-- Contenu des catégories -->
+        <div class="tab-content" id="categoryTabsContent">
+            {% for category in categories %}
+                <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" 
+                     id="cat-content-{{ category.id }}" 
+                     role="tabpanel" 
+                     aria-labelledby="cat-tab-{{ category.id }}">
+                    
+                    <div class="card shadow-sm">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h3 class="h5 mb-0">{{ category.name }}</h3>
+                                {% if category.competition_type %}
+                                    <span class="badge bg-primary">{{ category.competition_type.name }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- Détails de la catégorie -->
+                            <div class="row mb-4">
+                                {% if category.min_age or category.max_age %}
+                                    <div class="col-md-4">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="fas fa-birthday-cake me-2 text-primary"></i>
+                                            <span class="fw-bold">{% trans "Âge" %}</span>
+                                        </div>
+                                        <p class="mb-0">
+                                            {% if category.min_age and category.max_age %}
+                                                {{ category.min_age }} - {{ category.max_age }} {% trans "ans" %}
+                                            {% elif category.min_age %}
+                                                {% trans "À partir de" %} {{ category.min_age }} {% trans "ans" %}
+                                            {% elif category.max_age %}
+                                                {% trans "Jusqu'à" %} {{ category.max_age }} {% trans "ans" %}
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                {% endif %}
+                                
+                                {% if category.min_weight or category.max_weight %}
+                                    <div class="col-md-4">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="fas fa-weight me-2 text-primary"></i>
+                                            <span class="fw-bold">{% trans "Poids" %}</span>
+                                        </div>
+                                        <p class="mb-0">
+                                            {% if category.min_weight and category.max_weight %}
+                                                {{ category.min_weight }} - {{ category.max_weight }} kg
+                                            {% elif category.min_weight %}
+                                                {% trans "À partir de" %} {{ category.min_weight }} kg
+                                            {% elif category.max_weight %}
+                                                {% trans "Jusqu'à" %} {{ category.max_weight }} kg
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                {% endif %}
+                                
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fas fa-venus-mars me-2 text-primary"></i>
+                                        <span class="fw-bold">{% trans "Genre" %}</span>
+                                    </div>
+                                    <p class="mb-0">
+                                        {% if category.gender == 'male' %}
+                                            {% trans "Hommes" %}
+                                        {% elif category.gender == 'female' %}
+                                            {% trans "Femmes" %}
+                                        {% else %}
+                                            {% trans "Mixte" %}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <!-- Podium des 3 premiers (si disponible) -->
+                            {% if has_rankings %}
+                                <div class="podium-container">
+                                    <!-- 2ème place -->
+                                    <div class="podium-step podium-step-2">
+                                        <div class="podium-number">2</div>
+                                        <div class="podium-name">
+                                            {% with second_place=rankings|filter_rank:2|filter_category:category|first %}
+                                                {% if second_place %}
+                                                    {{ second_place.practitioner.full_name }}
+                                                    <div class="podium-club">{{ second_place.practitioner.club.name }}</div>
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            {% endwith %}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 1ère place -->
+                                    <div class="podium-step podium-step-1">
+                                        <div class="podium-number">1</div>
+                                        <div class="podium-name">
+                                            {% with first_place=rankings|filter_rank:1|filter_category:category|first %}
+                                                {% if first_place %}
+                                                    {{ first_place.practitioner.full_name }}
+                                                    <div class="podium-club">{{ first_place.practitioner.club.name }}</div>
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            {% endwith %}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 3ème place -->
+                                    <div class="podium-step podium-step-3">
+                                        <div class="podium-number">3</div>
+                                        <div class="podium-name">
+                                            {% with third_place=rankings|filter_rank:3|filter_category:category|first %}
+                                                {% if third_place %}
+                                                    {{ third_place.practitioner.full_name }}
+                                                    <div class="podium-club">{{ third_place.practitioner.club.name }}</div>
+                                                {% else %}
+                                                    -
+                                                {% endif %}
+                                            {% endwith %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            
+                            <!-- Tableau des résultats -->
+                            <h4 class="h5 mb-3">{% trans "Classement" %}</h4>
+                            
+                            {% if performances|filter_category:category %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped ranking-table">
+                                        <thead>
+                                            <tr>
+                                                <th>{% trans "Rang" %}</th>
+                                                <th>{% trans "Nom" %}</th>
+                                                <th>{% trans "Club" %}</th>
+                                                <th>{% trans "Score" %}</th>
+                                                {% if has_rankings %}
+                                                    <th>{% trans "1ères places" %}</th>
+                                                    <th>{% trans "Ex-aequo" %}</th>
+                                                {% endif %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% if has_rankings %}
+                                                {% for ranking in rankings|filter_category:category %}
+                                                    <tr>
+                                                        <td>
+                                                            {% if ranking.rank == 1 %}
+                                                                <i class="fas fa-medal medal-icon medal-gold"></i>
+                                                            {% elif ranking.rank == 2 %}
+                                                                <i class="fas fa-medal medal-icon medal-silver"></i>
+                                                            {% elif ranking.rank == 3 %}
+                                                                <i class="fas fa-medal medal-icon medal-bronze"></i>
+                                                            {% else %}
+                                                                {{ ranking.rank }}
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>{{ ranking.practitioner.full_name }}</td>
+                                                        <td>{{ ranking.practitioner.club.name|default:"-" }}</td>
+                                                        <td><span class="score-badge">{{ ranking.final_score }}</span></td>
+                                                        <td>{{ ranking.first_places }}</td>
+                                                        <td>{% if ranking.is_tie %}<i class="fas fa-check text-success"></i>{% else %}-{% endif %}</td>
+                                                    </tr>
+                                                {% endfor %}
+                                            {% else %}
+                                                {% for performance in performances|filter_category:category %}
+                                                    <tr>
+                                                        <td>
+                                                            {% if performance.ranking == 1 %}
+                                                                <i class="fas fa-medal medal-icon medal-gold"></i>
+                                                            {% elif performance.ranking == 2 %}
+                                                                <i class="fas fa-medal medal-icon medal-silver"></i>
+                                                            {% elif performance.ranking == 3 %}
+                                                                <i class="fas fa-medal medal-icon medal-bronze"></i>
+                                                            {% else %}
+                                                                {{ performance.ranking|default:"-" }}
+                                                            {% endif %}
+                                                        </td>
+                                                        <td>{{ performance.practitioner.full_name }}</td>
+                                                        <td>{{ performance.practitioner.club.name|default:"-" }}</td>
+                                                        <td>
+                                                            {% if performance.total_score %}
+                                                                <span class="score-badge">{{ performance.total_score }}</span>
+                                                            {% else %}
+                                                                -
+                                                            {% endif %}
+                                                        </td>
+                                                        {% if has_rankings %}
+                                                            <td>-</td>
+                                                            <td>-</td>
+                                                        {% endif %}
+                                                    </tr>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    {% trans "Aucun résultat disponible pour cette catégorie." %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Bouton de retour -->
+    <div class="text-center mt-4">
+        <a href="{% url 'competitions:results:list' %}" class="btn btn-outline-primary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la liste des compétitions" %}
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialisation des onglets Bootstrap
+        const categoryTabs = document.getElementById('categoryTabs');
+        if (categoryTabs) {
+            const triggerTabList = [].slice.call(categoryTabs.querySelectorAll('button'));
+            triggerTabList.forEach(function(triggerEl) {
+                var tabTrigger = new bootstrap.Tab(triggerEl);
+                
+                triggerEl.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    tabTrigger.show();
+                });
+            });
+        }
+    });
+</script>
+{% endblock %}

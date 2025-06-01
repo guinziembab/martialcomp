@@ -1,0 +1,472 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Gestion des événements" %} - {{ family.family_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .event-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        transition: all 0.2s;
+        margin-bottom: 1rem;
+    }
+    
+    .event-card.upcoming {
+        border-left: 4px solid #007bff;
+        background-color: #f8f9ff;
+    }
+    
+    .event-card.past {
+        border-left: 4px solid #6c757d;
+        opacity: 0.8;
+    }
+    
+    .event-date {
+        background: #007bff;
+        color: white;
+        border-radius: 8px;
+        padding: 0.5rem;
+        text-align: center;
+        min-width: 80px;
+    }
+    
+    .event-date.past {
+        background: #6c757d;
+    }
+    
+    .member-badge {
+        background: #e9ecef;
+        border-radius: 15px;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+        margin: 0.1rem;
+        display: inline-block;
+    }
+    
+    .calendar-view {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .quick-stats {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- En-tête -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">
+                        <i class="fas fa-calendar-alt me-2 text-primary"></i>
+                        {% trans "Gestion des événements" %}
+                    </h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{% url 'family_management:dashboard' %}">{% trans "Familles" %}</a></li>
+                            <li class="breadcrumb-item"><a href="{% url 'family_management:family_detail' family.id %}">{{ family.family_name }}</a></li>
+                            <li class="breadcrumb-item active">{% trans "Événements" %}</li>
+                        </ol>
+                    </nav>
+                </div>
+                <div>
+                    <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#createEventModal">
+                        <i class="fas fa-plus me-2"></i>{% trans "Nouvel événement" %}
+                    </button>
+                    <a href="{% url 'family_management:family_calendar' family.id %}" class="btn btn-outline-info me-2">
+                        <i class="fas fa-calendar-week me-2"></i>{% trans "Vue calendrier" %}
+                    </a>
+                    <a href="{% url 'family_management:family_detail' family.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistiques rapides -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="calendar-view">
+                <h5 class="mb-3">
+                    <i class="fas fa-chart-line me-2"></i>
+                    {% trans "Aperçu des événements" %}
+                </h5>
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="p-2">
+                            <h4 class="text-primary mb-1">{{ upcoming_events.count }}</h4>
+                            <small class="text-muted">{% trans "Événements à venir" %}</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-2">
+                            <h4 class="text-secondary mb-1">{{ past_events.count }}</h4>
+                            <small class="text-muted">{% trans "Événements passés" %}</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-2">
+                            <h4 class="text-info mb-1">{{ family_members.count }}</h4>
+                            <small class="text-muted">{% trans "Membres actifs" %}</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-2">
+                            <h4 class="text-success mb-1">{% now "m" %}</h4>
+                            <small class="text-muted">{% trans "Mois en cours" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="quick-stats">
+                <h6 class="mb-2">
+                    <i class="fas fa-bolt me-2"></i>
+                    {% trans "Actions rapides" %}
+                </h6>
+                <button class="btn btn-light btn-sm w-100 mb-2" data-bs-toggle="modal" data-bs-target="#createEventModal">
+                    <i class="fas fa-calendar-plus me-2"></i>{% trans "Ajouter événement" %}
+                </button>
+                <a href="{% url 'family_management:family_calendar' family.id %}" class="btn btn-outline-light btn-sm w-100 mb-2">
+                    <i class="fas fa-calendar-week me-2"></i>{% trans "Vue calendrier" %}
+                </a>
+                <button class="btn btn-outline-light btn-sm w-100" onclick="exportEvents()">
+                    <i class="fas fa-download me-2"></i>{% trans "Exporter événements" %}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Événements à venir -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-clock me-2 text-primary"></i>
+                        {% trans "Événements à venir" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if upcoming_events %}
+                        {% for event in upcoming_events %}
+                        <div class="event-card upcoming p-3">
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <div class="event-date">
+                                        <div class="fw-bold">{{ event.start_date|date:"d" }}</div>
+                                        <div style="font-size: 0.8rem;">{{ event.start_date|date:"M" }}</div>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <h6 class="mb-1">{{ event.title }}</h6>
+                                    {% if event.location %}
+                                    <p class="text-muted small mb-1">
+                                        <i class="fas fa-map-marker-alt me-1"></i>{{ event.location }}
+                                    </p>
+                                    {% endif %}
+                                    <p class="text-muted small mb-2">
+                                        <i class="fas fa-clock me-1"></i>
+                                        {{ event.start_date|date:"H:i" }}
+                                        {% if event.end_date %}
+                                            - {{ event.end_date|date:"H:i" }}
+                                        {% endif %}
+                                    </p>
+                                    {% if event.description %}
+                                    <p class="small mb-2">{{ event.description|truncatewords:15 }}</p>
+                                    {% endif %}
+                                    
+                                    <!-- Membres concernés -->
+                                    {% if event.concerned_members.exists %}
+                                    <div class="mb-2">
+                                        <small class="text-muted">{% trans "Membres concernés:" %}</small><br>
+                                        {% for member in event.concerned_members.all|slice:":3" %}
+                                            <span class="member-badge">{{ member.get_display_name }}</span>
+                                        {% endfor %}
+                                        {% if event.concerned_members.count > 3 %}
+                                            <span class="member-badge">+{{ event.concerned_members.count|add:"-3" }}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-auto">
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="#" onclick="editEvent({{ event.id }})">
+                                                <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="duplicateEvent({{ event.id }})">
+                                                <i class="fas fa-copy me-2"></i>{% trans "Dupliquer" %}
+                                            </a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item text-danger" href="#" onclick="deleteEvent({{ event.id }})">
+                                                <i class="fas fa-trash me-2"></i>{% trans "Supprimer" %}
+                                            </a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-calendar-plus fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">{% trans "Aucun événement à venir" %}</h5>
+                            <p class="text-muted">{% trans "Créez votre premier événement familial." %}</p>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createEventModal">
+                                <i class="fas fa-plus me-2"></i>{% trans "Créer un événement" %}
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Événements passés -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-history me-2 text-secondary"></i>
+                        {% trans "Événements passés" %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if past_events %}
+                        {% for event in past_events %}
+                        <div class="event-card past p-2 mb-2">
+                            <div class="d-flex align-items-center">
+                                <div class="event-date past me-2" style="min-width: 60px; font-size: 0.8rem;">
+                                    <div>{{ event.start_date|date:"d/m" }}</div>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-0" style="font-size: 0.9rem;">{{ event.title }}</h6>
+                                    {% if event.location %}
+                                    <small class="text-muted">{{ event.location }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
+                        {% if past_events.count >= 10 %}
+                        <div class="text-center mt-2">
+                            <a href="#" class="btn btn-sm btn-outline-secondary">
+                                {% trans "Voir tous les événements passés" %}
+                            </a>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center py-3">
+                            <i class="fas fa-calendar-times fa-2x text-muted mb-2"></i>
+                            <p class="text-muted small">{% trans "Aucun événement passé" %}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de création d'événement -->
+<div class="modal fade" id="createEventModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Nouvel événement familial" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createEventForm">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label for="eventTitle" class="form-label">{% trans "Titre de l'événement" %}</label>
+                                <input type="text" class="form-control" id="eventTitle" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="eventType" class="form-label">{% trans "Type" %}</label>
+                                <select class="form-select" id="eventType">
+                                    <option value="family">{% trans "Événement familial" %}</option>
+                                    <option value="training">{% trans "Entraînement" %}</option>
+                                    <option value="competition">{% trans "Compétition" %}</option>
+                                    <option value="meeting">{% trans "Réunion" %}</option>
+                                    <option value="other">{% trans "Autre" %}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="eventDescription" class="form-label">{% trans "Description" %}</label>
+                        <textarea class="form-control" id="eventDescription" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="eventStartDate" class="form-label">{% trans "Date et heure de début" %}</label>
+                                <input type="datetime-local" class="form-control" id="eventStartDate" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="eventEndDate" class="form-label">{% trans "Date et heure de fin" %}</label>
+                                <input type="datetime-local" class="form-control" id="eventEndDate">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="eventLocation" class="form-label">{% trans "Lieu" %}</label>
+                        <input type="text" class="form-control" id="eventLocation">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Membres concernés" %}</label>
+                        <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                            {% for member in family_members %}
+                            <div class="form-check">
+                                <input class="form-check-input member-checkbox" type="checkbox" 
+                                       value="{{ member.id }}" id="member-{{ member.id }}">
+                                <label class="form-check-label" for="member-{{ member.id }}">
+                                    {{ member.get_display_name }}
+                                    <small class="text-muted">({{ member.get_role_display }})</small>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <small class="form-text text-muted">
+                            {% trans "Laissez vide pour inclure tous les membres automatiquement" %}
+                        </small>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="eventPrivate">
+                        <label class="form-check-label" for="eventPrivate">
+                            {% trans "Événement privé (visible uniquement par la famille)" %}
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-primary" onclick="createFamilyEvent()">{% trans "Créer l'événement" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Définir la date/heure par défaut
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById('eventStartDate').value = now.toISOString().slice(0, 16);
+    
+    // Mettre à jour automatiquement la date de fin
+    document.getElementById('eventStartDate').addEventListener('change', function() {
+        const startDate = new Date(this.value);
+        startDate.setHours(startDate.getHours() + 1);
+        document.getElementById('eventEndDate').value = startDate.toISOString().slice(0, 16);
+    });
+});
+
+function createFamilyEvent() {
+    const title = document.getElementById('eventTitle').value;
+    const description = document.getElementById('eventDescription').value;
+    const startDate = document.getElementById('eventStartDate').value;
+    const endDate = document.getElementById('eventEndDate').value;
+    const location = document.getElementById('eventLocation').value;
+    const isPrivate = document.getElementById('eventPrivate').checked;
+    
+    // Récupérer les membres sélectionnés
+    const concernedMembers = [];
+    document.querySelectorAll('.member-checkbox:checked').forEach(checkbox => {
+        concernedMembers.push(parseInt(checkbox.value));
+    });
+    
+    if (!title || !startDate) {
+        alert('{% trans "Veuillez remplir au minimum le titre et la date de début" %}');
+        return;
+    }
+    
+    fetch('{% url "family_management:create_family_event" family.id %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            title: title,
+            description: description,
+            start_date: startDate,
+            end_date: endDate || null,
+            location: location,
+            concerned_members: concernedMembers,
+            is_private: isPrivate
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('{% trans "Erreur:" %} ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        alert('{% trans "Erreur lors de la création de l\'événement" %}');
+    });
+    
+    bootstrap.Modal.getInstance(document.getElementById('createEventModal')).hide();
+}
+
+function editEvent(eventId) {
+    // TODO: Implémenter l'édition d'événement
+    alert('{% trans "Fonctionnalité d\'édition à implémenter" %}');
+}
+
+function duplicateEvent(eventId) {
+    // TODO: Implémenter la duplication d'événement
+    alert('{% trans "Fonctionnalité de duplication à implémenter" %}');
+}
+
+function deleteEvent(eventId) {
+    if (confirm('{% trans "Êtes-vous sûr de vouloir supprimer cet événement ?" %}')) {
+        // TODO: Implémenter la suppression d'événement
+        alert('{% trans "Fonctionnalité de suppression à implémenter" %}');
+    }
+}
+
+function exportEvents() {
+    // TODO: Implémenter l'export des événements
+    alert('{% trans "Fonctionnalité d\'export à implémenter" %}');
+}
+</script>
+
+<!-- Token CSRF -->
+{% csrf_token %}
+{% endblock %}

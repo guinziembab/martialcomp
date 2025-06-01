@@ -1,0 +1,362 @@
+{% extends "competitions/standalone_scoring/admin/base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Performance Details" %} | {% translate "Scoring Management" %}{% endblock %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="scoring-card">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    {% translate "Performance Details" %}
+                    <span class="badge {% if performance.status == 'pending' %}bg-secondary{% elif performance.status == 'in_progress' %}bg-primary{% elif performance.status == 'completed' %}bg-success{% elif performance.status == 'disqualified' %}bg-danger{% elif performance.status == 'cancelled' %}bg-dark{% endif %}">
+                        {% if performance.status == 'pending' %}
+                            {% translate "Pending" %}
+                        {% elif performance.status == 'in_progress' %}
+                            {% translate "In Progress" %}
+                        {% elif performance.status == 'completed' %}
+                            {% translate "Completed" %}
+                        {% elif performance.status == 'disqualified' %}
+                            {% translate "Disqualified" %}
+                        {% elif performance.status == 'cancelled' %}
+                            {% translate "Cancelled" %}
+                        {% endif %}
+                    </span>
+                </h2>
+                <div>
+                    <a href="{% url 'competitions:standalone_scoring:performance_update' pk=performance.id %}" class="btn btn-outline-primary">
+                        {% translate "Edit Performance" %}
+                    </a>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#statusModal">
+                        {% translate "Update Status" %}
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-4">
+                        <h4>{% translate "Participant Information" %}</h4>
+                        <p><strong>{% translate "Name" %}:</strong> {{ practitioner.first_name }} {{ practitioner.last_name }}</p>
+                        <p><strong>{% translate "Competition" %}:</strong> {{ competition.name }}</p>
+                        <p><strong>{% translate "Category" %}:</strong> {{ category.name }}</p>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="mb-4">
+                        <h4>{% translate "Performance Information" %}</h4>
+                        <p>
+                            <strong>{% translate "Round" %}:</strong> 
+                            {% if performance.round_type == 'preliminary' %}
+                                {% translate "Preliminary" %}
+                            {% elif performance.round_type == 'semifinal' %}
+                                {% translate "Semifinal" %}
+                            {% elif performance.round_type == 'final' %}
+                                {% translate "Final" %}
+                            {% elif performance.round_type == 'exhibition' %}
+                                {% translate "Exhibition" %}
+                            {% endif %}
+                            {{ performance.round_number }}
+                        </p>
+                        <p><strong>{% translate "Performance Order" %}:</strong> {{ performance.performance_order }}</p>
+                        <p>
+                            <strong>{% translate "Duration" %}:</strong> 
+                            {% if performance.duration %}
+                                {{ performance.duration }}
+                            {% else %}
+                                {% translate "Not completed" %}
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="mb-4">
+                        <h4>{% translate "Status Information" %}</h4>
+                        <p>
+                            <strong>{% translate "Start Time" %}:</strong> 
+                            {% if performance.start_time %}
+                                {{ performance.start_time|date:"j M Y, H:i:s" }}
+                            {% else %}
+                                {% translate "Not started" %}
+                            {% endif %}
+                        </p>
+                        <p>
+                            <strong>{% translate "End Time" %}:</strong> 
+                            {% if performance.end_time %}
+                                {{ performance.end_time|date:"j M Y, H:i:s" }}
+                            {% else %}
+                                {% translate "Not completed" %}
+                            {% endif %}
+                        </p>
+                        <p>
+                            <strong>{% translate "Created" %}:</strong> 
+                            {{ performance.created_at|date:"j M Y, H:i:s" }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            {% if performance.notes %}
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <h5>{% translate "Notes" %}</h5>
+                        <p>{{ performance.notes }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if performance.disqualification_reason %}
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger">
+                        <h5>{% translate "Disqualification Reason" %}</h5>
+                        <p>{{ performance.disqualification_reason }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="scoring-card">
+            <h3>{% translate "Scores and Judging" %}</h3>
+            
+            {% if criteria_scores %}
+                <div class="table-responsive mb-4">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>{% translate "Criterion" %}</th>
+                                <th>{% translate "Weight" %}</th>
+                                {% for submission in submissions %}
+                                <th>{{ submission.judge_name }}</th>
+                                {% endfor %}
+                                <th>{% translate "Average" %}</th>
+                                <th>{% translate "Weighted" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for criterion_id, data in criteria_scores.items %}
+                            <tr>
+                                <td>{{ data.criterion.name }}</td>
+                                <td>{{ data.criterion.weight }}</td>
+                                
+                                {% for submission in submissions %}
+                                <td>
+                                    {% for score in data.scores %}
+                                        {% if score.judge_id == submission.judge_id %}
+                                            {{ score.value }}
+                                            {% if score.notes %}
+                                                <i class="bi bi-info-circle" data-bs-toggle="tooltip" title="{{ score.notes }}"></i>
+                                            {% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                </td>
+                                {% endfor %}
+                                
+                                <td>
+                                    {% if calculation_result.criteria_scores|get_item:criterion_id %}
+                                        {{ calculation_result.criteria_scores|get_item:criterion_id|get_item:"average"|floatformat:2 }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if calculation_result.criteria_scores|get_item:criterion_id %}
+                                        {{ calculation_result.criteria_scores|get_item:criterion_id|get_item:"weighted"|floatformat:2 }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-primary">
+                                <th colspan="2">{% translate "Final Score" %}</th>
+                                {% for submission in submissions %}
+                                <th></th>
+                                {% endfor %}
+                                <th colspan="2">
+                                    {% if calculation_result.final_score %}
+                                        {{ calculation_result.final_score|floatformat:3 }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4>{% translate "Judge Submissions" %}</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>{% translate "Judge" %}</th>
+                                        <th>{% translate "Status" %}</th>
+                                        <th>{% translate "Submission Time" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for submission in submissions %}
+                                    <tr>
+                                        <td>{{ submission.judge_name }}</td>
+                                        <td>
+                                            {% if submission.is_submitted %}
+                                                <span class="badge bg-success">{% translate "Submitted" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">{% translate "In Progress" %}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if submission.submitted_at %}
+                                                {{ submission.submitted_at|date:"j M Y, H:i:s" }}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if performance.status == 'completed' %}
+                <div class="row">
+                    <div class="col-md-6 offset-md-3">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h4 class="mb-0">{% translate "Calculate and Save Results" %}</h4>
+                            </div>
+                            <div class="card-body">
+                                <p>{% translate "Calculate final results for this category and save rankings." %}</p>
+                                <form method="post" action="{% url 'competitions:standalone_scoring:calculate_results' category_id=performance.category_id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="competition_id" value="{{ performance.competition_id }}">
+                                    <input type="hidden" name="round_type" value="{{ performance.round_type }}">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        {% translate "Calculate Results for Category" %}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+            {% else %}
+                <div class="alert alert-info">
+                    {% translate "No scores have been submitted for this performance yet." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Status Modal -->
+<div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="statusModalLabel">
+                    {% translate "Update Performance Status" %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% translate "Current Status" %}: 
+                    {% if performance.status == 'pending' %}
+                        <span class="badge bg-secondary">{% translate "Pending" %}</span>
+                    {% elif performance.status == 'in_progress' %}
+                        <span class="badge bg-primary">{% translate "In Progress" %}</span>
+                    {% elif performance.status == 'completed' %}
+                        <span class="badge bg-success">{% translate "Completed" %}</span>
+                    {% elif performance.status == 'disqualified' %}
+                        <span class="badge bg-danger">{% translate "Disqualified" %}</span>
+                    {% elif performance.status == 'cancelled' %}
+                        <span class="badge bg-dark">{% translate "Cancelled" %}</span>
+                    {% endif %}
+                </p>
+                
+                <div class="d-grid gap-2">
+                    {% if performance.status == 'pending' %}
+                        <form method="post" action="{% url 'competitions:standalone_scoring:performance_status' pk=performance.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="start">
+                            <button type="submit" class="btn btn-primary w-100">
+                                {% translate "Start Performance" %}
+                            </button>
+                        </form>
+                    {% elif performance.status == 'in_progress' %}
+                        <form method="post" action="{% url 'competitions:standalone_scoring:performance_status' pk=performance.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="end">
+                            <button type="submit" class="btn btn-success w-100">
+                                {% translate "Complete Performance" %}
+                            </button>
+                        </form>
+                    {% endif %}
+                    
+                    {% if performance.status != 'completed' and performance.status != 'disqualified' and performance.status != 'cancelled' %}
+                        <form method="post" action="{% url 'competitions:standalone_scoring:performance_status' pk=performance.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="disqualify">
+                            <div class="mb-3">
+                                <label for="disqualify-reason" class="form-label">
+                                    {% translate "Disqualification Reason" %}
+                                </label>
+                                <textarea class="form-control" id="disqualify-reason" name="reason" rows="2"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-danger w-100">
+                                {% translate "Disqualify Performance" %}
+                            </button>
+                        </form>
+                        
+                        <form method="post" action="{% url 'competitions:standalone_scoring:performance_status' pk=performance.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="cancel">
+                            <div class="mb-3">
+                                <label for="cancel-reason" class="form-label">
+                                    {% translate "Cancellation Reason" %}
+                                </label>
+                                <textarea class="form-control" id="cancel-reason" name="reason" rows="2"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-secondary w-100">
+                                {% translate "Cancel Performance" %}
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ competition.title }} | {% trans "Notation" %}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:club:dashboard' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:club:technical_scoring' %}">{% trans "Notation technique" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ competition.title }}</li>
+        </ol>
+    </nav>
+
+    <div class="mb-4">
+        <h1 class="h3">{{ competition.title }}</h1>
+        <p class="text-muted">
+            <i class="fas fa-calendar-alt me-2"></i>
+            {{ competition.start_date|date:"d/m/Y" }}
+            {% if competition.end_date != competition.start_date %}
+                - {{ competition.end_date|date:"d/m/Y" }}
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Catégories et critères de notation -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{% trans "Catégories et critères de notation" %}</h2>
+        </div>
+        <div class="card-body">
+            {% if categories %}
+                <div class="accordion" id="categoriesAccordion">
+                    {% for category in categories %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="heading{{ category.id }}">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ category.id }}" aria-expanded="false" aria-controls="collapse{{ category.id }}">
+                                    {{ category.name }}
+                                </button>
+                            </h2>
+                            <div id="collapse{{ category.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ category.id }}" data-bs-parent="#categoriesAccordion">
+                                <div class="accordion-body">
+                                    <h5 class="h6 mb-3">{% trans "Critères de notation" %}</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>{% trans "Critère" %}</th>
+                                                    <th>{% trans "Description" %}</th>
+                                                    <th>{% trans "Pondération" %}</th>
+                                                    <th>{% trans "Score min-max" %}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for criterion in category.scoring_criteria.all %}
+                                                    <tr>
+                                                        <td>{{ criterion.name }}</td>
+                                                        <td>{{ criterion.description }}</td>
+                                                        <td>{{ criterion.weight }}</td>
+                                                        <td>{{ criterion.min_score }} - {{ criterion.max_score }}</td>
+                                                    </tr>
+                                                {% empty %}
+                                                    <tr>
+                                                        <td colspan="4" class="text-center">{% trans "Aucun critère défini" %}</td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucune catégorie avec critères de notation n'est disponible pour cette compétition." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Performances des pratiquants -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h2 class="h5 mb-0">{% trans "Performances des pratiquants" %}</h2>
+        </div>
+        <div class="card-body">
+            {% if performances %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Pratiquant" %}</th>
+                                <th>{% trans "Catégorie" %}</th>
+                                <th>{% trans "Statut" %}</th>
+                                <th>{% trans "Score" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for performance in performances %}
+                                <tr>
+                                    <td>{{ performance.practitioner.full_name }}</td>
+                                    <td>{{ performance.category.name }}</td>
+                                    <td>
+                                        {% if performance.status == 'pending' %}
+                                            <span class="badge bg-warning">{% trans "En attente" %}</span>
+                                        {% elif performance.status == 'in_progress' %}
+                                            <span class="badge bg-info">{% trans "En cours" %}</span>
+                                        {% elif performance.status == 'completed' %}
+                                            <span class="badge bg-success">{% trans "Terminé" %}</span>
+                                        {% elif performance.status == 'disqualified' %}
+                                            <span class="badge bg-danger">{% trans "Disqualifié" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if performance.total_score %}
+                                            {{ performance.total_score }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'competitions:club:performance_detail' performance.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye me-1"></i> {% trans "Détails" %}
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucune performance de pratiquant de votre club n'est enregistrée pour cette compétition." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,329 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Détail de facture" %} - {{ invoice.invoice_number }}{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            {% trans "Facture" %} - {{ invoice.invoice_number }}
+        </h1>
+        <div>
+            <a href="{% url 'finances:invoice_pdf' invoice.id %}" class="btn btn-primary" target="_blank">
+                <i class="fas fa-file-pdf"></i> {% trans "PDF" %}
+            </a>
+            
+            {% if permissions.can_edit_invoice and invoice.status == 'draft' %}
+            <a href="{% url 'finances:invoice_update' invoice.id %}" class="btn btn-primary">
+                <i class="fas fa-edit"></i> {% trans "Modifier" %}
+            </a>
+            {% endif %}
+            
+            {% if permissions.can_delete_invoice and invoice.status == 'draft' %}
+            <a href="{% url 'finances:invoice_delete' invoice.id %}" class="btn btn-danger">
+                <i class="fas fa-trash"></i> {% trans "Supprimer" %}
+            </a>
+            {% endif %}
+            
+            <a href="{% url 'finances:invoice_list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> {% trans "Retour à la liste" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Statut de facture -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card shadow">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-3">
+                            <span class="text-uppercase text-muted small">{% trans "Statut" %}:</span>
+                            {% if invoice.status == 'draft' %}
+                            <span class="badge bg-light text-dark ml-2">{% trans "Brouillon" %}</span>
+                            {% elif invoice.status == 'sent' %}
+                            <span class="badge bg-info ml-2">{% trans "Envoyée" %}</span>
+                            {% elif invoice.status == 'paid' %}
+                            <span class="badge bg-success ml-2">{% trans "Payée" %}</span>
+                            {% elif invoice.status == 'partially_paid' %}
+                            <span class="badge bg-warning ml-2">{% trans "Partiellement payée" %}</span>
+                            {% elif invoice.status == 'cancelled' %}
+                            <span class="badge bg-secondary ml-2">{% trans "Annulée" %}</span>
+                            {% elif invoice.status == 'overdue' %}
+                            <span class="badge bg-danger ml-2">{% trans "En retard" %}</span>
+                            {% else %}
+                            <span class="badge bg-secondary ml-2">{{ invoice.get_status_display }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-3">
+                            <span class="text-uppercase text-muted small">{% trans "Date d'émission" %}:</span>
+                            <span class="ml-2">{{ invoice.issue_date|date:"d/m/Y" }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <span class="text-uppercase text-muted small">{% trans "Date d'échéance" %}:</span>
+                            <span class="ml-2">{{ invoice.due_date|date:"d/m/Y" }}</span>
+                            {% if invoice.is_overdue and invoice.status != 'paid' %}
+                            <span class="badge bg-danger ml-1">{% trans "En retard" %}</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-3">
+                            <span class="text-uppercase text-muted small">{% trans "Dernière mise à jour" %}:</span>
+                            <span class="ml-2">{{ invoice.updated_at|date:"d/m/Y H:i" }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Détails de la facture -->
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Détails de la facture" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-sm-6">
+                            <h6 class="mb-3">{% trans "De :" %}</h6>
+                            <div>
+                                <strong>{{ invoice.sender_name }}</strong>
+                            </div>
+                            <div>{{ invoice.sender_address|linebreaks }}</div>
+                            {% if invoice.sender_email %}
+                            <div>{% trans "Email" %}: {{ invoice.sender_email }}</div>
+                            {% endif %}
+                            {% if invoice.sender_phone %}
+                            <div>{% trans "Téléphone" %}: {{ invoice.sender_phone }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-sm-6">
+                            <h6 class="mb-3">{% trans "À :" %}</h6>
+                            <div>
+                                <strong>{{ invoice.client_name }}</strong>
+                            </div>
+                            <div>{{ invoice.client_address|linebreaks }}</div>
+                            {% if invoice.client_email %}
+                            <div>{% trans "Email" %}: {{ invoice.client_email }}</div>
+                            {% endif %}
+                            {% if invoice.client_phone %}
+                            <div>{% trans "Téléphone" %}: {{ invoice.client_phone }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="table-responsive-sm">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th class="center">#</th>
+                                    <th>{% trans "Article" %}</th>
+                                    <th class="right">{% trans "Prix unitaire" %}</th>
+                                    <th class="center">{% trans "Quantité" %}</th>
+                                    <th class="right">{% trans "Total" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in invoice.items.all %}
+                                <tr>
+                                    <td class="center">{{ forloop.counter }}</td>
+                                    <td class="left">
+                                        <strong>{{ item.description }}</strong>
+                                        {% if item.details %}
+                                        <br>
+                                        <small>{{ item.details }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="right">{{ item.unit_price|floatformat:2 }} €</td>
+                                    <td class="center">{{ item.quantity }}</td>
+                                    <td class="right">{{ item.total_price|floatformat:2 }} €</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-lg-6">
+                            {% if invoice.notes %}
+                            <div class="card bg-light mb-3">
+                                <div class="card-header">
+                                    <h6 class="m-0">{% trans "Notes" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    {{ invoice.notes|linebreaks }}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            {% if invoice.payment_instructions %}
+                            <div class="card bg-light">
+                                <div class="card-header">
+                                    <h6 class="m-0">{% trans "Instructions de paiement" %}</h6>
+                                </div>
+                                <div class="card-body">
+                                    {{ invoice.payment_instructions|linebreaks }}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-lg-6 text-right">
+                            <table class="table table-bordered table-condensed">
+                                <tbody>
+                                    <tr>
+                                        <td><strong>{% trans "Sous-total" %}</strong></td>
+                                        <td>{{ invoice.subtotal|floatformat:2 }} €</td>
+                                    </tr>
+                                    {% if invoice.tax_rate > 0 %}
+                                    <tr>
+                                        <td><strong>{% trans "TVA" %} ({{ invoice.tax_rate }}%)</strong></td>
+                                        <td>{{ invoice.tax_amount|floatformat:2 }} €</td>
+                                    </tr>
+                                    {% endif %}
+                                    {% if invoice.discount_amount > 0 %}
+                                    <tr>
+                                        <td><strong>{% trans "Remise" %}</strong></td>
+                                        <td>-{{ invoice.discount_amount|floatformat:2 }} €</td>
+                                    </tr>
+                                    {% endif %}
+                                    <tr>
+                                        <td><strong>{% trans "Total" %}</strong></td>
+                                        <td><strong>{{ invoice.total|floatformat:2 }} €</strong></td>
+                                    </tr>
+                                    {% if invoice.amount_paid > 0 %}
+                                    <tr>
+                                        <td><strong>{% trans "Montant payé" %}</strong></td>
+                                        <td>{{ invoice.amount_paid|floatformat:2 }} €</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>{% trans "Reste à payer" %}</strong></td>
+                                        <td>{{ invoice.amount_due|floatformat:2 }} €</td>
+                                    </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions et paiements -->
+        <div class="col-lg-4">
+            <!-- Actions -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Actions" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if invoice.status == 'draft' %}
+                        <a href="{% url 'finances:invoice_send' invoice.id %}" class="btn btn-success mb-2">
+                            <i class="fas fa-paper-plane"></i> {% trans "Marquer comme envoyée" %}
+                        </a>
+                        {% endif %}
+                        
+                        {% if invoice.status != 'paid' and invoice.status != 'cancelled' %}
+                        <a href="{% url 'finances:invoice_record_payment' invoice.id %}" class="btn btn-primary mb-2">
+                            <i class="fas fa-money-bill-wave"></i> {% trans "Enregistrer un paiement" %}
+                        </a>
+                        {% endif %}
+                        
+                        {% if invoice.status != 'cancelled' %}
+                        <a href="{% url 'finances:invoice_cancel' invoice.id %}" class="btn btn-warning mb-2">
+                            <i class="fas fa-ban"></i> {% trans "Annuler la facture" %}
+                        </a>
+                        {% endif %}
+                        
+                        <a href="{% url 'finances:invoice_duplicate' invoice.id %}" class="btn btn-info mb-2">
+                            <i class="fas fa-copy"></i> {% trans "Dupliquer" %}
+                        </a>
+                        
+                        {% if invoice.status != 'draft' %}
+                        <a href="{% url 'finances:invoice_send_email' invoice.id %}" class="btn btn-secondary mb-2">
+                            <i class="fas fa-envelope"></i> {% trans "Envoyer par email" %}
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Historique des paiements -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Historique des paiements" %}</h6>
+                </div>
+                <div class="card-body">
+                    {% if invoice.payments.exists %}
+                    <div class="list-group mb-3">
+                        {% for payment in invoice.payments.all %}
+                        <div class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">
+                                    {{ payment.amount|floatformat:2 }} €
+                                </h6>
+                                <small class="text-{% if payment.status == 'succeeded' %}success{% elif payment.status == 'failed' %}danger{% else %}warning{% endif %}">
+                                    {{ payment.get_status_display }}
+                                </small>
+                            </div>
+                            <p class="mb-1">{{ payment.payment_method.name }}</p>
+                            <div class="d-flex w-100 justify-content-between">
+                                <small class="text-muted">
+                                    {% if payment.reference_number %}
+                                    {% trans "Réf." %}: {{ payment.reference_number }}
+                                    {% endif %}
+                                </small>
+                                <small>{{ payment.payment_date|date:"d/m/Y" }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center mb-3">{% trans "Aucun paiement enregistré" %}</p>
+                    {% endif %}
+                    
+                    {% if invoice.status != 'paid' and invoice.status != 'cancelled' %}
+                    <a href="{% url 'finances:invoice_record_payment' invoice.id %}" class="btn btn-primary btn-block">
+                        <i class="fas fa-plus-circle"></i> {% trans "Ajouter un paiement" %}
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Informations connexes -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Informations connexes" %}</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% if invoice.entity_content_type and invoice.entity_id %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {% trans "Entité associée" %}
+                            <span>{{ invoice.entity_content_type.name }} #{{ invoice.entity_id }}</span>
+                        </li>
+                        {% endif %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {% trans "Créée par" %}
+                            <span>{{ invoice.created_by.get_full_name|default:invoice.created_by.username }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {% trans "Créée le" %}
+                            <span>{{ invoice.created_at|date:"d/m/Y H:i" }}</span>
+                        </li>
+                        {% if invoice.financial_account %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {% trans "Compte financier" %}
+                            <span>{{ invoice.financial_account.name }}</span>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

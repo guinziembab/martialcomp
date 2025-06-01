@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ system.name }} | {% trans "Système de grades" %} | MartialComp{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{{ system.name }}</h1>
+        <div>
+            <a href="{% url 'competitions:grades:system_edit' system.id %}" class="btn btn-primary">
+                <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+            </a>
+            <a href="{% url 'competitions:grades:systems_list' %}" class="btn btn-outline-secondary ms-2">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+            </a>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">{% trans "Informations" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>{% trans "Discipline" %}:</strong> {{ system.discipline.name }}</p>
+                    <p><strong>{% trans "Par défaut" %}:</strong> 
+                        {% if system.is_default %}
+                            <span class="badge bg-success">{% trans "Oui" %}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{% trans "Non" %}</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>{% trans "Date de création" %}:</strong> {{ system.created_at|date:"d/m/Y" }}</p>
+                    <p><strong>{% trans "Dernière modification" %}:</strong> {{ system.updated_at|date:"d/m/Y" }}</p>
+                </div>
+            </div>
+            {% if system.description %}
+                <div class="mt-3">
+                    <h6>{% trans "Description" %}</h6>
+                    <p>{{ system.description }}</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <h2 class="mb-3">{% trans "Catégories et grades" %}</h2>
+    
+    {% for category in categories %}
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center" 
+                 {% if category.color_hex %}style="background-color: {{ category.color_hex }}; color: #fff;"{% endif %}>
+                <h5 class="mb-0">{{ category.name }}</h5>
+                <a href="{% url 'competitions:grades:category_edit' category.id %}" class="btn btn-sm btn-outline-light">
+                    <i class="fas fa-edit me-1"></i>{% trans "Gérer les grades" %}
+                </a>
+            </div>
+            <div class="card-body">
+                {% if category.grades.exists %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Niveau" %}</th>
+                                    <th>{% trans "Nom" %}</th>
+                                    <th>{% trans "Couleur" %}</th>
+                                    <th>{% trans "Accessible aux clubs" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for grade in category.grades.all|dictsort:"level" %}
+                                    <tr>
+                                        <td>{{ grade.level }}</td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                {% if grade.color %}
+                                                    <div class="color-indicator me-2" 
+                                                         style="width: 20px; height: 20px; background-color: {{ grade.color }}; border-radius: 50%;"></div>
+                                                {% endif %}
+                                                {{ grade.name }}
+                                            </div>
+                                        </td>
+                                        <td>{{ grade.color|default:"" }}</td>
+                                        <td>
+                                            {% if grade.accessible_to_clubs %}
+                                                <span class="badge bg-success">{% trans "Oui" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">{% trans "Non" %}</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        {% trans "Aucun grade défini pour cette catégorie." %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    {% empty %}
+        <div class="alert alert-warning">
+            {% trans "Aucune catégorie définie pour ce système de grades." %}
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,1152 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}
+  {% if form.instance.pk %}
+    {% trans "Modifier le sondage" %} - {{ form.instance.title }}
+  {% else %}
+    {% trans "Créer un sondage de planification" %}
+  {% endif %}
+  | MartialComp
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  
+  .form-card {
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+    overflow: hidden;
+  }
+  
+  .form-header {
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid #eee;
+    background-color: #f8f9fa;
+  }
+  
+  .form-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+  }
+  
+  .form-title i {
+    margin-right: 0.75rem;
+    color: #3366ff;
+  }
+  
+  .form-body {
+    padding: 2rem;
+  }
+  
+  .form-footer {
+    padding: 1.5rem 2rem;
+    border-top: 1px solid #eee;
+    background-color: #f8f9fa;
+    text-align: right;
+  }
+  
+  .form-section {
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .form-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+  
+  .form-section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #eee;
+    color: #3366ff;
+  }
+  
+  /* Styles pour les options de date */
+  .date-options-container {
+    margin-top: 1.5rem;
+  }
+  
+  .date-option {
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+    background-color: #fff;
+    transition: all 0.2s ease;
+  }
+  
+  .date-option:hover {
+    border-color: #3366ff;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  }
+  
+  .date-option-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  
+  .date-option-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+  }
+  
+  .date-option-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .date-option-remove {
+    color: #dc3545;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    transition: all 0.2s ease;
+  }
+  
+  .date-option-remove:hover {
+    background-color: #f8d7da;
+  }
+  
+  .date-option-duplicate {
+    color: #3366ff;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    transition: all 0.2s ease;
+  }
+  
+  .date-option-duplicate:hover {
+    background-color: #e6ecff;
+  }
+  
+  .all-day-field {
+    margin-top: 0.25rem;
+  }
+  
+  .location-field {
+    margin-top: 1rem;
+  }
+  
+  .add-date-option {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+    border: 1px dashed #ccc;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background-color: #f8f9fa;
+    margin-top: 1rem;
+  }
+  
+  .add-date-option:hover {
+    border-color: #3366ff;
+    background-color: #e6ecff;
+  }
+  
+  .add-date-option i {
+    margin-right: 0.5rem;
+    color: #3366ff;
+  }
+  
+  /* Type de réponse */
+  .response-type-selector {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .response-type-card {
+    flex: 1;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+  }
+  
+  .response-type-card:hover {
+    border-color: #3366ff;
+    background-color: #f0f4ff;
+  }
+  
+  .response-type-card.selected {
+    border-color: #3366ff;
+    background-color: #f0f4ff;
+    box-shadow: 0 4px 10px rgba(51, 102, 255, 0.1);
+  }
+  
+  .response-type-icon {
+    font-size: 2rem;
+    color: #3366ff;
+    margin-bottom: 0.5rem;
+  }
+  
+  .response-type-name {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  
+  .response-type-description {
+    font-size: 0.8rem;
+    color: #666;
+  }
+  
+  /* Options du sondage */
+  .poll-options {
+    margin-top: 1.5rem;
+  }
+  
+  .poll-option-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #333;
+  }
+  
+  .poll-option-group {
+    padding: 1rem;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
+  
+  .poll-option-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+  
+  .poll-settings-toggle {
+    background: none;
+    border: none;
+    color: #3366ff;
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+  }
+  
+  .poll-settings-toggle:hover {
+    background-color: #e6ecff;
+  }
+  
+  .poll-settings-toggle i {
+    margin-right: 0.25rem;
+  }
+  
+  .poll-advanced-settings {
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+    margin-top: 1rem;
+  }
+  
+  /* Prévisualisation du sondage */
+  .poll-preview {
+    margin-top: 2rem;
+  }
+  
+  .poll-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  
+  .poll-preview-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .poll-preview-toggle {
+    background: none;
+    border: none;
+    color: #3366ff;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+  }
+  
+  .poll-preview-toggle:hover {
+    background-color: #e6ecff;
+  }
+  
+  .poll-preview-toggle i {
+    margin-right: 0.25rem;
+  }
+  
+  .poll-preview-content {
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 1.5rem;
+    background-color: #f8f9fa;
+  }
+  
+  .poll-preview-options {
+    margin-top: 1.5rem;
+  }
+  
+  .poll-preview-option {
+    padding: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    background-color: #fff;
+  }
+  
+  .poll-preview-date {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  
+  .poll-preview-time {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+  }
+  
+  .poll-preview-location {
+    color: #666;
+    font-size: 0.9rem;
+  }
+  
+  .poll-preview-response-btns {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  
+  .poll-preview-response-btn {
+    flex: 1;
+    padding: 0.5rem;
+    text-align: center;
+    border-radius: 4px;
+    cursor: not-allowed;
+    font-size: 0.9rem;
+  }
+  
+  .poll-preview-response-yes {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+    border: 1px solid rgba(40, 167, 69, 0.2);
+  }
+  
+  .poll-preview-response-maybe {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.2);
+  }
+  
+  .poll-preview-response-no {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.2);
+  }
+  
+  @media (max-width: 768px) {
+    .form-body {
+      padding: 1.5rem;
+    }
+    
+    .response-type-selector {
+      flex-direction: column;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="form-container">
+    <!-- En-tête du formulaire -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h1 class="h2 mb-1">
+          {% if form.instance.pk %}
+            {% trans "Modifier le sondage" %}
+          {% else %}
+            {% trans "Créer un sondage de planification" %}
+          {% endif %}
+        </h1>
+        <p class="text-muted mb-0">
+          {% if form.instance.pk %}
+            {% trans "Mettez à jour les informations de votre sondage" %}
+          {% else %}
+            {% trans "Proposez des dates pour votre événement et recueillez les disponibilités" %}
+          {% endif %}
+        </p>
+      </div>
+      <div>
+        <a href="{% url 'competitions:events:event_list' %}" class="btn btn-outline-secondary">
+          <i class="fas fa-times me-1"></i> {% trans "Annuler" %}
+        </a>
+      </div>
+    </div>
+    
+    <!-- Messages d'alerte -->
+    {% if messages %}
+      <div class="messages mb-4">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+            <i class="fas {% if message.tags == 'success' %}fa-check-circle{% elif message.tags == 'error' %}fa-exclamation-circle{% elif message.tags == 'warning' %}fa-exclamation-triangle{% else %}fa-info-circle{% endif %} me-2"></i>
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    
+    <!-- Formulaire du sondage -->
+    <form method="post" action="{% if form.instance.pk %}{% url 'competitions:events:edit_poll' form.instance.pk %}{% else %}{% url 'competitions:events:create_poll' %}{% endif %}" id="pollForm">
+      {% csrf_token %}
+      
+      <div class="form-card">
+        <div class="form-header">
+          <h2 class="form-title">
+            <i class="fas fa-poll"></i> {% trans "Informations du sondage" %}
+          </h2>
+        </div>
+        <div class="form-body">
+          <!-- Informations de base -->
+          <div class="form-section">
+            <h3 class="form-section-title">{% trans "Informations de base" %}</h3>
+            
+            <div class="mb-3">
+              <label for="{{ form.title.id_for_label }}" class="form-label">{% trans "Titre du sondage" %} *</label>
+              <input type="text" name="{{ form.title.name }}" id="{{ form.title.id_for_label }}" class="form-control {% if form.title.errors %}is-invalid{% endif %}" value="{{ form.title.value|default:'' }}" required>
+              {% if form.title.errors %}
+                <div class="invalid-feedback">{{ form.title.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="mb-3">
+              <label for="{{ form.description.id_for_label }}" class="form-label">{% trans "Description" %}</label>
+              <textarea name="{{ form.description.name }}" id="{{ form.description.id_for_label }}" class="form-control {% if form.description.errors %}is-invalid{% endif %}" rows="3">{{ form.description.value|default:'' }}</textarea>
+              {% if form.description.errors %}
+                <div class="invalid-feedback">{{ form.description.errors.0 }}</div>
+              {% endif %}
+              <div class="form-text">{% trans "Décrivez brièvement l'événement pour aider les participants à comprendre le contexte." %}</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="{{ form.organization.id_for_label }}" class="form-label">{% trans "Organisation" %} *</label>
+              <select name="{{ form.organization.name }}" id="{{ form.organization.id_for_label }}" class="form-select {% if form.organization.errors %}is-invalid{% endif %}" required>
+                {% for choice in form.organization.field.choices %}
+                  <option value="{{ choice.0 }}" {% if form.organization.value|stringformat:'s' == choice.0|stringformat:'s' %}selected{% endif %}>{{ choice.1 }}</option>
+                {% endfor %}
+              </select>
+              {% if form.organization.errors %}
+                <div class="invalid-feedback">{{ form.organization.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="mb-3">
+              <label for="{{ form.event_type.id_for_label }}" class="form-label">{% trans "Type d'événement envisagé" %}</label>
+              <select name="{{ form.event_type.name }}" id="{{ form.event_type.id_for_label }}" class="form-select {% if form.event_type.errors %}is-invalid{% endif %}">
+                <option value="">{% trans "Sélectionnez un type" %}</option>
+                {% for choice in form.event_type.field.choices %}
+                  <option value="{{ choice.0 }}" {% if form.event_type.value == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
+                {% endfor %}
+              </select>
+              {% if form.event_type.errors %}
+                <div class="invalid-feedback">{{ form.event_type.errors.0 }}</div>
+              {% endif %}
+            </div>
+            
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="{{ form.expires_at_date.id_for_label }}" class="form-label">{% trans "Date d'expiration" %}</label>
+                <input type="date" name="{{ form.expires_at_date.name }}" id="{{ form.expires_at_date.id_for_label }}" class="form-control {% if form.expires_at_date.errors %}is-invalid{% endif %}" value="{{ form.expires_at_date.value|date:'Y-m-d'|default:'' }}">
+                {% if form.expires_at_date.errors %}
+                  <div class="invalid-feedback">{{ form.expires_at_date.errors.0 }}</div>
+                {% endif %}
+              </div>
+              <div class="col-md-6">
+                <label for="{{ form.expires_at_time.id_for_label }}" class="form-label">{% trans "Heure d'expiration" %}</label>
+                <input type="time" name="{{ form.expires_at_time.name }}" id="{{ form.expires_at_time.id_for_label }}" class="form-control {% if form.expires_at_time.errors %}is-invalid{% endif %}" value="{{ form.expires_at_time.value|time:'H:i'|default:'' }}">
+                {% if form.expires_at_time.errors %}
+                  <div class="invalid-feedback">{{ form.expires_at_time.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <!-- Type de réponse -->
+          <div class="form-section">
+            <h3 class="form-section-title">{% trans "Type de réponse" %}</h3>
+            
+            <div class="response-type-selector">
+              <div class="response-type-card {% if form.response_type.value == 'yes_no' %}selected{% endif %}" data-response-type="yes_no">
+                <div class="response-type-icon">
+                  <i class="fas fa-toggle-on"></i>
+                </div>
+                <div class="response-type-name">{% trans "Oui/Non" %}</div>
+                <div class="response-type-description">{% trans "Les participants indiquent simplement s'ils sont disponibles ou non" %}</div>
+              </div>
+              
+              <div class="response-type-card {% if form.response_type.value == 'yes_maybe_no' or not form.response_type.value %}selected{% endif %}" data-response-type="yes_maybe_no">
+                <div class="response-type-icon">
+                  <i class="fas fa-sliders-h"></i>
+                </div>
+                <div class="response-type-name">{% trans "Oui/Peut-être/Non" %}</div>
+                <div class="response-type-description">{% trans "Les participants peuvent indiquer une disponibilité incertaine" %}</div>
+              </div>
+              
+              <div class="response-type-card {% if form.response_type.value == 'availability' %}selected{% endif %}" data-response-type="availability">
+                <div class="response-type-icon">
+                  <i class="fas fa-calendar-day"></i>
+                </div>
+                <div class="response-type-name">{% trans "Disponibilité" %}</div>
+                <div class="response-type-description">{% trans "Les participants indiquent leur disponibilité le matin, l'après-midi ou le soir" %}</div>
+              </div>
+            </div>
+            
+            <input type="hidden" name="{{ form.response_type.name }}" id="{{ form.response_type.id_for_label }}" value="{{ form.response_type.value|default:'yes_maybe_no' }}">
+          </div>
+          
+          <!-- Options du sondage -->
+          <div class="form-section">
+            <h3 class="form-section-title">{% trans "Options du sondage" %}</h3>
+            
+            <div class="poll-options">
+              <div class="poll-option-group">
+                <div class="poll-option-header">
+                  <div class="poll-option-title">{% trans "Paramètres des réponses" %}</div>
+                </div>
+                
+                <div class="form-check mb-2">
+                  <input type="checkbox" name="{{ form.allow_comments.name }}" id="{{ form.allow_comments.id_for_label }}" class="form-check-input" {% if form.allow_comments.value %}checked{% endif %}>
+                  <label class="form-check-label" for="{{ form.allow_comments.id_for_label }}">
+                    {% trans "Autoriser les commentaires" %}
+                  </label>
+                </div>
+                
+                <div class="form-check mb-2">
+                  <input type="checkbox" name="{{ form.allow_multiple_votes.name }}" id="{{ form.allow_multiple_votes.id_for_label }}" class="form-check-input" {% if form.allow_multiple_votes.value %}checked{% endif %}>
+                  <label class="form-check-label" for="{{ form.allow_multiple_votes.id_for_label }}">
+                    {% trans "Autoriser les votes multiples" %}
+                  </label>
+                </div>
+              </div>
+              
+              <div class="poll-option-group">
+                <div class="poll-option-header">
+                  <div class="poll-option-title">{% trans "Visibilité" %}</div>
+                </div>
+                
+                <div class="form-check mb-2">
+                  <input type="checkbox" name="{{ form.show_participants.name }}" id="{{ form.show_participants.id_for_label }}" class="form-check-input" {% if form.show_participants.value %}checked{% endif %}>
+                  <label class="form-check-label" for="{{ form.show_participants.id_for_label }}">
+                    {% trans "Afficher les noms des participants" %}
+                  </label>
+                </div>
+                
+                <div class="form-check mb-2">
+                  <input type="checkbox" name="{{ form.show_vote_counts.name }}" id="{{ form.show_vote_counts.id_for_label }}" class="form-check-input" {% if form.show_vote_counts.value %}checked{% endif %}>
+                  <label class="form-check-label" for="{{ form.show_vote_counts.id_for_label }}">
+                    {% trans "Afficher le décompte des votes" %}
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Options de date/heure -->
+          <div class="form-section">
+            <h3 class="form-section-title">{% trans "Options de date" %}</h3>
+            
+            <p class="text-muted mb-3">{% trans "Ajoutez les dates et heures possibles pour votre événement." %}</p>
+            
+            <div id="dateOptionsContainer" class="date-options-container">
+              {{ formset.management_form }}
+              
+              {% for option_form in formset.forms %}
+                <div class="date-option">
+                  <div class="date-option-header">
+                    <div class="date-option-title">{% trans "Option" %} {{ forloop.counter }}</div>
+                    <div class="date-option-actions">
+                      <button type="button" class="date-option-duplicate" title="{% trans 'Dupliquer cette option' %}">
+                        <i class="fas fa-copy"></i> {% trans "Dupliquer" %}
+                      </button>
+                      <button type="button" class="date-option-remove" title="{% trans 'Supprimer cette option' %}">
+                        <i class="fas fa-trash-alt"></i> {% trans "Supprimer" %}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <!-- Champ caché pour l'ID -->
+                  {{ option_form.id }}
+                  
+                  <div class="row g-3">
+                    <div class="col-md-4">
+                      <label for="{{ option_form.date.id_for_label }}" class="form-label">{% trans "Date" %} *</label>
+                      <input type="date" name="{{ option_form.date.html_name }}" id="{{ option_form.date.id_for_label }}" class="form-control {% if option_form.date.errors %}is-invalid{% endif %}" value="{{ option_form.date.value|date:'Y-m-d'|default:'' }}" required>
+                      {% if option_form.date.errors %}
+                        <div class="invalid-feedback">{{ option_form.date.errors.0 }}</div>
+                      {% endif %}
+                    </div>
+                    
+                    <div class="col-md-4">
+                      <label for="{{ option_form.start_time.id_for_label }}" class="form-label">{% trans "Heure de début" %}</label>
+                      <input type="time" name="{{ option_form.start_time.html_name }}" id="{{ option_form.start_time.id_for_label }}" class="form-control time-input {% if option_form.start_time.errors %}is-invalid{% endif %}" value="{{ option_form.start_time.value|time:'H:i'|default:'' }}">
+                      {% if option_form.start_time.errors %}
+                        <div class="invalid-feedback">{{ option_form.start_time.errors.0 }}</div>
+                      {% endif %}
+                    </div>
+                    
+                    <div class="col-md-4">
+                      <label for="{{ option_form.end_time.id_for_label }}" class="form-label">{% trans "Heure de fin" %}</label>
+                      <input type="time" name="{{ option_form.end_time.html_name }}" id="{{ option_form.end_time.id_for_label }}" class="form-control time-input {% if option_form.end_time.errors %}is-invalid{% endif %}" value="{{ option_form.end_time.value|time:'H:i'|default:'' }}">
+                      {% if option_form.end_time.errors %}
+                        <div class="invalid-feedback">{{ option_form.end_time.errors.0 }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  
+                  <div class="all-day-field">
+                    <div class="form-check">
+                      <input type="checkbox" name="{{ option_form.all_day.html_name }}" id="{{ option_form.all_day.id_for_label }}" class="form-check-input all-day-checkbox" {% if option_form.all_day.value %}checked{% endif %}>
+                      <label class="form-check-label" for="{{ option_form.all_day.id_for_label }}">
+                        {% trans "Toute la journée" %}
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div class="location-field">
+                    <label for="{{ option_form.location.id_for_label }}" class="form-label">{% trans "Lieu" %} <small class="text-muted">({% trans "optionnel, si différent pour chaque option" %})</small></label>
+                    <input type="text" name="{{ option_form.location.html_name }}" id="{{ option_form.location.id_for_label }}" class="form-control {% if option_form.location.errors %}is-invalid{% endif %}" value="{{ option_form.location.value|default:'' }}">
+                    {% if option_form.location.errors %}
+                      <div class="invalid-feedback">{{ option_form.location.errors.0 }}</div>
+                    {% endif %}
+                  </div>
+                  
+                  {% if option_form.DELETE %}
+                    <div class="d-none">
+                      {{ option_form.DELETE }}
+                    </div>
+                  {% endif %}
+                </div>
+              {% empty %}
+                <div class="date-option">
+                  <div class="date-option-header">
+                    <div class="date-option-title">{% trans "Option 1" %}</div>
+                    <div class="date-option-actions">
+                      <button type="button" class="date-option-duplicate" title="{% trans 'Dupliquer cette option' %}">
+                        <i class="fas fa-copy"></i> {% trans "Dupliquer" %}
+                      </button>
+                      <button type="button" class="date-option-remove" title="{% trans 'Supprimer cette option' %}">
+                        <i class="fas fa-trash-alt"></i> {% trans "Supprimer" %}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div class="row g-3">
+                    <div class="col-md-4">
+                      <label for="id_form-0-date" class="form-label">{% trans "Date" %} *</label>
+                      <input type="date" name="form-0-date" id="id_form-0-date" class="form-control" required>
+                    </div>
+                    
+                    <div class="col-md-4">
+                      <label for="id_form-0-start_time" class="form-label">{% trans "Heure de début" %}</label>
+                      <input type="time" name="form-0-start_time" id="id_form-0-start_time" class="form-control time-input">
+                    </div>
+                    
+                    <div class="col-md-4">
+                      <label for="id_form-0-end_time" class="form-label">{% trans "Heure de fin" %}</label>
+                      <input type="time" name="form-0-end_time" id="id_form-0-end_time" class="form-control time-input">
+                    </div>
+                  </div>
+                  
+                  <div class="all-day-field">
+                    <div class="form-check">
+                      <input type="checkbox" name="form-0-all_day" id="id_form-0-all_day" class="form-check-input all-day-checkbox">
+                      <label class="form-check-label" for="id_form-0-all_day">
+                        {% trans "Toute la journée" %}
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div class="location-field">
+                    <label for="id_form-0-location" class="form-label">{% trans "Lieu" %} <small class="text-muted">({% trans "optionnel, si différent pour chaque option" %})</small></label>
+                    <input type="text" name="form-0-location" id="id_form-0-location" class="form-control">
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+            
+            <div class="add-date-option" id="addDateOption">
+              <i class="fas fa-plus"></i> {% trans "Ajouter une option de date" %}
+            </div>
+          </div>
+          
+          <!-- Prévisualisation -->
+          <div class="poll-preview">
+            <div class="poll-preview-header">
+              <div class="poll-preview-title">{% trans "Prévisualisation du sondage" %}</div>
+              <button type="button" class="poll-preview-toggle" id="togglePreview">
+                <i class="fas fa-eye"></i> {% trans "Afficher la prévisualisation" %}
+              </button>
+            </div>
+            
+            <div class="poll-preview-content" id="previewContent" style="display: none;">
+              <h4 id="previewTitle">{% trans "Titre du sondage" %}</h4>
+              <p id="previewDescription">{% trans "Description du sondage" %}</p>
+              
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i> {% trans "Veuillez indiquer vos disponibilités pour les dates proposées ci-dessous." %}
+              </div>
+              
+              <div class="poll-preview-options" id="previewOptions">
+                <!-- Les options seront générées dynamiquement -->
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-footer">
+          <a href="{% url 'competitions:events:event_list' %}" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-times me-1"></i> {% trans "Annuler" %}
+          </a>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i> 
+            {% if form.instance.pk %}
+              {% trans "Mettre à jour le sondage" %}
+            {% else %}
+              {% trans "Créer le sondage" %}
+            {% endif %}
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Type de réponse
+    const responseTypeCards = document.querySelectorAll('.response-type-card');
+    const responseTypeInput = document.getElementById('{{ form.response_type.id_for_label }}');
+    
+    responseTypeCards.forEach(card => {
+      card.addEventListener('click', function() {
+        responseTypeCards.forEach(c => c.classList.remove('selected'));
+        this.classList.add('selected');
+        responseTypeInput.value = this.getAttribute('data-response-type');
+        updatePreview();
+      });
+    });
+    
+    // Gestion des options de date
+    const dateOptionsContainer = document.getElementById('dateOptionsContainer');
+    const addDateOption = document.getElementById('addDateOption');
+    const totalFormsInput = document.querySelector('[name="form-TOTAL_FORMS"]');
+    const initialFormsInput = document.querySelector('[name="form-INITIAL_FORMS"]');
+    const maxFormsInput = document.querySelector('[name="form-MAX_NUM_FORMS"]');
+    
+    if (!totalFormsInput) {
+      // Initialiser les champs de gestion de formset si non présents
+      const managementForm = document.createElement('div');
+      managementForm.innerHTML = `
+        <input type="hidden" name="form-TOTAL_FORMS" value="1" id="id_form-TOTAL_FORMS">
+        <input type="hidden" name="form-INITIAL_FORMS" value="0" id="id_form-INITIAL_FORMS">
+        <input type="hidden" name="form-MIN_NUM_FORMS" value="1" id="id_form-MIN_NUM_FORMS">
+        <input type="hidden" name="form-MAX_NUM_FORMS" value="1000" id="id_form-MAX_NUM_FORMS">
+      `;
+      dateOptionsContainer.prepend(managementForm);
+    }
+    
+    function getFormIndex() {
+      return parseInt(document.querySelector('[name="form-TOTAL_FORMS"]').value);
+    }
+    
+    function updateFormIndices() {
+      const dateOptions = dateOptionsContainer.querySelectorAll('.date-option');
+      document.querySelector('[name="form-TOTAL_FORMS"]').value = dateOptions.length;
+      
+      // Mise à jour des indices dans les attributs name et id
+      dateOptions.forEach((option, index) => {
+        const inputs = option.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+          const name = input.getAttribute('name');
+          if (name) {
+            const newName = name.replace(/form-\d+/, `form-${index}`);
+            input.setAttribute('name', newName);
+          }
+          
+          const id = input.getAttribute('id');
+          if (id) {
+            const newId = id.replace(/id_form-\d+/, `id_form-${index}`);
+            input.setAttribute('id', newId);
+          }
+        });
+        
+        // Mise à jour des attributs for des labels
+        const labels = option.querySelectorAll('label');
+        labels.forEach(label => {
+          const forAttr = label.getAttribute('for');
+          if (forAttr) {
+            const newFor = forAttr.replace(/id_form-\d+/, `id_form-${index}`);
+            label.setAttribute('for', newFor);
+          }
+        });
+        
+        // Mise à jour du titre
+        const title = option.querySelector('.date-option-title');
+        if (title) {
+          title.textContent = `{% trans "Option" %} ${index + 1}`;
+        }
+      });
+    }
+    
+    // Ajouter une nouvelle option de date
+    addDateOption.addEventListener('click', function() {
+      const index = getFormIndex();
+      
+      const newOption = document.createElement('div');
+      newOption.className = 'date-option';
+      newOption.innerHTML = `
+        <div class="date-option-header">
+          <div class="date-option-title">{% trans "Option" %} ${index + 1}</div>
+          <div class="date-option-actions">
+            <button type="button" class="date-option-duplicate" title="{% trans 'Dupliquer cette option' %}">
+              <i class="fas fa-copy"></i> {% trans "Dupliquer" %}
+            </button>
+            <button type="button" class="date-option-remove" title="{% trans 'Supprimer cette option' %}">
+              <i class="fas fa-trash-alt"></i> {% trans "Supprimer" %}
+            </button>
+          </div>
+        </div>
+        
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label for="id_form-${index}-date" class="form-label">{% trans "Date" %} *</label>
+            <input type="date" name="form-${index}-date" id="id_form-${index}-date" class="form-control" required>
+          </div>
+          
+          <div class="col-md-4">
+            <label for="id_form-${index}-start_time" class="form-label">{% trans "Heure de début" %}</label>
+            <input type="time" name="form-${index}-start_time" id="id_form-${index}-start_time" class="form-control time-input">
+          </div>
+          
+          <div class="col-md-4">
+            <label for="id_form-${index}-end_time" class="form-label">{% trans "Heure de fin" %}</label>
+            <input type="time" name="form-${index}-end_time" id="id_form-${index}-end_time" class="form-control time-input">
+          </div>
+        </div>
+        
+        <div class="all-day-field">
+          <div class="form-check">
+            <input type="checkbox" name="form-${index}-all_day" id="id_form-${index}-all_day" class="form-check-input all-day-checkbox">
+            <label class="form-check-label" for="id_form-${index}-all_day">
+              {% trans "Toute la journée" %}
+            </label>
+          </div>
+        </div>
+        
+        <div class="location-field">
+          <label for="id_form-${index}-location" class="form-label">{% trans "Lieu" %} <small class="text-muted">({% trans "optionnel, si différent pour chaque option" %})</small></label>
+          <input type="text" name="form-${index}-location" id="id_form-${index}-location" class="form-control">
+        </div>
+      `;
+      
+      dateOptionsContainer.appendChild(newOption);
+      updateFormIndices();
+      attachEventHandlers(newOption);
+      updatePreview();
+    });
+    
+    // Fonction pour dupliquer une option
+    function duplicateOption(optionElement) {
+      const index = getFormIndex();
+      
+      const newOption = optionElement.cloneNode(true);
+      
+      // Mise à jour des attributs name et id
+      const inputs = newOption.querySelectorAll('input, select, textarea');
+      inputs.forEach(input => {
+        const name = input.getAttribute('name');
+        if (name) {
+          const newName = name.replace(/form-\d+/, `form-${index}`);
+          input.setAttribute('name', newName);
+        }
+        
+        const id = input.getAttribute('id');
+        if (id) {
+          const newId = id.replace(/id_form-\d+/, `id_form-${index}`);
+          input.setAttribute('id', newId);
+        }
+        
+        // Conserver les valeurs des champs
+        if (input.type === 'checkbox') {
+          const originalInput = optionElement.querySelector(`#${input.id.replace(/id_form-\d+/, `id_form-\\d+`)}`);
+          if (originalInput) {
+            input.checked = originalInput.checked;
+          }
+        }
+      });
+      
+      // Mise à jour des attributs for des labels
+      const labels = newOption.querySelectorAll('label');
+      labels.forEach(label => {
+        const forAttr = label.getAttribute('for');
+        if (forAttr) {
+          const newFor = forAttr.replace(/id_form-\d+/, `id_form-${index}`);
+          label.setAttribute('for', newFor);
+        }
+      });
+      
+      // Mise à jour du titre
+      const title = newOption.querySelector('.date-option-title');
+      if (title) {
+        title.textContent = `{% trans "Option" %} ${index + 1}`;
+      }
+      
+      dateOptionsContainer.appendChild(newOption);
+      updateFormIndices();
+      attachEventHandlers(newOption);
+      updatePreview();
+    }
+    
+    // Attacher les gestionnaires d'événements
+    function attachEventHandlers(optionElement) {
+      // Gestion de la suppression
+      const removeBtn = optionElement.querySelector('.date-option-remove');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', function() {
+          // Vérifier le nombre d'options
+          const options = dateOptionsContainer.querySelectorAll('.date-option');
+          if (options.length <= 1) {
+            alert("{% trans 'Vous devez avoir au moins une option de date.' %}");
+            return;
+          }
+          
+          // Supprimer l'option
+          optionElement.remove();
+          updateFormIndices();
+          updatePreview();
+        });
+      }
+      
+      // Gestion de la duplication
+      const duplicateBtn = optionElement.querySelector('.date-option-duplicate');
+      if (duplicateBtn) {
+        duplicateBtn.addEventListener('click', function() {
+          duplicateOption(optionElement);
+        });
+      }
+      
+      // Gestion de l'option "toute la journée"
+      const allDayCheckbox = optionElement.querySelector('.all-day-checkbox');
+      const timeInputs = optionElement.querySelectorAll('.time-input');
+      
+      if (allDayCheckbox) {
+        allDayCheckbox.addEventListener('change', function() {
+          timeInputs.forEach(input => {
+            input.disabled = this.checked;
+            if (this.checked) {
+              input.value = '';
+            }
+          });
+          updatePreview();
+        });
+        
+        // Initialiser l'état des champs d'heure
+        if (allDayCheckbox.checked) {
+          timeInputs.forEach(input => {
+            input.disabled = true;
+          });
+        }
+      }
+    }
+    
+    // Attacher les gestionnaires aux options existantes
+    document.querySelectorAll('.date-option').forEach(option => {
+      attachEventHandlers(option);
+    });
+    
+    // Prévisualisation du sondage
+    const togglePreviewBtn = document.getElementById('togglePreview');
+    const previewContent = document.getElementById('previewContent');
+    
+    togglePreviewBtn.addEventListener('click', function() {
+      if (previewContent.style.display === 'none') {
+        previewContent.style.display = 'block';
+        togglePreviewBtn.innerHTML = '<i class="fas fa-eye-slash"></i> {% trans "Masquer la prévisualisation" %}';
+        updatePreview();
+      } else {
+        previewContent.style.display = 'none';
+        togglePreviewBtn.innerHTML = '<i class="fas fa-eye"></i> {% trans "Afficher la prévisualisation" %}';
+      }
+    });
+    
+    // Mettre à jour la prévisualisation
+    function updatePreview() {
+      if (previewContent.style.display === 'none') {
+        return;
+      }
+      
+      const title = document.getElementById('{{ form.title.id_for_label }}').value || "{% trans 'Sondage de disponibilité' %}";
+      const description = document.getElementById('{{ form.description.id_for_label }}').value || "{% trans 'Veuillez indiquer vos disponibilités pour l\'événement.' %}";
+      const responseType = document.getElementById('{{ form.response_type.id_for_label }}').value;
+      
+      document.getElementById('previewTitle').textContent = title;
+      document.getElementById('previewDescription').textContent = description;
+      
+      // Générer les options
+      const previewOptionsContainer = document.getElementById('previewOptions');
+      previewOptionsContainer.innerHTML = '';
+      
+      const dateOptions = document.querySelectorAll('.date-option');
+      dateOptions.forEach((option, index) => {
+        const dateInput = option.querySelector('input[name$="-date"]');
+        const startTimeInput = option.querySelector('input[name$="-start_time"]');
+        const endTimeInput = option.querySelector('input[name$="-end_time"]');
+        const allDayCheckbox = option.querySelector('input[name$="-all_day"]');
+        const locationInput = option.querySelector('input[name$="-location"]');
+        
+        // Ignorer les options sans date
+        if (!dateInput || !dateInput.value) {
+          return;
+        }
+        
+        // Formatter la date
+        const date = new Date(dateInput.value);
+        const formattedDate = date.toLocaleDateString('fr-FR', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+        
+        // Créer l'élément d'option
+        const optionElement = document.createElement('div');
+        optionElement.className = 'poll-preview-option';
+        
+        // Déterminer l'affichage de l'heure
+        let timeText = '';
+        if (allDayCheckbox && allDayCheckbox.checked) {
+          timeText = "{% trans 'Toute la journée' %}";
+        } else if (startTimeInput && startTimeInput.value) {
+          timeText = startTimeInput.value;
+          if (endTimeInput && endTimeInput.value) {
+            timeText += ` - ${endTimeInput.value}`;
+          }
+        }
+        
+        // Déterminer l'affichage du lieu
+        let locationText = '';
+        if (locationInput && locationInput.value) {
+          locationText = locationInput.value;
+        }
+        
+        // Construire le contenu
+        let optionContent = `
+          <div class="poll-preview-date">${formattedDate}</div>
+        `;
+        
+        if (timeText) {
+          optionContent += `<div class="poll-preview-time"><i class="far fa-clock me-1"></i> ${timeText}</div>`;
+        }
+        
+        if (locationText) {
+          optionContent += `<div class="poll-preview-location"><i class="fas fa-map-marker-alt me-1"></i> ${locationText}</div>`;
+        }
+        
+        // Ajouter les boutons de réponse
+        optionContent += `<div class="poll-preview-response-btns">`;
+        
+        if (responseType === 'yes_no') {
+          optionContent += `
+            <div class="poll-preview-response-btn poll-preview-response-yes">
+              <i class="fas fa-check me-1"></i> {% trans "Oui" %}
+            </div>
+            <div class="poll-preview-response-btn poll-preview-response-no">
+              <i class="fas fa-times me-1"></i> {% trans "Non" %}
+            </div>
+          `;
+        } else if (responseType === 'yes_maybe_no') {
+          optionContent += `
+            <div class="poll-preview-response-btn poll-preview-response-yes">
+              <i class="fas fa-check me-1"></i> {% trans "Oui" %}
+            </div>
+            <div class="poll-preview-response-btn poll-preview-response-maybe">
+              <i class="fas fa-question me-1"></i> {% trans "Peut-être" %}
+            </div>
+            <div class="poll-preview-response-btn poll-preview-response-no">
+              <i class="fas fa-times me-1"></i> {% trans "Non" %}
+            </div>
+          `;
+        } else {
+          optionContent += `
+            <div class="poll-preview-response-btn poll-preview-response-yes">
+              <i class="fas fa-sun me-1"></i> {% trans "Matin" %}
+            </div>
+            <div class="poll-preview-response-btn poll-preview-response-maybe">
+              <i class="fas fa-cloud-sun me-1"></i> {% trans "Après-midi" %}
+            </div>
+            <div class="poll-preview-response-btn poll-preview-response-no">
+              <i class="fas fa-moon me-1"></i> {% trans "Soir" %}
+            </div>
+          `;
+        }
+        
+        optionContent += `</div>`;
+        
+        optionElement.innerHTML = optionContent;
+        previewOptionsContainer.appendChild(optionElement);
+      });
+      
+      // Message si aucune option valide
+      if (previewOptionsContainer.childElementCount === 0) {
+        previewOptionsContainer.innerHTML = `
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i> 
+            {% trans "Aucune option de date valide. Veuillez ajouter au moins une date." %}
+          </div>
+        `;
+      }
+    }
+    
+    // Mettre à jour la prévisualisation quand les champs sont modifiés
+    document.getElementById('{{ form.title.id_for_label }}').addEventListener('input', updatePreview);
+    document.getElementById('{{ form.description.id_for_label }}').addEventListener('input', updatePreview);
+    
+    // S'assurer qu'il y a au moins une option de date
+    if (dateOptionsContainer.querySelectorAll('.date-option').length === 0) {
+      addDateOption.click();
+    }
+  });
+</script>
+{% endblock %}

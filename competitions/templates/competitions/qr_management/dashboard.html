@@ -1,0 +1,581 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Gestion des QR codes et parrainages" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .qr-card {
+        transition: all 0.3s ease;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .qr-card:hover {
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        transform: translateY(-5px);
+    }
+    .qr-image-container {
+        height: 200px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8f9fa;
+    }
+    .qr-image {
+        max-width: 100%;
+        max-height: 180px;
+    }
+    .stats-badge {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+    }
+    .create-card {
+        border: 2px dashed #ddd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 300px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .create-card:hover {
+        border-color: #6c757d;
+        background-color: #f8f9fa;
+    }
+    .create-icon {
+        font-size: 3rem;
+        color: #6c757d;
+    }
+    .tab-content {
+        padding-top: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">{% trans "Gestion des QR codes et parrainages" %}</h1>
+    
+    <!-- Onglets -->
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="qr-codes-tab" data-bs-toggle="tab" data-bs-target="#qr-codes" type="button" role="tab" aria-controls="qr-codes" aria-selected="true">{% trans "QR Codes" %}</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="referrals-tab" data-bs-toggle="tab" data-bs-target="#referrals" type="button" role="tab" aria-controls="referrals" aria-selected="false">{% trans "Parrainages" %}</button>
+        </li>
+    </ul>
+    
+    <!-- Contenu des onglets -->
+    <div class="tab-content" id="myTabContent">
+        <!-- Onglet QR Codes -->
+        <div class="tab-pane fade show active" id="qr-codes" role="tabpanel" aria-labelledby="qr-codes-tab">
+            {% if user_clubs or user_federations or user_coach_profiles %}
+                <div class="mb-4">
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createQRModal">
+                        <i class="fas fa-plus-circle"></i> {% trans "Créer un QR code" %}
+                    </button>
+                </div>
+                
+                {% if club_qr_codes %}
+                    <h2 class="mb-3">{% trans "QR codes de vos clubs" %}</h2>
+                    <div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
+                        {% for qr in club_qr_codes %}
+                            <div class="col">
+                                <div class="card h-100 qr-card">
+                                    <div class="qr-image-container">
+                                        {% if qr.qr_image %}
+                                            <img src="{{ qr.qr_image.url }}" class="qr-image" alt="QR Code">
+                                        {% else %}
+                                            <div class="text-center text-muted">
+                                                <i class="fas fa-qrcode fa-5x"></i>
+                                                <p>{% trans "QR code non généré" %}</p>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="card-body">
+                                        <h5 class="card-title">{{ qr.club.name }}</h5>
+                                        <p class="card-text">
+                                            {% if qr.purpose == 'registration' %}
+                                                {% trans "Objectif: Inscription" %}
+                                            {% elif qr.purpose == 'payment' %}
+                                                {% trans "Objectif: Paiement" %}
+                                            {% elif qr.purpose == 'both' %}
+                                                {% trans "Objectif: Inscription et paiement" %}
+                                            {% else %}
+                                                {% trans "Objectif: Information" %}
+                                            {% endif %}
+                                        </p>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="badge bg-primary stats-badge">
+                                                <i class="fas fa-qrcode"></i> {{ qr.scan_count }} {% trans "scans" %}
+                                            </span>
+                                            <span class="badge bg-success stats-badge">
+                                                <i class="fas fa-check-circle"></i> {{ qr.conversion_count }} {% trans "conversions" %}
+                                            </span>
+                                            {% if qr.is_active %}
+                                                <span class="badge bg-success stats-badge">{% trans "Actif" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-danger stats-badge">{% trans "Inactif" %}</span>
+                                            {% endif %}
+                                        </div>
+                                        <a href="{% url 'competitions:qr_management:view_qr_code' qr_code_id=qr.id %}" class="btn btn-sm btn-outline-primary w-100">{% trans "Voir détails" %}</a>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                
+                {% if federation_qr_codes %}
+                    <h2 class="mb-3">{% trans "QR codes de vos fédérations" %}</h2>
+                    <div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
+                        {% for qr in federation_qr_codes %}
+                            <div class="col">
+                                <div class="card h-100 qr-card">
+                                    <div class="qr-image-container">
+                                        {% if qr.qr_image %}
+                                            <img src="{{ qr.qr_image.url }}" class="qr-image" alt="QR Code">
+                                        {% else %}
+                                            <div class="text-center text-muted">
+                                                <i class="fas fa-qrcode fa-5x"></i>
+                                                <p>{% trans "QR code non généré" %}</p>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="card-body">
+                                        <h5 class="card-title">{{ qr.federation.name }}</h5>
+                                        <p class="card-text">
+                                            {% if qr.purpose == 'registration' %}
+                                                {% trans "Objectif: Inscription" %}
+                                            {% elif qr.purpose == 'payment' %}
+                                                {% trans "Objectif: Paiement" %}
+                                            {% elif qr.purpose == 'both' %}
+                                                {% trans "Objectif: Inscription et paiement" %}
+                                            {% else %}
+                                                {% trans "Objectif: Information" %}
+                                            {% endif %}
+                                        </p>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="badge bg-primary stats-badge">
+                                                <i class="fas fa-qrcode"></i> {{ qr.scan_count }} {% trans "scans" %}
+                                            </span>
+                                            <span class="badge bg-success stats-badge">
+                                                <i class="fas fa-check-circle"></i> {{ qr.conversion_count }} {% trans "conversions" %}
+                                            </span>
+                                            {% if qr.is_active %}
+                                                <span class="badge bg-success stats-badge">{% trans "Actif" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-danger stats-badge">{% trans "Inactif" %}</span>
+                                            {% endif %}
+                                        </div>
+                                        <a href="{% url 'competitions:qr_management:view_qr_code' qr_code_id=qr.id %}" class="btn btn-sm btn-outline-primary w-100">{% trans "Voir détails" %}</a>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                
+                {% if coach_qr_codes %}
+                    <h2 class="mb-3">{% trans "QR codes de votre profil coach" %}</h2>
+                    <div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
+                        {% for qr in coach_qr_codes %}
+                            <div class="col">
+                                <div class="card h-100 qr-card">
+                                    <div class="qr-image-container">
+                                        {% if qr.qr_image %}
+                                            <img src="{{ qr.qr_image.url }}" class="qr-image" alt="QR Code">
+                                        {% else %}
+                                            <div class="text-center text-muted">
+                                                <i class="fas fa-qrcode fa-5x"></i>
+                                                <p>{% trans "QR code non généré" %}</p>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="card-body">
+                                        <h5 class="card-title">{{ qr.coach_profile.user.get_full_name }}</h5>
+                                        <p class="card-text">
+                                            {% if qr.purpose == 'registration' %}
+                                                {% trans "Objectif: Inscription" %}
+                                            {% elif qr.purpose == 'payment' %}
+                                                {% trans "Objectif: Paiement" %}
+                                            {% elif qr.purpose == 'both' %}
+                                                {% trans "Objectif: Inscription et paiement" %}
+                                            {% else %}
+                                                {% trans "Objectif: Information" %}
+                                            {% endif %}
+                                        </p>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="badge bg-primary stats-badge">
+                                                <i class="fas fa-qrcode"></i> {{ qr.scan_count }} {% trans "scans" %}
+                                            </span>
+                                            <span class="badge bg-success stats-badge">
+                                                <i class="fas fa-check-circle"></i> {{ qr.conversion_count }} {% trans "conversions" %}
+                                            </span>
+                                            {% if qr.is_active %}
+                                                <span class="badge bg-success stats-badge">{% trans "Actif" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-danger stats-badge">{% trans "Inactif" %}</span>
+                                            {% endif %}
+                                        </div>
+                                        <a href="{% url 'competitions:qr_management:view_qr_code' qr_code_id=qr.id %}" class="btn btn-sm btn-outline-primary w-100">{% trans "Voir détails" %}</a>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-info">
+                    {% trans "Vous devez être responsable d'un club, d'une fédération ou avoir un profil coach pour créer des QR codes." %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Onglet Parrainages -->
+        <div class="tab-pane fade" id="referrals" role="tabpanel" aria-labelledby="referrals-tab">
+            {% if user_clubs or user_federations %}
+                <div class="mb-4">
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createReferralModal">
+                        <i class="fas fa-plus-circle"></i> {% trans "Créer un lien de parrainage" %}
+                    </button>
+                </div>
+                
+                {% if referral_links %}
+                    <h2 class="mb-3">{% trans "Vos liens de parrainage" %}</h2>
+                    <div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
+                        {% for link in referral_links %}
+                            <div class="col">
+                                <div class="card h-100 qr-card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">
+                                            {% if link.club %}
+                                                {{ link.club.name }}
+                                            {% elif link.federation %}
+                                                {{ link.federation.name }}
+                                            {% endif %}
+                                        </h5>
+                                        <p class="card-text">
+                                            <strong>{% trans "Code:" %}</strong> {{ link.code }}<br>
+                                            <strong>{% trans "Réduction:" %}</strong>
+                                            {% if link.discount_amount %}
+                                                {{ link.discount_amount }} €
+                                            {% elif link.discount_percentage %}
+                                                {{ link.discount_percentage }}%
+                                            {% endif %}
+                                        </p>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="badge bg-primary stats-badge">
+                                                <i class="fas fa-users"></i> {{ link.uses.count }} {% trans "utilisations" %}
+                                            </span>
+                                            <span class="badge bg-success stats-badge">
+                                                <i class="fas fa-check-circle"></i> {{ link.uses.filter.payment_completed.count }} {% trans "payés" %}
+                                            </span>
+                                            {% if link.is_active %}
+                                                <span class="badge bg-success stats-badge">{% trans "Actif" %}</span>
+                                            {% else %}
+                                                <span class="badge bg-danger stats-badge">{% trans "Inactif" %}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="input-group mb-3">
+                                            <input type="text" class="form-control form-control-sm" value="{{ link.url }}" readonly id="referral-url-{{ link.id }}">
+                                            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="copyToClipboard('referral-url-{{ link.id }}')">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                        <a href="{% url 'competitions:qr_management:view_referral_link' referral_link_id=link.id %}" class="btn btn-sm btn-outline-primary w-100">{% trans "Voir détails" %}</a>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        {% trans "Vous n'avez pas encore créé de liens de parrainage." %}
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-info">
+                    {% trans "Vous devez être responsable d'un club ou d'une fédération pour créer des liens de parrainage." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal Création QR Code -->
+<div class="modal fade" id="createQRModal" tabindex="-1" aria-labelledby="createQRModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createQRModalLabel">{% trans "Créer un QR code" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'competitions:qr_management:create_qr_code' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="entity_type" class="form-label">{% trans "Type d'organisation" %}</label>
+                        <select class="form-select" id="entity_type" name="entity_type" required>
+                            <option value="">{% trans "Sélectionnez..." %}</option>
+                            {% if user_clubs %}
+                                <option value="club">{% trans "Club" %}</option>
+                            {% endif %}
+                            {% if user_federations %}
+                                <option value="federation">{% trans "Fédération" %}</option>
+                            {% endif %}
+                            {% if user_coach_profiles %}
+                                <option value="coach">{% trans "Coach" %}</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    
+                    {% if user_clubs %}
+                        <div class="mb-3 entity-select" id="club-select" style="display: none;">
+                            <label for="club_id" class="form-label">{% trans "Club" %}</label>
+                            <select class="form-select" id="club_id" name="entity_id">
+                                <option value="">{% trans "Sélectionnez..." %}</option>
+                                {% for club in user_clubs %}
+                                    <option value="{{ club.id }}">{{ club.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    {% endif %}
+                    
+                    {% if user_federations %}
+                        <div class="mb-3 entity-select" id="federation-select" style="display: none;">
+                            <label for="federation_id" class="form-label">{% trans "Fédération" %}</label>
+                            <select class="form-select" id="federation_id" name="entity_id">
+                                <option value="">{% trans "Sélectionnez..." %}</option>
+                                {% for federation in user_federations %}
+                                    <option value="{{ federation.id }}">{{ federation.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    {% endif %}
+                    
+                    {% if user_coach_profiles %}
+                        <div class="mb-3 entity-select" id="coach-select" style="display: none;">
+                            <label for="coach_id" class="form-label">{% trans "Profil coach" %}</label>
+                            <select class="form-select" id="coach_id" name="entity_id">
+                                <option value="">{% trans "Sélectionnez..." %}</option>
+                                {% for profile in user_coach_profiles %}
+                                    <option value="{{ profile.id }}">{{ profile.user.get_full_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label for="purpose" class="form-label">{% trans "Objectif du QR code" %}</label>
+                        <select class="form-select" id="purpose" name="purpose" required>
+                            <option value="both">{% trans "Inscription et paiement" %}</option>
+                            <option value="registration">{% trans "Inscription uniquement" %}</option>
+                            <option value="payment">{% trans "Paiement uniquement" %}</option>
+                            <option value="info">{% trans "Information uniquement" %}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="custom_title" class="form-label">{% trans "Titre personnalisé" %} ({% trans "optionnel" %})</label>
+                        <input type="text" class="form-control" id="custom_title" name="custom_title">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="custom_message" class="form-label">{% trans "Message personnalisé" %} ({% trans "optionnel" %})</label>
+                        <textarea class="form-control" id="custom_message" name="custom_message" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                    <button type="submit" class="btn btn-primary">{% trans "Créer" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Création Lien de Parrainage -->
+<div class="modal fade" id="createReferralModal" tabindex="-1" aria-labelledby="createReferralModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createReferralModalLabel">{% trans "Créer un lien de parrainage" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{% url 'competitions:qr_management:create_referral_link' %}" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="ref_entity_type" class="form-label">{% trans "Type d'organisation" %}</label>
+                        <select class="form-select" id="ref_entity_type" name="entity_type" required>
+                            <option value="">{% trans "Sélectionnez..." %}</option>
+                            {% if user_clubs %}
+                                <option value="club">{% trans "Club" %}</option>
+                            {% endif %}
+                            {% if user_federations %}
+                                <option value="federation">{% trans "Fédération" %}</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    
+                    {% if user_clubs %}
+                        <div class="mb-3 ref-entity-select" id="ref-club-select" style="display: none;">
+                            <label for="ref_club_id" class="form-label">{% trans "Club" %}</label>
+                            <select class="form-select" id="ref_club_id" name="entity_id">
+                                <option value="">{% trans "Sélectionnez..." %}</option>
+                                {% for club in user_clubs %}
+                                    <option value="{{ club.id }}">{{ club.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    {% endif %}
+                    
+                    {% if user_federations %}
+                        <div class="mb-3 ref-entity-select" id="ref-federation-select" style="display: none;">
+                            <label for="ref_federation_id" class="form-label">{% trans "Fédération" %}</label>
+                            <select class="form-select" id="ref_federation_id" name="entity_id">
+                                <option value="">{% trans "Sélectionnez..." %}</option>
+                                {% for federation in user_federations %}
+                                    <option value="{{ federation.id }}">{{ federation.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label for="discount_type" class="form-label">{% trans "Type de réduction" %}</label>
+                        <select class="form-select" id="discount_type" name="discount_type" required>
+                            <option value="percentage">{% trans "Pourcentage" %}</option>
+                            <option value="amount">{% trans "Montant fixe" %}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3" id="percentage-input">
+                        <label for="discount_value" class="form-label">{% trans "Pourcentage de réduction" %}</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="discount_value" name="discount_value" min="1" max="100" value="10" required>
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3" id="amount-input" style="display: none;">
+                        <label for="discount_value_amount" class="form-label">{% trans "Montant de réduction" %}</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="discount_value_amount" name="discount_value" min="1" value="10" step="0.01" disabled>
+                            <span class="input-group-text">€</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="max_uses" class="form-label">{% trans "Utilisations maximales" %}</label>
+                        <input type="number" class="form-control" id="max_uses" name="max_uses" min="1" value="10" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="ref_custom_message" class="form-label">{% trans "Message personnalisé" %} ({% trans "optionnel" %})</label>
+                        <textarea class="form-control" id="ref_custom_message" name="custom_message" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                    <button type="submit" class="btn btn-primary">{% trans "Créer" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Gestion de l'affichage des sélecteurs d'entités pour les QR codes
+    document.getElementById('entity_type').addEventListener('change', function() {
+        const entityType = this.value;
+        const entitySelects = document.querySelectorAll('.entity-select');
+        
+        // Cacher tous les sélecteurs
+        entitySelects.forEach(select => {
+            select.style.display = 'none';
+        });
+        
+        // Afficher le sélecteur correspondant
+        if (entityType) {
+            const selectToShow = document.getElementById(`${entityType}-select`);
+            if (selectToShow) {
+                selectToShow.style.display = 'block';
+                
+                // Réinitialiser le champ entity_id quand on change de type
+                const entityIdField = selectToShow.querySelector('select');
+                if (entityIdField) {
+                    entityIdField.required = true;
+                }
+            }
+        }
+    });
+    
+    // Gestion de l'affichage des sélecteurs d'entités pour les parrainages
+    document.getElementById('ref_entity_type').addEventListener('change', function() {
+        const entityType = this.value;
+        const entitySelects = document.querySelectorAll('.ref-entity-select');
+        
+        // Cacher tous les sélecteurs
+        entitySelects.forEach(select => {
+            select.style.display = 'none';
+        });
+        
+        // Afficher le sélecteur correspondant
+        if (entityType) {
+            const selectToShow = document.getElementById(`ref-${entityType}-select`);
+            if (selectToShow) {
+                selectToShow.style.display = 'block';
+                
+                // Réinitialiser le champ entity_id quand on change de type
+                const entityIdField = selectToShow.querySelector('select');
+                if (entityIdField) {
+                    entityIdField.required = true;
+                }
+            }
+        }
+    });
+    
+    // Gestion de l'affichage des champs de réduction
+    document.getElementById('discount_type').addEventListener('change', function() {
+        const discountType = this.value;
+        
+        // Cacher tous les champs
+        document.getElementById('percentage-input').style.display = 'none';
+        document.getElementById('amount-input').style.display = 'none';
+        
+        // Désactiver tous les champs
+        document.getElementById('discount_value').disabled = true;
+        document.getElementById('discount_value_amount').disabled = true;
+        
+        // Afficher et activer le champ correspondant
+        if (discountType === 'percentage') {
+            document.getElementById('percentage-input').style.display = 'block';
+            document.getElementById('discount_value').disabled = false;
+        } else if (discountType === 'amount') {
+            document.getElementById('amount-input').style.display = 'block';
+            document.getElementById('discount_value_amount').disabled = false;
+        }
+    });
+    
+    // Fonction pour copier un texte dans le presse-papier
+    function copyToClipboard(elementId) {
+        const element = document.getElementById(elementId);
+        element.select();
+        document.execCommand('copy');
+        
+        // Feedback visuel
+        const originalValue = element.value;
+        element.value = '{% trans "Copié !" %}';
+        setTimeout(() => {
+            element.value = originalValue;
+        }, 1000);
+    }
+</script>
+{% endblock %}

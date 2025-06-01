@@ -1,0 +1,851 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Rapports financiers" %}{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">{% trans "Rapports financiers" %}</h1>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        {{ error }}
+    </div>
+    {% else %}
+    
+    <!-- Filtres de période -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Période et type de rapport" %}</h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="mb-3">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="type">{% trans "Type de rapport:" %}</label>
+                        <select name="type" id="type" class="form-control">
+                            <option value="income_expense" {% if report_type == 'income_expense' %}selected{% endif %}>{% trans "Revenus et dépenses" %}</option>
+                            <option value="balance_sheet" {% if report_type == 'balance_sheet' %}selected{% endif %}>{% trans "Bilan" %}</option>
+                            <option value="cash_flow" {% if report_type == 'cash_flow' %}selected{% endif %}>{% trans "Flux de trésorerie" %}</option>
+                            <option value="invoices" {% if report_type == 'invoices' %}selected{% endif %}>{% trans "Factures" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="period">{% trans "Période:" %}</label>
+                        <select name="period" id="period" class="form-control">
+                            <option value="month" {% if period == 'month' %}selected{% endif %}>{% trans "Mois en cours" %}</option>
+                            <option value="prev_month" {% if period == 'prev_month' %}selected{% endif %}>{% trans "Mois précédent" %}</option>
+                            <option value="30days" {% if period == '30days' %}selected{% endif %}>{% trans "30 derniers jours" %}</option>
+                            <option value="90days" {% if period == '90days' %}selected{% endif %}>{% trans "90 derniers jours" %}</option>
+                            <option value="ytd" {% if period == 'ytd' %}selected{% endif %}>{% trans "Depuis le début de l'année" %}</option>
+                            <option value="year" {% if period == 'year' %}selected{% endif %}>{% trans "Année en cours" %}</option>
+                            <option value="prev_year" {% if period == 'prev_year' %}selected{% endif %}>{% trans "Année précédente" %}</option>
+                            <option value="custom" {% if period == 'custom' %}selected{% endif %}>{% trans "Personnalisée" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3 align-self-end">
+                        <button type="submit" class="btn btn-primary">{% trans "Générer le rapport" %}</button>
+                    </div>
+                </div>
+                
+                <div id="custom-date-range" class="row {% if period != 'custom' %}d-none{% endif %}">
+                    <div class="col-md-6">
+                        <label for="start_date">{% trans "Date de début:" %}</label>
+                        <input type="date" name="start_date" id="start_date" class="form-control" 
+                               value="{{ start_date|date:'Y-m-d' }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="end_date">{% trans "Date de fin:" %}</label>
+                        <input type="date" name="end_date" id="end_date" class="form-control" 
+                               value="{{ end_date|date:'Y-m-d' }}">
+                    </div>
+                </div>
+            </form>
+            
+            <div class="text-muted">
+                {% trans "Période du rapport:" %} <strong>{{ start_date|date:"d/m/Y" }}</strong> {% trans "au" %} <strong>{{ end_date|date:"d/m/Y" }}</strong>
+            </div>
+        </div>
+    </div>
+    
+    {% if report_type == 'income_expense' %}
+    <!-- Rapport Revenus et Dépenses -->
+    <div class="row">
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                {% trans "Revenus" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ total_income|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-money-bill-wave fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-danger shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                {% trans "Dépenses" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ total_expense|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-credit-card fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card {% if net_result >= 0 %}border-left-primary{% else %}border-left-warning{% endif %} shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold {% if net_result >= 0 %}text-primary{% else %}text-warning{% endif %} text-uppercase mb-1">
+                                {% trans "Résultat net" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ net_result|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-balance-scale fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Revenus par catégorie -->
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Revenus par catégorie" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th class="text-right">{% trans "Montant" %}</th>
+                                    <th class="text-right">{% trans "%" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in income_by_category %}
+                                <tr>
+                                    <td>{{ item.category__name|default:"Non catégorisé" }}</td>
+                                    <td class="text-right">{{ item.total|floatformat:2 }} €</td>
+                                    <td class="text-right">
+                                        {% if total_income > 0 %}
+                                        {{ item.total|floatformat:0 }}%
+                                        {% else %}
+                                        0%
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center">{% trans "Aucun revenu pour cette période." %}</td>
+                                </tr>
+                                {% endfor %}
+                                
+                                {% if income_by_category %}
+                                <tr class="table-active">
+                                    <td><strong>{% trans "Total" %}</strong></td>
+                                    <td class="text-right"><strong>{{ total_income|floatformat:2 }} €</strong></td>
+                                    <td class="text-right">100%</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dépenses par catégorie -->
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Dépenses par catégorie" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th class="text-right">{% trans "Montant" %}</th>
+                                    <th class="text-right">{% trans "%" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in expense_by_category %}
+                                <tr>
+                                    <td>{{ item.category__name|default:"Non catégorisé" }}</td>
+                                    <td class="text-right">{{ item.total|floatformat:2 }} €</td>
+                                    <td class="text-right">
+                                        {% if total_expense > 0 %}
+                                        {{ item.total|floatformat:0 }}%
+                                        {% else %}
+                                        0%
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center">{% trans "Aucune dépense pour cette période." %}</td>
+                                </tr>
+                                {% endfor %}
+                                
+                                {% if expense_by_category %}
+                                <tr class="table-active">
+                                    <td><strong>{% trans "Total" %}</strong></td>
+                                    <td class="text-right"><strong>{{ total_expense|floatformat:2 }} €</strong></td>
+                                    <td class="text-right">100%</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if report_type == 'balance_sheet' %}
+    <!-- Bilan financier -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Bilan financier au" %} {{ end_date|date:"d/m/Y" }}</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- Actifs -->
+                <div class="col-lg-6">
+                    <h5>{% trans "Actifs" %}</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Compte" %}</th>
+                                    <th class="text-right">{% trans "Montant" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for account in assets %}
+                                <tr>
+                                    <td>{{ account.name }}</td>
+                                    <td class="text-right">{{ account.balance|floatformat:2 }} €</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="2" class="text-center">{% trans "Aucun actif enregistré." %}</td>
+                                </tr>
+                                {% endfor %}
+                                
+                                {% if assets %}
+                                <tr class="table-active">
+                                    <td><strong>{% trans "Total Actifs" %}</strong></td>
+                                    <td class="text-right"><strong>{{ total_assets|floatformat:2 }} €</strong></td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Passifs et capitaux propres -->
+                <div class="col-lg-6">
+                    <h5>{% trans "Passifs" %}</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Compte" %}</th>
+                                    <th class="text-right">{% trans "Montant" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for account in liabilities %}
+                                <tr>
+                                    <td>{{ account.name }}</td>
+                                    <td class="text-right">{{ account.balance|floatformat:2 }} €</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="2" class="text-center">{% trans "Aucun passif enregistré." %}</td>
+                                </tr>
+                                {% endfor %}
+                                
+                                {% if liabilities %}
+                                <tr class="table-active">
+                                    <td><strong>{% trans "Total Passifs" %}</strong></td>
+                                    <td class="text-right"><strong>{{ total_liabilities|floatformat:2 }} €</strong></td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <h5 class="mt-4">{% trans "Capitaux propres" %}</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Compte" %}</th>
+                                    <th class="text-right">{% trans "Montant" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for account in equity %}
+                                <tr>
+                                    <td>{{ account.name }}</td>
+                                    <td class="text-right">{{ account.balance|floatformat:2 }} €</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="2" class="text-center">{% trans "Aucun capital propre enregistré." %}</td>
+                                </tr>
+                                {% endfor %}
+                                
+                                {% if equity %}
+                                <tr class="table-active">
+                                    <td><strong>{% trans "Total Capitaux propres" %}</strong></td>
+                                    <td class="text-right"><strong>{{ total_equity|floatformat:2 }} €</strong></td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="alert {% if balance_check == 0 %}alert-success{% else %}alert-warning{% endif %} mt-3">
+                        <div class="row">
+                            <div class="col-8">
+                                <strong>{% trans "Total Passifs + Capitaux propres" %}</strong>
+                            </div>
+                            <div class="col-4 text-right">
+                                <strong>{{ total_liabilities|add:total_equity|floatformat:2 }} €</strong>
+                            </div>
+                        </div>
+                        {% if balance_check != 0 %}
+                        <div class="row mt-2">
+                            <div class="col-8 text-danger">
+                                <strong>{% trans "Écart" %}</strong>
+                            </div>
+                            <div class="col-4 text-right text-danger">
+                                <strong>{{ balance_check|floatformat:2 }} €</strong>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if report_type == 'cash_flow' %}
+    <!-- Flux de trésorerie -->
+    <div class="row">
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                {% trans "Solde initial" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ initial_balance|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-calendar fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card {% if net_cash_flow >= 0 %}border-left-success{% else %}border-left-danger{% endif %} shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold {% if net_cash_flow >= 0 %}text-success{% else %}text-danger{% endif %} text-uppercase mb-1">
+                                {% trans "Flux net de trésorerie" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ net_cash_flow|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-exchange-alt fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-4 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                {% trans "Solde final" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ final_balance|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-calendar-check fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Entrées de trésorerie -->
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Entrées de trésorerie" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th class="text-right">{% trans "Montant" %}</th>
+                                    <th class="text-right">{% trans "%" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in inflows_by_category %}
+                                <tr>
+                                    <td>{{ item.category__name|default:"Non catégorisé" }}</td>
+                                    <td class="text-right">{{ item.total|floatformat:2 }} €</td>
+                                    <td class="text-right">
+                                        {% if total_inflows > 0 %}
+                                        {{ item.total|floatformat:0 }}%
+                                        {% else %}
+                                        0%
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center">{% trans "Aucune entrée pour cette période." %}</td>
+                                </tr>
+                                {% endfor %}
+                                
+                                {% if inflows_by_category %}
+                                <tr class="table-active">
+                                    <td><strong>{% trans "Total" %}</strong></td>
+                                    <td class="text-right"><strong>{{ total_inflows|floatformat:2 }} €</strong></td>
+                                    <td class="text-right">100%</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sorties de trésorerie -->
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Sorties de trésorerie" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th class="text-right">{% trans "Montant" %}</th>
+                                    <th class="text-right">{% trans "%" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in outflows_by_category %}
+                                <tr>
+                                    <td>{{ item.category__name|default:"Non catégorisé" }}</td>
+                                    <td class="text-right">{{ item.total|floatformat:2 }} €</td>
+                                    <td class="text-right">
+                                        {% if total_outflows > 0 %}
+                                        {{ item.total|floatformat:0 }}%
+                                        {% else %}
+                                        0%
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center">{% trans "Aucune sortie pour cette période." %}</td>
+                                </tr>
+                                {% endfor %}
+                                
+                                {% if outflows_by_category %}
+                                <tr class="table-active">
+                                    <td><strong>{% trans "Total" %}</strong></td>
+                                    <td class="text-right"><strong>{{ total_outflows|floatformat:2 }} €</strong></td>
+                                    <td class="text-right">100%</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Détail des comptes de trésorerie -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Détail des comptes de trésorerie" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Compte" %}</th>
+                            <th class="text-right">{% trans "Solde" %}</th>
+                            <th class="text-right">{% trans "%" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for account in cash_accounts %}
+                        <tr>
+                            <td>{{ account.name }}</td>
+                            <td class="text-right">{{ account.balance|floatformat:2 }} €</td>
+                            <td class="text-right">
+                                {% if final_balance != 0 %}
+                                {{ account.balance|floatformat:0 }}%
+                                {% else %}
+                                0%
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center">{% trans "Aucun compte de trésorerie." %}</td>
+                        </tr>
+                        {% endfor %}
+                        
+                        {% if cash_accounts %}
+                        <tr class="table-active">
+                            <td><strong>{% trans "Total" %}</strong></td>
+                            <td class="text-right"><strong>{{ final_balance|floatformat:2 }} €</strong></td>
+                            <td class="text-right">100%</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if report_type == 'invoices' %}
+    <!-- Rapport sur les factures -->
+    <div class="row">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                {% trans "Factures émises" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ invoice_count }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-file-invoice fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                {% trans "Montant total" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ total_amount|floatformat:2 }} €
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-euro-sign fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                {% trans "Payées" %}
+                            </div>
+                            <div class="row no-gutters align-items-center">
+                                <div class="col-auto">
+                                    <div class="h5 mb-0 mr-3 font-weight-bold text-gray-800">{{ payment_rate|floatformat:0 }}%</div>
+                                </div>
+                                <div class="col">
+                                    <div class="progress progress-sm mr-2">
+                                        <div class="progress-bar bg-info" role="progressbar"
+                                            style="width: {{ payment_rate|floatformat:0 }}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clipboard-check fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                {% trans "Âge moyen (impayées)" %}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ avg_age|floatformat:0 }} {% trans "jours" %}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-calendar-alt fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Statut des factures -->
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Statut des factures" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th class="text-right">{% trans "Nombre" %}</th>
+                                    <th class="text-right">{% trans "Montant" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>{% trans "Payées" %}</td>
+                                    <td class="text-right">{{ paid_count }}</td>
+                                    <td class="text-right">{{ paid_amount|floatformat:2 }} €</td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "Impayées" %}</td>
+                                    <td class="text-right">{{ unpaid_count }}</td>
+                                    <td class="text-right">{{ unpaid_amount|floatformat:2 }} €</td>
+                                </tr>
+                                <tr class="table-active">
+                                    <td><strong>{% trans "Total" %}</strong></td>
+                                    <td class="text-right"><strong>{{ invoice_count }}</strong></td>
+                                    <td class="text-right"><strong>{{ total_amount|floatformat:2 }} €</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Âge des factures impayées -->
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">{% trans "Âge des factures impayées" %}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Tranche d'âge" %}</th>
+                                    <th class="text-right">{% trans "Nombre" %}</th>
+                                    <th class="text-right">{% trans "%" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>{% trans "0-30 jours" %}</td>
+                                    <td class="text-right">{{ age_ranges.0_30 }}</td>
+                                    <td class="text-right">
+                                        {% if unpaid_count > 0 %}
+                                        {{ age_ranges.0_30|floatformat:0 }}%
+                                        {% else %}
+                                        0%
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "31-60 jours" %}</td>
+                                    <td class="text-right">{{ age_ranges.31_60 }}</td>
+                                    <td class="text-right">
+                                        {% if unpaid_count > 0 %}
+                                        {{ age_ranges.31_60|floatformat:0 }}%
+                                        {% else %}
+                                        0%
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "61-90 jours" %}</td>
+                                    <td class="text-right">{{ age_ranges.61_90 }}</td>
+                                    <td class="text-right">
+                                        {% if unpaid_count > 0 %}
+                                        {{ age_ranges.61_90|floatformat:0 }}%
+                                        {% else %}
+                                        0%
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "Plus de 90 jours" %}</td>
+                                    <td class="text-right">{{ age_ranges.over_90 }}</td>
+                                    <td class="text-right">
+                                        {% if unpaid_count > 0 %}
+                                        {{ age_ranges.over_90|floatformat:0 }}%
+                                        {% else %}
+                                        0%
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr class="table-active">
+                                    <td><strong>{% trans "Total" %}</strong></td>
+                                    <td class="text-right"><strong>{{ unpaid_count }}</strong></td>
+                                    <td class="text-right">100%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if unpaid_invoices %}
+    <!-- Liste des factures impayées -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Factures impayées" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Numéro" %}</th>
+                            <th>{% trans "Date" %}</th>
+                            <th>{% trans "Client" %}</th>
+                            <th class="text-right">{% trans "Montant" %}</th>
+                            <th>{% trans "Échéance" %}</th>
+                            <th>{% trans "Âge (jours)" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in unpaid_invoices %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'finances:invoice_detail' invoice.id %}">{{ invoice.number }}</a>
+                            </td>
+                            <td>{{ invoice.issued_date|date:"d/m/Y" }}</td>
+                            <td>{{ invoice.client_name }}</td>
+                            <td class="text-right">{{ invoice.total|floatformat:2 }} €</td>
+                            <td>{{ invoice.due_date|date:"d/m/Y" }}</td>
+                            <td>
+                                {% with age=invoice.get_age %}
+                                <span class="badge {% if age <= 30 %}bg-success{% elif age <= 60 %}bg-warning{% elif age <= 90 %}bg-danger{% else %}bg-dark{% endif %}">
+                                    {{ age }} {% trans "jours" %}
+                                </span>
+                                {% endwith %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+    
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Afficher/cacher les champs de date personnalisée
+        $('#period').on('change', function() {
+            var period = $(this).val();
+            if (period === 'custom') {
+                $('#custom-date-range').removeClass('d-none');
+            } else {
+                $('#custom-date-range').addClass('d-none');
+            }
+        });
+    });
+</script>
+{% endblock %}

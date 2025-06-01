@@ -1,0 +1,165 @@
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
+
+class JudgeCertification(models.Model):
+    """Modèle pour les certifications de juges délivrées par les fédérations."""
+    
+    LEVEL_CHOICES = [
+        ('regional', _('Régional')),
+        ('national', _('National')),
+        ('international', _('International')),
+    ]
+    
+    # Relations - Ajout de null=True pour faciliter la migration
+    federation = models.ForeignKey(
+        'Federation', 
+        on_delete=models.CASCADE, 
+        related_name='judge_certifications',
+        verbose_name=_("Fédération")
+    )
+    discipline = models.ForeignKey(
+        'Discipline', 
+        on_delete=models.CASCADE, 
+        related_name='certifications',
+        verbose_name=_("Discipline"),
+        null=True,  # Permettre temporairement des valeurs nulles pour la migration
+        blank=True
+    )
+    
+    # Informations générales
+    title = models.CharField(_("Titre"), max_length=100)
+    code = models.CharField(_("Code"), max_length=20, blank=True, null=True)  # Permettre null pour faciliter la migration
+    level = models.CharField(_("Niveau"), max_length=20, choices=LEVEL_CHOICES, default='regional')
+    description = models.TextField(_("Description"), blank=True)
+    requirements = models.TextField(_("Prérequis"), blank=True)
+    
+    # Champs anciens qui pourraient encore exister dans la base de données
+    # Les conserver avec null=True pour permettre la migration
+    certification_type = models.CharField(max_length=50, null=True, blank=True)
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    location = models.CharField(max_length=255, null=True, blank=True)
+    examiner = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='examiner_certifications')
+    max_participants = models.PositiveIntegerField(null=True, blank=True)
+    registration_deadline = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, null=True, blank=True)
+    
+    # Validité
+    validity_period = models.PositiveIntegerField(
+        _("Durée de validité (mois)"), 
+        default=36,
+        help_text=_("Durée de validité de la certification en mois"),
+        null=True  # Permettre temporairement des valeurs nulles
+    )
+    
+    # Métadonnées
+    is_active = models.BooleanField(_("Active"), default=True, null=True)  # Permettre temporairement des valeurs nulles
+    created_at = models.DateTimeField(_("Créée le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mise à jour le"), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("Certification de juge")
+        verbose_name_plural = _("Certifications de juge")
+        ordering = ['federation', 'level', 'title']
+        # Supprimer temporairement la contrainte unique_together
+        # unique_together = ['federation', 'code']
+    
+    def __str__(self):
+        return f"{self.title} - {self.get_federation_name()} ({self.get_level_display()})"
+    
+    def get_federation_name(self):
+        """Récupérer le nom de la fédération de manière sécurisée."""
+        try:
+            return self.federation.name if self.federation else "N/A"
+        except:
+            return "N/A"
+    
+    def active_certifications_count(self):
+        """Nombre de certifications actives délivrées."""
+        return self.registrations.filter(status='approved').count()
+
+
+class CertificationRegistration(models.Model):
+    """Modèle pour les inscriptions aux examens de certification."""
+    
+    STATUS_CHOICES = [
+        ('pending', _('En attente')),
+        ('approved', _('Approuvée')),
+        ('rejected', _('Rejetée')),
+        ('completed', _('Complétée')),
+    ]
+    
+    # Relations - Ajout de null=True pour faciliter la migration
+    certification = models.ForeignKey(
+        JudgeCertification, 
+        on_delete=models.CASCADE, 
+        related_name='registrations',
+        verbose_name=_("Certification")
+    )
+    user = models.ForeignKey(
+        'auth.User', 
+        on_delete=models.CASCADE, 
+        related_name='certification_registrations',
+        verbose_name=_("Utilisateur"),
+        null=True,  # Permettre temporairement des valeurs nulles
+        blank=True
+    )
+    
+    # Conserver temporairement les anciens champs pour la migration
+    practitioner = models.ForeignKey('Practitioner', on_delete=models.SET_NULL, null=True, blank=True, related_name='cert_registrations')
+    score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    examiner_feedback = models.TextField(null=True, blank=True)
+    
+    # Données d'inscription
+    registration_date = models.DateTimeField(_("Date d'inscription"), auto_now_add=True)
+    status = models.CharField(_("Statut"), max_length=20, choices=STATUS_CHOICES, default='pending')
+    notes = models.TextField(_("Notes"), blank=True)
+    
+    # Métadonnées
+    reviewed_by = models.ForeignKey(
+        'auth.User', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='reviewed_certification_registrations',
+        verbose_name=_("Examiné par")
+    )
+    reviewed_at = models.DateTimeField(_("Examiné le"), null=True, blank=True)
+    
+    class Meta:
+        verbose_name = _("Inscription à une certification")
+        verbose_name_plural = _("Inscriptions aux certifications")
+        ordering = ['-registration_date']
+        # Supprimer temporairement la contrainte unique_together
+        # unique_together = ['certification', 'user']
+    
+    def __str__(self):
+        if self.user:
+            return f"{self.user.username} - {self.get_certification_title()}"
+        elif self.practitioner:
+            return f"{self.practitioner} - {self.get_certification_title()}"
+        return f"Registration {self.id}"
+    
+    def get_certification_title(self):
+        """Récupérer le titre de la certification de manière sécurisée."""
+        try:
+            return self.certification.title if self.certification else "N/A"
+        except:
+            return "N/A"
+    
+    def approve(self, reviewer):
+        """Approuve l'inscription."""
+        self.status = 'approved'
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.save()
+    
+    def reject(self, reviewer, notes=None):
+        """Rejette l'inscription."""
+        self.status = 'rejected'
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        if notes:
+            self.notes = notes
+        self.save()

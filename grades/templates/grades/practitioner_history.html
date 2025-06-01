@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Historique des grades" %} | {{ practitioner.full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .timeline {
+        position: relative;
+        margin: 0 auto;
+    }
+    .timeline::after {
+        content: '';
+        position: absolute;
+        width: 2px;
+        background-color: #e9ecef;
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        margin-left: -1px;
+    }
+    .timeline-item {
+        padding: 10px 40px;
+        position: relative;
+        width: 50%;
+        left: 0;
+        margin-bottom: 20px;
+    }
+    .timeline-item::after {
+        content: '';
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        background-color: white;
+        border: 2px solid #ddd;
+        top: 18px;
+        right: -8px;
+        border-radius: 50%;
+        z-index: 1;
+    }
+    .right {
+        left: 50%;
+    }
+    .right::after {
+        left: -8px;
+    }
+    .grade-card {
+        border-left: 4px solid;
+    }
+    @media screen and (max-width: 600px) {
+        .timeline::after {
+            left: 31px;
+        }
+        .timeline-item {
+            width: 100%;
+            padding-left: 70px;
+            padding-right: 25px;
+        }
+        .timeline-item::after {
+            left: 23px;
+        }
+        .right {
+            left: 0%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{% trans "Historique des grades" %} - {{ practitioner.full_name }}</h1>
+        <a href="{% url 'grades:club_management' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i> {% trans "Retour à la gestion des grades" %}
+        </a>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{% trans "Informations sur le pratiquant" %}</h5>
+                <div>
+                    <a href="{% url 'grades:update_practitioner_grade' practitioner_id=practitioner.id %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-edit me-1"></i> {% trans "Modifier le grade" %}
+                    </a>
+                    <a href="{% url 'grades:promote_practitioner' practitioner_id=practitioner.id %}" class="btn btn-success btn-sm">
+                        <i class="fas fa-arrow-up me-1"></i> {% trans "Promouvoir" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>{% trans "Détails" %}</h5>
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {% trans "Nom complet" %}
+                            <span>{{ practitioner.full_name }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {% trans "Âge" %}
+                            <span>{{ practitioner.age }} {% trans "ans" %}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {% trans "Club" %}
+                            <span>{{ practitioner.club.name }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {% trans "Grade actuel" %}
+                            <span class="badge" style="background-color: {{ practitioner.grade.color_code|default:'#6c757d' }}">
+                                {{ practitioner.grade.name|default:"Aucun grade" }}
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h5>{% trans "Disciplines pratiquées" %}</h5>
+                    <ul class="list-group">
+                        {% for discipline in practitioner.disciplines.all %}
+                            <li class="list-group-item">{{ discipline.name }}</li>
+                        {% empty %}
+                            <li class="list-group-item">{% trans "Aucune discipline enregistrée" %}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2 class="mb-4">{% trans "Historique des grades par discipline" %}</h2>
+
+    {% for discipline_id, discipline_data in history_by_discipline.items %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="h5 mb-0">{{ discipline_data.name }}</h3>
+            </div>
+            <div class="card-body">
+                <div class="timeline">
+                    {% for entry in discipline_data.entries %}
+                        <div class="timeline-item {% cycle '' 'right' %}">
+                            <div class="card grade-card" style="border-left-color: {{ entry.grade.color_code|default:'#6c757d' }}">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span>{{ entry.date_obtained|date:"d/m/Y" }}</span>
+                                    <div>
+                                        {% if entry.is_current %}
+                                            <span class="badge bg-success">{% trans "Actuel" %}</span>
+                                        {% endif %}
+                                        <div class="dropdown d-inline">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="actionDropdown{{ entry.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu" aria-labelledby="actionDropdown{{ entry.id }}">
+                                                <li>
+                                                    <a class="dropdown-item" href="{% url 'grades:revoke_grade' grade_id=entry.id %}">
+                                                        <i class="fas fa-ban me-2 text-danger"></i> {% trans "Révoquer" %}
+                                                    </a>
+                                                </li>
+                                                {% if not entry.is_current %}
+                                                    <li>
+                                                        <form method="post" action="{% url 'grades:set_current_grade' grade_id=entry.id %}">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="dropdown-item">
+                                                                <i class="fas fa-check-circle me-2 text-success"></i> {% trans "Définir comme actuel" %}
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ entry.grade.name }}</h5>
+                                    <p class="card-text">
+                                        <strong>{% trans "Attribué par:" %}</strong> {{ entry.awarded_by }}<br>
+                                        {% if entry.location %}
+                                            <strong>{% trans "Lieu:" %}</strong> {{ entry.location }}<br>
+                                        {% endif %}
+                                        {% if entry.certificate_number %}
+                                            <strong>{% trans "N° de certificat:" %}</strong> {{ entry.certificate_number }}
+                                        {% endif %}
+                                    </p>
+                                    {% if entry.notes %}
+                                        <div class="mt-3">
+                                            <strong>{% trans "Notes:" %}</strong>
+                                            <p class="text-muted mb-0">{{ entry.notes|linebreaks }}</p>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="alert alert-info">{% trans "Aucun historique pour cette discipline." %}</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    {% empty %}
+        <div class="alert alert-info">{% trans "Aucun historique de grade disponible." %}</div>
+    {% endfor %}
+</div>
+{% endblock %}

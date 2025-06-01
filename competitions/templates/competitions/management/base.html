@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Gestion de compétition" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sidebar {
+        min-height: calc(100vh - 56px);
+        background-color: #f8f9fa;
+        box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+    }
+    
+    .sidebar .nav-link {
+        color: #333;
+        padding: 0.75rem 1rem;
+        border-left: 3px solid transparent;
+    }
+    
+    .sidebar .nav-link.active {
+        color: #dc3545;
+        border-left: 3px solid #dc3545;
+        background-color: rgba(220, 53, 69, 0.05);
+        font-weight: 600;
+    }
+    
+    .sidebar .nav-link:hover {
+        color: #c82333;
+        border-left: 3px solid #c82333;
+        background-color: rgba(220, 53, 69, 0.05);
+    }
+    
+    .sidebar .nav-link i {
+        margin-right: 0.5rem;
+        width: 20px;
+        text-align: center;
+    }
+    
+    .competition-header {
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        margin-bottom: 1.5rem;
+    }
+    
+    .competition-status {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+    
+    .status-draft {
+        background-color: #e9ecef;
+        color: #495057;
+    }
+    
+    .status-published {
+        background-color: #cff4fc;
+        color: #055160;
+    }
+    
+    .status-ongoing {
+        background-color: #d1e7dd;
+        color: #0f5132;
+    }
+    
+    .status-completed {
+        background-color: #d1e7dd;
+        color: #0f5132;
+    }
+    
+    .status-cancelled {
+        background-color: #f8d7da;
+        color: #842029;
+    }
+    
+    .quick-actions {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        z-index: 1000;
+    }
+    
+    .btn-circle {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .dropdown-menu.show {
+        transform: translate3d(-120px, -65px, 0px) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 d-md-block sidebar">
+            <div class="position-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'dashboard' %}active{% endif %}" href="{% url 'competitions:management:dashboard' competition.id %}">
+                            <i class="fas fa-tachometer-alt"></i> {% trans "Tableau de bord" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'participants' %}active{% endif %}" href="{% url 'competitions:management:participants' competition.id %}">
+                            <i class="fas fa-users"></i> {% trans "Participants" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'judges' %}active{% endif %}" href="{% url 'competitions:management:judges' competition.id %}">
+                            <i class="fas fa-gavel"></i> {% trans "Juges & Arbitres" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'categories' %}active{% endif %}" href="{% url 'competitions:management:categories' competition.id %}">
+                            <i class="fas fa-layer-group"></i> {% trans "Catégories" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'schedule' %}active{% endif %}" href="{% url 'competitions:management:schedule' competition.id %}">
+                            <i class="fas fa-calendar-alt"></i> {% trans "Planning" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'scoring' %}active{% endif %}" href="{% url 'competitions:management:scoring' competition.id %}">
+                            <i class="fas fa-clipboard-list"></i> {% trans "Notation" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'standalone_scoring' %}active{% endif %}" href="{% url 'competitions:standalone_scoring:scoring_dashboard' %}">
+                            <i class="fas fa-star"></i> {% trans "Notation Standalone" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_tab == 'results' %}active{% endif %}" href="{% url 'competitions:management:results' competition.id %}">
+                            <i class="fas fa-trophy"></i> {% trans "Résultats" %}
+                        </a>
+                    </li>
+                </ul>
+                
+                <hr>
+                
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'competitions:competitions:detail' competition.id %}">
+                            <i class="fas fa-eye"></i> {% trans "Voir la compétition" %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'competitions:competitions:update' competition.id %}">
+                            <i class="fas fa-edit"></i> {% trans "Modifier la compétition" %}
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Main content -->
+        <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <div class="competition-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-0">{{ competition.title }}</h2>
+                    <div class="text-muted">
+                        {{ competition.start_date|date:"d F Y" }}
+                        {% if competition.end_date != competition.start_date %}
+                            - {{ competition.end_date|date:"d F Y" }}
+                        {% endif %}
+                    </div>
+                </div>
+                <div>
+                    <div class="competition-status status-{{ competition.status }}">
+                        {% if competition.status == 'draft' %}
+                            <i class="fas fa-pencil-alt me-1"></i> {% trans "Brouillon" %}
+                        {% elif competition.status == 'published' %}
+                            <i class="fas fa-bullhorn me-1"></i> {% trans "Publiée" %}
+                        {% elif competition.status == 'ongoing' %}
+                            <i class="fas fa-play me-1"></i> {% trans "En cours" %}
+                        {% elif competition.status == 'completed' %}
+                            <i class="fas fa-check me-1"></i> {% trans "Terminée" %}
+                        {% elif competition.status == 'cancelled' %}
+                            <i class="fas fa-ban me-1"></i> {% trans "Annulée" %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+            
+            {% block main_content %}
+            {% endblock %}
+        </div>
+    </div>
+</div>
+
+<!-- Quick action menu -->
+<div class="quick-actions dropup">
+    <button class="btn btn-danger btn-circle" type="button" id="quickActionsMenu" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fas fa-plus"></i>
+    </button>
+    <ul class="dropdown-menu" aria-labelledby="quickActionsMenu">
+        <li><a class="dropdown-item" href="{% url 'competitions:management:add_participant' competition.id %}"><i class="fas fa-user-plus me-2"></i>{% trans "Ajouter un participant" %}</a></li>
+        <li><a class="dropdown-item" href="{% url 'competitions:management:add_judge' competition.id %}"><i class="fas fa-user-tie me-2"></i>{% trans "Ajouter un juge" %}</a></li>
+        <li><a class="dropdown-item" href="{% url 'competitions:management:add_category' competition.id %}"><i class="fas fa-folder-plus me-2"></i>{% trans "Ajouter une catégorie" %}</a></li>
+        <li><a class="dropdown-item" href="{% url 'competitions:standalone_scoring:performance_create' %}"><i class="fas fa-star me-2"></i>{% trans "Créer une performance" %}</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'competitions:management:start_competition' competition.id %}"><i class="fas fa-play me-2"></i>{% trans "Démarrer la compétition" %}</a></li>
+    </ul>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+    
+    // Auto-hide alerts after 5 seconds
+    setTimeout(function() {
+        $('.alert').alert('close');
+    }, 5000);
+</script>
+{% block tab_specific_js %}{% endblock %}
+{% endblock %}

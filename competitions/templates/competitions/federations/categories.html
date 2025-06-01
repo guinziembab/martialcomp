@@ -1,0 +1,1176 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Catégories" %} - {{ federation.name }} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .categories-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .category-card {
+        border-radius: 0.5rem;
+        transition: all 0.3s;
+        height: 100%;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        border: none;
+    }
+    
+    .category-card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        transform: translateY(-5px);
+    }
+    
+    .category-header {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-bottom: 1px solid #dee2e6;
+        border-top-left-radius: 0.5rem;
+        border-top-right-radius: 0.5rem;
+    }
+    
+    .category-icon {
+        font-size: 2rem;
+        color: var(--primary);
+        margin-bottom: 1rem;
+    }
+    
+    .category-property {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .category-property:last-child {
+        border-bottom: none;
+    }
+    
+    .category-property-label {
+        font-weight: 500;
+        color: #495057;
+    }
+    
+    .category-property-value {
+        color: #6c757d;
+    }
+    
+    .category-actions {
+        margin-top: auto;
+        padding-top: 1rem;
+        border-top: 1px solid #dee2e6;
+    }
+    
+    .filter-container {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .disciplines-filter {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+    
+    .discipline-pill {
+        background-color: white;
+        border: 1px solid #dee2e6;
+        border-radius: 2rem;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .discipline-pill:hover {
+        background-color: #e9ecef;
+    }
+    
+    .discipline-pill.active {
+        background-color: var(--primary);
+        color: white;
+        border-color: var(--primary);
+    }
+    
+    .filter-tabs {
+        display: flex;
+        border-bottom: 1px solid #dee2e6;
+        margin-bottom: 1rem;
+    }
+    
+    .filter-tab {
+        padding: 0.75rem 1.5rem;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+        transition: all 0.2s;
+        font-weight: 500;
+    }
+    
+    .filter-tab:hover {
+        border-bottom-color: #dee2e6;
+    }
+    
+    .filter-tab.active {
+        border-bottom-color: var(--primary);
+        color: var(--primary);
+    }
+    
+    .tab-panel {
+        display: none;
+    }
+    
+    .tab-panel.active {
+        display: block;
+    }
+    
+    .modal-category-form {
+        max-width: 800px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    {% include "competitions/federation/sidebar.html" with active="categories" %}
+    
+    <div class="content-wrapper">
+        <div class="categories-container">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="mb-0">{% trans "Catégories" %}</h1>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCategoryModal">
+                    <i class="fas fa-plus-circle me-2"></i>{% trans "Créer une catégorie" %}
+                </button>
+            </div>
+            
+            <!-- Filtres -->
+            <div class="filter-container">
+                <div class="filter-tabs">
+                    <div class="filter-tab active" data-tab="age">{% trans "Catégories d'âge" %}</div>
+                    <div class="filter-tab" data-tab="weight">{% trans "Catégories de poids" %}</div>
+                    <div class="filter-tab" data-tab="grade">{% trans "Catégories de grade" %}</div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <input type="text" class="form-control" placeholder="{% trans 'Rechercher une catégorie...' %}">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <select class="form-select">
+                            <option selected>{% trans "Toutes les disciplines" %}</option>
+                            <option value="karate">{% trans "Karaté" %}</option>
+                            <option value="judo">{% trans "Judo" %}</option>
+                            <option value="taekwondo">{% trans "Taekwondo" %}</option>
+                            <option value="qwan_ki_do">{% trans "Qwan Ki Do" %}</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="disciplines-filter">
+                    <span class="discipline-pill active">{% trans "Toutes" %}</span>
+                    <span class="discipline-pill">{% trans "Karaté" %}</span>
+                    <span class="discipline-pill">{% trans "Judo" %}</span>
+                    <span class="discipline-pill">{% trans "Taekwondo" %}</span>
+                    <span class="discipline-pill">{% trans "Qwan Ki Do" %}</span>
+                    <span class="discipline-pill">{% trans "Kung Fu" %}</span>
+                </div>
+            </div>
+            
+            <!-- Catégories -->
+            <div class="tab-panel active" id="tab-age">
+                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                    {% if categories %}
+                        {% for category in categories %}
+                            {% if category.type == 'age' %}
+                                <div class="col">
+                                    <div class="card category-card">
+                                        <div class="category-header text-center">
+                                            <div class="category-icon">
+                                                <i class="fas fa-user-clock"></i>
+                                            </div>
+                                            <h5 class="card-title">{{ category.name }}</h5>
+                                            {% if category.discipline %}
+                                                <div class="text-muted">{{ category.discipline.name }}</div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="card-body d-flex flex-column">
+                                            <div class="category-property">
+                                                <span class="category-property-label">{% trans "Âge minimum" %}</span>
+                                                <span class="category-property-value">{{ category.min_age }} {% trans "ans" %}</span>
+                                            </div>
+                                            <div class="category-property">
+                                                <span class="category-property-label">{% trans "Âge maximum" %}</span>
+                                                <span class="category-property-value">{{ category.max_age }} {% trans "ans" %}</span>
+                                            </div>
+                                            <div class="category-property">
+                                                <span class="category-property-label">{% trans "Genre" %}</span>
+                                                <span class="category-property-value">{{ category.get_gender_display }}</span>
+                                            </div>
+                                            <div class="category-actions">
+                                                <a href="#" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                                </a>
+                                                <button class="btn btn-sm btn-outline-danger">
+                                                    <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <!-- Exemples -->
+                        <div class="col">
+                            <div class="card category-card">
+                                <div class="category-header text-center">
+                                    <div class="category-icon">
+                                        <i class="fas fa-user-clock"></i>
+                                    </div>
+                                    <h5 class="card-title">Enfants</h5>
+                                    <div class="text-muted">Toutes disciplines</div>
+                                </div>
+                                <div class="card-body d-flex flex-column">
+                                    <div class="category-property">
+                                        <span class="category-property-label">{% trans "Âge minimum" %}</span>
+                                        <span class="category-property-value">6 {% trans "ans" %}</span>
+                                    </div>
+                                    <div class="category-property">
+                                        <span class="category-property-label">{% trans "Âge maximum" %}</span>
+                                        <span class="category-property-value">11 {% trans "ans" %}</span>
+                                    </div>
+                                    <div class="category-property">
+                                        <span class="category-property-label">{% trans "Genre" %}</span>
+                                        <span class="category-property-value">{% trans "Mixte" %}</span>
+                                    </div>
+                                    <div class="category-actions">
+                                        <a href="#" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col">
+                            <div class="card category-card">
+                                <div class="category-header text-center">
+                                    <div class="category-icon">
+                                        <i class="fas fa-user-clock"></i>
+                                    </div>
+                                    <h5 class="card-title">Adolescents</h5>
+                                    <div class="text-muted">Toutes disciplines</div>
+                                </div>
+                                <div class="card-body d-flex flex-column">
+                                    <div class="category-property">
+                                        <span class="category-property-label">{% trans "Âge minimum" %}</span>
+                                        <span class="category-property-value">12 {% trans "ans" %}</span>
+                                    </div>
+                                    <div class="category-property">
+                                        <span class="category-property-label">{% trans "Âge maximum" %}</span>
+                                        <span class="category-property-value">17 {% trans "ans" %}</span>
+                                    </div>
+                                    <div class="category-property">
+                                        <span class="category-property-label">{% trans "Genre" %}</span>
+                                        <span class="category-property-value">{% trans "Mixte" %}</span>
+                                    </div>
+                                    <div class="category-actions">
+                                        <a href="#" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col">
+                            <div class="card category-card">
+                                <div class="category-header text-center">
+                                    <div class="category-icon">
+                                        <i class="fas fa-user-clock"></i>
+                                    </div>
+                                    <h5 class="card-title">Adultes</h5>
+                                    <div class="text-muted">Toutes disciplines</div>
+                                </div>
+                                <div class="card-body d-flex flex-column">
+                                    <div class="category-property">
+                                        <span class="category-property-label">{% trans "Âge minimum" %}</span>
+                                        <span class="category-property-value">18 {% trans "ans" %}</span>
+                                    </div>
+                                    <div class="category-property">
+                                        <span class="category-property-label">{% trans "Âge maximum" %}</span>
+                                        <span class="category-property-value">39 {% trans "ans" %}</span>
+                                    </div>
+                                    <div class="category-property">
+                                        <span class="category-property-label">{% trans "Genre" %}</span>
+                                        <span class="category-property-value">{% trans "Mixte" %}</span>
+                                    </div>
+                                    <div class="category-actions">
+                                        <a href="#" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="tab-panel" id="tab-weight">
+                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                    <!-- Catégories de poids - Exemples -->
+                    <div class="col">
+                        <div class="card category-card">
+                            <div class="category-header text-center">
+                                <div class="category-icon">
+                                    <i class="fas fa-weight"></i>
+                                </div>
+                                <h5 class="card-title">Poids léger</h5>
+                                <div class="text-muted">Toutes disciplines</div>
+                            </div>
+                            <div class="card-body d-flex flex-column">
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Poids minimum" %}</span>
+                                    <span class="category-property-value">55 kg</span>
+                                </div>
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Poids maximum" %}</span>
+                                    <span class="category-property-value">65 kg</span>
+                                </div>
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Genre" %}</span>
+                                    <span class="category-property-value">{% trans "Masculin" %}</span>
+                                </div>
+                                <div class="category-actions">
+                                    <a href="#" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col">
+                        <div class="card category-card">
+                            <div class="category-header text-center">
+                                <div class="category-icon">
+                                    <i class="fas fa-weight"></i>
+                                </div>
+                                <h5 class="card-title">Poids moyen</h5>
+                                <div class="text-muted">Toutes disciplines</div>
+                            </div>
+                            <div class="card-body d-flex flex-column">
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Poids minimum" %}</span>
+                                    <span class="category-property-value">65 kg</span>
+                                </div>
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Poids maximum" %}</span>
+                                    <span class="category-property-value">75 kg</span>
+                                </div>
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Genre" %}</span>
+                                    <span class="category-property-value">{% trans "Masculin" %}</span>
+                                </div>
+                                <div class="category-actions">
+                                    <a href="#" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col">
+                        <div class="card category-card">
+                            <div class="category-header text-center">
+                                <div class="category-icon">
+                                    <i class="fas fa-weight"></i>
+                                </div>
+                                <h5 class="card-title">Poids léger - Femmes</h5>
+                                <div class="text-muted">Toutes disciplines</div>
+                            </div>
+                            <div class="card-body d-flex flex-column">
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Poids minimum" %}</span>
+                                    <span class="category-property-value">45 kg</span>
+                                </div>
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Poids maximum" %}</span>
+                                    <span class="category-property-value">55 kg</span>
+                                </div>
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Genre" %}</span>
+                                    <span class="category-property-value">{% trans "Féminin" %}</span>
+                                </div>
+                                <div class="category-actions">
+                                    <a href="#" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="tab-panel" id="tab-grade">
+                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                    <!-- Catégories de grade - Exemples -->
+                    <div class="col">
+                        <div class="card category-card">
+                            <div class="category-header text-center">
+                                <div class="category-icon">
+                                    <i class="fas fa-award"></i>
+                                </div>
+                                <h5 class="card-title">Débutants</h5>
+                                <div class="text-muted">Karaté</div>
+                            </div>
+                            <div class="card-body d-flex flex-column">
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Grade minimum" %}</span>
+                                    <span class="category-property-value">Blanche</span>
+                                </div>
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Grade maximum" %}</span>
+                                    <span class="category-property-value">Orange</span>
+                                </div>
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Discipline" %}</span>
+                                    <span class="category-property-value">Karaté</span>
+                                </div>
+                                <div class="category-actions">
+                                    <a href="#" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col">
+                        <div class="card category-card">
+                            <div class="category-header text-center">
+                                <div class="category-icon">
+                                    <i class="fas fa-award"></i>
+                                </div>
+                                <h5 class="card-title">Intermédiaires</h5>
+                                <div class="text-muted">Karaté</div>
+                            </div>
+                            <div class="card-body d-flex flex-column">
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Grade minimum" %}</span>
+                                    <span class="category-property-value">Verte</span>
+                                </div>
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Grade maximum" %}</span>
+                                    <span class="category-property-value">Bleue</span>
+                                </div>
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Discipline" %}</span>
+                                    <span class="category-property-value">Karaté</span>
+                                </div>
+                                <div class="category-actions">
+                                    <a href="#" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col">
+                        <div class="card category-card">
+                            <div class="category-header text-center">
+                                <div class="category-icon">
+                                    <i class="fas fa-award"></i>
+                                </div>
+                                <h5 class="card-title">Experts</h5>
+                                <div class="text-muted">Karaté</div>
+                            </div>
+                            <div class="card-body d-flex flex-column">
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Grade minimum" %}</span>
+                                    <span class="category-property-value">Noire 1er Dan</span>
+                                </div>
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Grade maximum" %}</span>
+                                    <span class="category-property-value">Noire 8ème Dan</span>
+                                </div>
+                                <div class="category-property">
+                                    <span class="category-property-label">{% trans "Discipline" %}</span>
+                                    <span class="category-property-value">Karaté</span>
+                                </div>
+                                <div class="category-actions">
+                                    <a href="#" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour créer une catégorie -->
+<div class="modal fade" id="createCategoryModal" tabindex="-1" aria-labelledby="createCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-category-form">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createCategoryModalLabel">{% trans "Créer une nouvelle catégorie" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" id="categoryTypeTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="age-tab" data-bs-toggle="tab" data-bs-target="#age-tab-pane" type="button" role="tab" aria-controls="age-tab-pane" aria-selected="true">
+                            <i class="fas fa-user-clock me-2"></i>{% trans "Catégorie d'âge" %}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="weight-tab" data-bs-toggle="tab" data-bs-target="#weight-tab-pane" type="button" role="tab" aria-controls="weight-tab-pane" aria-selected="false">
+                            <i class="fas fa-weight me-2"></i>{% trans "Catégorie de poids" %}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="grade-tab" data-bs-toggle="tab" data-bs-target="#grade-tab-pane" type="button" role="tab" aria-controls="grade-tab-pane" aria-selected="false">
+                            <i class="fas fa-award me-2"></i>{% trans "Catégorie de grade" %}
+                        </button>
+                    </li>
+                </ul>
+                <form id="categoryForm" method="post" action="{% url 'competitions:categories:category_create' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="category_type" id="category_type" value="age">
+                    
+                    <div class="tab-content" id="categoryTypeTabContent">
+                        <!-- Onglet Catégorie d'âge -->
+                        <div class="tab-pane fade show active" id="age-tab-pane" role="tabpanel" aria-labelledby="age-tab" tabindex="0">
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <label for="age_category_name" class="form-label">{% trans "Nom de la catégorie" %}</label>
+                                    <input type="text" class="form-control" id="age_category_name" name="name" required placeholder="{% trans 'Ex: Enfants, Adolescents, Adultes...' %}">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="age_min" class="form-label">{% trans "Âge minimum" %}</label>
+                                    <input type="number" class="form-control" id="age_min" name="min_age" min="0" max="100" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="age_max" class="form-label">{% trans "Âge maximum" %}</label>
+                                    <input type="number" class="form-control" id="age_max" name="max_age" min="0" max="100">
+                                    <small class="form-text text-muted">{% trans "Laisser vide si pas de limite d'âge" %}</small>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="age_gender" class="form-label">{% trans "Genre" %}</label>
+                                    <select class="form-select" id="age_gender" name="gender">
+                                        <option value="mixed" selected>{% trans "Mixte" %}</option>
+                                        <option value="male">{% trans "Masculin" %}</option>
+                                        <option value="female">{% trans "Féminin" %}</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="age_discipline" class="form-label">{% trans "Discipline" %}</label>
+                                    <select class="form-select" id="age_discipline" name="discipline">
+                                        <option value="" selected>{% trans "Toutes disciplines" %}</option>
+                                        {% for discipline in disciplines %}
+                                            <option value="{{ discipline.id }}">{{ discipline.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Onglet Catégorie de poids -->
+                        <div class="tab-pane fade" id="weight-tab-pane" role="tabpanel" aria-labelledby="weight-tab" tabindex="0">
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <label for="weight_category_name" class="form-label">{% trans "Nom de la catégorie" %}</label>
+                                    <input type="text" class="form-control" id="weight_category_name" name="name" placeholder="{% trans 'Ex: Poids léger, Poids moyen, Poids lourd...' %}">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="weight_min" class="form-label">{% trans "Poids minimum (kg)" %}</label>
+                                    <input type="number" class="form-control" id="weight_min" name="min_weight" min="0" step="0.1">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="weight_max" class="form-label">{% trans "Poids maximum (kg)" %}</label>
+                                    <input type="number" class="form-control" id="weight_max" name="max_weight" min="0" step="0.1">
+                                    <small class="form-text text-muted">{% trans "Laisser vide si pas de limite de poids" %}</small>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="weight_gender" class="form-label">{% trans "Genre" %}</label>
+                                    <select class="form-select" id="weight_gender" name="gender">
+                                        <option value="mixed">{% trans "Mixte" %}</option>
+                                        <option value="male" selected>{% trans "Masculin" %}</option>
+                                        <option value="female">{% trans "Féminin" %}</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="weight_discipline" class="form-label">{% trans "Discipline" %}</label>
+                                    <select class="form-select" id="weight_discipline" name="discipline">
+                                        <option value="" selected>{% trans "Toutes disciplines" %}</option>
+                                        {% for discipline in disciplines %}
+                                            <option value="{{ discipline.id }}">{{ discipline.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Onglet Catégorie de grade -->
+                        <div class="tab-pane fade" id="grade-tab-pane" role="tabpanel" aria-labelledby="grade-tab" tabindex="0">
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <label for="grade_category_name" class="form-label">{% trans "Nom de la catégorie" %}</label>
+                                    <input type="text" class="form-control" id="grade_category_name" name="name" placeholder="{% trans 'Ex: Débutants, Intermédiaires, Avancés...' %}">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="grade_min" class="form-label">{% trans "Grade minimum" %}</label>
+                                    <input type="text" class="form-control" id="grade_min" name="min_grade" placeholder="{% trans 'Ex: Blanche, 5ème Kyu...' %}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="grade_max" class="form-label">{% trans "Grade maximum" %}</label>
+                                    <input type="text" class="form-control" id="grade_max" name="max_grade" placeholder="{% trans 'Ex: Orange, 3ème Dan...' %}">
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="grade_gender" class="form-label">{% trans "Genre" %}</label>
+                                    <select class="form-select" id="grade_gender" name="gender">
+                                        <option value="mixed" selected>{% trans "Mixte" %}</option>
+                                        <option value="male">{% trans "Masculin" %}</option>
+                                        <option value="female">{% trans "Féminin" %}</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="grade_discipline" class="form-label">{% trans "Discipline" %}</label>
+                                    <select class="form-select" id="grade_discipline" name="discipline" required>
+                                        <option value="" disabled selected>{% trans "Sélectionnez une discipline" %}</option>
+                                        {% for discipline in disciplines %}
+                                            <option value="{{ discipline.id }}">{{ discipline.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <small class="form-text text-muted">{% trans "Obligatoire pour les catégories de grade" %}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3 mt-4">
+                        <div class="col-md-12">
+                            <label for="category_description" class="form-label">{% trans "Description" %}</label>
+                            <textarea class="form-control" id="category_description" name="description" rows="3" placeholder="{% trans 'Description optionnelle de la catégorie...' %}"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-primary" id="submitCategoryBtn">
+                    <i class="fas fa-save me-2"></i>{% trans "Créer la catégorie" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation de suppression -->
+<div class="modal fade" id="deleteCategoryModal" tabindex="-1" aria-labelledby="deleteCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteCategoryModalLabel">{% trans "Confirmer la suppression" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Êtes-vous sûr de vouloir supprimer la catégorie" %} <strong id="deleteCategoryName"></strong> ?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    {% trans "Cette action est irréversible. Les données liées à cette catégorie seront également supprimées." %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {% trans "Annuler" %}
+                </button>
+                <form id="deleteCategoryForm" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="category_id" id="deleteCategoryId">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer définitivement" %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+// JavaScript pour la gestion des catégories
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestion des onglets de filtrage
+    const filterTabs = document.querySelectorAll('.filter-tab');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+    
+    filterTabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            // Enlever la classe active de tous les onglets
+            filterTabs.forEach(t => t.classList.remove('active'));
+            
+            // Masquer tous les panneaux
+            tabPanels.forEach(panel => panel.classList.remove('active'));
+            
+            // Ajouter la classe active à l'onglet cliqué
+            this.classList.add('active');
+            
+            // Afficher le panneau correspondant
+            const targetId = 'tab-' + this.dataset.tab;
+            document.getElementById(targetId).classList.add('active');
+        });
+    });
+    
+    // Gestion des filtres par discipline
+    const disciplinePills = document.querySelectorAll('.discipline-pill');
+    
+    disciplinePills.forEach(pill => {
+        pill.addEventListener('click', function() {
+            // Toggle la classe active
+            disciplinePills.forEach(p => p.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Logique de filtrage à implémenter
+            // ...
+        });
+    });
+    
+    // Recherche de catégories
+    const searchInput = document.querySelector('input[type="text"]');
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const searchValue = this.value.toLowerCase();
+            
+            // Logique de recherche à implémenter
+            // ...
+        });
+    }
+    
+    // Gestion du modal de création de catégorie
+    const categoryForm = document.getElementById('categoryForm');
+    const submitCategoryBtn = document.getElementById('submitCategoryBtn');
+    
+    if (submitCategoryBtn && categoryForm) {
+        submitCategoryBtn.addEventListener('click', function() {
+            // Valider le formulaire avant soumission
+            if (validateCategoryForm()) {
+                categoryForm.submit();
+            }
+        });
+    }
+    
+    // Gestion des onglets du formulaire de création de catégorie
+    const categoryTypeTabs = document.querySelectorAll('#categoryTypeTab .nav-link');
+    const categoryTypeInput = document.getElementById('category_type');
+    
+    if (categoryTypeTabs.length > 0 && categoryTypeInput) {
+        categoryTypeTabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Mettre à jour le champ caché du type de catégorie
+                if (this.id === 'age-tab') {
+                    categoryTypeInput.value = 'age';
+                } else if (this.id === 'weight-tab') {
+                    categoryTypeInput.value = 'weight';
+                } else if (this.id === 'grade-tab') {
+                    categoryTypeInput.value = 'grade';
+                }
+                
+                // Synchroniser les champs de nom entre les onglets
+                synchronizeNameFields();
+            });
+        });
+    }
+    
+    // Synchronisation des champs de nom entre les onglets
+    function synchronizeNameFields() {
+        const ageNameField = document.getElementById('age_category_name');
+        const weightNameField = document.getElementById('weight_category_name');
+        const gradeNameField = document.getElementById('grade_category_name');
+        
+        if (!ageNameField || !weightNameField || !gradeNameField) return;
+        
+        // Prendre la valeur du champ actif pour mettre à jour les autres
+        const activeTab = document.querySelector('#categoryTypeTab .nav-link.active');
+        if (!activeTab) return;
+        
+        let activeTabId = activeTab.id;
+        let sourceField;
+        
+        if (activeTabId === 'age-tab' && ageNameField.value) {
+            sourceField = ageNameField;
+        } else if (activeTabId === 'weight-tab' && weightNameField.value) {
+            sourceField = weightNameField;
+        } else if (activeTabId === 'grade-tab' && gradeNameField.value) {
+            sourceField = gradeNameField;
+        }
+        
+        if (sourceField && sourceField.value) {
+            if (ageNameField && ageNameField !== sourceField) ageNameField.value = sourceField.value;
+            if (weightNameField && weightNameField !== sourceField) weightNameField.value = sourceField.value;
+            if (gradeNameField && gradeNameField !== sourceField) gradeNameField.value = sourceField.value;
+        }
+    }
+    
+    // Validation du formulaire de catégorie
+    function validateCategoryForm() {
+        let isValid = true;
+        const activeTab = document.querySelector('#categoryTypeTab .nav-link.active');
+        if (!activeTab) return false;
+        
+        const activeTabId = activeTab.id;
+        
+        // Réinitialiser les messages d'erreur
+        document.querySelectorAll('.is-invalid').forEach(el => {
+            el.classList.remove('is-invalid');
+        });
+        
+        // Valider le nom de la catégorie
+        let nameField;
+        if (activeTabId === 'age-tab') {
+            nameField = document.getElementById('age_category_name');
+        } else if (activeTabId === 'weight-tab') {
+            nameField = document.getElementById('weight_category_name');
+        } else if (activeTabId === 'grade-tab') {
+            nameField = document.getElementById('grade_category_name');
+        }
+        
+        if (nameField && !nameField.value.trim()) {
+            nameField.classList.add('is-invalid');
+            isValid = false;
+        }
+        
+        // Validations spécifiques aux types de catégories
+        if (activeTabId === 'age-tab') {
+            const minAge = document.getElementById('age_min');
+            const maxAge = document.getElementById('age_max');
+            
+            if (minAge && !minAge.value) {
+                minAge.classList.add('is-invalid');
+                isValid = false;
+            }
+            
+            if (minAge && maxAge && minAge.value && maxAge.value && 
+                parseInt(minAge.value) > parseInt(maxAge.value)) {
+                maxAge.classList.add('is-invalid');
+                alert("L'âge maximum doit être supérieur à l'âge minimum.");
+                isValid = false;
+            }
+        }
+        
+        if (activeTabId === 'weight-tab') {
+            const minWeight = document.getElementById('weight_min');
+            const maxWeight = document.getElementById('weight_max');
+            
+            if (minWeight && maxWeight && minWeight.value && maxWeight.value && 
+                parseFloat(minWeight.value) > parseFloat(maxWeight.value)) {
+                maxWeight.classList.add('is-invalid');
+                alert("Le poids maximum doit être supérieur au poids minimum.");
+                isValid = false;
+            }
+        }
+        
+        if (activeTabId === 'grade-tab') {
+            const discipline = document.getElementById('grade_discipline');
+            
+            if (discipline && !discipline.value) {
+                discipline.classList.add('is-invalid');
+                isValid = false;
+            }
+        }
+        
+        return isValid;
+    }
+    
+    // Gestion du modal de suppression
+    const deleteBtns = document.querySelectorAll('.btn-outline-danger');
+    const deleteCategoryForm = document.getElementById('deleteCategoryForm');
+    const deleteCategoryId = document.getElementById('deleteCategoryId');
+    const deleteCategoryName = document.getElementById('deleteCategoryName');
+    
+    deleteBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const categoryId = this.dataset.categoryId;
+            const categoryName = this.dataset.categoryName;
+            
+            if (deleteCategoryId) deleteCategoryId.value = categoryId;
+            if (deleteCategoryName) deleteCategoryName.textContent = categoryName;
+            
+            // Afficher le modal de confirmation
+            try {
+                const deleteModalElement = document.getElementById('deleteCategoryModal');
+                if (deleteModalElement) {
+                    const deleteModal = new bootstrap.Modal(deleteModalElement);
+                    deleteModal.show();
+                }
+            } catch (error) {
+                console.error("Erreur lors de l'affichage du modal:", error);
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // JavaScript pour la gestion des catégories
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion des onglets de filtrage
+        const filterTabs = document.querySelectorAll('.filter-tab');
+        const tabPanels = document.querySelectorAll('.tab-panel');
+        
+        filterTabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Enlever la classe active de tous les onglets
+                filterTabs.forEach(t => t.classList.remove('active'));
+                
+                // Masquer tous les panneaux
+                tabPanels.forEach(panel => panel.classList.remove('active'));
+                
+                // Ajouter la classe active à l'onglet cliqué
+                this.classList.add('active');
+                
+                // Afficher le panneau correspondant
+                const targetId = 'tab-' + this.dataset.tab;
+                document.getElementById(targetId).classList.add('active');
+            });
+        });
+        
+        // Gestion des filtres par discipline
+        const disciplinePills = document.querySelectorAll('.discipline-pill');
+        
+        disciplinePills.forEach(pill => {
+            pill.addEventListener('click', function() {
+                // Toggle la classe active
+                disciplinePills.forEach(p => p.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Logique de filtrage à implémenter
+                // ...
+            });
+        });
+        
+        // Gestion du modal de création de catégorie
+        const categoryForm = document.getElementById('categoryForm');
+        const submitCategoryBtn = document.getElementById('submitCategoryBtn');
+        
+        if (submitCategoryBtn && categoryForm) {
+            submitCategoryBtn.addEventListener('click', function() {
+                // Valider le formulaire avant soumission
+                if (validateCategoryForm()) {
+                    categoryForm.submit();
+                }
+            });
+        }
+        
+        // Gestion des onglets du formulaire de création de catégorie
+        const categoryTypeTabs = document.querySelectorAll('#categoryTypeTab .nav-link');
+        const categoryTypeInput = document.getElementById('category_type');
+        
+        if (categoryTypeTabs.length > 0 && categoryTypeInput) {
+            categoryTypeTabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // Mettre à jour le champ caché du type de catégorie
+                    if (this.id === 'age-tab') {
+                        categoryTypeInput.value = 'age';
+                    } else if (this.id === 'weight-tab') {
+                        categoryTypeInput.value = 'weight';
+                    } else if (this.id === 'grade-tab') {
+                        categoryTypeInput.value = 'grade';
+                    }
+                    
+                    // Synchroniser les champs de nom entre les onglets
+                    synchronizeNameFields();
+                });
+            });
+        }
+        
+        // Synchronisation des champs de nom entre les onglets
+        function synchronizeNameFields() {
+            const ageNameField = document.getElementById('age_category_name');
+            const weightNameField = document.getElementById('weight_category_name');
+            const gradeNameField = document.getElementById('grade_category_name');
+            
+            if (!ageNameField || !weightNameField || !gradeNameField) return;
+            
+            // Prendre la valeur du champ actif pour mettre à jour les autres
+            const activeTab = document.querySelector('#categoryTypeTab .nav-link.active');
+            if (!activeTab) return;
+            
+            let activeTabId = activeTab.id;
+            let sourceField;
+            
+            if (activeTabId === 'age-tab' && ageNameField.value) {
+                sourceField = ageNameField;
+            } else if (activeTabId === 'weight-tab' && weightNameField.value) {
+                sourceField = weightNameField;
+            } else if (activeTabId === 'grade-tab' && gradeNameField.value) {
+                sourceField = gradeNameField;
+            }
+            
+            if (sourceField && sourceField.value) {
+                if (ageNameField && ageNameField !== sourceField) ageNameField.value = sourceField.value;
+                if (weightNameField && weightNameField !== sourceField) weightNameField.value = sourceField.value;
+                if (gradeNameField && gradeNameField !== sourceField) gradeNameField.value = sourceField.value;
+            }
+        }
+        
+        // Validation du formulaire de catégorie
+        function validateCategoryForm() {
+            let isValid = true;
+            const activeTab = document.querySelector('#categoryTypeTab .nav-link.active');
+            if (!activeTab) return false;
+            
+            const activeTabId = activeTab.id;
+            
+            // Réinitialiser les messages d'erreur
+            document.querySelectorAll('.is-invalid').forEach(el => {
+                el.classList.remove('is-invalid');
+            });
+            
+            // Valider le nom de la catégorie
+            let nameField;
+            if (activeTabId === 'age-tab') {
+                nameField = document.getElementById('age_category_name');
+            } else if (activeTabId === 'weight-tab') {
+                nameField = document.getElementById('weight_category_name');
+            } else if (activeTabId === 'grade-tab') {
+                nameField = document.getElementById('grade_category_name');
+            }
+            
+            if (nameField && !nameField.value.trim()) {
+                nameField.classList.add('is-invalid');
+                isValid = false;
+            }
+            
+            // Validations spécifiques aux types de catégories
+            if (activeTabId === 'age-tab') {
+                const minAge = document.getElementById('age_min');
+                const maxAge = document.getElementById('age_max');
+                
+                if (minAge && !minAge.value) {
+                    minAge.classList.add('is-invalid');
+                    isValid = false;
+                }
+                
+                if (minAge && maxAge && minAge.value && maxAge.value && 
+                    parseInt(minAge.value) > parseInt(maxAge.value)) {
+                    maxAge.classList.add('is-invalid');
+                    alert("L'âge maximum doit être supérieur à l'âge minimum.");
+                    isValid = false;
+                }
+            }
+            
+            if (activeTabId === 'weight-tab') {
+                const minWeight = document.getElementById('weight_min');
+                const maxWeight = document.getElementById('weight_max');
+                
+                if (minWeight && maxWeight && minWeight.value && maxWeight.value && 
+                    parseFloat(minWeight.value) > parseFloat(maxWeight.value)) {
+                    maxWeight.classList.add('is-invalid');
+                    alert("Le poids maximum doit être supérieur au poids minimum.");
+                    isValid = false;
+                }
+            }
+            
+            if (activeTabId === 'grade-tab') {
+                const discipline = document.getElementById('grade_discipline');
+                
+                if (discipline && !discipline.value) {
+                    discipline.classList.add('is-invalid');
+                    isValid = false;
+                }
+            }
+            
+            return isValid;
+        }
+        
+        // Gestion du modal de suppression
+        const deleteBtns = document.querySelectorAll('.btn-outline-danger');
+        const deleteCategoryForm = document.getElementById('deleteCategoryForm');
+        const deleteCategoryId = document.getElementById('deleteCategoryId');
+        const deleteCategoryName = document.getElementById('deleteCategoryName');
+        
+        deleteBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const categoryId = this.dataset.categoryId;
+                const categoryName = this.dataset.categoryName;
+                
+                if (deleteCategoryId) deleteCategoryId.value = categoryId;
+                if (deleteCategoryName) deleteCategoryName.textContent = categoryName;
+                
+                // Afficher le modal de confirmation
+                try {
+                    const deleteModalElement = document.getElementById('deleteCategoryModal');
+                    if (deleteModalElement) {
+                        const deleteModal = new bootstrap.Modal(deleteModalElement);
+                        deleteModal.show();
+                    }
+                } catch (error) {
+                    console.error("Erreur lors de l'affichage du modal:", error);
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{{ competition.title }} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .detail-header {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .info-block {
+        background-color: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+    .info-block h5 {
+        color: #495057;
+        border-bottom: 1px solid #e9ecef;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .badge-status {
+        font-size: 0.9rem;
+        padding: 0.35rem 0.65rem;
+    }
+    .competition-type-item {
+        background-color: #f9f9f9;
+        border-radius: 0.375rem;
+        padding: 0.625rem;
+        margin-bottom: 0.5rem;
+        transition: all 0.2s ease;
+    }
+    .competition-type-item:hover {
+        background-color: #f0f0f0;
+    }
+    .action-btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+        transition: all 0.2s ease;
+    }
+    .action-btn:hover {
+        transform: translateY(-2px);
+    }
+    @media (max-width: 768px) {
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .action-buttons .btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    {% if messages %}
+        <div class="messages mb-4">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="detail-header">
+        <div class="d-flex justify-content-between align-items-start flex-wrap mb-3">
+            <h1 class="mb-0">{{ competition.title }}</h1>
+            <span class="badge {% if competition.status == 'published' %}bg-success{% elif competition.status == 'draft' %}bg-warning{% else %}bg-info{% endif %} badge-status">
+                {{ competition.get_status_display }}
+            </span>
+        </div>
+        <p class="text-muted">
+            <i class="far fa-calendar-alt me-2"></i> {% trans "Du" %} {{ competition.start_date|date:"d/m/Y" }} {% trans "au" %} {{ competition.end_date|date:"d/m/Y" }}
+        </p>
+        
+        {% if competition.registration_deadline %}
+            <p class="{% if competition.registration_deadline < now %}text-danger{% else %}text-warning{% endif %}">
+                <i class="fas fa-hourglass-end me-2"></i> {% trans "Date limite d'inscription" %}: {{ competition.registration_deadline|date:"d/m/Y" }}
+                {% if competition.registration_deadline < now %}
+                    <span class="badge bg-danger ms-2">{% trans "Inscriptions terminées" %}</span>
+                {% endif %}
+            </p>
+        {% endif %}
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="info-block">
+                <h5><i class="fas fa-align-left me-2"></i> {% trans "Description" %}</h5>
+                {% if competition.description %}
+                    <p>{{ competition.description|linebreaks }}</p>
+                {% else %}
+                    <p class="text-muted">{% trans "Aucune description disponible" %}</p>
+                {% endif %}
+            </div>
+            
+            <div class="info-block">
+                <h5><i class="fas fa-list-ul me-2"></i> {% trans "Types de compétition" %}</h5>
+                {% if competition.competition_types.all %}
+                    <div class="row">
+                        {% for type in competition.competition_types.all %}
+                            <div class="col-md-6 mb-2">
+                                <div class="competition-type-item">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas {% if type.team_based %}fa-users{% else %}fa-user{% endif %} me-2 text-primary"></i>
+                                        <div>
+                                            <span class="fw-medium">{{ type.name }}</span>
+                                            {% if type.team_based %}
+                                                <span class="badge bg-info ms-2">{% trans "Équipe" %} ({{ type.min_team_size }}-{{ type.max_team_size }})</span>
+                                            {% endif %}
+                                            {% if type.weight_category %}
+                                                <span class="badge bg-secondary ms-2">{% trans "Catégorie de poids" %}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% if type.description %}
+                                        <small class="text-muted d-block mt-1">{{ type.description }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">{% trans "Aucun type de compétition spécifié" %}</p>
+                {% endif %}
+            </div>
+
+            <div class="info-block">
+                <h5><i class="fas fa-fist-raised me-2"></i> {% trans "Discipline" %}</h5>
+                {% if competition.discipline %}
+                    <p class="mb-1 fw-medium">{{ competition.discipline.name }}</p>
+                    {% if competition.discipline.description %}
+                        <p class="text-muted">{{ competition.discipline.description|truncatechars:150 }}</p>
+                    {% endif %}
+                    {% if competition.discipline.country_origin %}
+                        <small class="text-muted">
+                            <i class="fas fa-globe me-1"></i> {% trans "Origine" %}: {{ competition.discipline.country_origin }}
+                        </small>
+                    {% endif %}
+                {% else %}
+                    <p class="text-muted">{% trans "Non spécifiée" %}</p>
+                {% endif %}
+            </div>
+
+            {% if competition.status == 'published' %}
+                <div class="info-block">
+                    <h5><i class="fas fa-users me-2"></i> {% trans "Participants" %}</h5>
+                    
+                    {% if competition.max_participants %}
+                        <div class="mb-2">
+                            <span class="fw-medium">{% trans "Places disponibles" %}: </span>
+                            {{ competition.registrations.count }} / {{ competition.max_participants }}
+                            {% if competition.registrations.count >= competition.max_participants %}
+                                <span class="badge bg-danger ms-2">{% trans "Complet" %}</span>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    {% if user.is_authenticated and existing_registration %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Vous êtes déjà inscrit à cette compétition." %}
+                            <strong>{% trans "Statut:" %}</strong> 
+                            <span class="badge {% if existing_registration.status == 'approved' %}bg-success{% elif existing_registration.status == 'rejected' %}bg-danger{% else %}bg-warning{% endif %}">
+                                {{ existing_registration.get_status_display }}
+                            </span>
+                        </div>
+                    {% endif %}
+
+                    <div class="d-flex gap-3 mt-3 flex-wrap">
+                        {% if user.is_authenticated %}
+                            {% if not existing_registration and competition.registration_deadline|default:now|date:'Y-m-d' >= now|date:'Y-m-d' and competition.registrations.count < competition.max_participants|default:99999 %}
+                                <a href="{% url 'competitions:competitions:register' competition_id=competition.id %}" class="btn btn-primary">
+                                    <i class="fas fa-user-plus me-2"></i>{% trans "S'inscrire" %}
+                                </a>
+                            {% elif existing_registration %}
+                                <a href="{% url 'competitions:competitions:register' competition_id=competition.id %}" class="btn btn-outline-primary">
+                                    <i class="fas fa-edit me-2"></i>{% trans "Modifier mon inscription" %}
+                                </a>
+                            {% endif %}
+
+                            {% if competition.status == 'published' %}
+                                {% if not competition.registration_deadline or competition.registration_deadline|date:"Y-m-d" >= today|date:"Y-m-d" %}
+                                    {% if user.role == 'club_manager' or user.role == 'federation_admin' %}
+                                    <a href="{% url 'competitions:competitions:register' competition_id=competition.id %}" class="btn btn-success action-btn">
+                                        <i class="fas fa-user-plus me-2"></i> {% trans "Inscrire un pratiquant" %}
+                                    </a>
+                                    {% endif %}
+                                {% endif %}
+                            {% endif %}
+
+                        {% else %}
+                            <a href="{% url 'competitions:auth:login' %}?next={% url 'competitions:competitions:detail' pk=competition.id %}" class="btn btn-outline-primary">
+                                <i class="fas fa-sign-in-alt me-2"></i>{% trans "Se connecter pour s'inscrire" %}
+                            </a>
+                        {% endif %}
+
+                        {% if perms.competitions.view_competitionregistration or user == competition.owner %}
+                            <a href="{% url 'competitions:competitions:manage_registrations' competition_id=competition.id %}" class="btn btn-outline-primary">
+                                <i class="fas fa-clipboard-list me-2"></i>{% trans "Voir les inscriptions" %}
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            <div class="info-block">
+                <h5><i class="fas fa-map-marker-alt me-2"></i> {% trans "Lieu" %}</h5>
+                <p class="mb-1"><strong>{{ competition.venue_name|default:competition.city }}</strong></p>
+                <p class="mb-1">{{ competition.address }}</p>
+                <p class="mb-0">{{ competition.city }}</p>
+                {% if competition.address %}
+                    <a href="https://www.google.com/maps/search/?api=1&query={{ competition.address|urlencode }}%20{{ competition.city|urlencode }}" class="btn btn-sm btn-outline-secondary mt-3" target="_blank">
+                        <i class="fas fa-map-marked-alt me-1"></i> {% trans "Voir sur la carte" %}
+                    </a>
+                {% endif %}
+            </div>
+
+            <div class="info-block">
+                <h5><i class="fas fa-cogs me-2"></i> {% trans "Administration" %}</h5>
+                {% if perms.competitions.change_competition or user == competition.owner %}
+                    <a href="{% url 'competitions:competitions:categories' competition_id=competition.id %}" class="btn btn-primary action-btn">
+                        <i class="fas fa-layer-group me-2"></i>{% trans "Gérer les catégories" %}
+                    </a>
+                {% endif %}
+                {% if perms.competitions.view_competitionregistration or user == competition.owner %}
+                    <a href="{% url 'competitions:competitions:manage_registrations' competition_id=competition.id %}" class="btn btn-info action-btn">
+                        <i class="fas fa-user-check me-2"></i>{% trans "Gérer les inscriptions" %}
+                    </a>
+                    <a href="{% url 'competitions:competitions:export_registrations' competition_id=competition.id %}?format=excel" class="btn btn-outline-info action-btn">
+                        <i class="fas fa-file-export me-2"></i>{% trans "Exporter les données" %}
+                    </a>
+                {% endif %}
+                <div class="action-buttons mt-4">
+                    {% if perms.competitions.change_competition or user == competition.owner %}
+                        <a href="{% url 'competitions:competitions:update' pk=competition.pk %}" class="btn btn-warning action-btn">
+                            <i class="fas fa-edit me-2"></i> {% trans "Modifier" %}
+                        </a>
+                    {% endif %}
+                    {% if perms.competitions.delete_competition or user == competition.owner %}
+                        <a href="{% url 'competitions:competitions:delete' pk=competition.pk %}" class="btn btn-danger action-btn">
+                            <i class="fas fa-trash me-2"></i> {% trans "Supprimer" %}
+                        </a>
+                    {% endif %}
+                    <a href="{% url 'competitions:competitions:list' %}" class="btn btn-secondary action-btn">
+                        <i class="fas fa-arrow-left me-2"></i> {% trans "Retour à la liste" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

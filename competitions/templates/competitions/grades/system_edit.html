@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}
+    {% if system %}
+        {% trans "Modifier le système de grades" %} - {{ system.name }}
+    {% else %}
+        {% trans "Nouveau système de grades" %}
+    {% endif %}
+    | MartialComp
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .categories-section {
+        margin-top: 2rem;
+    }
+    
+    .category-form {
+        background-color: #ffffff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        position: relative;
+    }
+    
+    .delete-category {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        color: #dc3545;
+        cursor: pointer;
+    }
+    
+    .add-category-btn {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-label.required::after {
+        content: " *";
+        color: #dc3545;
+    }
+    
+    .formset-help {
+        font-size: 0.875rem;
+        font-style: italic;
+        color: #6c757d;
+        margin-bottom: 1rem;
+    }
+    
+    .dynamic-form-info {
+        font-size: 0.875rem;
+        background-color: #e9ecef;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+    
+    .field-error {
+        color: #dc3545;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+    
+    .help-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+    
+    /* Styles pour le drag-and-drop */
+    .sortable-handle {
+        cursor: move;
+        background-color: #e9ecef;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        position: absolute;
+        left: 10px;
+        top: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="form-container">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'competitions:grades:systems_list' %}">{% trans "Systèmes de grades" %}</a></li>
+                {% if system %}
+                    <li class="breadcrumb-item"><a href="{% url 'competitions:grades:system_detail' system.id %}">{{ system.name }}</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{% trans "Modifier" %}</li>
+                {% else %}
+                    <li class="breadcrumb-item active" aria-current="page">{% trans "Nouveau système" %}</li>
+                {% endif %}
+            </ol>
+        </nav>
+        
+        <h1 class="mb-4">
+            {% if system %}
+                {% trans "Modifier le système de grades" %} - {{ system.name }}
+            {% else %}
+                {% trans "Nouveau système de grades" %}
+            {% endif %}
+        </h1>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <form method="post" id="system-form">
+            {% csrf_token %}
+            {{ formset.management_form }}
+            
+            <!-- Information sur la discipline -->
+            <div class="form-section">
+                <h5 class="mb-3">{% trans "Discipline" %}</h5>
+                
+                {% if system %}
+                    <div class="mb-3">
+                        <p><strong>{{ system.discipline.name }}</strong></p>
+                        <p class="text-muted">{{ system.discipline.country_origin }}</p>
+                    </div>
+                {% else %}
+                    <div class="mb-3">
+                        <p><strong>{{ discipline.name }}</strong></p>
+                        <p class="text-muted">{{ discipline.country_origin }}</p>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Informations sur le système -->
+            <div class="form-section">
+                <h5 class="mb-3">{% trans "Informations sur le système" %}</h5>
+                
+                <div class="mb-3">
+                    <label for="{{ form.name.id_for_label }}" class="form-label required">
+                        {{ form.name.label }}
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.help_text %}
+                        <div class="help-text">{{ form.name.help_text }}</div>
+                    {% endif %}
+                    {% if form.name.errors %}
+                        <div class="field-error">
+                            {% for error in form.name.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                        {{ form.description.label }}
+                    </label>
+                    {{ form.description }}
+                    {% if form.description.help_text %}
+                        <div class="help-text">{{ form.description.help_text }}</div>
+                    {% endif %}
+                    {% if form.description.errors %}
+                        <div class="field-error">
+                            {% for error in form.description.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.is_default.id_for_label }}" class="form-label">
+                        {{ form.is_default.label }}
+                    </label>
+                    <div class="form-check">
+                        {{ form.is_default }}
+                        <label class="form-check-label" for="{{ form.is_default.id_for_label }}">
+                            {% trans "Définir comme système par défaut pour cette discipline" %}
+                        </label>
+                    </div>
+                    {% if form.is_default.help_text %}
+                        <div class="help-text">{{ form.is_default.help_text }}</div>
+                    {% endif %}
+                    {% if form.is_default.errors %}
+                        <div class="field-error">
+                            {% for error in form.is_default.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Catégories de grades -->
+            <div class="categories-section">
+                <h4 class="mb-3">{% trans "Catégories de grades" %}</h4>
+                
+                <div class="dynamic-form-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Les catégories de grades permettent de regrouper les grades (ex: 'Kyu', 'Dan', 'Junior', 'Senior'...). Vous pourrez ajouter des grades spécifiques à chaque catégorie après avoir créé le système." %}
+                </div>
+                
+                <div class="formset-help mb-3">
+                    {% trans "Pour supprimer une catégorie, cochez la case 'Supprimer'. Pour changer l'ordre d'affichage, utilisez le champ 'Ordre'." %}
+                </div>
+                
+                <div id="categories-container">
+                    {% for category_form in formset %}
+                        <div class="category-form">
+                            {% if category_form.instance.pk %}
+                                <input type="hidden" name="{{ category_form.prefix }}-id" value="{{ category_form.instance.pk }}">
+                            {% endif %}
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="{{ category_form.name.id_for_label }}" class="form-label required">
+                                        {{ category_form.name.label }}
+                                    </label>
+                                    {{ category_form.name }}
+                                    {% if category_form.name.errors %}
+                                        <div class="field-error">
+                                            {% for error in category_form.name.errors %}
+                                                <div>{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-3">
+                                    <label for="{{ category_form.order.id_for_label }}" class="form-label">
+                                        {{ category_form.order.label }}
+                                    </label>
+                                    {{ category_form.order }}
+                                    {% if category_form.order.errors %}
+                                        <div class="field-error">
+                                            {% for error in category_form.order.errors %}
+                                                <div>{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="col-md-3">
+                                    <div class="form-check mt-4">
+                                        {{ category_form.DELETE }}
+                                        <label class="form-check-label" for="{{ category_form.DELETE.id_for_label }}">
+                                            {% trans "Supprimer" %}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ category_form.description.id_for_label }}" class="form-label">
+                                    {{ category_form.description.label }}
+                                </label>
+                                {{ category_form.description }}
+                                {% if category_form.description.errors %}
+                                    <div class="field-error">
+                                        {% for error in category_form.description.errors %}
+                                            <div>{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            {% if category_form.instance.pk %}
+                                <div class="text-end mt-3">
+                                    <a href="{% url 'competitions:grades:grade_category_edit' category_form.instance.pk %}" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-edit me-1"></i>{% trans "Gérer les grades" %}
+                                    </a>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="text-center mb-4">
+                    <button type="button" id="add-category" class="btn btn-outline-success add-category-btn">
+                        <i class="fas fa-plus-circle me-2"></i>{% trans "Ajouter une catégorie" %}
+                    </button>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between mt-4">
+                {% if system %}
+                    <a href="{% url 'competitions:grades:system_detail' system.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>{% trans "Annuler" %}
+                    </a>
+                {% else %}
+                    <a href="{% url 'competitions:grades:by_discipline' discipline.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>{% trans "Annuler" %}
+                    </a>
+                {% endif %}
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>{% trans "Enregistrer" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion du formset dynamique pour les catégories
+        const categoriesContainer = document.getElementById('categories-container');
+        const addCategoryBtn = document.getElementById('add-category');
+        let totalForms = document.getElementById('id_{{ formset.prefix }}-TOTAL_FORMS');
+        let formCount = parseInt(totalForms.value);
+        
+        // Fonction pour ajouter une nouvelle catégorie
+        function addCategory() {
+            // Cloner le premier formulaire comme template
+            const template = categoriesContainer.querySelector('.category-form');
+            const newForm = template.cloneNode(true);
+            
+            // Mettre à jour les IDs et noms des champs
+            const inputs = newForm.querySelectorAll('input, textarea, select');
+            inputs.forEach(input => {
+                const name = input.getAttribute('name');
+                if (name) {
+                    // Remplacer le préfixe du formset par le nouveau index
+                    const newName = name.replace(/{{ formset.prefix }}-\d+/, `{{ formset.prefix }}-${formCount}`);
+                    input.setAttribute('name', newName);
+                    
+                    // Mettre à jour l'ID si nécessaire
+                    if (input.id) {
+                        const newId = input.id.replace(/id_{{ formset.prefix }}-\d+/, `id_{{ formset.prefix }}-${formCount}`);
+                        input.id = newId;
+                    }
+                    
+                    // Réinitialiser les valeurs
+                    if (input.type === 'checkbox') {
+                        input.checked = false;
+                    } else if (input.type !== 'hidden') {
+                        input.value = '';
+                    }
+                }
+            });
+            
+            // Mettre à jour les labels
+            const labels = newForm.querySelectorAll('label');
+            labels.forEach(label => {
+                const forAttr = label.getAttribute('for');
+                if (forAttr) {
+                    const newFor = forAttr.replace(/id_{{ formset.prefix }}-\d+/, `id_{{ formset.prefix }}-${formCount}`);
+                    label.setAttribute('for', newFor);
+                }
+            });
+            
+            // Supprimer le lien de gestion des grades (s'il existe)
+            const manageLink = newForm.querySelector('a[href*="grade_category_edit"]');
+            if (manageLink) {
+                manageLink.parentElement.remove();
+            }
+            
+            // Ajouter le nouveau formulaire au conteneur
+            categoriesContainer.appendChild(newForm);
+            
+            // Mettre à jour le compteur de formulaires
+            formCount++;
+            totalForms.value = formCount;
+        }
+        
+        // Ajouter un événement au bouton d'ajout
+        addCategoryBtn.addEventListener('click', addCategory);
+        
+        // Ajouter la classe form-control aux éléments du formulaire
+        document.querySelectorAll('select, input[type="text"], input[type="number"], textarea').forEach(element => {
+            if (!element.classList.contains('form-check-input')) {
+                element.classList.add('form-control');
+            }
+        });
+        
+        document.querySelectorAll('input[type="checkbox"]').forEach(element => {
+            element.classList.add('form-check-input');
+        });
+        
+        // Si aucune catégorie n'existe, en créer une par défaut
+        if (categoriesContainer.children.length === 0) {
+            addCategory();
+        }
+    });
+</script>
+{% endblock %}
