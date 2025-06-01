@@ -1,0 +1,359 @@
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.models import User
+from django.utils import timezone
+from .practitioners import Practitioner
+from .discipline import Discipline
+from .federations import Federation
+from .club import Club
+
+
+class CoachProfile(models.Model):
+    """
+    Profil spécifique pour les coaches multi-disciplines
+    """
+    PROFILE_TYPES = [
+        ('traditional', _('Enseignant Traditionnel')),
+        ('competitive', _('Entraîneur de Compétition')),
+        ('wellness', _('Spécialiste Bien-être et Santé')),
+        ('children', _('Spécialiste Pédagogie Enfants')),
+        ('master', _('Maître / Expert Technique')),
+        ('fitness', _('Coach Préparation Physique')),
+        ('multidisciplinary', _('Expert Multi-disciplines')),
+    ]
+    
+    practitioner = models.OneToOneField(
+        Practitioner,
+        on_delete=models.CASCADE,
+        related_name='coach_profile',
+        verbose_name=_("Pratiquant")
+    )
+    
+    profile_type = models.CharField(
+        _("Type de profil"),
+        max_length=30,
+        choices=PROFILE_TYPES,
+        default='traditional',
+        help_text=_("Orientation principale de votre enseignement")
+    )
+    
+    years_teaching = models.PositiveIntegerField(
+        _("Années d'enseignement"),
+        default=0
+    )
+    
+    teaching_place_name = models.CharField(
+        _("Lieu ou club d'enseignement"),
+        max_length=200,
+        blank=True,
+        help_text=_("Nom de votre club, dojo ou lieu d'enseignement principal")
+    )
+    
+    # Champ maintenu pour compatibilité mais non affiché dans le formulaire
+    primary_teaching_place = models.ForeignKey(
+        Club,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='primary_coaches',
+        verbose_name=_("Club référencé (interne)")
+    )
+    
+    teaching_philosophy = models.TextField(
+        _("Philosophie d'enseignement"),
+        blank=True,
+        help_text=_("Description de votre approche pédagogique")
+    )
+    
+    # Paramètres de visibilité
+    visibility_settings = models.JSONField(
+        _("Paramètres de visibilité"),
+        default=dict,
+        help_text=_("Configuration de ce qui est visible publiquement")
+    )
+    
+    # Disponibilités
+    available_for_seminars = models.BooleanField(
+        _("Disponible pour séminaires"),
+        default=True
+    )
+    
+    available_for_private_lessons = models.BooleanField(
+        _("Disponible pour cours privés"),
+        default=True
+    )
+    
+    available_for_online_coaching = models.BooleanField(
+        _("Disponible pour coaching en ligne"),
+        default=False
+    )
+    
+    # Tarification indicative
+    hourly_rate_range = models.CharField(
+        _("Fourchette tarifaire horaire"),
+        max_length=50,
+        blank=True,
+        help_text=_("Ex: 50-80€")
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = _("Profil coach")
+        verbose_name_plural = _("Profils coaches")
+    
+    def __str__(self):
+        return f"Coach {self.practitioner.full_name}"
+    
+    def get_visibility_for(self, field):
+        """Retourne la visibilité pour un champ spécifique"""
+        return self.visibility_settings.get(field, 'public')
+    
+    def set_visibility(self, field, visibility):
+        """Définit la visibilité pour un champ"""
+        if visibility not in ['public', 'members', 'private']:
+            raise ValueError("Visibility must be 'public', 'members', or 'private'")
+        
+        if not self.visibility_settings:
+            self.visibility_settings = {}
+            
+        self.visibility_settings[field] = visibility
+        self.save()
+
+
+class DisciplineExpertise(models.Model):
+    """
+    Expertise d'un coach dans une discipline spécifique
+    """
+    EXPERTISE_LEVELS = [
+        ('beginner', _('Débutant')),
+        ('intermediate', _('Intermédiaire')),
+        ('advanced', _('Avancé')),
+        ('expert', _('Expert')),
+        ('master', _('Maître')),
+    ]
+    
+    coach_profile = models.ForeignKey(
+        CoachProfile,
+        on_delete=models.CASCADE,
+        related_name='discipline_expertises',
+        verbose_name=_("Profil coach")
+    )
+    
+    discipline = models.ForeignKey(
+        Discipline,
+        on_delete=models.CASCADE,
+        verbose_name=_("Discipline")
+    )
+    
+    level = models.CharField(
+        _("Niveau d'expertise"),
+        max_length=30,
+        choices=EXPERTISE_LEVELS,
+        default='advanced'
+    )
+    
+    years_experience = models.PositiveIntegerField(
+        _("Années d'expérience"),
+        default=0
+    )
+    
+    years_teaching = models.PositiveIntegerField(
+        _("Années d'enseignement"),
+        default=0
+    )
+    
+    is_primary = models.BooleanField(
+        _("Discipline principale"),
+        default=False
+    )
+    
+    # Grades et certifications
+    current_grade = models.CharField(
+        _("Grade actuel"),
+        max_length=100,
+        blank=True
+    )
+    
+    teaching_certification = models.CharField(
+        _("Certification d'enseignement"),
+        max_length=200,
+        blank=True
+    )
+    
+    federation = models.ForeignKey(
+        Federation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_("Fédération affiliée")
+    )
+    
+    # Description publique
+    public_description = models.TextField(
+        _("Description publique"),
+        blank=True,
+        help_text=_("Décrivez votre expertise dans cette discipline")
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = _("Expertise disciplinaire")
+        verbose_name_plural = _("Expertises disciplinaires")
+        unique_together = ['coach_profile', 'discipline']
+    
+    def __str__(self):
+        return f"{self.coach_profile.practitioner.full_name} - {self.discipline.name} ({self.level})"
+    
+    def save(self, *args, **kwargs):
+        # S'assurer qu'il n'y a qu'une seule discipline principale
+        if self.is_primary:
+            DisciplineExpertise.objects.filter(
+                coach_profile=self.coach_profile,
+                is_primary=True
+            ).exclude(pk=self.pk).update(is_primary=False)
+        
+        super().save(*args, **kwargs)
+
+
+class TeachingSchedule(models.Model):
+    """
+    Planning d'enseignement d'un coach
+    """
+    DAYS_OF_WEEK = [
+        (0, _('Lundi')),
+        (1, _('Mardi')),
+        (2, _('Mercredi')),
+        (3, _('Jeudi')),
+        (4, _('Vendredi')),
+        (5, _('Samedi')),
+        (6, _('Dimanche')),
+    ]
+    
+    coach_profile = models.ForeignKey(
+        CoachProfile,
+        on_delete=models.CASCADE,
+        related_name='teaching_schedules',
+        verbose_name=_("Profil coach")
+    )
+    
+    club = models.ForeignKey(
+        Club,
+        on_delete=models.CASCADE,
+        verbose_name=_("Club")
+    )
+    
+    discipline = models.ForeignKey(
+        Discipline,
+        on_delete=models.CASCADE,
+        verbose_name=_("Discipline")
+    )
+    
+    day_of_week = models.IntegerField(
+        _("Jour de la semaine"),
+        choices=DAYS_OF_WEEK
+    )
+    
+    start_time = models.TimeField(_("Heure de début"))
+    end_time = models.TimeField(_("Heure de fin"))
+    
+    level = models.CharField(
+        _("Niveau du cours"),
+        max_length=50,
+        blank=True
+    )
+    
+    is_active = models.BooleanField(
+        _("Actif"),
+        default=True
+    )
+    
+    class Meta:
+        verbose_name = _("Planning d'enseignement")
+        verbose_name_plural = _("Plannings d'enseignement")
+        ordering = ['day_of_week', 'start_time']
+    
+    def __str__(self):
+        return f"{self.get_day_of_week_display()} {self.start_time}-{self.end_time} - {self.discipline.name}"
+
+
+class CoachAchievement(models.Model):
+    """
+    Réalisations et certifications d'un coach
+    """
+    ACHIEVEMENT_TYPES = [
+        ('certification', _('Certification')),
+        ('competition', _('Compétition')),
+        ('teaching', _('Enseignement')),
+        ('publication', _('Publication')),
+        ('seminar', _('Séminaire')),
+        ('other', _('Autre')),
+    ]
+    
+    coach_profile = models.ForeignKey(
+        CoachProfile,
+        on_delete=models.CASCADE,
+        related_name='achievements',
+        verbose_name=_("Profil coach")
+    )
+    
+    achievement_type = models.CharField(
+        _("Type de réalisation"),
+        max_length=30,
+        choices=ACHIEVEMENT_TYPES
+    )
+    
+    title = models.CharField(
+        _("Titre"),
+        max_length=200
+    )
+    
+    description = models.TextField(
+        _("Description"),
+        blank=True
+    )
+    
+    discipline = models.ForeignKey(
+        Discipline,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_("Discipline concernée")
+    )
+    
+    date = models.DateField(
+        _("Date"),
+        null=True,
+        blank=True
+    )
+    
+    issuing_organization = models.CharField(
+        _("Organisation émettrice"),
+        max_length=200,
+        blank=True
+    )
+    
+    document = models.FileField(
+        _("Document"),
+        upload_to='coach_achievements/',
+        null=True,
+        blank=True
+    )
+    
+    is_public = models.BooleanField(
+        _("Visible publiquement"),
+        default=True
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _("Réalisation")
+        verbose_name_plural = _("Réalisations")
+        ordering = ['-date']
+    
+    def __str__(self):
+        return f"{self.title} ({self.get_achievement_type_display()})"

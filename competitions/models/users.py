@@ -1,0 +1,164 @@
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.apps import apps
+
+from organizations.models import Organization, OrganizationMember, OrganizationRole
+
+
+class UserProfile(models.Model):
+    """
+    Profil étendant le modèle User standard de Django avec des champs supplémentaires.
+    Cette classe contient les informations de rôle et d'onboarding pour les utilisateurs.
+    """
+    
+    ROLE_CHOICES = [
+        ('club_manager', _('Responsable de club')),
+        ('federation_admin', _('Responsable de fédération')),
+        ('judge', _('Juge/Arbitre')), 
+        ('participant', _('Participant')),
+        ('coach', _('Coach')),
+        ('spectator', _('Spectateur')),
+    ]
+    
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    
+    # Champs pour tracker l'onboarding
+    role = models.CharField(
+        _("Rôle"), 
+        max_length=50, 
+        blank=True, 
+        null=True, 
+        choices=ROLE_CHOICES,
+        default='spectator'
+    )
+    
+    onboarding_step = models.CharField(
+        _("Étape d'onboarding"),
+        max_length=50, 
+        blank=True, 
+        null=True,
+        default='role_selection'
+    )
+    onboarding_completed = models.BooleanField(_("Onboarding terminé"), default=False)
+    
+    # Références aux modèles liés
+    organization = models.ForeignKey(
+        'competitions.Club', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='user_profiles',
+        verbose_name=_('Organisation'),
+    )
+    
+    # Propriétés pour faciliter les vérifications
+    @property
+    def is_club_manager(self):
+        return self.role == 'club_manager'
+    
+    @property
+    def is_federation_admin(self):
+        return self.role == 'federation_admin'
+    
+    @property
+    def is_judge(self):
+        return self.role == 'judge'
+    
+    @property
+    def is_participant(self):
+        return self.role == 'participant'
+    
+    @property
+    def is_coach(self):
+        return self.role == 'coach'
+    
+    @property
+    def is_spectator(self):
+        return self.role == 'spectator'
+    
+    def __str__(self):
+        role_display = dict(self.ROLE_CHOICES).get(self.role, 'Non défini')
+        return f"{self.user.username} - {role_display}"
+    
+    @property
+    def federation(self):
+        """Return the federation this user is associated with (if any)"""
+        if self.is_federation_admin:
+            # Get the first federation this user administers
+            federations = self.user.get_administered_federations()
+            return federations.first() if federations.exists() else None
+        return None
+    
+    class Meta:
+        verbose_name = _("Profil utilisateur")
+        verbose_name_plural = _("Profils utilisateurs")
+
+
+# --- Signaux ---
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    """Crée un profil utilisateur si nécessaire."""
+    if created:
+        # Éviter de créer un profil s'il existe déjà
+        if not hasattr(instance, 'profile'):
+            UserProfile.objects.create(user=instance)
+
+
+# --- Extensions du modèle User ---
+
+def user_role(self):
+    """Accès au rôle via la relation profile"""
+    if hasattr(self, 'profile'):
+        return self.profile.role
+    return None
+
+def user_onboarding_completed(self):
+    """Accès à l'état d'onboarding via la relation profile"""
+    if hasattr(self, 'profile'):
+        return self.profile.onboarding_completed
+    return False
+
+def user_get_practitioners(self):
+    """Accès aux pratiquants associés à cet utilisateur"""
+    return self.practitioners.all()
+
+def user_userprofile(self):
+    return self.profile if hasattr(self, 'profile') else None
+
+def get_administered_federations(self):
+    """Retourne les fédérations administrées par l'utilisateur."""
+    Federation = apps.get_model('competitions', 'Federation')
+    return Federation.objects.filter(administrators__user=self)
+
+def get_administered_clubs(self):
+    """Retourne les clubs administrés par l'utilisateur."""
+    Club = apps.get_model('competitions', 'Club')
+    return Club.objects.filter(administrators__user=self)
+
+def is_federation_admin(self, federation=None):
+    """Vérifie si l'utilisateur est administrateur d'une fédération spécifique ou de n'importe quelle fédération."""
+    FederationAdministrator = apps.get_model('competitions', 'FederationAdministrator')
+    if federation:
+        return FederationAdministrator.objects.filter(user=self, federation=federation).exists()
+    return FederationAdministrator.objects.filter(user=self).exists()
+
+def is_club_admin(self, club=None):
+    """Vérifie si l'utilisateur est administrateur d'un club spécifique ou de n'importe quel club."""
+    ClubAdministrator = apps.get_model('competitions', 'ClubAdministrator')
+    if club:
+        return ClubAdministrator.objects.filter(user=self, club=club).exists()
+    return ClubAdministrator.objects.filter(user=self).exists()
+
+# Ajout des propriétés et méthodes au modèle User
+User.role = property(user_role)
+User.onboarding_completed = property(user_onboarding_completed)
+User.get_practitioners = user_get_practitioners
+User.userprofile = property(user_userprofile)
+User.get_administered_federations = get_administered_federations
+User.get_administered_clubs = get_administered_clubs
+User.is_federation_admin = is_federation_admin
+User.is_club_admin = is_club_admin

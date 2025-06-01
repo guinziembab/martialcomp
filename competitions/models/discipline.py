@@ -1,0 +1,136 @@
+# competitions/models/discipline.py
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.core.validators import MinValueValidator
+
+from organizations.models import Organization, OrganizationMember, OrganizationRole
+
+
+class Discipline(models.Model):
+    """
+    Modèle représentant une discipline d'arts martiaux.
+    """
+    # Informations de base
+    name = models.CharField(_("Nom"), max_length=100)
+    description = models.TextField(_("Description"), blank=True)
+    country_origin = models.CharField(_("Pays d'origine"), max_length=100, blank=True)
+    is_active = models.BooleanField(_("Actif"), default=True)
+    
+    # Relations
+    organization = models.ForeignKey('organizations.Organization', 
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='primary_disciplines',
+        verbose_name=_("Fédération principale")
+    )
+    
+    # Remplacement du JSONField par une ForeignKey vers le système de grades
+    grading_system = models.ForeignKey(
+        'grades.GradingSystem',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='disciplines',
+        verbose_name=_("Système de grade"),
+        help_text=_("Configuration du système de grades pour cette discipline")
+    )
+    
+    minimum_age = models.PositiveIntegerField(
+        _("Âge minimum"),
+        default=0,
+        help_text=_("Âge minimum recommandé pour pratiquer cette discipline")
+    )
+    
+    # Métadonnées
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+    
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        verbose_name = _("Discipline")
+        verbose_name_plural = _("Disciplines")
+        ordering = ['name']
+
+
+class Style(models.Model):
+    """
+    Styles ou écoles au sein d'une discipline.
+    """
+    discipline = models.ForeignKey(
+        Discipline, 
+        on_delete=models.CASCADE,
+        related_name='styles',
+        verbose_name=_("Discipline")
+    )
+    name = models.CharField(_("Nom"), max_length=100)
+    description = models.TextField(_("Description"), blank=True)
+    founder = models.CharField(_("Fondateur"), max_length=100, blank=True)
+    foundation_date = models.DateField(_("Date de création"), null=True, blank=True)
+    
+    # Métadonnées
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("Style")
+        verbose_name_plural = _("Styles")
+        unique_together = ['discipline', 'name']
+        ordering = ['discipline', 'name']
+    
+    def __str__(self):
+        return f"{self.discipline.name} - {self.name}"
+
+
+class Technique(models.Model):
+    """
+    Techniques spécifiques à une discipline.
+    """
+    # Conserver les choix pour la rétrocompatibilité
+    LEVEL_CHOICES = [
+        (1, _('Débutant')),
+        (2, _('Intermédiaire')),
+        (3, _('Avancé')),
+        (4, _('Expert'))
+    ]
+    
+    discipline = models.ForeignKey(
+        Discipline, 
+        on_delete=models.CASCADE,
+        related_name='techniques',
+        verbose_name=_("Discipline")
+    )
+    name = models.CharField(_("Nom"), max_length=100)
+    description = models.TextField(_("Description"), blank=True)
+    
+    # Conserver le champ original pour la compatibilité
+    minimum_level = models.IntegerField(
+        _("Niveau minimum"),
+        choices=LEVEL_CHOICES, 
+        default=1
+    )
+    
+    # Ajouter une relation vers le modèle Grade
+    minimum_grade = models.ForeignKey(
+        'grades.Grade',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='required_techniques',
+        verbose_name=_("Grade minimum requis")
+    )
+    
+    # Métadonnées
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("Technique")
+        verbose_name_plural = _("Techniques")
+        unique_together = ['discipline', 'name']
+        ordering = ['discipline', 'minimum_level', 'name']
+    
+    def __str__(self):
+        return f"{self.discipline.name} - {self.name}"
