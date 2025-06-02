@@ -19,7 +19,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-tv=2g@wtxxfu^6trqra-e
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
 # Configuration des hôtes autorisés
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver','martialcomp.onrender.com']
 
 # Ajout des domaines de Render
 if os.environ.get('RENDER_EXTERNAL_HOSTNAME'):
