@@ -130,6 +130,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'config.allowed_hosts_override.AllowedHostsOverrideMiddleware',  # Ajoutez ce middleware en premier
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Pour servir les fichiers statiques
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -503,7 +504,7 @@ DATABASE_ROUTERS = [
 ]
 
 # Configuration des domaines autorisés (sera étendu dynamiquement)
-ALLOWED_HOSTS_DYNAMIC = True
+ALLOWED_HOSTS_DYNAMIC = False
 
 # Configuration Stripe
 STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY', '')
