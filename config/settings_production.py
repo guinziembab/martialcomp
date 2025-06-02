@@ -1,21 +1,35 @@
 """
-Configuration Django pour l'environnement de production DigitalOcean
+Configuration Django pour MartialComp - PRODUCTION IONOS VPS
+Basé sur le guide de déploiement Ionos VPS
 Domain: martialcomp.com
+IP: 212.227.78.104
 """
 
 import os
+from pathlib import Path
+from datetime import timedelta
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement
+load_dotenv()
+
+# Build paths
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Import des settings de base
 from .settings import *
 
 # ================================
 # CONFIGURATION DE BASE PRODUCTION
 # ================================
 
-DEBUG = False
-ALLOWED_HOSTS = [
-    'martialcomp.com',
-    'www.martialcomp.com', 
-    os.environ.get('SERVER_IP', ''),  # IP du serveur DigitalOcean
-]
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'martialcomp.com,www.martialcomp.com,212.227.78.104').split(',')
+
+# Secret key depuis les variables d'environnement (CRITIQUE)
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY doit être définie dans les variables d'environnement")
 
 # ================================
 # BASE DE DONNÉES POSTGRESQL
@@ -23,16 +37,17 @@ ALLOWED_HOSTS = [
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'martialcomp_prod'),
-        'USER': os.environ.get('DB_USER', 'martialcomp_user'),
-        'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
+        'NAME': os.getenv('DB_NAME', 'martialcomp_db'),
+        'USER': os.getenv('DB_USER', 'martialcomp_user'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
         'OPTIONS': {
             'connect_timeout': 20,
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         },
-        'CONN_MAX_AGE': 600,  # Réutilisation des connexions
+        'CONN_MAX_AGE': 600,
     }
 }
 
@@ -64,39 +79,38 @@ SESSION_CACHE_ALIAS = 'default'
 # SÉCURITÉ PRODUCTION
 # ================================
 
-# Secret key depuis les variables d'environnement
-SECRET_KEY = os.environ.get('SECRET_KEY')
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY doit être définie dans les variables d'environnement")
+# Configuration CSRF pour production
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'https://martialcomp.com,https://www.martialcomp.com').split(',')
+CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'True').lower() == 'true'
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'Strict'
 
 # HTTPS et SSL
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True').lower() == 'true'
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_HSTS_SECONDS = 31536000  # 1 an
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
+SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'True').lower() == 'true'
+SECURE_BROWSER_XSS_FILTER = os.getenv('SECURE_BROWSER_XSS_FILTER', 'True').lower() == 'true'
+SECURE_CONTENT_TYPE_NOSNIFF = os.getenv('SECURE_CONTENT_TYPE_NOSNIFF', 'True').lower() == 'true'
+SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '31536000'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'True').lower() == 'true'
+SECURE_HSTS_PRELOAD = os.getenv('SECURE_HSTS_PRELOAD', 'True').lower() == 'true'
 
 # Cookies sécurisés
 SESSION_COOKIE_HTTPONLY = True
-CSRF_COOKIE_HTTPONLY = True
-SESSION_COOKIE_AGE = 3600  # 1 heure
+SESSION_COOKIE_AGE = 86400  # 24 heures
 
 # Headers de sécurité
-X_FRAME_OPTIONS = 'DENY'
+X_FRAME_OPTIONS = os.getenv('X_FRAME_OPTIONS', 'SAMEORIGIN')
 
 # ================================
 # FICHIERS STATIQUES ET MÉDIA
 # ================================
 
 STATIC_URL = '/static/'
-STATIC_ROOT = '/home/deploy/static/'
+STATIC_ROOT = '/var/www/vhosts/martialcomp.com/httpdocs/staticfiles/'
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = '/home/deploy/media/'
+MEDIA_ROOT = '/var/www/vhosts/martialcomp.com/httpdocs/media/'
 
 # Configuration pour les fichiers uploadés
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
@@ -142,7 +156,7 @@ LOGGING = {
         'file': {
             'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': '/home/deploy/logs/django.log',
+            'filename': '/var/www/vhosts/martialcomp.com/logs/django.log',
             'maxBytes': 1024*1024*15,  # 15MB
             'backupCount': 10,
             'formatter': 'verbose',
@@ -150,7 +164,7 @@ LOGGING = {
         'error_file': {
             'level': 'ERROR',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': '/home/deploy/logs/django_error.log',
+            'filename': '/var/www/vhosts/martialcomp.com/logs/django_error.log',
             'maxBytes': 1024*1024*15,  # 15MB
             'backupCount': 10,
             'formatter': 'verbose',
