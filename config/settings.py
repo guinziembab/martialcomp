@@ -19,7 +19,13 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-tv=2g@wtxxfu^6trqra-e
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
 # Configuration des hôtes autorisés
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver','martialcomp.onrender.com']
+ALLOWED_HOSTS = [
+    'localhost', 
+    '127.0.0.1', 
+    'testserver',
+    'martialcomp.onrender.com',
+    '.onrender.com',  # Accepte tous les sous-domaines de onrender.com
+]
 
 # Ajout des domaines de Render
 if os.environ.get('RENDER_EXTERNAL_HOSTNAME'):
@@ -124,6 +130,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'config.debug_middleware.DebugMiddleware',  # Ajoutez au début pour le débogage
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Pour servir les fichiers statiques
     'django.contrib.sessions.middleware.SessionMiddleware',
