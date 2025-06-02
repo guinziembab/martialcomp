@@ -24,6 +24,8 @@ ALLOWED_HOSTS = [
     '127.0.0.1', 
     'testserver',
     'martialcomp.onrender.com',
+    'martialcomp.com',
+    'www.martialcomp.com',
     '.onrender.com',  # Accepte tous les sous-domaines de onrender.com
 ]
 
@@ -42,7 +44,9 @@ if os.environ.get('ALLOWED_HOSTS'):
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8001',
     'http://127.0.0.1:8001',
-    'https://*.martialcomp.com',
+    'https://martialcomp.onrender.com',
+    'https://martialcomp.com',
+    'https://www.martialcomp.com',
     'https://*.onrender.com',  # Ajout des domaines Render
 ]
 
