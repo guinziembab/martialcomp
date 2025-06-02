@@ -130,7 +130,6 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'config.debug_middleware.DebugMiddleware',  # Ajoutez au début pour le débogage
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Pour servir les fichiers statiques
     'django.contrib.sessions.middleware.SessionMiddleware',
