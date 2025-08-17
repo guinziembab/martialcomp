@@ -3,6 +3,9 @@ from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth import get_user_model
 from rest_framework import status, permissions
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import SessionAuthentication
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -343,6 +346,177 @@ class UserView(APIView):
         user = request.user
         serializer = UserSerializer(user)
         return Response(serializer.data)
+
+
+class UserProfileView(APIView):
+    """Profil enrichi pour l'application mobile."""
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+
+    def get(self, request):
+        user = request.user
+        # Statistiques de base alignées backend (fallbacks si relations absentes)
+        organization = getattr(user, 'organization', None)
+        practitioners_count = 0
+        active_registrations = 0
+        organized_competitions = 0
+        try:
+            if organization and hasattr(organization, 'practitioners'):
+                practitioners_count = organization.practitioners.count()
+        except Exception:
+            pass
+        try:
+            if hasattr(user, 'registrations'):
+                active_registrations = user.registrations.filter(status='active').count()
+        except Exception:
+            pass
+        try:
+            if hasattr(user, 'organized_competitions'):
+                organized_competitions = user.organized_competitions.count()
+        except Exception:
+            pass
+
+        payload = {
+            'user': {
+                'id': user.id,
+                'username': getattr(user, 'username', ''),
+                'email': getattr(user, 'email', ''),
+                'first_name': getattr(user, 'first_name', ''),
+                'last_name': getattr(user, 'last_name', ''),
+                'full_name': f"{getattr(user,'first_name','')} {getattr(user,'last_name','')}".strip(),
+                'organization': {
+                    'id': getattr(organization, 'id', None),
+                    'name': getattr(organization, 'name', None),
+                    'type': getattr(organization, 'organization_type', None),
+                } if organization else None,
+            },
+            # Expose top-level organization for mobile convenience
+            'organization': {
+                'id': getattr(organization, 'id', None),
+                'name': getattr(organization, 'name', None),
+                'type': getattr(organization, 'organization_type', None),
+            } if organization else None,
+            'statistics': {
+                'practitioners_count': practitioners_count,
+                'active_registrations': active_registrations,
+                'organized_competitions': organized_competitions,
+                'judges_referees': 0,
+            },
+            'modules': {
+                'finances': {'total_balance': 0, 'revenue': 0, 'expenses': 0},
+                'payments': {'recent_count': 0},
+                'orders': {'total': 0, 'pending': 0, 'in_progress': 0},
+            }
+        }
+        return Response(payload)
+
+    def patch(self, request):
+        user = request.user
+        payload = request.data or {}
+        updated = False
+
+        map_fields = {
+            'first_name': 'first_name',
+            'last_name': 'last_name',
+            'phone_number': 'phone_number',
+        }
+        for src, attr in map_fields.items():
+            if src in payload and hasattr(user, attr):
+                setattr(user, attr, payload[src])
+                updated = True
+
+        if updated:
+            user.save()
+
+        # Return updated snapshot
+        return self.get(request)
+class SocialLoginBase(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    provider = None  # 'google' or 'facebook'
+
+    def post(self, request):
+        token = request.data.get('token')  # id_token (Google) or access_token (Facebook)
+        if not token:
+            return Response({'error': 'token is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = self.validate_and_get_user(token)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Issue tokens (same as LoginView)
+        jwt_refresh = JWTRefreshToken.for_user(user)
+        jti = str(uuid.uuid4())
+        jwt_refresh.access_token['jti'] = jti
+
+        AccessTokenLog.objects.create(
+            user=user,
+            jti=jti,
+            expires_at=timezone.now() + datetime.timedelta(minutes=60),
+            device_id=None,
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            ip_address=self.get_client_ip(request),
+            tenant=getattr(request, 'tenant', None)
+        )
+
+        response_data = {
+            'access': str(jwt_refresh.access_token),
+            'refresh': str(jwt_refresh),
+            'user': UserSerializer(user).data,
+            'expires_in': 3600,
+        }
+        return Response(TokenSerializer(response_data).data)
+
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0]
+        return request.META.get('REMOTE_ADDR')
+
+    def validate_and_get_user(self, token):
+        raise NotImplementedError
+
+
+class SocialLoginGoogleView(SocialLoginBase):
+    provider = 'google'
+
+    def validate_and_get_user(self, id_token:str):
+        # Minimal validation placeholder: in production, verify with Google tokeninfo or google-auth library
+        # Accept basic JWT decoding to extract email; here we fallback to a simple stub for Phase 1
+        import base64, json
+        email = None
+        try:
+            parts = id_token.split('.')
+            if len(parts) >= 2:
+                payload_b64 = parts[1] + '==='  # pad
+                payload = json.loads(base64.urlsafe_b64decode(payload_b64).decode('utf-8'))
+                email = payload.get('email')
+        except Exception:
+            pass
+        if not email:
+            # Fallback: allow direct email token in dev
+            email = id_token if '@' in id_token else None
+        if not email:
+            raise Exception('Invalid Google token')
+
+        # Find or create user
+        user, _ = User.objects.get_or_create(username=email, defaults={'email': email, 'is_active': True})
+        return user
+
+
+class SocialLoginFacebookView(SocialLoginBase):
+    provider = 'facebook'
+
+    def validate_and_get_user(self, access_token:str):
+        # Minimal validation placeholder: in production, call https://graph.facebook.com/me?fields=id,name,email&access_token=...
+        # For Phase 1, accept an email passed as token for dev/testing
+        email = access_token if '@' in access_token else None
+        if not email:
+            raise Exception('Invalid Facebook token')
+        user, _ = User.objects.get_or_create(username=email, defaults={'email': email, 'is_active': True})
+        return user
+
 
 
 class DeviceRegistrationView(APIView):
