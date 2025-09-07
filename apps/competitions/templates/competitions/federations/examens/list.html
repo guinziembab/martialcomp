@@ -1,0 +1,170 @@
+{% extends "competitions/dashboard/base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Examens" %} - {{ federation.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.exam-card {
+    border-left: 4px solid #007bff;
+    transition: all 0.3s ease;
+}
+
+.exam-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.exam-card.draft {
+    border-left-color: #6c757d;
+}
+
+.exam-card.published {
+    border-left-color: #28a745;
+}
+
+.exam-card.ongoing {
+    border-left-color: #ffc107;
+}
+
+.exam-card.completed {
+    border-left-color: #17a2b8;
+}
+
+.exam-card.cancelled {
+    border-left-color: #dc3545;
+}
+
+.stats-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+}
+
+.stats-number {
+    font-size: 2rem;
+    font-weight: bold;
+}
+</style>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="container-fluid py-4">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-clipboard-check text-primary me-2"></i>
+                        {% trans "Examens" %}
+                    </h1>
+                    <p class="text-muted mb-0">{{ federation.name }}</p>
+                </div>
+                <div>
+                    <a href="{% url 'competitions:federations:create_examen' federation.id %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i> {% trans "Nouvel examen" %}
+                    </a>
+                </div>
+            </div>
+
+            <!-- Statistiques -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card stats-card text-center">
+                        <div class="card-body">
+                            <div class="stats-number">{{ stats.total }}</div>
+                            <div>{% trans "Total examens" %}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card stats-card text-center">
+                        <div class="card-body">
+                            <div class="stats-number">{{ stats.upcoming }}</div>
+                            <div>{% trans "À venir" %}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card stats-card text-center">
+                        <div class="card-body">
+                            <div class="stats-number">{{ stats.ongoing }}</div>
+                            <div>{% trans "En cours" %}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liste des examens -->
+            <div class="card">
+                <div class="card-body">
+                    {% if examens %}
+                        <div class="row">
+                            {% for examen in examens %}
+                            <div class="col-md-6 mb-4">
+                                <div class="card exam-card {{ examen.status }}">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h5 class="card-title mb-0">{{ examen.title }}</h5>
+                                        <span class="badge bg-{{ examen.status|yesno:'success,warning,secondary' }}">
+                                            {{ examen.get_status_display }}
+                                        </span>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="card-text">{{ examen.description|truncatewords:15 }}</p>
+                                        
+                                        <div class="mb-2">
+                                            <i class="fas fa-calendar text-primary me-1"></i>
+                                            {{ examen.start_date|date:"d/m/Y" }}
+                                            {% if examen.start_time %}
+                                                à {{ examen.start_time|time:"H:i" }}
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="mb-2">
+                                            <i class="fas fa-map-marker-alt text-primary me-1"></i>
+                                            {{ examen.location }}
+                                        </div>
+                                        
+                                        <div class="mb-2">
+                                            <i class="fas fa-users text-primary me-1"></i>
+                                            {{ examen.participants_count }}/{{ examen.max_participants }} {% trans "participants" %}
+                                        </div>
+                                        
+                                        {% if examen.registration_fee > 0 %}
+                                        <div class="mb-3">
+                                            <i class="fas fa-euro-sign text-primary me-1"></i>
+                                            {{ examen.registration_fee }} € {% trans "d'inscription" %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="card-footer">
+                                        <div class="btn-group w-100" role="group">
+                                            <a href="{% url 'competitions:federations:examen_detail' federation.id examen.id %}" class="btn btn-outline-primary">
+                                                <i class="fas fa-eye me-1"></i> {% trans "Détails" %}
+                                            </a>
+                                            <a href="{% url 'competitions:federations:edit_examen' federation.id examen.id %}" class="btn btn-outline-secondary">
+                                                <i class="fas fa-edit me-1"></i> {% trans "Modifier" %}
+                                            </a>
+                                            <a href="{% url 'competitions:federations:delete_examen' federation.id examen.id %}" class="btn btn-outline-danger">
+                                                <i class="fas fa-trash me-1"></i> {% trans "Supprimer" %}
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-clipboard-check fa-3x text-muted mb-3"></i>
+                            <h4>{% trans "Aucun examen" %}</h4>
+                            <p class="text-muted">{% trans "Vous n'avez pas encore créé d'examens." %}</p>
+                            <a href="{% url 'competitions:federations:create_examen' federation.id %}" class="btn btn-primary">
+                                <i class="fas fa-plus me-1"></i> {% trans "Créer le premier examen" %}
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+</div>
+{% endblock %}
