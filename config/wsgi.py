@@ -1,17 +1,10 @@
 """
-WSGI config for config project.
-
-It exposes the WSGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/5.1/howto/deployment/wsgi/
+WSGI config forcé pour traductions
 """
-
 import os
-
 from django.core.wsgi import get_wsgi_application
 
-# Configuration standard pour développement
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+# FORCER le settings simple
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings_fixed')
 
 application = get_wsgi_application()

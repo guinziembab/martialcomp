@@ -1,3 +1,4 @@
+from django.core.exceptions import PermissionDenied
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
@@ -11,6 +12,7 @@ import secrets
 import string
 
 from .models import RefreshToken, DeviceRegistration, PKCESession, AccessTokenLog
+from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
 
 User = get_user_model()
 
@@ -40,26 +42,34 @@ class LoginSerializer(serializers.Serializer):
     tenant_id = serializers.CharField(max_length=36, required=False)
     
     def validate(self, attrs):
-        username = attrs.get('username')
+        username_input = attrs.get('username')
         password = attrs.get('password')
         code_challenge = attrs.get('code_challenge')
         tenant_id = attrs.get('tenant_id')
-        
-        if not username or not password:
+
+        if not username_input or not password:
             raise serializers.ValidationError(_("Nom d'utilisateur et mot de passe sont requis."))
-        
-        # Authentifier l'utilisateur
-        user = authenticate(username=username, password=password)
-        
+
+        # Authentifier par username direct
+        user = authenticate(username=username_input, password=password)
+
+        # Fallback: si l'entrée ressemble à un email, tenter via email -> username
+        if not user and '@' in username_input:
+            try:
+                email_user = User.objects.get(email__iexact=username_input)
+                user = authenticate(username=email_user.username, password=password)
+            except User.DoesNotExist:
+                user = None
+
         if not user:
             raise serializers.ValidationError(_("Identifiants invalides."))
-        
+
         if not user.is_active:
             raise serializers.ValidationError(_("Ce compte a été désactivé."))
-        
+
         # Ajouter l'utilisateur authentifié aux données validées
         attrs['user'] = user
-        
+
         return attrs
 
 
@@ -271,18 +281,24 @@ class PKCECompleteSerializer(serializers.Serializer):
 
 
 class LogoutSerializer(serializers.Serializer):
-    """Serializer pour la déconnexion (révocation des tokens)"""
-    refresh = serializers.CharField()
+    """Serializer pour la déconnexion (révocation des tokens).
+    Le champ refresh est optionnel afin de permettre un logout idempotent côté client.
+    """
+    refresh = serializers.CharField(required=False, allow_blank=True)
     
     def validate(self, attrs):
         refresh_token = attrs.get('refresh')
         
+        # Si aucun token fourni, laisser la vue traiter comme logout logique (idempotent)
+        if not refresh_token:
+            return attrs
+
         # Vérifier si le token existe
         try:
             token = RefreshToken.objects.get(token=refresh_token)
         except RefreshToken.DoesNotExist:
             # Si le token n'existe pas, considérons que c'est déjà fait
-            pass
+            return attrs
         else:
             # Si le token existe et n'est pas déjà révoqué, l'ajouter aux attributs validés
             if not token.revoked:

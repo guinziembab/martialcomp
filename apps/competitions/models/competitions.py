@@ -1,0 +1,209 @@
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.utils.text import slugify
+from django.utils import timezone
+
+from apps.organizations.models import Organization, OrganizationMember, OrganizationRole
+from apps.core.isolation import OrganizationSecureManager
+from .discipline import Discipline
+
+class Competition(models.Model):
+    title = models.CharField(_("Titre"), max_length=255)
+    slug = models.SlugField(_("Slug"), max_length=255, unique=True, blank=True)
+    description = models.TextField(_("Description"), blank=True)
+    start_date = models.DateField(_("Date de début"))
+    end_date = models.DateField(_("Date de fin"))
+    start_time = models.TimeField(_("Heure de début"), null=True, blank=True)
+    end_time = models.TimeField(_("Heure de fin"), null=True, blank=True)
+    venue_name = models.CharField(_("Lieu"), max_length=255, blank=True)
+    address = models.CharField(_("Adresse"), max_length=255, blank=True)
+    city = models.CharField(_("Ville"), max_length=100, blank=True)
+    postal_code = models.CharField(_("Code postal"), max_length=20, blank=True)
+    
+    # Ajout des nouveaux champs
+    max_participants = models.PositiveIntegerField(_("Nombre maximum de participants"), null=True, blank=True)
+    registration_deadline = models.DateField(_("Date limite d'inscription"), null=True, blank=True)
+    logo = models.ImageField(_("Logo"), upload_to='competitions/logos/', null=True, blank=True)
+    
+    # Champs pour les critères d'éligibilité
+    min_age = models.PositiveSmallIntegerField(_("Ã‚ge minimum"), null=True, blank=True)
+    max_age = models.PositiveSmallIntegerField(_("Ã‚ge maximum"), null=True, blank=True)
+    requires_medical_certificate = models.BooleanField(_("Certificat médical requis"), default=False)
+    requires_license = models.BooleanField(_("Licence requise"), default=False)
+    
+    # Relation avec l'organisation
+    organizing_organization = models.ForeignKey('organizations.Organization', 
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="organized_competitions",
+        verbose_name=_("Organisation organisatrice")  # Corrigé de "Club organisateur" Ã  "Organisation organisatrice"
+    )
+    
+    # Visibilité publique
+    is_published = models.BooleanField(_("Publiée"), default=False, help_text=_("Indique si la compétition est visible publiquement"))
+    
+    discipline = models.ForeignKey(
+        'Discipline',  # Utiliser une chaÃ®ne pour éviter les imports circulaires
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="competitions",
+        verbose_name=_("Discipline")
+    )
+    competition_types = models.ManyToManyField('CompetitionType', related_name='competitions')
+    status = models.CharField(
+        _("Statut"),
+        max_length=20,
+        choices=[
+            ('draft', _('Brouillon')),
+            ('published', _('Publiée')),
+            ('ongoing', _('En cours')),
+            ('completed', _('Terminée')),
+            ('cancelled', _('Annulée')),
+        ],
+        default='draft'
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis Ã  jour le"), auto_now=True)
+
+    def __str__(self):
+        return self.title
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            # Génère le slug de base Ã  partir du titre
+            base_slug = slugify(self.title)
+            
+            # Vérifie si ce slug existe déjÃ 
+            slug = base_slug
+            counter = 1
+            
+            # Tant que le slug existe déjÃ , ajoute un compteur Ã  la fin
+            while Competition.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+                
+            self.slug = slug
+        
+        # Synchronisation automatique entre is_published et le statut
+        if self.status == 'published' or self.status == 'ongoing':
+            self.is_published = True
+        elif self.status in ['draft', 'cancelled']:
+            self.is_published = False
+            
+        super().save(*args, **kwargs)
+    
+    @property
+    def is_active(self):
+        """Détermine si la compétition est active (publiée et pas encore terminée)"""
+        today = timezone.now().date()
+        return self.is_published and self.end_date >= today and self.status != 'cancelled'
+        
+    @property
+    def is_registration_open(self):
+        """Détermine si les inscriptions sont ouvertes"""
+        today = timezone.now().date()
+        if not self.is_published or self.status not in ['published', 'ongoing']:
+            return False
+        if self.registration_deadline and today > self.registration_deadline:
+            return False
+        return today <= self.start_date
+    
+    def check_eligibility(self, practitioner):
+        """
+        Vérifie si un pratiquant est éligible pour cette compétition.
+        Renvoie un tuple (is_eligible, reasons) oÃ¹ reasons est une liste des raisons d'inéligibilité.
+        """
+        reasons = []
+        
+        # Vérifier l'Ã¢ge
+        if self.min_age is not None and practitioner.age < self.min_age:
+            reasons.append(_("L'Ã¢ge minimum requis est de {} ans").format(self.min_age))
+            
+        if self.max_age is not None and practitioner.age > self.max_age:
+            reasons.append(_("L'Ã¢ge maximum autorisé est de {} ans").format(self.max_age))
+        
+        # Vérifier le certificat médical
+        if self.requires_medical_certificate and not practitioner.medical_certificate_date:
+            reasons.append(_("Un certificat médical est requis"))
+            
+        # Vérifier si le certificat médical est valide (moins d'un an)
+        if self.requires_medical_certificate and practitioner.medical_certificate_date:
+            cert_age = timezone.now().date() - practitioner.medical_certificate_date
+            if cert_age.days > 365:
+                reasons.append(_("Le certificat médical doit dater de moins d'un an"))
+        
+        # Vérifier la licence
+        if self.requires_license and not practitioner.license_number:
+            reasons.append(_("Une licence valide est requise"))
+        
+        # Vérifier si inscriptions complètes
+        if self.max_participants and self.registrations.count() >= self.max_participants:
+            reasons.append(_("Le nombre maximum de participants est atteint"))
+        
+        is_eligible = len(reasons) == 0
+        return is_eligible, reasons
+
+    # Propriété pour compatibilité avec OrganizationSecureManager
+    @property
+    def organization(self):
+        return self.organizing_organization
+    
+    # Manager sécurisé pour l'isolation par organisation
+    objects = OrganizationSecureManager()
+    
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Compétition")
+        verbose_name_plural = _("Compétitions")
+        ordering = ['-start_date']
+
+
+class CompetitionType(models.Model):
+    name = models.CharField(_("Nom"), max_length=100)
+    description = models.TextField(_("Description"), blank=True)
+    discipline = models.ForeignKey(Discipline, on_delete=models.CASCADE, related_name='competition_types')
+    team_based = models.BooleanField(default=False)
+    min_team_size = models.PositiveSmallIntegerField(null=True, blank=True)
+    max_team_size = models.PositiveSmallIntegerField(null=True, blank=True)
+    weight_category = models.BooleanField(_("Catégorie de poids"), default=False)
+    order = models.PositiveSmallIntegerField(_("Ordre d'affichage"), default=0)
+    
+    def __str__(self):
+        return f"{self.name} ({self.discipline.name})"
+    
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Type de compétition")
+        verbose_name_plural = _("Types de compétition")
+        ordering = ['discipline', 'order', 'name']
+
+
+class CompetitionRole(models.Model):
+    competition = models.ForeignKey(Competition, on_delete=models.CASCADE, related_name='roles')
+    name = models.CharField(_("Nom du rÃ´le"), max_length=100)
+    description = models.TextField(_("Description"), blank=True)
+    
+    def __str__(self):
+        return f"{self.name} ({self.competition.title})"
+    
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("RÃ´le de compétition")
+        verbose_name_plural = _("RÃ´les de compétition")
+        unique_together = ('competition', 'name')
+
+
+class ParticipantCategoryRegistration(models.Model):
+    registration = models.ForeignKey('competitions.CompetitionRegistration', on_delete=models.CASCADE, related_name='category_registrations')
+    competition_type = models.ForeignKey('CompetitionType', on_delete=models.CASCADE)
+    category = models.ForeignKey('competitions.CompetitionCategory', on_delete=models.CASCADE)
+    
+    class Meta:
+        app_label = 'competitions'
+        unique_together = ('registration', 'competition_type')
+        verbose_name = _("Inscription Ã  une catégorie")
+        verbose_name_plural = _("Inscriptions aux catégories")
+
+

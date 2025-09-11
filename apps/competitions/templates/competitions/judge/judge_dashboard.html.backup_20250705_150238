@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Tableau de bord des juges" %} - Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .judge-card {
+        transition: all 0.2s ease;
+        height: 100%;
+    }
+    
+    .judge-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .upcoming-competition {
+        border-left: 4px solid #dc3545;
+    }
+    
+    .qualification-badge {
+        font-size: 0.8rem;
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+    
+    .stats-card {
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .stats-icon {
+        font-size: 2rem;
+        opacity: 0.8;
+    }
+    
+    .notification-item {
+        border-left: 3px solid transparent;
+        transition: all 0.2s ease;
+    }
+    
+    .notification-item:hover {
+        background-color: rgba(0, 0, 0, 0.03);
+    }
+    
+    .notification-item.unread {
+        border-left-color: #007bff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Titre et boutons d'action -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">{% trans "Tableau de bord Juge" %}</h1>
+        <div>
+            <a href="{% url 'competitions:judge:register_for_competition' %}" class="btn btn-outline-primary">
+                <i class="fas fa-plus-circle me-2"></i>{% trans "S'inscrire à une compétition" %}
+            </a>
+            <a href="{% url 'competitions:judge:edit_profile' %}" class="btn btn-outline-secondary ms-2">
+                <i class="fas fa-user-edit me-2"></i>{% trans "Modifier mon profil" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Cartes de statistiques -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stats-card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{% trans "Compétitions à venir" %}</h5>
+                            <h2 class="mb-0 mt-2">{{ upcoming_assignments_count }}</h2>
+                        </div>
+                        <div class="stats-icon">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{% trans "Disciplines" %}</h5>
+                            <h2 class="mb-0 mt-2">{{ judge.qualifications.count }}</h2>
+                        </div>
+                        <div class="stats-icon">
+                            <i class="fas fa-award"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{% trans "Expérience" %}</h5>
+                            <h2 class="mb-0 mt-2">{{ judge.years_experience }} {% trans "ans" %}</h2>
+                        </div>
+                        <div class="stats-icon">
+                            <i class="fas fa-hourglass-half"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title mb-0">{% trans "Niveau" %}</h5>
+                            <h2 class="mb-0 mt-2">{{ judge.get_qualification_level_display }}</h2>
+                        </div>
+                        <div class="stats-icon">
+                            <i class="fas fa-star"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prochaines compétitions et assignations -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{% trans "Compétitions à venir" %}</h5>
+                        <a href="{% url 'competitions:judge:upcoming_competitions' %}" class="btn btn-sm btn-outline-primary">
+                            {% trans "Voir tout" %}
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if upcoming_assignments %}
+                        <div class="list-group list-group-flush">
+                            {% for assignment in upcoming_assignments %}
+                                <div class="list-group-item upcoming-competition py-3">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h5 class="mb-1">{{ assignment.category.competition.title }}</h5>
+                                            <p class="mb-1 text-muted small">
+                                                <i class="fas fa-map-marker-alt me-1"></i> {{ assignment.category.competition.location }}
+                                            </p>
+                                            <p class="mb-1 small">
+                                                <span class="badge bg-primary">{{ assignment.get_assignment_type_display }}</span>
+                                                <span class="badge bg-secondary">{{ assignment.category.name }}</span>
+                                            </p>
+                                        </div>
+                                        <div class="text-end">
+                                            <div class="text-muted small mb-2">
+                                                <i class="far fa-calendar me-1"></i> {{ assignment.category.competition.start_date|date:"d M Y" }}
+                                            </div>
+                                            <a href="{% url 'competitions:judge:competition_detail' assignment.category.competition.id %}" class="btn btn-sm btn-outline-primary">
+                                                {% trans "Détails" %}
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center p-4">
+                            <img src="{% static 'img/illustrations/empty-calendar.svg' %}" alt="{% trans "Pas de compétition" %}" class="img-fluid mb-3" style="max-height: 150px;">
+                            <h5>{% trans "Aucune compétition à venir" %}</h5>
+                            <p class="text-muted">{% trans "Vous n'avez pas encore d'assignation pour des compétitions futures." %}</p>
+                            <a href="{% url 'competitions:judge:upcoming_competitions' %}" class="btn btn-primary mt-2">
+                                <i class="fas fa-search me-2"></i>{% trans "Chercher des compétitions" %}
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">{% trans "Mes qualifications" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if judge.qualifications.exists %}
+                        <div class="d-flex flex-wrap mb-3">
+                            {% for qualification in judge.qualifications.all %}
+                                <span class="badge bg-info qualification-badge">
+                                    {{ qualification.get_qualification_type_display }} - {{ qualification.discipline.name }}
+                                </span>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h6>{% trans "Niveau de qualification" %}</h6>
+                            <p>{{ judge.get_qualification_level_display }}</p>
+                            
+                            <h6>{% trans "Années d'expérience" %}</h6>
+                            <p>{{ judge.years_experience }} {% trans "ans" %}</p>
+                            
+                            {% if judge.certification_number %}
+                                <h6>{% trans "Numéro de certification" %}</h6>
+                                <p>{{ judge.certification_number }}</p>
+                            {% endif %}
+                            
+                            {% if judge.certified_since %}
+                                <h6>{% trans "Certifié depuis" %}</h6>
+                                <p>{{ judge.certified_since|date:"d/m/Y" }}</p>
+                            {% endif %}
+                        </div>
+                        
+                        <a href="{% url 'competitions:judge:add_qualification' %}" class="btn btn-outline-primary btn-sm mt-3">
+                            <i class="fas fa-plus-circle me-1"></i> {% trans "Ajouter une qualification" %}
+                        </a>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <img src="{% static 'img/illustrations/empty-qualification.svg' %}" alt="{% trans "Pas de qualification" %}" class="img-fluid mb-3" style="max-height: 120px;">
+                            <h5>{% trans "Aucune qualification enregistrée" %}</h5>
+                            <p class="text-muted">{% trans "Ajoutez vos qualifications pour pouvoir juger des compétitions." %}</p>
+                            <a href="{% url 'competitions:judge:add_qualification' %}" class="btn btn-primary mt-2">
+                                <i class="fas fa-plus-circle me-2"></i>{% trans "Ajouter une qualification" %}
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Historique récent et notifications -->
+    <div class="row">
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">{% trans "Historique récent" %}</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if past_assignments %}
+                        <div class="list-group list-group-flush">
+                            {% for assignment in past_assignments %}
+                                <div class="list-group-item py-3">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{{ assignment.category.competition.title }}</h6>
+                                            <p class="text-muted mb-1 small">
+                                                {{ assignment.category.competition.end_date|date:"d M Y" }} - {{ assignment.get_assignment_type_display }}
+                                            </p>
+                                        </div>
+                                        <span class="badge {% if assignment.status == 'completed' %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {{ assignment.get_status_display }}
+                                        </span>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center p-4">
+                            <p class="text-muted">{% trans "Aucun historique disponible" %}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">{% trans "Notifications" %}</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if notifications %}
+                        <div class="list-group list-group-flush">
+                            {% for notification in notifications %}
+                                <a href="{{ notification.link }}" class="list-group-item list-group-item-action notification-item {% if not notification.is_read %}unread{% endif %} py-3">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{{ notification.title }}</h6>
+                                            <p class="mb-1 small">{{ notification.message }}</p>
+                                        </div>
+                                        <small class="text-muted">{{ notification.created_at|timesince }}</small>
+                                    </div>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center p-4">
+                            <p class="text-muted">{% trans "Aucune notification" %}</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,411 @@
+from django.db import models, transaction
+from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.models import User
+from django.apps import apps as django_apps
+import logging
+
+from .mixins import AdministratorMixin
+
+# Configuration du logger
+logger = logging.getLogger(__name__)
+
+class ClubManager(models.Manager):
+    """Manager personnalisé pour le modèle Club avec support de filtrage par federation."""
+    
+    def filter(self, *args, **kwargs):
+        """Override filter pour supporter federation="""
+        if 'federation' in kwargs:
+            federation = kwargs.pop('federation')
+            if federation and hasattr(federation, 'organization') and federation.organization:
+                kwargs['organization'] = federation.organization
+            else:
+                # Si pas d'organisation associée, retourner un queryset vide
+                return self.none()
+        return super().filter(*args, **kwargs)
+
+class Club(AdministratorMixin, models.Model):
+    """
+    Modèle représentant un club d'arts martiaux.
+    Cette classe est maintenue pour la compatibilité, mais utilise désormais Organization.
+    """
+    # Informations de base
+    name = models.CharField(_("Nom"), max_length=100)
+    address = models.CharField(_("Adresse"), max_length=255, blank=True)
+    city = models.CharField(_("Ville"), max_length=100, blank=True)
+    postal_code = models.CharField(_("Code postal"), max_length=20, blank=True)
+    
+    # Contacts
+    contact_phone = models.CharField(_("Téléphone"), max_length=20, blank=True)
+    contact_email = models.EmailField(_("Email"), blank=True)
+    website = models.URLField(_("Site web"), blank=True)
+    
+    # Description et médias
+    description = models.TextField(_("Description"), blank=True)
+    logo = models.ImageField(_("Logo"), upload_to='clubs/logos/', null=True, blank=True)
+    banner = models.ImageField(_("Bannière"), upload_to='clubs/banners/', null=True, blank=True)
+    
+    # Relations
+    owner = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='owned_clubs',
+        verbose_name=_("Propriétaire")
+    )
+    disciplines = models.ManyToManyField(
+        'Discipline', 
+        blank=True, 
+        related_name='club_disciplines',
+        verbose_name=_("Disciplines")
+    )
+    main_discipline = models.ForeignKey(
+        'Discipline', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='main_clubs',
+        verbose_name=_("Discipline principale")
+    )
+    organization = models.ForeignKey(
+        'organizations.Organization',  
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='legacy_clubs',
+        verbose_name=_("Organisation associée")
+    )
+    
+    # Ã‰quipements et installations
+    has_equipment = models.BooleanField(_("Ã‰quipement d'entraÃ®nement"), default=False)
+    has_changing_rooms = models.BooleanField(_("Vestiaires"), default=False)
+    has_showers = models.BooleanField(_("Douches"), default=False)
+    has_parking = models.BooleanField(_("Parking"), default=False)
+    
+    # Tranches d'Ã¢ge acceptées
+    accepts_children = models.BooleanField(_("Accepte les enfants (4-11 ans)"), default=True)
+    accepts_teenagers = models.BooleanField(_("Accepte les adolescents (12-17 ans)"), default=True)
+    accepts_adults = models.BooleanField(_("Accepte les adultes (18-59 ans)"), default=True)
+    accepts_seniors = models.BooleanField(_("Accepte les seniors (60+ ans)"), default=True)
+    
+    # Autres informations
+    training_hours = models.TextField(_("Horaires d'entraÃ®nement"), blank=True, null=True)
+    is_active = models.BooleanField(_("Actif"), default=True)
+    
+    # Multi-tenant migration fields
+    is_migrated = models.BooleanField(_("Migré vers multi-tenant"), default=False)
+    # Champ legacy: lien vers Tenant (multi-tenant).
+    # Déclaré uniquement si l'app multitenant est installée, sinon on expose un attribut None.
+    if django_apps.is_installed('apps.multitenant'):
+        tenant = models.ForeignKey(
+            "multitenant.Tenant",
+            on_delete=models.SET_NULL,
+            null=True,
+            blank=True,
+            related_name="migrated_clubs",
+            verbose_name=_("Tenant associé")
+        )
+    else:
+        tenant = None
+    migration_date = models.DateTimeField(_("Date de migration"), null=True, blank=True)
+    
+    # Nouveaux champs pour la migration
+    country = models.CharField(_("Pays"), max_length=2, blank=True, default='FR')
+    timezone = models.CharField(_("Fuseau horaire"), max_length=50, blank=True, default='Europe/Paris')
+    currency = models.CharField(_("Devise"), max_length=3, blank=True, default='EUR')
+    email = models.EmailField(_("Email principal"), blank=True)
+    phone = models.CharField(_("Téléphone principal"), max_length=20, blank=True)
+    
+    # Suivi des modifications
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(_("Mis Ã  jour le"), auto_now=True, null=True)
+    
+    # Manager personnalisé
+    objects = ClubManager()
+    
+    @property
+    def as_organization(self):
+        """Retourne l'organisation correspondante."""
+        try:
+            from apps.organizations.models import Organization
+            return Organization.objects.filter(old_club_id=self.id).first()
+        except (ImportError, ModuleNotFoundError):
+            logger.warning("Module organizations non disponible")
+            return None
+    
+    @property
+    def slug(self):
+        """Retourne le slug depuis l'organisation associée."""
+        if self.organization:
+            return self.organization.slug
+        elif self.as_organization:
+            return self.as_organization.slug
+        # Fallback: créer un slug simple basé sur le nom
+        from django.utils.text import slugify
+        return slugify(self.name) if self.name else f'club-{self.id}'
+    
+    def get_website_url(self):
+        """Retourne l'URL du site public de l'organisation (fallback local si tenant inactif)."""
+        try:
+            from django.conf import settings
+            middleware = getattr(settings, 'MIDDLEWARE', [])
+            tenant_mw = 'apps.multitenant.middleware.TenantMiddleware'
+            if tenant_mw not in middleware:
+                base = getattr(settings, 'BASE_URL', 'http://localhost:8000').rstrip('/')
+                return f"{base}/org/{self.slug}/"
+            return f"https://{self.slug}.martialcomp.com"
+        except Exception:
+            return f"https://{self.slug}.martialcomp.com"
+    
+    def get_admin_site_url(self):
+        """Retourne l'URL de gestion du site de l'organisation (fallback local)."""
+        try:
+            from django.conf import settings
+            middleware = getattr(settings, 'MIDDLEWARE', [])
+            tenant_mw = 'apps.multitenant.middleware.TenantMiddleware'
+            if tenant_mw not in middleware:
+                base = getattr(settings, 'BASE_URL', 'http://localhost:8000').rstrip('/')
+                return f"{base}/org/{self.slug}/admin/site/"
+            return f"https://{self.slug}.martialcomp.com/admin/site/"
+        except Exception:
+            return f"https://{self.slug}.martialcomp.com/admin/site/"
+    
+    def get_qr_site_url(self):
+        """Retourne l'URL des codes QR du site de l'organisation (fallback local)."""
+        try:
+            from django.conf import settings
+            middleware = getattr(settings, 'MIDDLEWARE', [])
+            tenant_mw = 'apps.multitenant.middleware.TenantMiddleware'
+            if tenant_mw not in middleware:
+                base = getattr(settings, 'BASE_URL', 'http://localhost:8000').rstrip('/')
+                return f"{base}/org/{self.slug}/qr/"
+            return f"https://{self.slug}.martialcomp.com/qr/"
+        except Exception:
+            return f"https://{self.slug}.martialcomp.com/qr/"
+    
+    @property
+    def federation(self):
+        """Retourne la fédération associée via l'organisation."""
+        if not self.organization:
+            return None
+        try:
+            from .federations import Federation
+            return Federation.objects.filter(organization=self.organization).first()
+        except (ImportError, ModuleNotFoundError):
+            logger.warning("Module federations non disponible")
+            return None
+        
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        
+        # Créer automatiquement l'Organization si elle n'existe pas
+        if not self.organization:
+            self.organization = self._create_associated_organization()
+            super().save(update_fields=['organization'])
+        else:
+            # Synchroniser avec Organization si le module est disponible
+            try:
+                with transaction.atomic():
+                    from apps.organizations.models import Organization
+                    org, created = Organization.objects.get_or_create(
+                        old_club_id=self.id,
+                        defaults={
+                            'name': self.name,
+                            'organization_type': 'club',
+                            'description': getattr(self, 'description', ''),
+                        }
+                    )
+                    if not self.organization:
+                        self.organization = org
+                        super().save(update_fields=['organization'])
+                    # Propager des méta-données clés vers l'Organization
+                    try:
+                        changed = False
+                        if getattr(self, 'country', None) and getattr(org, 'country', None) != self.country:
+                            org.country = self.country
+                            changed = True
+                        if getattr(self, 'city', None) and getattr(org, 'city', None) != self.city:
+                            org.city = self.city
+                            changed = True
+                        if getattr(self, 'postal_code', None) and getattr(org, 'postal_code', None) != self.postal_code:
+                            org.postal_code = self.postal_code
+                            changed = True
+                        if getattr(self, 'website', None) and getattr(org, 'website', None) != self.website:
+                            org.website = self.website
+                            changed = True
+                        if changed:
+                            models.Model.save(org)
+                    except Exception:
+                        pass
+            except Exception as e:
+                # Si le module Organization n'est pas disponible, ignorer
+                pass
+    
+    def _create_associated_organization(self):
+        """Crée l'organisation associée au club."""
+        try:
+            from apps.organizations.models import Organization, OrganizationType
+            
+            organization = Organization.objects.create(
+                name=self.name,
+                organization_type=OrganizationType.CLUB,
+                description=self.description or f"Club {self.name}",
+                email=self.contact_email,
+                phone=self.contact_phone,
+                website=self.website,
+                address=self.address,
+                city=self.city,
+                postal_code=self.postal_code,
+                country=getattr(self, 'country', '') or '',
+                logo=self.logo,
+                created_by=self.owner,
+                is_active=True
+            )
+            
+            # Associer les disciplines
+            if hasattr(self, 'disciplines'):
+                organization.disciplines.set(self.disciplines.all())
+            
+            # Associer le propriétaire
+            if self.owner and hasattr(organization, 'members'):
+                from apps.organizations.models import OrganizationMember, OrganizationRole
+                OrganizationMember.objects.get_or_create(
+                    organization=organization,
+                    user=self.owner,
+                    defaults={
+                        'role': OrganizationRole.OWNER,
+                        'is_active': True
+                    }
+                )
+            
+            logger.info(f"Organisation créée automatiquement pour le club {self.name}")
+            return organization
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la création de l'organisation pour le club {self.name}: {e}")
+            return None
+    
+    def __str__(self):
+        return self.name
+    
+    def is_in_good_standing(self):
+        """Vérifie si le club est en règle avec ses cotisations fédération"""
+        from apps.finances.models import MembershipFee, PaymentAttempt
+        from django.utils import timezone
+        
+        # Vérifier si le club a une affiliation active
+        if hasattr(self, 'organization') and self.organization:
+            # Vérifier les affiliations actives
+            active_affiliations = self.organization.parent_affiliations.filter(
+                is_active=True,
+                parent_organization__organization_type='national_federation'
+            )
+            
+            if not active_affiliations.exists():
+                return False
+            
+            # Vérifier les cotisations payées
+            current_year = timezone.now().year
+            membership_fees = MembershipFee.objects.filter(
+                member=self.organization,
+                year=current_year,
+                is_paid=True
+            )
+            
+            if membership_fees.exists():
+                return True
+                
+            # Vérifier également les paiements réussis
+            has_paid_fees = PaymentAttempt.objects.filter(
+                transaction__membership_fees__member=self.organization,
+                transaction__membership_fees__year=current_year,
+                status='succeeded'
+            ).exists()
+            
+            return has_paid_fees
+        
+        # Méthode legacy si pas d'organization
+        if hasattr(self, 'federation') and self.federation:
+            # Vérifier les cotisations directs au club
+            current_year = timezone.now().year
+            has_paid_fees = MembershipFee.objects.filter(
+                club=self,
+                year=current_year,
+                is_paid=True
+            ).exists()
+            
+            return has_paid_fees
+        
+        return False
+    
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Club")
+        verbose_name_plural = _("Clubs")
+        ordering = ['name']
+
+
+class ClubTeam(models.Model):
+    """
+    Modèle représentant une équipe d'un club participant Ã  une compétition.
+    """
+    name = models.CharField(_("Nom de l'équipe"), max_length=100)
+    organization = models.ForeignKey(
+        'organizations.Organization',  
+        on_delete=models.CASCADE, 
+        related_name='club_teams', 
+        verbose_name=_('Organisation')
+    )
+    # Ajouter un champ club pour la transition
+    club = models.ForeignKey(
+        Club,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='teams',
+        verbose_name=_("Club (obsolète)")
+    )
+    competition = models.ForeignKey(
+        'Competition', 
+        on_delete=models.CASCADE, 
+        related_name='competition_teams', 
+        verbose_name=_("Compétition")
+    )
+    members = models.ManyToManyField(
+        User, 
+        related_name='team_memberships', 
+        verbose_name=_("Membres")
+    )
+
+    def __str__(self):
+        return f"{self.name} - {self.organization.name}"
+
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Ã‰quipe de club")
+        verbose_name_plural = _("Ã‰quipes de club")
+        
+    def save(self, *args, **kwargs):
+        """Assure la synchronisation entre club et organization."""
+        super().save(*args, **kwargs)
+        
+        # Si club est défini mais organization ne l'est pas, essayer de trouver l'organization correspondante
+        if self.club and not self.organization:
+            org = self.club.as_organization
+            if org:
+                self.organization = org
+                models.Model.save(self, update_fields=['organization'])
+        
+        # Si organization est définie mais club ne l'est pas, essayer de trouver le club correspondant
+        elif self.organization and not self.club:
+            try:
+                # Rechercher un club correspondant Ã  cette organisation
+                club = Club.objects.filter(id=getattr(self.organization, 'old_club_id', None)).first()
+                if club:
+                    self.club = club
+                    models.Model.save(self, update_fields=['club'])
+            except Exception as e:
+                logger.error(f"Erreur lors de la recherche du club: {str(e)}")
+
+
+

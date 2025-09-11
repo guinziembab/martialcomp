@@ -1,0 +1,270 @@
+{% extends "multitenant/base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% translate "Tableau de bord d'abonnement" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .subscription-dashboard {
+    padding: 20px;
+  }
+  .plan-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+  .plan-card.active {
+    border-color: #4CAF50;
+    border-width: 2px;
+  }
+  .plan-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+  }
+  .plan-status {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+  .status-active {
+    background-color: #E8F5E9;
+    color: #2E7D32;
+  }
+  .status-trialing {
+    background-color: #E3F2FD;
+    color: #1565C0;
+  }
+  .status-past-due {
+    background-color: #FFF3E0;
+    color: #E65100;
+  }
+  .status-canceled {
+    background-color: #FFEBEE;
+    color: #C62828;
+  }
+  .plan-details {
+    margin-top: 20px;
+  }
+  .detail-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .usage-section {
+    margin-top: 30px;
+  }
+  .usage-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+  .actions-section {
+    margin-top: 30px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .btn-upgrade {
+    background-color: #4CAF50;
+    color: white;
+  }
+  .btn-cancel {
+    background-color: #F44336;
+    color: white;
+  }
+  .payment-info {
+    margin-top: 30px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="subscription-dashboard">
+  <h1 class="mb-4">{% translate "Tableau de bord d'abonnement" %}</h1>
+  
+  <div class="row">
+    <div class="col-md-8">
+      <!-- Informations sur l'abonnement actif -->
+      <div class="plan-card {% if active_subscription.status == 'active' %}active{% endif %}">
+        <div class="plan-header">
+          <h2>{{ active_subscription.tier.name }}</h2>
+          <span class="plan-status status-{{ active_subscription.status }}">
+            {{ active_subscription.get_status_display }}
+          </span>
+        </div>
+        
+        <p>{{ active_subscription.tier.description }}</p>
+        
+        <div class="plan-details">
+          <div class="detail-item">
+            <span>{% translate "Cycle de facturation" %}</span>
+            <span>{{ active_subscription.get_billing_cycle_display }}</span>
+          </div>
+          <div class="detail-item">
+            <span>{% translate "Prix" %}</span>
+            <span>
+              {% if active_subscription.billing_cycle == 'monthly' %}
+                {{ active_subscription.tier.price_monthly }} € / {% translate "mois" %}
+              {% else %}
+                {{ active_subscription.tier.price_annually }} € / {% translate "an" %}
+              {% endif %}
+            </span>
+          </div>
+          <div class="detail-item">
+            <span>{% translate "Date de début" %}</span>
+            <span>{{ active_subscription.start_date|date:"d/m/Y" }}</span>
+          </div>
+          <div class="detail-item">
+            <span>{% translate "Date de renouvellement" %}</span>
+            <span>{{ active_subscription.end_date|date:"d/m/Y" }}</span>
+          </div>
+          <div class="detail-item">
+            <span>{% translate "Renouvellement automatique" %}</span>
+            <span>{% if active_subscription.auto_renew %}{% translate "Oui" %}{% else %}{% translate "Non" %}{% endif %}</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Usage supplémentaire -->
+      <div class="usage-section">
+        <h3>{% translate "Utilisation supplémentaire" %} ({{ current_month }})</h3>
+        
+        {% if recent_usage %}
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>{% translate "Fonctionnalité" %}</th>
+                  <th>{% translate "Date" %}</th>
+                  <th>{% translate "Quantité" %}</th>
+                  <th>{% translate "Prix unitaire" %}</th>
+                  <th>{% translate "Total" %}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for usage in recent_usage %}
+                <tr>
+                  <td>{{ usage.feature.name }}</td>
+                  <td>{{ usage.usage_date|date:"d/m/Y H:i" }}</td>
+                  <td>{{ usage.quantity }}</td>
+                  <td>{{ usage.feature.price_per_unit }} €</td>
+                  <td>{{ usage.quantity|multiply:usage.feature.price_per_unit }} €</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="4" class="text-right"><strong>{% translate "Total" %}</strong></td>
+                  <td><strong>{{ total_extra_cost }} €</strong></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          
+          <div class="text-right">
+            <a href="{% url 'multitenant:feature_usage_history' %}" class="btn btn-outline-primary">
+              {% translate "Voir l'historique complet" %}
+            </a>
+          </div>
+        {% else %}
+          <div class="alert alert-info">
+            {% translate "Aucune utilisation supplémentaire pour ce mois." %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <div class="col-md-4">
+      <!-- Actions -->
+      <div class="actions-section">
+        <a href="{% url 'multitenant:subscription_plans' %}" class="btn btn-upgrade">
+          {% translate "Mettre à niveau" %}
+        </a>
+        
+        {% if active_subscription and active_subscription.status == 'active' %}
+        <form method="post" action="{% url 'multitenant:cancel_subscription' %}" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="subscription_id" value="{{ active_subscription.id }}">
+          <button type="submit" class="btn btn-cancel" onclick="return confirm('{% translate "Êtes-vous sûr de vouloir annuler votre abonnement?" %}')">
+            {% translate "Annuler l'abonnement" %}
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      
+      <!-- Fonctionnalités incluses -->
+      <div class="card mt-4">
+        <div class="card-header">
+          {% translate "Fonctionnalités incluses" %}
+        </div>
+        <div class="card-body">
+          <ul class="list-group list-group-flush">
+            {% for feature_key, enabled in active_subscription.tier.features.items %}
+              {% if enabled %}
+                <li class="list-group-item">
+                  <i class="fas fa-check text-success"></i> 
+                  {% translate feature_key %}
+                </li>
+              {% endif %}
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      
+      <!-- Limites -->
+      <div class="card mt-4">
+        <div class="card-header">
+          {% translate "Limites" %}
+        </div>
+        <div class="card-body">
+          <div class="detail-item">
+            <span>{% translate "Utilisateurs" %}</span>
+            <span>{{ active_subscription.tier.max_users }}</span>
+          </div>
+          <div class="detail-item">
+            <span>{% translate "Compétitions" %}</span>
+            <span>{{ active_subscription.tier.max_competitions }}</span>
+          </div>
+          <div class="detail-item">
+            <span>{% translate "Stockage (GB)" %}</span>
+            <span>{{ active_subscription.tier.max_storage_gb }}</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Portail client -->
+      <div class="card mt-4">
+        <div class="card-header">
+          {% translate "Gestion de paiement" %}
+        </div>
+        <div class="card-body">
+          <p>
+            {% translate "Accédez au portail client pour gérer vos méthodes de paiement et voir l'historique de vos factures." %}
+          </p>
+          <a href="{% url 'multitenant:customer_portal' %}" class="btn btn-outline-primary btn-block">
+            {% translate "Accéder au portail client" %}
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Ajoutez ici les scripts spécifiques à la page si nécessaire
+</script>
+{% endblock %}

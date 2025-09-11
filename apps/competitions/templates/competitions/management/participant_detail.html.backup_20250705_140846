@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ registration.practitioner.full_name }} - {% trans "Détails du participant" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .profile-header {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .profile-img {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid #fff;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    }
+    
+    .status-badge {
+        font-size: 0.9rem;
+        padding: 5px 10px;
+        border-radius: 20px;
+    }
+    
+    .status-pending {
+        background-color: #f0ad4e;
+        color: white;
+    }
+    
+    .status-approved {
+        background-color: #5cb85c;
+        color: white;
+    }
+    
+    .status-rejected {
+        background-color: #d9534f;
+        color: white;
+    }
+    
+    .category-badge {
+        margin-right: 5px;
+        margin-bottom: 5px;
+        font-size: 0.9rem;
+        padding: 5px 10px;
+        border-radius: 20px;
+        display: inline-block;
+    }
+    
+    .tab-content {
+        padding: 20px;
+        border: 1px solid #dee2e6;
+        border-top: none;
+        border-radius: 0 0 10px 10px;
+    }
+    
+    .nav-tabs .nav-link {
+        border-radius: 10px 10px 0 0;
+    }
+    
+    .info-label {
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .notes-area {
+        border-radius: 10px;
+        min-height: 100px;
+    }
+    
+    .action-btn {
+        border-radius: 20px;
+        padding: 8px 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Retour et titre -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <a href="{% url 'competitions:management:participants_list' competition.id %}" class="btn btn-outline-secondary mb-2">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la liste" %}
+            </a>
+            <h1 class="h3 mb-0">{% trans "Gestion du participant" %}</h1>
+        </div>
+        
+        <!-- Menu d'actions rapides -->
+        <div class="dropdown">
+            <button class="btn btn-primary dropdown-toggle" type="button" id="actionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-cog me-2"></i>{% trans "Actions" %}
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionsDropdown">
+                <form method="post" action="{% url 'competitions:management:update_registration_status' competition.id registration.id %}">
+                    {% csrf_token %}
+                    {% if registration.status != 'approved' %}
+                        <li>
+                            <button type="submit" name="status" value="approved" class="dropdown-item text-success">
+                                <i class="fas fa-check me-2"></i>{% trans "Approuver l'inscription" %}
+                            </button>
+                        </li>
+                    {% endif %}
+                    
+                    {% if registration.status != 'rejected' %}
+                        <li>
+                            <button type="submit" name="status" value="rejected" class="dropdown-item text-danger">
+                                <i class="fas fa-times me-2"></i>{% trans "Rejeter l'inscription" %}
+                            </button>
+                        </li>
+                    {% endif %}
+                    
+                    {% if registration.status != 'pending' %}
+                        <li>
+                            <button type="submit" name="status" value="pending" class="dropdown-item text-warning">
+                                <i class="fas fa-undo me-2"></i>{% trans "Remettre en attente" %}
+                            </button>
+                        </li>
+                    {% endif %}
+                </form>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <a class="dropdown-item" href="#addCategory" data-bs-toggle="modal">
+                        <i class="fas fa-layer-group me-2"></i>{% trans "Ajouter à une catégorie" %}
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="#exportParticipant" data-bs-toggle="modal">
+                        <i class="fas fa-file-export me-2"></i>{% trans "Exporter les données" %}
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- En-tête du profil -->
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body profile-header">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    {% if registration.practitioner.photo %}
+                        <img src="{{ registration.practitioner.photo.url }}" alt="{{ registration.practitioner.full_name }}" class="profile-img">
+                    {% else %}
+                        <div class="profile-img bg-primary d-flex align-items-center justify-content-center">
+                            <i class="fas fa-user text-white fa-3x"></i>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="col">
+                    <h2 class="h4 mb-1">{{ registration.practitioner.full_name }}</h2>
+                    <p class="text-muted mb-2">
+                        {% if registration.practitioner.club %}
+                            <i class="fas fa-dojo me-1"></i>{{ registration.practitioner.club.name }}
+                        {% else %}
+                            <i class="fas fa-user me-1"></i>{% trans "Participant indépendant" %}
+                        {% endif %}
+                    </p>
+                    <div>
+                        {% if registration.status == 'pending' %}
+                            <span class="badge status-badge status-pending">
+                                <i class="fas fa-clock me-1"></i>{% trans "En attente" %}
+                            </span>
+                        {% elif registration.status == 'approved' %}
+                            <span class="badge status-badge status-approved">
+                                <i class="fas fa-check me-1"></i>{% trans "Approuvé" %}
+                            </span>
+                        {% elif registration.status == 'rejected' %}
+                            <span class="badge status-badge status-rejected">
+                                <i class="fas fa-times me-1"></i>{% trans "Rejeté" %}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <div class="mb-2">
+                        <span class="info-label">{% trans "Date d'inscription:" %}</span>
+                        {{ registration.registration_date|date:"d F Y, H:i" }}
+                    </div>
+                    {% if registration.practitioner.grade %}
+                    <div class="mb-2">
+                        <span class="info-label">{% trans "Grade:" %}</span>
+                        {{ registration.practitioner.grade }}
+                    </div>
+                    {% endif %}
+                    <div>
+                        <span class="info-label">{% trans "Catégories:" %}</span>
+                        <div class="mt-1">
+                            {% for category in participant_categories %}
+                                <span class="badge bg-info text-dark category-badge">{{ category.name }}</span>
+                            {% empty %}
+                                <span class="text-muted">{% trans "Aucune catégorie assignée" %}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Onglets d'information -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab" aria-controls="details" aria-selected="true">
+                        <i class="fas fa-info-circle me-2"></i>{% trans "Informations" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="categories-tab" data-bs-toggle="tab" data-bs-target="#categories" type="button" role="tab" aria-controls="categories" aria-selected="false">
+                        <i class="fas fa-layer-group me-2"></i>{% trans "Catégories" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="notes-tab" data-bs-toggle="tab" data-bs-target="#notes" type="button" role="tab" aria-controls="notes" aria-selected="false">
+                        <i class="fas fa-sticky-note me-2"></i>{% trans "Notes" %}
+                    </button>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body p-0">
+            <div class="tab-content">
+                <!-- Onglet Informations -->
+                <div class="tab-pane fade show active" id="details" role="tabpanel" aria-labelledby="details-tab">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="mb-3"><i class="fas fa-user me-2"></i>{% trans "Informations personnelles" %}</h5>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <tbody>
+                                        <tr>
+                                            <th>{% trans "Nom" %}</th>
+                                            <td>{{ registration.practitioner.last_name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "Prénom" %}</th>
+                                            <td>{{ registration.practitioner.first_name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "Date de naissance" %}</th>
+                                            <td>{{ registration.practitioner.birth_date|date:"d F Y" }} ({{ registration.practitioner.age }} {% trans "ans" %})</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "Genre" %}</th>
+                                            <td>{{ registration.practitioner.get_gender_display }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "Email" %}</th>
+                                            <td>{{ registration.practitioner.email|default:"-" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "Téléphone" %}</th>
+                                            <td>{{ registration.practitioner.phone|default:"-" }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="mb-3"><i class="fas fa-dojo me-2"></i>{% trans "Informations sportives" %}</h5>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <tbody>
+                                        <tr>
+                                            <th>{% trans "Club" %}</th>
+                                            <td>{{ registration.practitioner.club.name|default:"-" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "Grade" %}</th>
+                                            <td>{{ registration.practitioner.grade|default:"-" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "Licence N°" %}</th>
+                                            <td>{{ registration.practitioner.license_number|default:"-" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "Certificat médical" %}</th>
+                                            <td>
+                                                {% if registration.practitioner.medical_certificate_date %}
+                                                    {% trans "Valide jusqu'au" %} {{ registration.practitioner.medical_certificate_date|date:"d F Y" }}
+                                                {% else %}
+                                                    <span class="text-danger">{% trans "Non fourni" %}</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "Poids (kg)" %}</th>
+                                            <td>{{ registration.practitioner.weight|default:"-" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>{% trans "Taille (cm)" %}</th>
+                                            <td>{{ registration.practitioner.height|default:"-" }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Onglet Catégories -->
+                <div class="tab-pane fade" id="categories" role="tabpanel" aria-labelledby="categories-tab">
+                    <h5 class="mb-4"><i class="fas fa-layer-group me-2"></i>{% trans "Gestion des catégories" %}</h5>
+                    
+                    <form method="post" action="{% url 'competitions:management:participant_detail' competition.id registration.id %}" class="mb-4">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="form-group mb-3">
+                                    <label for="categories">{% trans "Sélectionner les catégories" %}</label>
+                                    <select name="categories" id="categories" class="form-select" multiple>
+                                        {% for category in all_categories %}
+                                            <option value="{{ category.id }}" {% if category in participant_categories %}selected{% endif %}>
+                                                {{ category.name }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">{% trans "Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs catégories" %}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-save me-2"></i>{% trans "Enregistrer les catégories" %}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <h6 class="mb-3">{% trans "Catégories actuellement assignées" %}</h6>
+                    <div class="row">
+                        {% for category in participant_categories %}
+                            <div class="col-md-4 mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6 class="card-title">{{ category.name }}</h6>
+                                        <p class="card-text text-muted small">
+                                            {% if category.description %}
+                                                {{ category.description }}
+                                            {% else %}
+                                                {% if category.gender_restriction %}
+                                                    {{ category.get_gender_restriction_display }} -
+                                                {% endif %}
+                                                {% if category.min_age and category.max_age %}
+                                                    {{ category.min_age }}-{{ category.max_age }} {% trans "ans" %}
+                                                {% elif category.min_age %}
+                                                    {{ category.min_age }}+ {% trans "ans" %}
+                                                {% elif category.max_age %}
+                                                    < {{ category.max_age }} {% trans "ans" %}
+                                                {% endif %}
+                                                {% if category.min_weight and category.max_weight %}
+                                                    - {{ category.min_weight }}-{{ category.max_weight }} kg
+                                                {% elif category.min_weight %}
+                                                    - {{ category.min_weight }}+ kg
+                                                {% elif category.max_weight %}
+                                                    - < {{ category.max_weight }} kg
+                                                {% endif %}
+                                            {% endif %}
+                                        </p>
+                                        <form method="post" action="{% url 'competitions:management:participant_detail' competition.id registration.id %}" class="mt-2">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="remove_category" value="{{ category.id }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger w-100">
+                                                <i class="fas fa-trash-alt me-1"></i>{% trans "Retirer" %}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <div class="col-12">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>{% trans "Aucune catégorie n'est actuellement assignée à ce participant." %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Onglet Notes -->
+                <div class="tab-pane fade" id="notes" role="tabpanel" aria-labelledby="notes-tab">
+                    <h5 class="mb-4"><i class="fas fa-sticky-note me-2"></i>{% trans "Notes et commentaires" %}</h5>
+                    
+                    <form method="post" action="{% url 'competitions:management:update_registration_status' competition.id registration.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="status" value="{{ registration.status }}">
+                        
+                        <div class="form-group mb-4">
+                            <label for="note">{% trans "Ajouter une note" %}</label>
+                            <textarea name="note" id="note" class="form-control notes-area" rows="4" placeholder="{% trans 'Ajoutez ici vos commentaires sur ce participant...' %}"></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary action-btn">
+                            <i class="fas fa-save me-2"></i>{% trans "Enregistrer la note" %}
+                        </button>
+                    </form>
+                    
+                    <hr class="my-4">
+                    
+                    <h6 class="mb-3">{% trans "Historique des notes" %}</h6>
+                    {% if registration.notes %}
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                {{ registration.notes|linebreaks }}
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>{% trans "Aucune note n'a été ajoutée pour ce participant." %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Ajouter à une catégorie -->
+<div class="modal fade" id="addCategory" tabindex="-1" aria-labelledby="addCategoryLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addCategoryLabel">{% trans "Ajouter à une catégorie" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'competitions:management:participant_detail' competition.id registration.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="category">{% trans "Sélectionner une catégorie" %}</label>
+                        <select name="add_category" id="category" class="form-select">
+                            {% for category in all_categories %}
+                                {% if category not in participant_categories %}
+                                    <option value="{{ category.id }}">{{ category.name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                    <button type="submit" class="btn btn-primary">{% trans "Ajouter" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Exporter les données -->
+<div class="modal fade" id="exportParticipant" tabindex="-1" aria-labelledby="exportParticipantLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exportParticipantLabel">{% trans "Exporter les données" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Sélectionnez le format d'exportation des données du participant:" %}</p>
+                <div class="list-group">
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1"><i class="fas fa-file-csv me-2"></i>{% trans "Format CSV" %}</h6>
+                            <small>.csv</small>
+                        </div>
+                        <p class="mb-1 text-muted">{% trans "Format de données tabulaire, compatible avec Excel et autres tableurs." %}</p>
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1"><i class="fas fa-file-pdf me-2"></i>{% trans "Format PDF" %}</h6>
+                            <small>.pdf</small>
+                        </div>
+                        <p class="mb-1 text-muted">{% trans "Document formaté pour l'impression ou l'archivage." %}</p>
+                    </a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Confirmation pour les actions de changement de statut
+        document.querySelectorAll('button[name="status"]').forEach(button => {
+            if (button.value !== "{{ registration.status }}") {
+                button.addEventListener('click', function(e) {
+                    const action = this.value;
+                    let message = '';
+                    
+                    if (action === 'approved') {
+                        message = "{% trans 'Approuver cette inscription ?' %}";
+                    } else if (action === 'rejected') {
+                        message = "{% trans 'Rejeter cette inscription ?' %}";
+                    } else if (action === 'pending') {
+                        message = "{% trans 'Remettre cette inscription en attente ?' %}";
+                    }
+                    
+                    if (!confirm(message)) {
+                        e.preventDefault();
+                    }
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}

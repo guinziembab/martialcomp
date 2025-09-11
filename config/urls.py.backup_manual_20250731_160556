@@ -1,0 +1,167 @@
+﻿"""
+Configuration des URLs pour MartialComp
+"""
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+from django.conf.urls.i18n import i18n_patterns
+from django.views.i18n import set_language
+from django.contrib.auth import views as auth_views
+from django.shortcuts import render, redirect
+
+# Import des vues principales
+from apps.competitions.views.welcome import welcome
+from apps.competitions.views.custom_login import custom_login_view
+from apps.competitions.views.ajax_login import ajax_login_view
+from apps.competitions.views.pages import privacy_policy_view, terms_of_service_view, delete_account_view
+
+# Import de la vue d'inscription personnalisÃ©e pour django-allauth
+from apps.competitions.views.allauth_override import CustomSignupView
+
+# Import des vues DeepL
+from config.rosetta_views import DeepLTranslationView, deepl_status, batch_translate
+
+# Import de la vue protÃ©gÃ©e pour le profil
+from apps.competitions.views.auth import profile_view
+
+# Import de la vue de debug
+from config.views import debug_host
+
+
+# URLs principales (sans prÃ©fixe de langue)
+urlpatterns = [
+    # URLs d'authentification - notre login en prioritÃ©, puis allauth
+    path('accounts/login/', custom_login_view, name='account_login'),
+    path('ajax/login/', ajax_login_view, name='ajax_login'),
+    
+    # IMPORTANT: Override de la vue d'inscription de django-allauth
+    # Cela doit Ãªtre placÃ© AVANT l'inclusion de allauth.urls
+    path('accounts/signup/', CustomSignupView.as_view(), name='account_signup'),
+    
+    # Inclusion des URLs de django-allauth
+    path('accounts/', include('allauth.urls')),
+    
+    # URLs d'authentification Django standard
+    path('accounts/password_change/', auth_views.PasswordChangeView.as_view(template_name='registration/password_change.html'), name='password_change'),
+    path('accounts/password_change/done/', auth_views.PasswordChangeDoneView.as_view(template_name='registration/password_change_done.html'), name='password_change_done'),
+    
+    
+    # Changement de langue
+    path('set_language/', set_language, name='set_language'),
+    
+    # Redirection de l'admin sans prÃ©fixe vers l'admin avec prÃ©fixe
+    path('admin/', lambda request: redirect('/fr/admin/')),
+    path('admin/<path:path>', lambda request, path: redirect(f'/fr/admin/{path}')),
+    
+    # Interface de traduction Rosetta (si en mode debug)
+    path('rosetta/', include('rosetta.urls')) if settings.DEBUG else path('rosetta/', lambda x: None),
+    
+    # URL de debug
+    path('debug-host/', debug_host),
+]
+
+# URLs avec prÃ©fixe de langue (fr/, en/, es/, etc.)
+urlpatterns += i18n_patterns(
+
+    # Application competitions (avec URLs d'onboarding)
+    path('competitions/', include('apps.competitions.urls', namespace='competitions')),
+    # DeepL Translation API endpoints (AVANT admin pour Ã©viter conflicts)
+    path('admin/deepl/translate/', DeepLTranslationView.as_view(), name='deepl_translate_api'),
+    path('admin/deepl/status/', deepl_status, name='deepl_status'),
+    path('admin/deepl/batch/', batch_translate, name='batch_translate'),
+    
+    # Admin Django (avec prÃ©fixe de langue)
+    path('admin/', admin.site.urls),
+    
+    # Page d'accueil
+    path('', welcome, name='welcome'),
+    
+    # Pages lÃ©gales
+    path('privacy/', privacy_policy_view, name='privacy_policy'),
+    path('terms/', terms_of_service_view, name='terms_of_service'),
+    
+    # Gestion de compte
+    path('account/delete/', delete_account_view, name='delete_account'),
+    path('profile/', profile_view, name='profile'),
+    
+    # Page de connexion Django standard (corrige le 404 sur /fr/login/)
+    path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
+    
+    # =========================================================
+    # APPLICATIONS PRINCIPALES - TOUTES LES URLS NÃ‰CESSAIRES
+    # =========================================================
+    
+    # Application principale competitions (inclut le dashboard club)
+    path('competitions/', include('apps.competitions.urls')),
+    path('competitions/api/', include('apps.competitions.api')),
+    
+    
+    # =========================================================
+    # APPLICATIONS DASHBOARD CLUB - LIENS CASSÃ‰S CORRIGÃ‰S
+    # =========================================================
+    
+    # Gestion des grades (ceintures, niveaux)
+    path('grades/', include('apps.grades.urls')),
+    
+    # Gestion financiÃ¨re du club
+    path('finances/', include('apps.finances.urls')),
+    
+    # Boutique/Shop du club
+    path('shop/', include('apps.shop.urls')),
+    
+    # Gestion des documents
+    path('documents/', include('apps.documents.urls')),
+    
+    # =========================================================
+    # APPLICATIONS SUPPLÃ‰MENTAIRES OPTIONNELLES
+    # =========================================================
+    
+    # Gestion des organisations/fÃ©dÃ©rations
+    path('organizations/', include('apps.organizations.urls')),
+    
+    # SystÃ¨me de permissions avancÃ©es
+    path('permissions/', include('apps.permissions_manager.urls')),
+    
+    # Sites d'organisations (sous-domaines)
+    path('', include('apps.competitions.organization_sites')),
+    
+    # Support multi-tenant (si utilisÃ©)
+    # path('tenant/', include('apps.multitenant.urls')),
+    
+    # Gestion familiale
+    path('family_management/', include('apps.family_management.urls')),
+    
+    # SystÃ¨me de paiement et abonnements
+    path('payment/', include('apps.payment.urls')),
+    
+    # Inclure le module d'administration des organisations
+    path('admin/organizations/', include('apps.competitions.organization_admin')),
+    
+    prefix_default_language=True,
+)
+
+# Servir les fichiers media en dÃ©veloppement
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    
+    # Ajouter les URLs de Django Debug Toolbar
+    try:
+        import debug_toolbar
+        urlpatterns += [
+            path('__debug__/', include(debug_toolbar.urls)),
+        ]
+    except ImportError:
+        pass
+
+# Configuration pour les erreurs (dÃ©sactivÃ©e car les vues n'existent pas)
+# handler404 = 'competitions.views.pages.custom_404'
+# handler500 = 'competitions.views.pages.custom_500'
+    except ImportError:
+        pass
+
+# Configuration pour les erreurs (dÃ©sactivÃ©e car les vues n'existent pas)
+# handler404 = 'competitions.views.pages.custom_404'
+# handler500 = 'competitions.views.pages.custom_500'
+

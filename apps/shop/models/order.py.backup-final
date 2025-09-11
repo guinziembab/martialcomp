@@ -1,0 +1,362 @@
+﻿from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.conf import settings
+from decimal import Decimal
+import uuid
+
+
+class Order(models.Model):
+    """
+    Commande de produits par un utilisateur.
+    """
+    # Statuts de commande
+    PENDING = 'pending'
+    PROCESSING = 'processing'
+    SHIPPED = 'shipped'
+    DELIVERED = 'delivered'
+    CANCELLED = 'cancelled'
+    REFUNDED = 'refunded'
+    ON_HOLD = 'on_hold'
+    
+    STATUS_CHOICES = [
+        (PENDING, _('En attente')),
+        (PROCESSING, _('En préparation')),
+        (SHIPPED, _('Expédiée')),
+        (DELIVERED, _('Livrée')),
+        (CANCELLED, _('Annulée')),
+        (REFUNDED, _('Remboursée')),
+        (ON_HOLD, _('En attente de paiement')),
+    ]
+    
+    # Méthodes de livraison
+    STANDARD_SHIPPING = 'standard'
+    EXPRESS_SHIPPING = 'express'
+    CLICK_COLLECT = 'click_collect'
+    CLUB_DELIVERY = 'club_delivery'
+    
+    SHIPPING_CHOICES = [
+        (STANDARD_SHIPPING, _('Livraison standard')),
+        (EXPRESS_SHIPPING, _('Livraison express')),
+        (CLICK_COLLECT, _('Retrait au club')),
+        (CLUB_DELIVERY, _('Livraison au club')),
+    ]
+    
+    # Méthodes de paiement
+    CREDIT_CARD = 'credit_card'
+    BANK_TRANSFER = 'bank_transfer'
+    PAYPAL = 'paypal'
+    CASH_ON_DELIVERY = 'cash_on_delivery'
+    OTHER = 'other'
+    
+    PAYMENT_CHOICES = [
+        (CREDIT_CARD, _('Carte bancaire')),
+        (BANK_TRANSFER, _('Virement bancaire')),
+        (PAYPAL, _('PayPal')),
+        (CASH_ON_DELIVERY, _('Paiement Ã  la livraison')),
+        (OTHER, _('Autre')),
+    ]
+    
+    # Identifiants
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order_number = models.CharField(_("Numéro de commande"), max_length=30, unique=True)
+    
+    # Relations
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='orders',
+        verbose_name=_("Utilisateur")
+    )
+    club = models.ForeignKey(
+        'competitions.Club',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='club_orders',
+        verbose_name=_("Club")
+    )
+    
+    # Statut et dates
+    status = models.CharField(
+        _("Statut"),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=PENDING
+    )
+    created_at = models.DateTimeField(_("Créée le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mise Ã  jour le"), auto_now=True)
+    paid_at = models.DateTimeField(_("Payée le"), null=True, blank=True)
+    shipped_at = models.DateTimeField(_("Expédiée le"), null=True, blank=True)
+    delivered_at = models.DateTimeField(_("Livrée le"), null=True, blank=True)
+    cancelled_at = models.DateTimeField(_("Annulée le"), null=True, blank=True)
+    
+    # Informations financières
+    subtotal = models.DecimalField(_("Sous-total"), max_digits=10, decimal_places=2)
+    shipping_cost = models.DecimalField(_("Frais de livraison"), max_digits=10, decimal_places=2, default=0)
+    tax_amount = models.DecimalField(_("Montant TVA"), max_digits=10, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(_("Montant remise"), max_digits=10, decimal_places=2, default=0)
+    total = models.DecimalField(_("Total"), max_digits=10, decimal_places=2)
+    
+    # Informations de paiement
+    payment_method = models.CharField(
+        _("Méthode de paiement"),
+        max_length=20,
+        choices=PAYMENT_CHOICES,
+        blank=True
+    )
+    payment_id = models.CharField(_("ID de transaction"), max_length=100, blank=True)
+    is_paid = models.BooleanField(_("Payée"), default=False)
+    
+    # Informations de livraison
+    shipping_method = models.CharField(
+        _("Méthode de livraison"),
+        max_length=20,
+        choices=SHIPPING_CHOICES,
+        default=STANDARD_SHIPPING
+    )
+    tracking_number = models.CharField(_("Numéro de suivi"), max_length=100, blank=True)
+    estimated_delivery_date = models.DateField(_("Date de livraison estimée"), null=True, blank=True)
+    
+    # Informations client
+    customer_notes = models.TextField(_("Notes client"), blank=True)
+    admin_notes = models.TextField(_("Notes administratives"), blank=True)
+    
+    # Adresses
+    billing_address = models.ForeignKey(
+        'shop.Address',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='billing_orders',
+        verbose_name=_("Adresse de facturation")
+    )
+    shipping_address = models.ForeignKey(
+        'shop.Address',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='shipping_orders',
+        verbose_name=_("Adresse de livraison")
+    )
+    
+    # Promotion/coupon utilisé
+    coupon = models.ForeignKey(
+        'shop.Coupon',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='orders',
+        verbose_name=_("Coupon")
+    )
+    
+    # Invoicing
+    invoice_number = models.CharField(_("Numéro de facture"), max_length=30, blank=True)
+    invoice_date = models.DateField(_("Date de facture"), null=True, blank=True)
+    invoice_pdf = models.FileField(
+        _("Facture PDF"), 
+        upload_to='shop/invoices/', 
+        null=True, 
+        blank=True
+    )
+    
+    class Meta:
+        verbose_name = _("Commande")
+        verbose_name_plural = _("Commandes")
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Commande #{self.order_number}"
+    
+    def save(self, *args, **kwargs):
+        # Générer un numéro de commande lors de la création
+        if not self.order_number:
+            last_order = Order.objects.order_by('-created_at').first()
+            if last_order and last_order.order_number:
+                try:
+                    last_number = int(last_order.order_number[4:])
+                    new_number = last_number + 1
+                except ValueError:
+                    new_number = 1
+            else:
+                new_number = 1
+                
+            year = timezone.now().strftime('%y')
+            month = timezone.now().strftime('%m')
+            self.order_number = f"MC{year}{month}{new_number:06d}"
+        
+        # Calculer le total si non défini
+        if not self.total:
+            self.total = self.calculate_total()
+            
+        super().save(*args, **kwargs)
+    
+    def calculate_total(self):
+        """
+        Calcule le total de la commande.
+        """
+        return self.subtotal + self.shipping_cost + self.tax_amount - self.discount_amount
+    
+    def get_shipping_status_display(self):
+        """
+        Affichage personnalisé du statut de livraison.
+        """
+        if self.status == self.CANCELLED:
+            return _("Annulée")
+        elif self.status == self.DELIVERED:
+            return _("Livrée")
+        elif self.status == self.SHIPPED:
+            return _("En cours de livraison")
+        elif self.status == self.PROCESSING:
+            return _("En préparation")
+        else:
+            return _("En attente")
+    
+    @property
+    def can_cancel(self):
+        """
+        Vérifie si la commande peut Ãªtre annulée.
+        """
+        return self.status in [self.PENDING, self.PROCESSING, self.ON_HOLD]
+    
+    @property
+    def days_since_order(self):
+        """
+        Retourne le nombre de jours depuis la commande.
+        """
+        from django.utils import timezone
+        return (timezone.now().date() - self.created_at.date()).days
+
+
+class OrderItem(models.Model):
+    """
+    Article individuel dans une commande.
+    """
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='items',
+        verbose_name=_("Commande")
+    )
+    product = models.ForeignKey(
+        'shop.Product',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='order_items',
+        verbose_name=_("Produit")
+    )
+    product_name = models.CharField(_("Nom du produit"), max_length=200)
+    product_sku = models.CharField(_("Référence produit"), max_length=50)
+    variation = models.ForeignKey(
+        'shop.ProductVariation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='order_items',
+        verbose_name=_("Variation")
+    )
+    variation_description = models.CharField(_("Description variation"), max_length=200, blank=True)
+    
+    price = models.DecimalField(_("Prix unitaire"), max_digits=10, decimal_places=2)
+    quantity = models.PositiveIntegerField(_("Quantité"))
+    discount = models.DecimalField(_("Remise"), max_digits=10, decimal_places=2, default=0)
+    tax_rate = models.DecimalField(_("Taux TVA (%)"), max_digits=5, decimal_places=2, default=20)
+    
+    class Meta:
+        verbose_name = _("Article de commande")
+        verbose_name_plural = _("Articles de commande")
+    
+    def __str__(self):
+        return f"{self.quantity} x {self.product_name}"
+    
+    @property
+    def subtotal(self):
+        """
+        Calcule le sous-total pour cet article (prix x quantité).
+        """
+        return self.price * self.quantity
+    
+    @property
+    def total(self):
+        """
+        Calcule le total pour cet article (sous-total - remise).
+        """
+        return self.subtotal - self.discount
+    
+    @property
+    def tax_amount(self):
+        """
+        Calcule le montant de TVA.
+        """
+        return self.total * (self.tax_rate / Decimal('100'))
+
+
+class Address(models.Model):
+    """
+    Adresses de livraison et facturation.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='addresses',
+        verbose_name=_("Utilisateur")
+    )
+    is_default_shipping = models.BooleanField(_("Adresse de livraison par défaut"), default=False)
+    is_default_billing = models.BooleanField(_("Adresse de facturation par défaut"), default=False)
+    
+    first_name = models.CharField(_("Prénom"), max_length=100)
+    last_name = models.CharField(_("Nom"), max_length=100)
+    company = models.CharField(_("Société"), max_length=100, blank=True)
+    address_line1 = models.CharField(_("Adresse ligne 1"), max_length=255)
+    address_line2 = models.CharField(_("Adresse ligne 2"), max_length=255, blank=True)
+    city = models.CharField(_("Ville"), max_length=100)
+    state_province = models.CharField(_("Ã‰tat/Province"), max_length=100, blank=True)
+    postal_code = models.CharField(_("Code postal"), max_length=20)
+    country = models.CharField(_("Pays"), max_length=100)
+    
+    phone = models.CharField(_("Téléphone"), max_length=20, blank=True)
+    email = models.EmailField(_("Email"), blank=True)
+    
+    delivery_instructions = models.TextField(_("Instructions de livraison"), blank=True)
+    
+    created_at = models.DateTimeField(_("Créée le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mise Ã  jour le"), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("Adresse")
+        verbose_name_plural = _("Adresses")
+    
+    def __str__(self):
+        return f"{self.first_name} {self.last_name}, {self.address_line1}, {self.city}"
+    
+    def save(self, *args, **kwargs):
+        # Si définie comme adresse par défaut, mettre Ã  jour les autres adresses de l'utilisateur
+        if self.is_default_shipping:
+            Address.objects.filter(user=self.user, is_default_shipping=True).update(is_default_shipping=False)
+        if self.is_default_billing:
+            Address.objects.filter(user=self.user, is_default_billing=True).update(is_default_billing=False)
+            
+        super().save(*args, **kwargs)
+    
+    @property
+    def full_name(self):
+        """
+        Retourne le nom complet.
+        """
+        return f"{self.first_name} {self.last_name}"
+    
+    @property
+    def formatted_address(self):
+        """
+        Retourne l'adresse complète formatée.
+        """
+        address = f"{self.address_line1}"
+        if self.address_line2:
+            address += f", {self.address_line2}"
+        address += f", {self.postal_code} {self.city}"
+        if self.state_province:
+            address += f", {self.state_province}"
+        address += f", {self.country}"
+        return address
+

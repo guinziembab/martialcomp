@@ -1,0 +1,474 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Combat Taekwondo" %} #{{ combat.id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .score-display {
+        font-size: 3rem;
+        font-weight: bold;
+    }
+    .penalties-display {
+        font-size: 1.2rem;
+    }
+    .combat-timer {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    .action-history {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .taekwondo-btn {
+        width: 100%;
+        margin-bottom: 10px;
+        font-weight: bold;
+    }
+    .round-indicator {
+        font-size: 1.5rem;
+        font-weight: bold;
+        padding: 5px 15px;
+        border-radius: 10px;
+    }
+    .penalty-count {
+        font-size: 1.2rem;
+        margin: 5px 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid my-4">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">{% trans "Combat Taekwondo" %} #{{ combat.id }}</h5>
+            {% if combat.poule %}
+            <a href="{% url 'competitions:detail_poule' combat.poule.id %}" class="btn btn-outline-light btn-sm">
+                <i class="fas fa-arrow-left"></i> {% trans "Retour à la poule" %}
+            </a>
+            {% else %}
+            <a href="{% url 'competitions:combat_taekwondo:liste_combats' %}" class="btn btn-outline-light btn-sm">
+                <i class="fas fa-arrow-left"></i> {% trans "Retour à la liste" %}
+            </a>
+            {% endif %}
+        </div>
+        
+        <div class="card-body">
+            <!-- Informations du combat -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h6>{% trans "Informations générales" %}</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <th>{% trans "Compétition" %}</th>
+                            <td>{{ combat.competition.title }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Type" %}</th>
+                            <td>{{ combat.get_type_combat_display }}</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Statut" %}</th>
+                            <td>
+                                <span class="badge {% if combat.status == 'planifie' %}bg-warning{% elif combat.status == 'en_cours' %}bg-success{% elif combat.status == 'termine' %}bg-info{% else %}bg-danger{% endif %}">
+                                    {{ combat.get_status_display }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Durée du combat" %}</th>
+                            <td>{{ combat.duree_combat }} secondes (3 rounds)</td>
+                        </tr>
+                        {% if combat.debut_combat %}
+                        <tr>
+                            <th>{% trans "Début du combat" %}</th>
+                            <td>{{ combat.debut_combat|date:"d/m/Y H:i:s" }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if combat.fin_combat %}
+                        <tr>
+                            <th>{% trans "Fin du combat" %}</th>
+                            <td>{{ combat.fin_combat|date:"d/m/Y H:i:s" }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+                
+                <div class="col-md-6">
+                    <h6>{% trans "Arbitrage" %}</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <th>{% trans "Arbitre central" %}</th>
+                            <td>
+                                {% if combat.arbitre_central %}
+                                {{ combat.arbitre_central.user.get_full_name }}
+                                {% else %}
+                                <span class="text-muted">{% trans "Non assigné" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Arbitres latéraux" %}</th>
+                            <td>
+                                {% if combat.arbitres_lateraux.exists %}
+                                <ul class="mb-0 ps-3">
+                                    {% for arbitre in combat.arbitres_lateraux.all %}
+                                    <li>{{ arbitre.user.get_full_name }}</li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <span class="text-muted">{% trans "Aucun arbitre latéral assigné" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Tableau de score -->
+            <div class="row mb-4">
+                <div class="col-md-5 text-center">
+                    <div class="card border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="mb-0">
+                                {% if combat.type_combat == 'individuel' %}
+                                {{ combat.pratiquant_rouge.full_name|default:"Combattant Rouge" }}
+                                {% else %}
+                                {{ combat.equipe_rouge.nom|default:"Équipe Rouge" }}
+                                {% endif %}
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="score-display text-danger mb-2">{{ combat.score_rouge }}</div>
+                            <div class="penalties-display mb-3">
+                                <div class="penalty-count">
+                                    <strong>{% trans "Kyong-go:" %}</strong> 
+                                    {% for i in "x"|ljust:penalties.rouge.kyong-go %}
+                                    <span class="badge bg-warning text-dark">K</span>
+                                    {% endfor %}
+                                </div>
+                                <div class="penalty-count">
+                                    <strong>{% trans "Gam-jeom:" %}</strong> 
+                                    {% for i in "x"|ljust:penalties.rouge.gam-jeom %}
+                                    <span class="badge bg-danger">G</span>
+                                    {% endfor %}
+                                </div>
+                                {% if disqualification_rouge %}
+                                <div class="alert alert-danger mt-2">
+                                    <strong>{% trans "DISQUALIFIÉ" %}</strong>{% trans "(10 Kyong-go)" %}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-2 text-center d-flex flex-column justify-content-center align-items-center">
+                    <div class="combat-timer mb-3">
+                        {% if combat.status == 'en_cours' %}
+                        <div id="timer">--:--</div>
+                        {% elif combat.status == 'termine' %}
+                        <span class="badge bg-success">{% trans "TERMINÉ" %}</span>
+                        {% else %}
+                        <span class="badge bg-warning text-dark">{% trans "EN ATTENTE" %}</span>
+                        {% endif %}
+                    </div>
+                    <div class="round-indicator bg-info text-white mb-3">
+                        Round <span id="current-round">1</span>/3
+                    </div>
+                    {% if combat.status == 'planifie' and can_start %}
+                    <a href="{% url 'competitions:combat_taekwondo:demarrer_combat' combat.id %}" class="btn btn-success mb-2">
+                        <i class="fas fa-play"></i> {% trans "Démarrer le combat" %}
+                    </a>
+                    {% endif %}
+                    
+                    {% if combat.status == 'en_cours' and can_end %}
+                    <a href="{% url 'competitions:combat_taekwondo:terminer_combat' combat.id %}" class="btn btn-danger mb-2">
+                        <i class="fas fa-stop"></i> {% trans "Terminer le combat" %}
+                    </a>
+                    {% endif %}
+                    
+                    {% if combat.status == 'en_cours' %}
+                    <a href="{% url 'competitions:combat_taekwondo:interface_combat' combat.id %}" class="btn btn-primary mb-2">
+                        <i class="fas fa-gamepad"></i> {% trans "Interface complète" %}
+                    </a>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-5 text-center">
+                    <div class="card border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                {% if combat.type_combat == 'individuel' %}
+                                {{ combat.pratiquant_blanc.full_name|default:"Combattant Blanc" }}
+                                {% else %}
+                                {{ combat.equipe_blanc.nom|default:"Équipe Blanche" }}
+                                {% endif %}
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="score-display text-primary mb-2">{{ combat.score_blanc }}</div>
+                            <div class="penalties-display mb-3">
+                                <div class="penalty-count">
+                                    <strong>{% trans "Kyong-go:" %}</strong> 
+                                    {% for i in "x"|ljust:penalties.blanc.kyong-go %}
+                                    <span class="badge bg-warning text-dark">K</span>
+                                    {% endfor %}
+                                </div>
+                                <div class="penalty-count">
+                                    <strong>{% trans "Gam-jeom:" %}</strong> 
+                                    {% for i in "x"|ljust:penalties.blanc.gam-jeom %}
+                                    <span class="badge bg-danger">G</span>
+                                    {% endfor %}
+                                </div>
+                                {% if disqualification_blanc %}
+                                <div class="alert alert-danger mt-2">
+                                    <strong>{% trans "DISQUALIFIÉ" %}</strong>{% trans "(10 Kyong-go)" %}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Formulaire d'action (si le combat est en cours) -->
+            {% if combat.status == 'en_cours' and point_form %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card border-info">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">{% trans "Ajouter une action" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="post" action="{% url 'competitions:combat_taekwondo:ajouter_action' combat.id %}" id="action-form">
+                                {% csrf_token %}
+                                <div class="row">
+                                    <!-- Sélection du combattant -->
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label class="form-label">{% trans "Combattant" %}</label>
+                                            <div class="d-flex">
+                                                <div class="form-check me-4">
+                                                    <input class="form-check-input" type="radio" name="couleur" id="couleur_rouge" value="rouge" checked>
+                                                    <label class="form-check-label text-danger fw-bold" for="couleur_rouge">
+                                                        {% trans "Rouge" %}
+                                                    </label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="couleur" id="couleur_blanc" value="blanc">
+                                                    <label class="form-check-label text-primary fw-bold" for="couleur_blanc">
+                                                        {% trans "Blanc" %}
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Type d'action -->
+                                    <div class="col-md-3">
+                                        <div class="mb-3">
+                                            <label class="form-label">{% trans "Type d'action" %}</label>
+                                            <div class="d-flex">
+                                                <div class="form-check me-4">
+                                                    <input class="form-check-input" type="radio" name="type_action" id="type_point" value="point" checked>
+                                                    <label class="form-check-label" for="type_point">
+                                                        {% trans "Point" %}
+                                                    </label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="type_action" id="type_penalty" value="penalty">
+                                                    <label class="form-check-label" for="type_penalty">
+                                                        {% trans "Pénalité" %}
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Points (visible uniquement si type_action = point) -->
+                                    <div class="col-md-3" id="points-section">
+                                        <div class="mb-3">
+                                            <label for="point_type" class="form-label">{% trans "Type de point" %}</label>
+                                            <select class="form-select" name="point_type" id="point_type">
+                                                <option value="punch">{% trans "Coup de poing (1 pt)" %}</option>
+                                                <option value="kick_body">{% trans "Coup de pied au tronc (2 pts)" %}</option>
+                                                <option value="kick_head">{% trans "Coup de pied à la tête (3 pts)" %}</option>
+                                                <option value="turning_kick_body">{% trans "Coup de pied retourné au tronc (4 pts)" %}</option>
+                                                <option value="turning_kick_head">{% trans "Coup de pied retourné à la tête (5 pts)" %}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Pénalités (visible uniquement si type_action = penalty) -->
+                                    <div class="col-md-3" id="penalties-section" style="display: none;">
+                                        <div class="mb-3">
+                                            <label for="penalty_type" class="form-label">{% trans "Type de pénalité" %}</label>
+                                            <select class="form-select" name="penalty_type" id="penalty_type">
+                                                <option value="kyong-go">{% trans "Kyong-go (Avertissement)" %}</option>
+                                                <option value="gam-jeom">{% trans "Gam-jeom (Déduction)" %}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Bouton de soumission -->
+                                    <div class="col-md-3 d-flex align-items-end">
+                                        <button type="submit" class="btn btn-success w-100">
+                                            <i class="fas fa-plus-circle"></i> {% trans "Ajouter" %}
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                {{ point_form.combat }}
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Historique des actions -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card border-secondary">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0">{% trans "Historique des actions" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="action-history">
+                                {% if actions %}
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>{% trans "Temps" %}</th>
+                                            <th>{% trans "Combattant" %}</th>
+                                            <th>{% trans "Action" %}</th>
+                                            <th>{% trans "Valeur" %}</th>
+                                            <th>{% trans "Arbitre" %}</th>
+                                            {% if can_end %}
+                                            <th>{% trans "Actions" %}</th>
+                                            {% endif %}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for action in actions %}
+                                        <tr>
+                                            <td>{{ action.temps|date:"H:i:s" }}</td>
+                                            <td class="{% if action.couleur == 'rouge' %}text-danger{% elif action.couleur == 'blanc' %}text-primary{% endif %}">
+                                                {{ action.get_couleur_display }}
+                                            </td>
+                                            <td>
+                                                {{ action.get_type_action_display }}
+                                                {% if action.description %}
+                                                ({{ action.description }})
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if action.type_action == 'point' %}
+                                                <span class="badge bg-success">+{{ action.valeur }}</span>
+                                                {% else %}
+                                                <span class="badge bg-danger">{{ action.valeur }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if action.arbitre %}
+                                                {{ action.arbitre.user.get_full_name }}
+                                                {% else %}
+                                                <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            {% if can_end %}
+                                            <td>
+                                                <a href="{% url 'competitions:combat:annuler_action' action.id %}" class="btn btn-sm btn-danger">
+                                                    <i class="fas fa-trash"></i> {% trans "Annuler" %}
+                                                </a>
+                                            </td>
+                                            {% endif %}
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                                {% else %}
+                                <div class="alert alert-info">
+                                    {% trans "Aucune action enregistrée pour ce combat." %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Afficher/masquer les sections en fonction du type d'action sélectionné
+    document.addEventListener('DOMContentLoaded', function() {
+        const pointRadio = document.getElementById('type_point');
+        const penaltyRadio = document.getElementById('type_penalty');
+        const pointsSection = document.getElementById('points-section');
+        const penaltiesSection = document.getElementById('penalties-section');
+        
+        if (pointRadio && penaltyRadio) {
+            pointRadio.addEventListener('change', function() {
+                if (this.checked) {
+                    pointsSection.style.display = 'block';
+                    penaltiesSection.style.display = 'none';
+                }
+            });
+            
+            penaltyRadio.addEventListener('change', function() {
+                if (this.checked) {
+                    pointsSection.style.display = 'none';
+                    penaltiesSection.style.display = 'block';
+                }
+            });
+        }
+        
+        // Timer pour les combats en cours
+        {% if combat.status == 'en_cours' %}
+        const timerElement = document.getElementById('timer');
+        const roundElement = document.getElementById('current-round');
+        
+        function updateTimer() {
+            fetch('{% url "competitions:combat_taekwondo:api_statut_combat" combat.id %}')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'en_cours') {
+                        if (data.elapsed_time !== null) {
+                            // Calculer le temps restant dans le round
+                            const roundDuration = data.round_duration;
+                            const roundTime = data.round_time;
+                            const remainingTime = roundDuration - roundTime;
+                            
+                            // Formater en minutes:secondes
+                            const minutes = Math.floor(remainingTime / 60);
+                            const seconds = Math.floor(remainingTime % 60);
+                            timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                            
+                            // Mettre à jour le numéro du round
+                            roundElement.textContent = data.current_round;
+                        }
+                        
+                        // Continuer à mettre à jour le timer
+                        setTimeout(updateTimer, 1000);
+                    } else if (data.status === 'termine') {
+                        timerElement.innerHTML = '<span class="badge bg-success">TERMINÉ</span>';
+                        location.reload(); // Recharger la page pour afficher les résultats finaux
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur lors de la mise à jour du timer:', error);
+                    setTimeout(updateTimer, 5000); // Réessayer après une erreur
+                });
+        }
+        
+        // Démarrer le timer
+        updateTimer();
+        {% endif %}
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load grade_filters %}
+
+{% block title %}{% trans "Exigences de Grade" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .requirement-card {
+        transition: all 0.3s ease;
+        border-left: 4px solid #6c757d;
+    }
+    
+    .requirement-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .badge-discipline {
+        background-color: #6c757d;
+        color: white;
+    }
+    
+    .badge-grade {
+        padding: 0.5em 0.75em;
+        border-radius: 0.25rem;
+    }
+    
+    .requirement-description {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .requirement-criteria {
+        list-style: none;
+        padding-left: 0;
+    }
+    
+    .requirement-criteria li {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .requirement-criteria li:last-child {
+        border-bottom: none;
+    }
+    
+    .requirement-criteria .criterion-icon {
+        width: 24px;
+        display: inline-block;
+        text-align: center;
+        margin-right: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{% trans "Exigences de Grade" %}</h1>
+        
+        <div>
+            <a href="{% url 'grades:requirement_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus-circle me-2"></i>{% trans "Ajouter une exigence" %}
+            </a>
+        </div>
+    </div>
+    
+    <!-- Filtres -->
+    <div class="filter-section">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="discipline" class="form-label">{% trans "Discipline" %}</label>
+                <select name="discipline" id="discipline" class="form-select">
+                    <option value="">{% trans "Toutes les disciplines" %}</option>
+                    {% for discipline in disciplines %}
+                        <option value="{{ discipline.id }}" {% if selected_discipline == discipline.id|stringformat:"i" %}selected{% endif %}>
+                            {{ discipline.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="grade" class="form-label">{% trans "Grade" %}</label>
+                <select name="grade" id="grade" class="form-select">
+                    <option value="">{% trans "Tous les grades" %}</option>
+                    {% for grade in grades %}
+                        <option value="{{ grade.id }}" {% if selected_grade == grade.id|stringformat:"i" %}selected{% endif %}>
+                            {{ grade.name }} ({{ grade.discipline.name }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="q" class="form-label">{% trans "Recherche" %}</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="q" name="q" value="{{ search_query }}" placeholder="{% trans 'Rechercher une exigence...' %}">
+                    <button class="btn btn-outline-secondary" type="submit">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    {% if search_query or selected_discipline or selected_grade %}
+                        <a href="{% url 'grades:requirement_list' %}" class="btn btn-outline-danger">
+                            <i class="fas fa-times"></i>
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="col-12 d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-filter me-2"></i>{% trans "Filtrer" %}
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Liste des exigences -->
+    <div class="row">
+        {% for requirement in requirements %}
+            <div class="col-12 mb-4">
+                <div class="card requirement-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">{{ requirement.name }}</h5>
+                        
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownMenuButton{{ requirement.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton{{ requirement.id }}">
+                                <li><a class="dropdown-item" href="{% url 'grades:requirement_update' requirement.id %}">
+                                    <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#deleteRequirementModal{{ requirement.id }}">
+                                    <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                {% if requirement.grade.discipline %}
+                                    <span class="badge badge-discipline me-2">{{ requirement.grade.discipline.name }}</span>
+                                {% endif %}
+                                
+                                {% if requirement.grade %}
+                                    <span class="badge badge-grade" style="background-color: {{ requirement.grade.color_code|default:'#e9ecef' }}; color: {{ requirement.grade.color_code|default:'#e9ecef'|yesno:'white,black' }}">
+                                        {{ requirement.grade.name }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                            
+                            <div>
+                                <small class="text-muted">
+                                    <i class="fas fa-sort-numeric-up me-1"></i>{% trans "Ordre" %}: {{ requirement.order }}
+                                </small>
+                            </div>
+                        </div>
+                        
+                        {% if requirement.description %}
+                            <div class="requirement-description">
+                                {{ requirement.description|linebreaks }}
+                            </div>
+                        {% endif %}
+                        
+                        {% if requirement.criteria %}
+                            <h6 class="mt-3 mb-2">{% trans "Critères d'évaluation" %}</h6>
+                                {% for criterion in requirement.criteria|split:"," %}
+                                    <li>
+                                        <span class="criterion-icon"><i class="fas fa-check-circle text-success"></i></span>
+                                        {{ criterion|strip }}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            {% if requirement.min_age > 0 %}
+                                <div>
+                                    <i class="fas fa-birthday-cake me-1"></i>{% trans "Âge minimum" %}: {{ requirement.min_age }} ans
+                                </div>
+                            {% endif %}
+                            
+                            {% if requirement.time_requirement > 0 %}
+                                <div>
+                                    <i class="fas fa-hourglass-half me-1"></i>{% trans "Temps requis" %}: {{ requirement.time_requirement }} mois
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer d-flex justify-content-end">
+                        <a href="{% url 'grades:requirement_update' requirement.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-edit me-1"></i>{% trans "Modifier" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Modal de confirmation de suppression -->
+            <div class="modal fade" id="deleteRequirementModal{{ requirement.id }}" tabindex="-1" aria-labelledby="deleteRequirementModalLabel{{ requirement.id }}" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title" id="deleteRequirementModalLabel{{ requirement.id }}">
+                                {% trans "Supprimer l'exigence" %} "{{ requirement.name }}"
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>{% trans "Êtes-vous sûr de vouloir supprimer cette exigence pour le grade" %} <strong>{{ requirement.grade.name }}</strong> ?</p>
+                            <p class="text-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                {% trans "Cette action est irréversible." %}
+                            </p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                {% trans "Annuler" %}
+                            </button>
+                            <form action="{% url 'grades:requirement_delete' requirement.id %}" method="post">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% if search_query or selected_discipline or selected_grade %}
+                        {% trans "Aucune exigence ne correspond à vos critères de recherche." %}
+                    {% else %}
+                        {% trans "Aucune exigence de grade n'a été définie pour le moment." %}
+                    {% endif %}
+                </div>
+                
+                <div class="text-center mt-4">
+                    <a href="{% url 'grades:requirement_create' %}" class="btn btn-primary">
+                        <i class="fas fa-plus-circle me-2"></i>{% trans "Ajouter une exigence" %}
+                    </a>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    {% if is_paginated %}
+        <nav aria-label="Pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade %}&grade={{ selected_grade }}{% endif %}" aria-label="{% trans 'Première' %}">
+                            <span aria-hidden="true">&laquo;&laquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade %}&grade={{ selected_grade }}{% endif %}" aria-label="{% trans 'Précédente' %}">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">&laquo;&laquo;</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">&laquo;</span>
+                    </li>
+                {% endif %}
+                
+                {% for i in page_obj.paginator.page_range %}
+                    {% if page_obj.number == i %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ i }}</span>
+                        </li>
+                    {% elif i > page_obj.number|add:'-3' and i < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ i }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade %}&grade={{ selected_grade }}{% endif %}">{{ i }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade %}&grade={{ selected_grade }}{% endif %}" aria-label="{% trans 'Suivante' %}">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_grade %}&grade={{ selected_grade }}{% endif %}" aria-label="{% trans 'Dernière' %}">
+                            <span aria-hidden="true">&raquo;&raquo;</span>
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">&raquo;</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">&raquo;&raquo;</span>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animation des cartes au chargement
+        const cards = document.querySelectorAll('.requirement-card');
+        cards.forEach((card, index) => {
+            setTimeout(() => {
+                card.style.opacity = '1';
+            }, 100 * index);
+        });
+        
+        // Filtrage dynamique des grades en fonction de la discipline
+        const disciplineSelect = document.getElementById('discipline');
+        const gradeSelect = document.getElementById('grade');
+        
+        if (disciplineSelect && gradeSelect) {
+            disciplineSelect.addEventListener('change', function() {
+                const disciplineId = this.value;
+                
+                // Si aucune discipline n'est sélectionnée, afficher tous les grades
+                if (!disciplineId) {
+                    gradeSelect.querySelectorAll('option').forEach(option => {
+                        if (option.value === '') {
+                            option.selected = true;
+                        }
+                    });
+                    return;
+                }
+                
+                // Soumettre le formulaire pour filtrer par discipline
+                this.form.submit();
+            });
+        }
+    });
+</script>
+{% endblock %}

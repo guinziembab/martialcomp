@@ -1,0 +1,435 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}Compétitions - MartialComp{% endblock %}
+
+{% block content %}
+<style>
+    /* Styles spécifiques à la page compétitions */
+    :root {
+        --primary: #c41e3a;
+        --secondary: #1a1a1a;
+        --accent: #d4af37;
+        --light: #f5f5f5;
+        --dark: #121212;
+    }
+    
+    body {
+        background-color: var(--dark);
+        color: var(--light);
+    }
+    
+    .page-header {
+        background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url("{% static 'competitions/images/competitions-bg.jpg' %}");
+        background-size: cover;
+        background-position: center;
+        padding: 100px 0;
+        text-align: center;
+        margin-bottom: 3rem;
+    }
+    
+    .page-title {
+        font-size: 3rem;
+        color: var(--light);
+        margin-bottom: 1rem;
+        position: relative;
+        display: inline-block;
+    }
+    
+    .page-title::after {
+        content: '';
+        position: absolute;
+        width: 80px;
+        height: 4px;
+        background-color: var(--accent);
+        bottom: -10px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    
+    .page-subtitle {
+        font-size: 1.2rem;
+        max-width: 800px;
+        margin: 0 auto;
+        color: var(--light);
+    }
+    
+    .competitions-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+    
+    .filters-section {
+        background-color: var(--secondary);
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+    }
+    
+    .filter-title {
+        font-size: 1.2rem;
+        color: var(--accent);
+        margin-bottom: 1rem;
+    }
+    
+    .filter-form {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: var(--light);
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 0.7rem;
+        border-radius: 4px;
+        border: 1px solid #333;
+        background-color: #333;
+        color: var(--light);
+    }
+    
+    .filter-button {
+        background-color: var(--primary);
+        color: var(--light);
+        border: none;
+        padding: 0.7rem 1.5rem;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 600;
+    }
+    
+    .filter-button:hover {
+        background-color: #a51a30;
+    }
+    
+    .competitions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 2rem;
+    }
+    
+    .competition-card {
+        background-color: var(--secondary);
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s ease;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .competition-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    .competition-image {
+        height: 150px;
+        background-color: var(--primary);
+        position: relative;
+    }
+    
+    .competition-status {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    
+    .status-upcoming {
+        background-color: #17a2b8;
+        color: white;
+    }
+    
+    .status-ongoing {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .status-completed {
+        background-color: #6c757d;
+        color: white;
+    }
+    
+    .competition-content {
+        padding: 1.5rem;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .competition-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--accent);
+    }
+    
+    .competition-discipline {
+        color: var(--light);
+        margin-bottom: 0.5rem;
+        font-style: italic;
+    }
+    
+    .competition-details {
+        margin-top: 1rem;
+        flex-grow: 1;
+    }
+    
+    .detail-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    
+    .detail-icon {
+        margin-right: 0.5rem;
+        color: var(--accent);
+    }
+    
+    .competition-actions {
+        margin-top: 1.5rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .competition-button {
+        flex: 1;
+        padding: 0.6rem;
+        text-align: center;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        font-weight: 600;
+    }
+    
+    .view-button {
+        background-color: transparent;
+        border: 1px solid var(--accent);
+        color: var(--accent);
+    }
+    
+    .view-button:hover {
+        background-color: rgba(212, 175, 55, 0.1);
+    }
+    
+    .register-button {
+        background-color: var(--primary);
+        border: none;
+        color: white;
+    }
+    
+    .register-button:hover {
+        background-color: #a51a30;
+    }
+    
+    .pagination {
+        display: flex;
+        justify-content: center;
+        margin-top: 3rem;
+    }
+    
+    .page-item {
+        margin: 0 0.3rem;
+    }
+    
+    .page-link {
+        display: block;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        background-color: var(--secondary);
+        color: var(--light);
+        text-decoration: none;
+        transition: all 0.3s ease;
+    }
+    
+    .page-link:hover {
+        background-color: var(--primary);
+    }
+    
+    .active .page-link {
+        background-color: var(--primary);
+        color: white;
+    }
+    
+    .no-competitions {
+        text-align: center;
+        padding: 3rem;
+        background-color: var(--secondary);
+        border-radius: 8px;
+    }
+    
+    .no-competitions-title {
+        font-size: 1.5rem;
+        color: var(--light);
+        margin-bottom: 1rem;
+    }
+    
+    .create-cta {
+        margin-top: 1.5rem;
+    }
+    
+    .create-button {
+        background-color: var(--primary);
+        color: var(--light);
+        border: none;
+        padding: 0.8rem 1.5rem;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: 600;
+        display: inline-block;
+        transition: all 0.3s ease;
+    }
+    
+    .create-button:hover {
+        background-color: #a51a30;
+        transform: translateY(-2px);
+    }
+</style>
+
+<div class="page-header">
+    <h1 class="page-title">{% trans "Compétitions" %}</h1>
+    <p class="page-subtitle">{% trans "Découvrez les événements à venir, en cours et passés" %}</p>
+</div>
+
+<div class="competitions-container">
+    <div class="filters-section">
+        <h3 class="filter-title">{% trans "Filtrer les compétitions" %}</h3>
+        <form class="filter-form">
+            <div class="form-group">
+                <label class="form-label" for="discipline">{% trans "Discipline" %}</label>
+                <select class="form-control" id="discipline" name="discipline">
+                    <option value="">{% trans "Toutes les disciplines" %}</option>
+                    <option value="1">{% trans "Karaté" %}</option>
+                    <option value="2">{% trans "Judo" %}</option>
+                    <option value="3">{% trans "Taekwondo" %}</option>
+                    <option value="4">{% trans "Kung Fu" %}</option>
+                    <option value="5">{% trans "Boxe" %}</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="status">{% trans "Statut" %}</label>
+                <select class="form-control" id="status" name="status">
+                    <option value="">{% trans "Tous les statuts" %}</option>
+                    <option value="upcoming">{% trans "À venir" %}</option>
+                    <option value="ongoing">{% trans "En cours" %}</option>
+                    <option value="completed">{% trans "Terminées" %}</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="date">{% trans "Date" %}</label>
+                <input type="date" class="form-control" id="date" name="date">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="location">{% trans "Lieu" %}</label>
+                <input type="text" class="form-control" id="location" name="location" placeholder="{% trans "Ville ou région" %}">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">{% trans "&nbsp;" %}</label>
+                <button type="submit" class="filter-button">{% trans "Filtrer" %}</button>
+            </div>
+        </form>
+    </div>
+    
+    <div class="competitions-grid">
+        {% if competitions %}
+            {% for competition in competitions %}
+            <div class="competition-card">
+                <div class="competition-image">
+                    <div class="competition-status 
+                        {% if competition.status == 'upcoming' %}status-upcoming
+                        {% elif competition.status == 'ongoing' %}status-ongoing
+                        {% elif competition.status == 'completed' %}status-completed{% endif %}">
+                        {{ competition.get_status_display }}
+                    </div>
+                </div>
+                <div class="competition-content">
+                    <h3 class="competition-title">{{ competition.title }}</h3>
+                    <p class="competition-discipline">{{ competition.discipline.name }}</p>
+                    
+                    <div class="competition-details">
+                        <div class="detail-item">
+                            <span class="detail-icon">📅</span>
+                            <span>{{ competition.start_date|date:"d/m/Y" }} - {{ competition.end_date|date:"d/m/Y" }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-icon">📍</span>
+                            <span>{{ competition.city }}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-icon">👥</span>
+                            <span>{{ competition.registrations.count }} participants</span>
+                        </div>
+                    </div>
+                    
+                    <div class="competition-actions">
+                        <a href="{% url 'competitions:detail' pk=competition.pk %}" class="competition-button view-button">{% trans "Détails" %}</a>
+                        {% if competition.status == 'upcoming' %}
+                        <a href="#" class="competition-button register-button">{% trans "S'inscrire" %}</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="no-competitions">
+                <h3 class="no-competitions-title">{% trans "Aucune compétition trouvée" %}</h3>
+                <p>{% trans "Aucune compétition ne correspond à vos critères de recherche." %}</p>
+                <div class="create-cta">
+                    <a href="{% url 'competitions:create' %}" class="create-button">{% trans "Créer une compétition" %}</a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    
+    <div class="pagination">
+        <div class="page-item {% if not competitions.has_previous %}disabled{% endif %}">
+            <a class="page-link" href="?page=1" {% if not competitions.has_previous %}tabindex="-1"{% endif %}>{% trans "Première" %}</a>
+        </div>
+        <div class="page-item {% if not competitions.has_previous %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ competitions.previous_page_number }}" {% if not competitions.has_previous %}tabindex="-1"{% endif %}>{% trans "Précédente" %}</a>
+        </div>
+        
+        {% for num in competitions.paginator.page_range %}
+            {% if competitions.number == num %}
+                <div class="page-item active">
+                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                </div>
+            {% elif num > competitions.number|add:'-3' and num < competitions.number|add:'3' %}
+                <div class="page-item">
+                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                </div>
+            {% endif %}
+        {% endfor %}
+        
+        <div class="page-item {% if not competitions.has_next %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ competitions.next_page_number }}" {% if not competitions.has_next %}tabindex="-1"{% endif %}>{% trans "Suivante" %}</a>
+        </div>
+        <div class="page-item {% if not competitions.has_next %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ competitions.paginator.num_pages }}" {% if not competitions.has_next %}tabindex="-1"{% endif %}>{% trans "Dernière" %}</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

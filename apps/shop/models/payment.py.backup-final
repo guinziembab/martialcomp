@@ -1,0 +1,201 @@
+﻿import uuid
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.conf import settings
+from .order import Order
+
+
+class PaymentMethod(models.Model):
+    """
+    Configuration for available payment methods
+    """
+    PAYMENT_TYPE_CHOICES = (
+        ('card', _('Carte de crédit')),
+        ('paypal', _('PayPal')),
+        ('bank_transfer', _('Virement bancaire')),
+        ('custom', _('Personnalisé')),
+    )
+
+    name = models.CharField(_('Nom'), max_length=100)
+    payment_type = models.CharField(_('Type de paiement'), max_length=20, 
+                                   choices=PAYMENT_TYPE_CHOICES)
+    description = models.TextField(_('Description'), blank=True)
+    instructions = models.TextField(_('Instructions'), blank=True,
+                                   help_text=_('Instructions affichées au client lors du paiement'))
+    
+    # Configuration fields
+    api_key = models.CharField(_('Clé API'), max_length=255, blank=True)
+    api_secret = models.CharField(_('Secret API'), max_length=255, blank=True)
+    endpoint = models.URLField(_('URL endpoint'), blank=True)
+    is_sandbox = models.BooleanField(_('Mode test'), default=True)
+    
+    # Business rules
+    fee_fixed = models.DecimalField(_('Frais fixe'), max_digits=10, decimal_places=2, default=0)
+    fee_percentage = models.DecimalField(_('Frais en pourcentage'), max_digits=5, decimal_places=2, default=0)
+    min_amount = models.DecimalField(_('Montant minimum'), max_digits=10, decimal_places=2, default=0)
+    order_display = models.PositiveSmallIntegerField(_('Ordre d\'affichage'), default=0)
+    
+    # Availability
+    is_active = models.BooleanField(_('Actif'), default=True)
+    is_default = models.BooleanField(_('Par défaut'), default=False)
+    available_for_clubs = models.BooleanField(_('Disponible pour les clubs'), default=True)
+    available_for_federations = models.BooleanField(_('Disponible pour les fédérations'), default=True)
+    
+    # Club and federation specific availability
+    clubs = models.ManyToManyField('competitions.Club', blank=True, 
+                                  related_name='available_payment_methods')
+    federations = models.ManyToManyField('competitions.Federation', blank=True,
+                                        related_name='available_payment_methods')
+    
+    created_at = models.DateTimeField(_('Date de création'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Date de modification'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Méthode de paiement')
+        verbose_name_plural = _('Méthodes de paiement')
+        ordering = ['order_display', 'name']
+    
+    def __str__(self):
+        return self.name
+    
+    def get_fee_for_amount(self, amount):
+        """Calculate the fee for a given amount"""
+        return self.fee_fixed + (amount * self.fee_percentage / 100)
+    
+    def is_available_for_entity(self, entity):
+        """Check if the payment method is available for a given club or federation"""
+        if not self.is_active:
+            return False
+            
+        if hasattr(entity, 'club_type'):  # Club
+            if not self.available_for_clubs:
+                return False
+            if self.clubs.exists() and entity not in self.clubs.all():
+                return False
+        elif hasattr(entity, 'website'):  # Federation
+            if not self.available_for_federations:
+                return False
+            if self.federations.exists() and entity not in self.federations.all():
+                return False
+                
+        return True
+
+
+class Payment(models.Model):
+    """
+    Payment record for an order
+    """
+    STATUS_CHOICES = (
+        ('pending', _('En attente')),
+        ('processing', _('En cours de traitement')),
+        ('completed', _('Complété')),
+        ('failed', _('Ã‰choué')),
+        ('refunded', _('Remboursé')),
+        ('partially_refunded', _('Partiellement remboursé')),
+        ('cancelled', _('Annulé')),
+    )
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, 
+                             related_name='payments', verbose_name=_('Commande'))
+    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT,
+                                     related_name='payments', verbose_name=_('Méthode de paiement'))
+    amount = models.DecimalField(_('Montant'), max_digits=10, decimal_places=2)
+    fee = models.DecimalField(_('Frais'), max_digits=10, decimal_places=2, default=0)
+    currency = models.CharField(_('Devise'), max_length=3, default='EUR')
+    status = models.CharField(_('Statut'), max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Payment provider data
+    transaction_id = models.CharField(_('ID de transaction'), max_length=255, blank=True)
+    provider_response = models.JSONField(_('Réponse du prestataire'), blank=True, null=True)
+    
+    # Customer data
+    payer_email = models.EmailField(_('Email du payeur'), blank=True)
+    payer_name = models.CharField(_('Nom du payeur'), max_length=255, blank=True)
+    
+    # Administrative data
+    admin_notes = models.TextField(_('Notes administratives'), blank=True)
+    refund_reason = models.TextField(_('Raison du remboursement'), blank=True)
+    
+    created_at = models.DateTimeField(_('Date de création'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('Date de modification'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('Paiement')
+        verbose_name_plural = _('Paiements')
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Paiement {self.id} - {self.get_status_display()}"
+    
+    @property
+    def amount_display(self):
+        """Format the amount for display"""
+        return f"{self.amount} {self.currency}"
+    
+    @property
+    def total_with_fee(self):
+        """Calculate total with fee"""
+        return self.amount + self.fee
+    
+    @property
+    def total_with_fee_display(self):
+        """Format the total with fee for display"""
+        return f"{self.total_with_fee} {self.currency}"
+    
+    @property
+    def status_color(self):
+        """Get a color class based on the status"""
+        status_colors = {
+            'pending': 'warning',
+            'processing': 'info',
+            'completed': 'success',
+            'failed': 'danger',
+            'refunded': 'secondary',
+            'partially_refunded': 'secondary',
+            'cancelled': 'danger',
+        }
+        return status_colors.get(self.status, 'secondary')
+
+
+class Transaction(models.Model):
+    """
+    Detailed transaction records for a payment
+    """
+    TRANSACTION_TYPE_CHOICES = (
+        ('charge', _('Paiement')),
+        ('authorization', _('Autorisation')),
+        ('capture', _('Capture')),
+        ('refund', _('Remboursement')),
+        ('void', _('Annulation')),
+    )
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE, 
+                              related_name='transactions', verbose_name=_('Paiement'))
+    transaction_type = models.CharField(_('Type de transaction'), max_length=20, 
+                                      choices=TRANSACTION_TYPE_CHOICES)
+    amount = models.DecimalField(_('Montant'), max_digits=10, decimal_places=2)
+    currency = models.CharField(_('Devise'), max_length=3, default='EUR')
+    
+    # Transaction details
+    status = models.CharField(_('Statut'), max_length=50)
+    transaction_id = models.CharField(_('ID de transaction'), max_length=255)
+    processor_id = models.CharField(_('ID du processeur'), max_length=255, blank=True)
+    
+    # Response data
+    raw_request = models.JSONField(_('RequÃªte brute'), blank=True, null=True)
+    raw_response = models.JSONField(_('Réponse brute'), blank=True, null=True)
+    error_code = models.CharField(_('Code d\'erreur'), max_length=100, blank=True)
+    error_message = models.TextField(_('Message d\'erreur'), blank=True)
+    
+    created_at = models.DateTimeField(_('Date de création'), auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _('Transaction')
+        verbose_name_plural = _('Transactions')
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.get_transaction_type_display()} {self.id}"
+

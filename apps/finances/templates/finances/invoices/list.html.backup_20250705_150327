@@ -1,0 +1,262 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Liste des factures" %}{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">{% trans "Factures" %}</h1>
+
+    <!-- Filtres -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Filtres" %}</h6>
+            <div>
+                <button class="btn btn-sm btn-outline-primary" type="button" data-toggle="collapse" data-target="#collapseFilters">
+                    <i class="fas fa-filter"></i> {% trans "Afficher/Masquer" %}
+                </button>
+            </div>
+        </div>
+        <div class="card-body collapse show" id="collapseFilters">
+            <form method="get" class="mb-0">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="status">{% trans "Statut" %}</label>
+                        {{ filter_form.status }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="start_date">{% trans "Date de début" %}</label>
+                        {{ filter_form.start_date }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="end_date">{% trans "Date de fin" %}</label>
+                        {{ filter_form.end_date }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="client">{% trans "Client" %}</label>
+                        {{ filter_form.client }}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="min_amount">{% trans "Montant min" %}</label>
+                        {{ filter_form.min_amount }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="max_amount">{% trans "Montant max" %}</label>
+                        {{ filter_form.max_amount }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="invoice_number">{% trans "Numéro de facture" %}</label>
+                        {{ filter_form.invoice_number }}
+                    </div>
+                    <div class="col-md-3 mb-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary mr-2">
+                            <i class="fas fa-search"></i> {% trans "Filtrer" %}
+                        </button>
+                        <a href="{% url 'finances:invoice_list' %}" class="btn btn-secondary">
+                            <i class="fas fa-undo"></i> {% trans "Réinitialiser" %}
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <div>
+            <a href="{% url 'finances:invoice_create' %}" class="btn btn-success">
+                <i class="fas fa-plus-circle"></i> {% trans "Nouvelle facture" %}
+            </a>
+            {% if permissions.can_export_invoices %}
+            <div class="btn-group ml-2">
+                <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">
+                    <i class="fas fa-download"></i> {% trans "Exporter" %}
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="{% url 'finances:invoice_export' %}?format=csv{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">
+                        CSV
+                    </a>
+                    <a class="dropdown-item" href="{% url 'finances:invoice_export' %}?format=xlsx{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">
+                        Excel
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        <div class="text-muted">
+            {% blocktrans with count=invoices.paginator.count %}
+            {{ count }} factures trouvées
+            {% endblocktrans %}
+        </div>
+    </div>
+
+    <!-- Factures -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Liste des factures" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="invoicesTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Numéro" %}</th>
+                            <th>{% trans "Date" %}</th>
+                            <th>{% trans "Client" %}</th>
+                            <th>{% trans "Montant total" %}</th>
+                            <th>{% trans "Date d'échéance" %}</th>
+                            <th>{% trans "Statut" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices %}
+                        <tr>
+                            <td>{{ invoice.invoice_number }}</td>
+                            <td>{{ invoice.issue_date|date:"d/m/Y" }}</td>
+                            <td>
+                                {{ invoice.client_name }}
+                                {% if invoice.entity_content_type and invoice.entity_id %}
+                                <br><small class="text-muted">{{ invoice.entity_content_type.name }}</small>
+                                {% endif %}
+                            </td>
+                            <td class="text-right">{{ invoice.total|floatformat:2 }} €</td>
+                            <td>
+                                {{ invoice.due_date|date:"d/m/Y" }}
+                                {% if invoice.is_overdue and invoice.status != 'paid' %}
+                                <span class="badge bg-danger ml-1">{% trans "En retard" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if invoice.status == 'draft' %}
+                                <span class="badge bg-light text-dark">{% trans "Brouillon" %}</span>
+                                {% elif invoice.status == 'sent' %}
+                                <span class="badge bg-info">{% trans "Envoyée" %}</span>
+                                {% elif invoice.status == 'paid' %}
+                                <span class="badge bg-success">{% trans "Payée" %}</span>
+                                {% elif invoice.status == 'partially_paid' %}
+                                <span class="badge bg-warning">{% trans "Partiellement payée" %}</span>
+                                {% elif invoice.status == 'cancelled' %}
+                                <span class="badge bg-secondary">{% trans "Annulée" %}</span>
+                                {% elif invoice.status == 'overdue' %}
+                                <span class="badge bg-danger">{% trans "En retard" %}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ invoice.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'finances:invoice_detail' invoice.id %}" class="btn btn-info" title="{% trans 'Voir' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if permissions.can_edit_invoice and invoice.status == 'draft' %}
+                                    <a href="{% url 'finances:invoice_update' invoice.id %}" class="btn btn-primary" title="{% trans 'Modifier' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if permissions.can_delete_invoice and invoice.status == 'draft' %}
+                                    <a href="{% url 'finances:invoice_delete' invoice.id %}" class="btn btn-danger" title="{% trans 'Supprimer' %}">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                    <a href="{% url 'finances:invoice_pdf' invoice.id %}" class="btn btn-secondary" title="{% trans 'PDF' %}" target="_blank">
+                                        <i class="fas fa-file-pdf"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center">
+                                {% trans "Aucune facture ne correspond aux critères de recherche." %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <!-- Pagination -->
+                {% if invoices.has_other_pages %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mt-4">
+                        {% if invoices.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}" aria-label="First">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ invoices.previous_page_number }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}" aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">&laquo;&laquo;</span>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">&laquo;</span>
+                        </li>
+                        {% endif %}
+                        
+                        {% for i in invoices.paginator.page_range %}
+                            {% if invoices.number == i %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ i }}</span>
+                            </li>
+                            {% elif i > invoices.number|add:'-3' and i < invoices.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ i }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">{{ i }}</a>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if invoices.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ invoices.next_page_number }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}" aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ invoices.paginator.num_pages }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}" aria-label="Last">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">&raquo;</span>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">&raquo;&raquo;</span>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Initialize datepickers
+        $('.datepicker').datepicker({
+            format: 'dd/mm/yyyy',
+            language: 'fr',
+            autoclose: true
+        });
+        
+        // Initialize select2 for enhanced dropdowns
+        $('.select2').select2({
+            theme: 'bootstrap4',
+            width: '100%'
+        });
+    });
+</script>
+{% endblock %}

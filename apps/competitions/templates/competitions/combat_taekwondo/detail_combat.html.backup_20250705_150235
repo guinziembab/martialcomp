@@ -1,0 +1,509 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Détails du combat de Taekwondo" %}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .tkd-header {
+    background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 4px;
+    margin-bottom: 2rem;
+  }
+  
+  .tkd-header h1 {
+    font-weight: 600;
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .competitor-card {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+    transition: all 0.3s ease;
+  }
+  
+  .competitor-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  }
+  
+  .competitor-red {
+    border-top: 5px solid #d32f2f;
+  }
+  
+  .competitor-blue {
+    border-top: 5px solid #1976d2;
+  }
+  
+  .competitor-header {
+    padding: 1.5rem;
+    text-align: center;
+  }
+  
+  .competitor-red .competitor-header {
+    background-color: #ffebee;
+  }
+  
+  .competitor-blue .competitor-header {
+    background-color: #e3f2fd;
+  }
+  
+  .competitor-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+  
+  .competitor-info {
+    color: #757575;
+    font-size: 0.9rem;
+  }
+  
+  .score-display {
+    font-size: 4rem;
+    font-weight: 700;
+    text-align: center;
+    padding: 1rem;
+    background-color: #f5f5f5;
+  }
+  
+  .penalty-display {
+    text-align: center;
+    padding: 1rem;
+    background-color: #f9f9f9;
+    border-top: 1px solid #e0e0e0;
+  }
+  
+  .penalty-badges {
+    margin: 0.5rem 0;
+  }
+  
+  .kyong-go-badge {
+    background-color: #ffc107;
+    color: #212529;
+    font-size: 1rem;
+    margin: 0 2px;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+  
+  .gam-jeom-badge {
+    background-color: #f44336;
+    color: white;
+    font-size: 1rem;
+    margin: 0 2px;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+  
+  .match-info-card {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+  }
+  
+  .match-info-header {
+    background-color: #1a237e;
+    color: white;
+    padding: 1rem;
+    font-weight: 600;
+    font-size: 1.2rem;
+  }
+  
+  .match-info-body {
+    padding: 1.5rem;
+  }
+  
+  .match-detail-item {
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+  }
+  
+  .match-detail-label {
+    font-weight: 600;
+    min-width: 150px;
+  }
+  
+  .match-detail-value {
+    color: #424242;
+  }
+  
+  .match-result {
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    margin-top: 1rem;
+  }
+  
+  .match-result h3 {
+    margin-bottom: 1rem;
+    color: #1a237e;
+  }
+  
+  .action-history-card {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  .action-history-header {
+    background-color: #1a237e;
+    color: white;
+    padding: 1rem;
+    font-weight: 600;
+    font-size: 1.2rem;
+  }
+  
+  .action-history-body {
+    max-height: 500px;
+    overflow-y: auto;
+  }
+  
+  .action-item {
+    padding: 1rem;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+  }
+  
+  .action-item:last-child {
+    border-bottom: none;
+  }
+  
+  .action-time {
+    min-width: 80px;
+    font-size: 0.9rem;
+    color: #757575;
+  }
+  
+  .action-color {
+    min-width: 80px;
+    text-align: center;
+  }
+  
+  .action-type {
+    min-width: 120px;
+    text-align: center;
+  }
+  
+  .action-value {
+    min-width: 60px;
+    text-align: center;
+    font-weight: 600;
+  }
+  
+  .action-description {
+    flex-grow: 1;
+    color: #424242;
+    padding-left: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="tkd-header">
+    <h1>{% translate "Combat de Taekwondo" %}</h1>
+    <p>
+      {% if combat.poule %}
+        {{ combat.poule.nom }} - 
+      {% endif %}
+      {{ combat.competition.title }}
+    </p>
+  </div>
+  
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="btn-group">
+        <a href="{% url 'competitions:combat_taekwondo:liste_combats' %}" class="btn btn-outline-primary">
+          <i class="fas fa-list"></i> {% translate "Liste des combats" %}
+        </a>
+        {% if combat.status == 'planifie' %}
+          <a href="{% url 'competitions:combat_taekwondo:demarrer_combat' combat_id=combat.id %}" class="btn btn-success">
+            <i class="fas fa-play"></i> {% translate "Démarrer le combat" %}
+          </a>
+        {% elif combat.status == 'en_cours' %}
+          <a href="{% url 'competitions:combat_taekwondo:interface_combat' combat_id=combat.id %}" class="btn btn-warning">
+            <i class="fas fa-gamepad"></i> {% translate "Interface d'arbitrage" %}
+          </a>
+        {% endif %}
+      </div>
+    </div>
+    
+    <div class="col-md-6 text-end">
+      {% if perms.competitions.change_combat %}
+        <a href="#" class="btn btn-outline-secondary">
+          <i class="fas fa-edit"></i> {% translate "Modifier" %}
+        </a>
+      {% endif %}
+      
+      {% if combat.status == 'en_cours' %}
+        <a href="{% url 'competitions:combat_taekwondo:terminer_combat' combat_id=combat.id %}" class="btn btn-primary">
+          <i class="fas fa-flag-checkered"></i> {% translate "Terminer" %}
+        </a>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- Status badge -->
+  <div class="text-center mb-4">
+    <span class="badge 
+      {% if combat.status == 'en_cours' %}bg-success
+      {% elif combat.status == 'planifie' %}bg-primary
+      {% elif combat.status == 'termine' %}bg-secondary
+      {% else %}bg-danger{% endif %} px-4 py-2">
+      {{ combat.get_status_display }}
+    </span>
+  </div>
+  
+  <!-- Scores et concurrents -->
+  <div class="row mb-4">
+    <!-- Combattant Rouge (Hong) -->
+    <div class="col-md-5">
+      <div class="competitor-card competitor-red">
+        <div class="competitor-header">
+          {% if combat.type_combat == 'individuel' %}
+            <div class="competitor-name">{{ combat.pratiquant_rouge.full_name|default:"Hong" }}</div>
+            {% if combat.pratiquant_rouge.organization %}
+              <div class="competitor-info">{{ combat.pratiquant_rouge.organization.name }}</div>
+            {% endif %}
+          {% else %}
+            <div class="competitor-name">{{ combat.equipe_rouge.nom|default:"Équipe Rouge" }}</div>
+            {% if combat.equipe_rouge.club %}
+              <div class="competitor-info">{{ combat.equipe_rouge.club.name }}</div>
+            {% endif %}
+          {% endif %}
+        </div>
+        <div class="score-display">{{ combat.score_rouge }}</div>
+        <div class="penalty-display">
+          <div>{% translate "Kyong-go" %}</div>
+          <div class="penalty-badges">
+            {% for i in kyong_go_rouge|default_if_none:0|add:0|ljust:10 %}
+              <span class="kyong-go-badge" title="{% trans "Kyong-go" %}">K</span>
+            {% endfor %}
+          </div>
+          <div class="mt-2">{% translate "Gam-jeom" %}</div>
+          <div class="penalty-badges">
+            {% for i in gam_jeom_rouge|default_if_none:0|add:0|ljust:5 %}
+              <span class="gam-jeom-badge" title="{% trans "Gam-jeom" %}">G</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Symbole VS -->
+    <div class="col-md-2 d-flex align-items-center justify-content-center">
+      <div class="display-1 text-muted">VS</div>
+    </div>
+    
+    <!-- Combattant Bleu (Chung) -->
+    <div class="col-md-5">
+      <div class="competitor-card competitor-blue">
+        <div class="competitor-header">
+          {% if combat.type_combat == 'individuel' %}
+            <div class="competitor-name">{{ combat.pratiquant_blanc.full_name|default:"Chung" }}</div>
+            {% if combat.pratiquant_blanc.organization %}
+              <div class="competitor-info">{{ combat.pratiquant_blanc.organization.name }}</div>
+            {% endif %}
+          {% else %}
+            <div class="competitor-name">{{ combat.equipe_blanc.nom|default:"Équipe Bleue" }}</div>
+            {% if combat.equipe_blanc.club %}
+              <div class="competitor-info">{{ combat.equipe_blanc.club.name }}</div>
+            {% endif %}
+          {% endif %}
+        </div>
+        <div class="score-display">{{ combat.score_blanc }}</div>
+        <div class="penalty-display">
+          <div>{% translate "Kyong-go" %}</div>
+          <div class="penalty-badges">
+            {% for i in kyong_go_blanc|default_if_none:0|add:0|ljust:10 %}
+              <span class="kyong-go-badge" title="{% trans "Kyong-go" %}">K</span>
+            {% endfor %}
+          </div>
+          <div class="mt-2">{% translate "Gam-jeom" %}</div>
+          <div class="penalty-badges">
+            {% for i in gam_jeom_blanc|default_if_none:0|add:0|ljust:5 %}
+              <span class="gam-jeom-badge" title="{% trans "Gam-jeom" %}">G</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Résultat du combat (si terminé) -->
+  {% if combat.status == 'termine' %}
+    <div class="match-result mb-4">
+      <h3>{% translate "Résultat du combat" %}</h3>
+      {% if combat.vainqueur == 'rouge' %}
+        <div class="alert alert-danger">
+          <i class="fas fa-trophy"></i> 
+          {% translate "Victoire du combattant rouge (Hong)" %}
+          {% if combat.score_rouge > combat.score_blanc and combat.score_rouge - combat.score_blanc >= 20 %}
+            - {% translate "Par écart de points" %}
+          {% endif %}
+        </div>
+      {% elif combat.vainqueur == 'blanc' %}
+        <div class="alert alert-primary">
+          <i class="fas fa-trophy"></i> 
+          {% translate "Victoire du combattant bleu (Chung)" %}
+          {% if combat.score_blanc > combat.score_rouge and combat.score_blanc - combat.score_rouge >= 20 %}
+            - {% translate "Par écart de points" %}
+          {% endif %}
+        </div>
+      {% elif combat.est_nul %}
+        <div class="alert alert-warning">
+          <i class="fas fa-balance-scale"></i> 
+          {% translate "Match nul" %}
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+  
+  <div class="row">
+    <!-- Informations du combat -->
+    <div class="col-md-4">
+      <div class="match-info-card">
+        <div class="match-info-header">
+          <i class="fas fa-info-circle"></i> {% translate "Informations du combat" %}
+        </div>
+        <div class="match-info-body">
+          <div class="match-detail-item">
+            <div class="match-detail-label">{% translate "Type" %}</div>
+            <div class="match-detail-value">{{ combat.get_type_combat_display }}</div>
+          </div>
+          <div class="match-detail-item">
+            <div class="match-detail-label">{% translate "Compétition" %}</div>
+            <div class="match-detail-value">{{ combat.competition.title }}</div>
+          </div>
+          {% if combat.poule %}
+            <div class="match-detail-item">
+              <div class="match-detail-label">{% translate "Poule" %}</div>
+              <div class="match-detail-value">{{ combat.poule.nom }}</div>
+            </div>
+          {% endif %}
+          <div class="match-detail-item">
+            <div class="match-detail-label">{% translate "Date planifiée" %}</div>
+            <div class="match-detail-value">
+              {% if combat.date_planifiee %}
+                {{ combat.date_planifiee|date:"d/m/Y H:i" }}
+              {% else %}
+                {% translate "Non définie" %}
+              {% endif %}
+            </div>
+          </div>
+          <div class="match-detail-item">
+            <div class="match-detail-label">{% translate "Début" %}</div>
+            <div class="match-detail-value">
+              {% if combat.debut_combat %}
+                {{ combat.debut_combat|date:"d/m/Y H:i:s" }}
+              {% else %}
+                {% translate "Non commencé" %}
+              {% endif %}
+            </div>
+          </div>
+          <div class="match-detail-item">
+            <div class="match-detail-label">{% translate "Fin" %}</div>
+            <div class="match-detail-value">
+              {% if combat.fin_combat %}
+                {{ combat.fin_combat|date:"d/m/Y H:i:s" }}
+              {% else %}
+                {% translate "Non terminé" %}
+              {% endif %}
+            </div>
+          </div>
+          <div class="match-detail-item">
+            <div class="match-detail-label">{% translate "Durée" %}</div>
+            <div class="match-detail-value">{{ combat.duree_combat }} {% translate "secondes" %}</div>
+          </div>
+          <div class="match-detail-item">
+            <div class="match-detail-label">{% translate "Arbitre central" %}</div>
+            <div class="match-detail-value">
+              {% if combat.arbitre_central %}
+                {{ combat.arbitre_central }}
+              {% else %}
+                {% translate "Non assigné" %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Historique des actions -->
+    <div class="col-md-8">
+      <div class="action-history-card">
+        <div class="action-history-header">
+          <i class="fas fa-history"></i> {% translate "Historique des actions" %}
+        </div>
+        <div class="action-history-body">
+          {% if actions %}
+            {% for action in actions %}
+              <div class="action-item">
+                <div class="action-time">{{ action.temps|time:"H:i:s" }}</div>
+                <div class="action-color">
+                  <span class="badge {% if action.couleur == 'rouge' %}bg-danger{% elif action.couleur == 'blanc' %}bg-primary{% else %}bg-secondary{% endif %}">
+                    {{ action.get_couleur_display }}
+                  </span>
+                </div>
+                <div class="action-type">
+                  <span class="badge {% if action.type_action == 'point' %}bg-success{% elif action.type_action == 'penalite' %}bg-danger{% elif action.type_action == 'avertissement' %}bg-warning text-dark{% else %}bg-info{% endif %}">
+                    {{ action.get_type_action_display }}
+                  </span>
+                </div>
+                <div class="action-value">
+                  {% if action.type_action in 'point,penalite' %}
+                    {% if action.valeur > 0 %}+{% endif %}{{ action.valeur }}
+                  {% endif %}
+                </div>
+                <div class="action-description">
+                  {% if action.description %}
+                    {% if action.description == 'kyong_go' %}
+                      {% translate "Kyong-go (avertissement)" %}
+                    {% elif action.description == 'gam_jeom' %}
+                      {% translate "Gam-jeom (déduction de point)" %}
+                    {% elif action.description == 'punch_body' %}
+                      {% translate "Poing au tronc" %}
+                    {% elif action.description == 'kick_body' %}
+                      {% translate "Coup de pied au tronc" %}
+                    {% elif action.description == 'kick_head' %}
+                      {% translate "Coup de pied à la tête" %}
+                    {% elif action.description == 'turning_kick_body' %}
+                      {% translate "Coup de pied retourné au tronc" %}
+                    {% elif action.description == 'turning_kick_head' %}
+                      {% translate "Coup de pied retourné à la tête" %}
+                    {% else %}
+                      {{ action.description }}
+                    {% endif %}
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="p-3 text-center text-muted">
+              {% translate "Aucune action enregistrée" %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

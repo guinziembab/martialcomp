@@ -1,0 +1,501 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Sélection du rôle" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .onboarding-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+    
+    .onboarding-header {
+        text-align: center;
+        margin-bottom: 3rem;
+    }
+    
+    .onboarding-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 1rem;
+    }
+    
+    .onboarding-subtitle {
+        font-size: 1.2rem;
+        color: #666;
+        max-width: 700px;
+        margin: 0 auto;
+    }
+    
+    .progress-container {
+        max-width: 600px;
+        margin: 0 auto 3rem;
+    }
+    
+    .progress-steps {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+    
+    .step {
+        position: relative;
+        text-align: center;
+        font-size: 0.9rem;
+    }
+    
+    .step-number {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        color: #6c757d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.5rem;
+        font-weight: 600;
+        position: relative;
+        z-index: 2;
+    }
+    
+    .step.active .step-number {
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .step.completed .step-number {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .step-label {
+        font-weight: 500;
+    }
+    
+    .step.active .step-label {
+        color: #dc3545;
+    }
+    
+    .step.completed .step-label {
+        color: #28a745;
+    }
+    
+    .progress-line {
+        height: 4px;
+        background-color: #e9ecef;
+        position: relative;
+        margin: 0 auto;
+        margin-top: -17px;
+        z-index: 1;
+    }
+    
+    .progress-line-fill {
+        height: 100%;
+        background-color: #28a745;
+        width: 0%;
+        transition: width 0.5s ease;
+    }
+    
+    .role-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .role-card {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 2px solid #e9ecef;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+    }
+    
+    .role-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        border-color: #dc3545;
+        background-color: rgba(220, 53, 69, 0.05);
+    }
+    
+    .role-card.selected {
+        border-color: #dc3545;
+        background-color: rgba(220, 53, 69, 0.1);
+        box-shadow: 0 5px 20px rgba(220, 53, 69, 0.2);
+    }
+    
+    .role-icon {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        background-color: white;
+        color: #dc3545;
+        font-size: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.5rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    }
+    
+    .role-card:hover .role-icon {
+        background-color: rgba(255, 255, 255, 0.9);
+    }
+    
+    .role-card.selected .role-icon {
+        background-color: #dc3545;
+        color: white;
+        box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+    }
+    
+    .role-name {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: #333;
+    }
+    
+    .role-card.selected .role-name {
+        color: #dc3545;
+    }
+    
+    .role-description {
+        font-size: 0.95rem;
+        color: #6c757d;
+        flex-grow: 1;
+    }
+    
+    .role-radio {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        margin: 0;
+        opacity: 0;
+    }
+    
+    .role-check {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        width: 24px;
+        height: 24px;
+        background-color: white;
+        border: 2px solid #dee2e6;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: transparent;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    
+    .role-card:hover .role-check {
+        border-color: #dc3545;
+    }
+    
+    .role-card.selected .role-check {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        color: white;
+        transform: scale(1.2);
+    }
+    
+    .btn-action {
+        font-size: 1.1rem;
+        padding: 0.75rem 2rem;
+        font-weight: 500;
+        border-radius: 5px;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary {
+        background-color: #dc3545;
+        border-color: #dc3545;
+    }
+    
+    .btn-primary:hover {
+        background-color: #c82333;
+        border-color: #bd2130;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+    }
+    
+    .btn-primary:disabled {
+        background-color: #e9a8ad;
+        border-color: #e9a8ad;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+    
+    .actions-container {
+        text-align: center;
+    }
+    
+    /* Animation de l'apparition */
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .role-grid {
+        animation: fadeIn 0.6s ease-out forwards;
+    }
+    
+    /* Animation pour la sélection */
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
+        70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+    }
+    
+    .role-card.selected {
+        animation: pulse 1.5s infinite;
+    }
+    
+    @media (max-width: 768px) {
+        .progress-container {
+            padding: 0 1rem;
+        }
+        
+        .role-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .onboarding-title {
+            font-size: 2rem;
+        }
+    }
+    
+    /* Confirmation message */
+    .confirmation-message {
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+        color: #155724;
+        padding: 1rem;
+        border-radius: 5px;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .confirmation-message i {
+        font-size: 1.2rem;
+        margin-right: 0.5rem;
+    }
+    
+    /* Ribbon pour options populaires */
+    .role-ribbon {
+        position: absolute;
+        top: -5px;
+        left: -5px;
+        width: 100px;
+        height: 100px;
+        overflow: hidden;
+    }
+    
+    .role-ribbon-content {
+        position: absolute;
+        top: 18px;
+        left: -30px;
+        transform: rotate(-45deg);
+        background-color: #28a745;
+        color: white;
+        font-size: 0.75rem;
+        text-align: center;
+        width: 120px;
+        padding: 5px 0;
+        font-weight: bold;
+        text-transform: uppercase;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="onboarding-container">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                <i class="fas fa-info-circle me-2"></i>
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="onboarding-header">
+        <h1 class="onboarding-title">{% trans "Quel est votre rôle ?" %}</h1>
+        <p class="onboarding-subtitle">
+            {% trans "Sélectionnez le rôle qui correspond le mieux à votre activité dans le domaine des arts martiaux." %}
+        </p>
+    </div>
+    
+    <!-- Barre de progression -->
+    <div class="progress-container">
+        <div class="progress-steps">
+            <div class="step active">
+                <div class="step-number">1</div>
+                <div class="step-label">{% trans "Rôle" %}</div>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-label">{% trans "Configuration" %}</div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-label">{% trans "Finalisation" %}</div>
+            </div>
+        </div>
+        <div class="progress-line">
+            <div class="progress-line-fill" style="width: 0%"></div>
+        </div>
+    </div>
+    
+    <form method="post" id="roleForm">
+        {% csrf_token %}
+        
+        <div class="role-grid">
+            {% for radio in form.role %}
+                <label for="{{ radio.id_for_label }}" class="role-card{% if radio.data.selected %} selected{% endif %}">
+                    {% if radio.choice_value == 'club_manager' or radio.choice_value == 'participant' %}
+                        <div class="role-ribbon">
+                            <div class="role-ribbon-content">Populaire</div>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="role-icon">
+                        {% if radio.choice_value == 'club_manager' %}
+                            <i class="fas fa-dojo"></i>
+                        {% elif radio.choice_value == 'federation_admin' %}
+                            <i class="fas fa-building"></i>
+                        {% elif radio.choice_value == 'referee' or radio.choice_value == 'judge' %}
+                            <i class="fas fa-gavel"></i>
+                        {% elif radio.choice_value == 'participant' %}
+                            <i class="fas fa-user-ninja"></i>
+                        {% elif radio.choice_value == 'coach' %}
+                            <i class="fas fa-chalkboard-teacher"></i>
+                        {% elif radio.choice_value == 'spectator' %}
+                            <i class="fas fa-eye"></i>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="role-name">{{ radio.choice_label }}</div>
+                    
+                    <div class="role-description">
+                        {% if radio.choice_value == 'club_manager' %}
+                            {% trans "Gérez un club, ses membres et ses inscriptions aux compétitions." %}
+                        {% elif radio.choice_value == 'federation_admin' %}
+                            {% trans "Administrez une fédération et organisez des compétitions." %}
+                        {% elif radio.choice_value == 'referee' or radio.choice_value == 'judge' %}
+                            {% trans "Arbitrez des compétitions et notez les performances des participants." %}
+                        {% elif radio.choice_value == 'participant' %}
+                            {% trans "Participez à des compétitions et suivez vos résultats." %}
+                        {% elif radio.choice_value == 'coach' %}
+                            {% trans "Accompagnez des athlètes lors des compétitions." %}
+                        {% elif radio.choice_value == 'spectator' %}
+                            {% trans "Suivez les compétitions et consultez les résultats." %}
+                        {% endif %}
+                    </div>
+                    
+                    {{ radio.tag }}
+                    
+                    <div class="role-check">
+                        <i class="fas fa-check"></i>
+                    </div>
+                </label>
+            {% endfor %}
+        </div>
+        
+        <div class="actions-container">
+            <button type="submit" class="btn btn-primary btn-action" id="continueBtn" disabled>
+                <i class="fas fa-arrow-right me-2"></i>{% trans "Continuer" %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animation de la barre de progression
+        setTimeout(function() {
+            document.querySelector('.progress-line-fill').style.width = '33%';
+        }, 300);
+        
+        // Gestion de la sélection des cartes de rôle
+        const roleCards = document.querySelectorAll('.role-card');
+        const roleRadios = document.querySelectorAll('.role-radio');
+        const continueBtn = document.getElementById('continueBtn');
+        
+        // Fonction pour vérifier si un rôle est sélectionné
+        function checkSelection() {
+            const isAnySelected = Array.from(roleRadios).some(radio => radio.checked);
+            continueBtn.disabled = !isAnySelected;
+        }
+        
+        // Vérifier initialement
+        checkSelection();
+        
+        roleCards.forEach(function(card, index) {
+            card.addEventListener('click', function() {
+                // Désélectionner toutes les cartes
+                roleCards.forEach(c => c.classList.remove('selected'));
+                
+                // Sélectionner la carte cliquée
+                this.classList.add('selected');
+                
+                // Cocher le radio bouton correspondant
+                roleRadios[index].checked = true;
+                
+                // Vérifier si on peut activer le bouton continuer
+                checkSelection();
+                
+                // Petit effet de feedback
+                const roleIcon = this.querySelector('.role-icon');
+                roleIcon.style.transform = 'scale(1.1)';
+                setTimeout(() => {
+                    roleIcon.style.transform = 'scale(1)';
+                }, 200);
+            });
+            
+            // Si le radio est déjà coché, marquer la carte comme sélectionnée
+            if (roleRadios[index].checked) {
+                card.classList.add('selected');
+            }
+        });
+        
+        // Vérification avant soumission
+        const form = document.getElementById('roleForm');
+        form.addEventListener('submit', function(e) {
+            const isAnySelected = Array.from(roleRadios).some(radio => radio.checked);
+            
+            if (!isAnySelected) {
+                e.preventDefault();
+                alert("{% trans 'Veuillez sélectionner un rôle pour continuer.' %}");
+            }
+        });
+    });
+</script>
+{% endblock %}

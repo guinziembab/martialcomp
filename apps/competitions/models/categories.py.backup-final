@@ -1,0 +1,193 @@
+﻿# models/categories.py
+from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import ValidationError
+from django.utils import timezone
+
+from apps.organizations.models import Organization, OrganizationMember, OrganizationRole
+
+
+class CategoryTemplate(models.Model):
+    """Template de catégorie réutilisable pour une discipline/type de compétition."""
+    
+    name = models.CharField(_("Nom"), max_length=100)
+    discipline = models.ForeignKey(
+        'competitions.Discipline',
+        on_delete=models.CASCADE,
+        related_name='category_templates',
+        verbose_name=_("Discipline")
+    )
+    competition_type = models.ForeignKey(
+        'competitions.CompetitionType',
+        on_delete=models.CASCADE,
+        related_name='category_templates',
+        verbose_name=_("Type de compétition")
+    )
+    
+    # Catégorie d'Ã¢ge
+    min_age = models.PositiveSmallIntegerField(_("Ã‚ge minimum"), null=True, blank=True)
+    max_age = models.PositiveSmallIntegerField(_("Ã‚ge maximum"), null=True, blank=True)
+    
+    # Catégorie de grade
+    min_grade = models.CharField(_("Grade minimum"), max_length=50, blank=True)
+    max_grade = models.CharField(_("Grade maximum"), max_length=50, blank=True)
+    
+    # Catégorie de poids
+    min_weight = models.DecimalField(_("Poids minimum (kg)"), max_digits=5, decimal_places=2, null=True, blank=True)
+    max_weight = models.DecimalField(_("Poids maximum (kg)"), max_digits=5, decimal_places=2, null=True, blank=True)
+    
+    # Genre
+    gender = models.CharField(_("Genre"), max_length=10, choices=[
+        ('male', _('Homme')),
+        ('female', _('Femme')),
+        ('mixed', _('Mixte'))
+    ], default='mixed')
+    
+    is_active = models.BooleanField(_("Actif"), default=True)
+    created_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_category_templates',
+        verbose_name=_("Créé par")
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _("Template de catégorie")
+        verbose_name_plural = _("Templates de catégories")
+        ordering = ['discipline', 'competition_type', 'name']
+        unique_together = ['discipline', 'competition_type', 'name']
+    
+    def __str__(self):
+        return f"{self.name} - {self.discipline.name} ({self.competition_type.name})"
+
+
+class CompetitionCategory(models.Model):
+    """Catégorie spécifique Ã  une compétition."""
+    
+    competition = models.ForeignKey(
+        'competitions.Competition', 
+        on_delete=models.CASCADE,
+        related_name='categories'
+    )
+    competition_type = models.ForeignKey(
+        'competitions.CompetitionType', 
+        on_delete=models.CASCADE,
+        related_name='categories'
+    )
+    template = models.ForeignKey(
+        CategoryTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='used_in_competitions',
+        verbose_name=_("Template source")
+    )
+    
+    # Si pas de template, on peut définir manuellement
+    name = models.CharField(_("Nom de la catégorie"), max_length=100)
+    
+    # Catégorie d'Ã¢ge
+    min_age = models.PositiveSmallIntegerField(_("Ã‚ge minimum"), null=True, blank=True)
+    max_age = models.PositiveSmallIntegerField(_("Ã‚ge maximum"), null=True, blank=True)
+    
+    # Catégorie de grade
+    min_grade = models.CharField(_("Grade minimum"), max_length=50, blank=True)
+    max_grade = models.CharField(_("Grade maximum"), max_length=50, blank=True)
+    
+    # Catégorie de poids
+    min_weight = models.DecimalField(_("Poids minimum (kg)"), max_digits=5, decimal_places=2, null=True, blank=True)
+    max_weight = models.DecimalField(_("Poids maximum (kg)"), max_digits=5, decimal_places=2, null=True, blank=True)
+    
+    # Genre
+    gender = models.CharField(_("Genre"), max_length=10, choices=[
+        ('male', _('Homme')),
+        ('female', _('Femme')),
+        ('mixed', _('Mixte'))
+    ], default='mixed')
+    
+    # Champs spécifiques Ã  la compétition
+    max_participants = models.PositiveIntegerField(_("Nombre max de participants"), null=True, blank=True)
+    registration_status = models.CharField(_("Statut des inscriptions"), max_length=20, choices=[
+        ('open', _('Ouvert')),
+        ('closed', _('Fermé')),
+        ('full', _('Complet'))
+    ], default='open')
+    
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis Ã  jour le"), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("Catégorie de compétition")
+        verbose_name_plural = _("Catégories de compétition")
+        ordering = ['competition', 'name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['competition', 'name'],
+                name='unique_category_per_competition'
+            ),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} - {self.competition.title}"
+    
+    def clean(self):
+        # Validations existantes
+        if self.min_age and self.max_age and self.min_age > self.max_age:
+            raise ValidationError({'max_age': _("L'Ã¢ge maximum doit Ãªtre supérieur ou égal Ã  l'Ã¢ge minimum.")})
+        
+        if self.min_weight and self.max_weight and self.min_weight > self.max_weight:
+            raise ValidationError({'max_weight': _("Le poids maximum doit Ãªtre supérieur ou égal au poids minimum.")})
+    
+    def save(self, *args, **kwargs):
+        # Si basé sur un template, copier les valeurs
+        if self.template and not self.pk:  # Nouvelle catégorie basée sur template
+            self.name = self.template.name
+            self.min_age = self.template.min_age
+            self.max_age = self.template.max_age
+            self.min_grade = self.template.min_grade
+            self.max_grade = self.template.max_grade
+            self.min_weight = self.template.min_weight
+            self.max_weight = self.template.max_weight
+            self.gender = self.template.gender
+        
+        super().save(*args, **kwargs)
+    
+    @property
+    def registered_count(self):
+        """Nombre de participants inscrits dans cette catégorie."""
+        return self.participants.count()
+    
+    @property
+    def is_full(self):
+        """Vérifie si la catégorie est complète."""
+        if self.max_participants:
+            return self.registered_count >= self.max_participants
+        return False
+    
+    def can_register_participant(self, participant):
+        """Vérifie si un participant peut s'inscrire dans cette catégorie."""
+        if self.is_full:
+            return False, _("La catégorie est complète.")
+        
+        # Vérification de l'Ã¢ge
+        if self.min_age and participant.age < self.min_age:
+            return False, _("Le participant est trop jeune pour cette catégorie.")
+        if self.max_age and participant.age > self.max_age:
+            return False, _("Le participant est trop Ã¢gé pour cette catégorie.")
+        
+        # Vérification du genre
+        if self.gender != 'mixed' and participant.gender != self.gender:
+            return False, _("Le genre du participant ne correspond pas Ã  cette catégorie.")
+        
+        # Vérification du poids (si applicable)
+        if self.min_weight and participant.weight < self.min_weight:
+            return False, _("Le poids du participant est trop bas pour cette catégorie.")
+        if self.max_weight and participant.weight > self.max_weight:
+            return False, _("Le poids du participant est trop élevé pour cette catégorie.")
+        
+        return True, _("Le participant peut s'inscrire dans cette catégorie.")
+
+
+

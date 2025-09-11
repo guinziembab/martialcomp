@@ -17,6 +17,7 @@ ALLOWED_HOSTS = [
     'martialcomp.local',
     '*.martialcomp.local',
     '.martialcomp.local',
+    'testserver',  # Pour les tests Django
     # Ajout pour app mobile
     '192.168.0.4',  # IP local pour tests sur appareil physique
     '10.0.2.2',     # IP pour émulateur Android
@@ -125,18 +126,26 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # ✅ CORRECTION: Configuration CSRF simplifiée pour mobile
-CSRF_USE_SESSIONS = False
-CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_AGE = None
+CSRF_USE_SESSIONS = True  # Utilisation des sessions pour CSRF
+CSRF_COOKIE_SAMESITE = None  # Plus permissif pour développement 
+CSRF_COOKIE_AGE = 31449600  # 1 an pour éviter les expirations
 # Pas de domain spécifique pour localhost
-# CSRF_COOKIE_DOMAIN = None  # Laissé par défaut pour localhost
-# SESSION_COOKIE_DOMAIN = None
+CSRF_COOKIE_DOMAIN = None  # Laissé par défaut pour localhost
+SESSION_COOKIE_DOMAIN = None
+
+# Configuration pour résoudre les erreurs CSRF
+CSRF_FAILURE_VIEW = 'django.views.csrf.csrf_failure'
+CSRF_COOKIE_NAME = 'csrftoken'
 
 # ✅ AJOUT: Configuration pour l'app mobile
 # Disable CSRF for API endpoints used by mobile
 CSRF_EXEMPT_URLS = [
     r'^/api/',  # Exemption CSRF pour toutes les routes API
 ]
+
+# Configuration de debug pour CSRF (temporaire)
+import logging
+logging.getLogger('django.security.csrf').setLevel(logging.DEBUG)
 
 # Email Configuration for Development
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

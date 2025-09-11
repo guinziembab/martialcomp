@@ -1,0 +1,227 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .profile-container {
+        background-color: #f8f9fa;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .profile-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    .profile-img {
+        width: 150px;
+        height: 150px;
+        object-fit: cover;
+        border-radius: 50%;
+        margin: 0 auto 1rem;
+        border: 3px solid #007bff;
+    }
+    
+    .profile-qr {
+        max-width: 100%;
+        height: auto;
+        margin: 1rem auto;
+    }
+    
+    .info-section {
+        margin-bottom: 1.5rem;
+    }
+    
+    .info-card {
+        height: 100%;
+    }
+    
+    .validation-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        font-weight: bold;
+        display: inline-block;
+        margin-top: 1rem;
+    }
+    
+    .validation-badge.validated {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .validation-badge.not-validated {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+    
+    .token-info {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-top: 2rem;
+        padding: 1rem;
+        background-color: #f1f1f1;
+        border-radius: 5px;
+    }
+    
+    @media print {
+        .no-print {
+            display: none;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="text-center">{% trans "Profil Hors-ligne" %} - {{ practitioner.full_name }}</h1>
+            <p class="text-center text-muted">
+                {% trans "Ce profil peut être utilisé pour vérifier l'identité du pratiquant sans connexion internet." %}
+            </p>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card profile-container">
+                <div class="profile-header">
+                    {% if practitioner.photo %}
+                        <img src="{{ practitioner.photo.url }}" class="profile-img" alt="{{ practitioner.full_name }}">
+                    {% else %}
+                        <div class="profile-img d-flex align-items-center justify-content-center bg-secondary">
+                            <i class="fas fa-user fa-4x text-white"></i>
+                        </div>
+                    {% endif %}
+                    
+                    <h3>{{ practitioner.full_name }}</h3>
+                    
+                    {% if qr_code.is_federation_validated %}
+                        <div class="validation-badge validated">
+                            <i class="fas fa-check-circle me-2"></i>{% trans "Validé par la fédération" %}
+                        </div>
+                    {% else %}
+                        <div class="validation-badge not-validated">
+                            <i class="fas fa-exclamation-circle me-2"></i>{% trans "Non validé par la fédération" %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="text-center">
+                    <h5>{% trans "QR Code du profil hors-ligne" %}</h5>
+                    {% if qr_code.offline_profile_qr_image %}
+                        <img src="{{ qr_code.offline_profile_qr_image.url }}" class="profile-qr" alt="QR Code du profil">
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>{% trans "QR Code non disponible" %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="d-grid gap-2 mt-3 no-print">
+                    <button class="btn btn-outline-primary" onclick="window.print()">
+                        <i class="fas fa-print me-2"></i>{% trans "Imprimer" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="row">
+                <div class="col-md-6 info-section">
+                    <div class="card info-card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-user me-2"></i>{% trans "Informations personnelles" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>{% trans "Nom:" %}</strong> {{ practitioner.last_name }}</p>
+                            <p><strong>{% trans "Prénom:" %}</strong> {{ practitioner.first_name }}</p>
+                            <p><strong>{% trans "Date de naissance:" %}</strong> {{ practitioner.birth_date|date:"d/m/Y"|default:"N/A" }}</p>
+                            <p><strong>{% trans "Genre:" %}</strong> {{ practitioner.get_gender_display|default:"N/A" }}</p>
+                            <p><strong>{% trans "Nationalité:" %}</strong> {{ practitioner.nationality|default:"N/A" }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 info-section">
+                    <div class="card info-card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-id-card me-2"></i>{% trans "Identité sportive" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>{% trans "Numéro de licence:" %}</strong> {{ practitioner.license_number|default:"N/A" }}</p>
+                            <p><strong>{% trans "Club:" %}</strong> {{ practitioner.organization.name|default:"N/A" }}</p>
+                            <p><strong>{% trans "Validité licence:" %}</strong> 
+                                {% if practitioner.license_validity_end %}
+                                    {{ practitioner.license_validity_end|date:"d/m/Y" }}
+                                {% else %}
+                                    {% trans "Non spécifiée" %}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-12 info-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-graduation-cap me-2"></i>{% trans "Grades et qualifications" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                {% for discipline in practitioner.disciplines.all %}
+                                    <div class="col-md-6 mb-3">
+                                        <div class="border p-3 rounded">
+                                            <h6>{{ discipline.discipline.name }}</h6>
+                                            <p>
+                                                <strong>{% trans "Grade actuel:" %}</strong> 
+                                                {% if discipline.current_grade %}
+                                                    {{ discipline.current_grade.name }}
+                                                {% else %}
+                                                    {% trans "Non spécifié" %}
+                                                {% endif %}
+                                            </p>
+                                            <p>
+                                                <strong>{% trans "Obtenu le:" %}</strong> 
+                                                {% if discipline.current_grade_date %}
+                                                    {{ discipline.current_grade_date|date:"d/m/Y" }}
+                                                {% else %}
+                                                    {% trans "Non spécifié" %}
+                                                {% endif %}
+                                            </p>
+                                        </div>
+                                    </div>
+                                {% empty %}
+                                    <div class="col-12">
+                                        <p class="text-muted">{% trans "Aucune discipline ou grade enregistré." %}</p>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if profile_data %}
+                <div class="token-info no-print">
+                    <h5>{% trans "Informations techniques" %}</h5>
+                    <p><strong>{% trans "Généré le:" %}</strong> {{ profile_data.generated_at }}</p>
+                    <p><strong>{% trans "Valide jusqu'au:" %}</strong> {{ profile_data.profile_data.expiration|date:"d/m/Y H:i" }}</p>
+                    <p><small>{% trans "Ce profil hors-ligne est valide pendant 30 jours à partir de sa date de génération." %}</small></p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

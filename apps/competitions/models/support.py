@@ -1,0 +1,172 @@
+from django.db import models
+from django.contrib.auth.models import User
+from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
+import uuid
+
+
+class SupportTicket(models.Model):
+    """Modèle pour les tickets de support."""
+    
+    CATEGORY_CHOICES = [
+        ('general', _('Question générale')),
+        ('technical', _('Problème technique')),
+        ('account', _('Compte utilisateur')),
+        ('competition', _('Compétition')),
+        ('payment', _('Paiement')),
+        ('grade', _('Grade')),
+        ('other', _('Autre')),
+    ]
+    
+    STATUS_CHOICES = [
+        ('open', _('Ouvert')),
+        ('in_progress', _('En cours')),
+        ('waiting_user', _('En attente utilisateur')),
+        ('resolved', _('Résolu')),
+        ('closed', _('Fermé')),
+    ]
+    
+    PRIORITY_CHOICES = [
+        ('low', _('Basse')),
+        ('medium', _('Moyenne')),
+        ('high', _('Haute')),
+        ('urgent', _('Urgente')),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket_number = models.CharField(_("Numéro de ticket"), max_length=20, unique=True)
+    
+    user = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='support_tickets',
+        verbose_name=_("Utilisateur")
+    )
+    
+    category = models.CharField(_("Catégorie"), max_length=20, choices=CATEGORY_CHOICES)
+    subject = models.CharField(_("Sujet"), max_length=200)
+    description = models.TextField(_("Description"))
+    
+    status = models.CharField(_("Statut"), max_length=20, choices=STATUS_CHOICES, default='open')
+    priority = models.CharField(_("Priorité"), max_length=10, choices=PRIORITY_CHOICES, default='medium')
+    
+    # Agent assigné
+    assigned_to = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='assigned_tickets',
+        verbose_name=_("Assigné Ã ")
+    )
+    
+    # Dates
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis Ã  jour le"), auto_now=True)
+    resolved_at = models.DateTimeField(_("Résolu le"), null=True, blank=True)
+    closed_at = models.DateTimeField(_("Fermé le"), null=True, blank=True)
+    
+    # Métadonnées
+    resolution_notes = models.TextField(_("Notes de résolution"), blank=True)
+    satisfaction_rating = models.IntegerField(_("Note de satisfaction"), null=True, blank=True)
+    satisfaction_comment = models.TextField(_("Commentaire de satisfaction"), blank=True)
+    
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Ticket de support")
+        verbose_name_plural = _("Tickets de support")
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.ticket_number} - {self.subject}"
+    
+    def save(self, *args, **kwargs):
+        if not self.ticket_number:
+            # Générer un numéro de ticket unique
+            today = timezone.now()
+            prefix = f"TKT{today.strftime('%Y%m')}"
+            count = SupportTicket.objects.filter(
+                ticket_number__startswith=prefix
+            ).count() + 1
+            self.ticket_number = f"{prefix}{count:04d}"
+        
+        super().save(*args, **kwargs)
+
+
+class SupportMessage(models.Model):
+    """Messages dans un ticket de support."""
+    
+    ticket = models.ForeignKey(
+        SupportTicket, 
+        on_delete=models.CASCADE, 
+        related_name='messages',
+        verbose_name=_("Ticket")
+    )
+    
+    sender = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE,
+        verbose_name=_("Expéditeur")
+    )
+    
+    message = models.TextField(_("Message"))
+    
+    # Pièces jointes
+    attachments = models.JSONField(_("Pièces jointes"), default=list, blank=True)
+    
+    # Type de message
+    is_internal = models.BooleanField(_("Message interne"), default=False)
+    is_system = models.BooleanField(_("Message système"), default=False)
+    
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis Ã  jour le"), auto_now=True)
+    
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Message de support")
+        verbose_name_plural = _("Messages de support")
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f"Message de {self.sender.get_full_name()} - {self.created_at}"
+
+
+class FAQ(models.Model):
+    """Foire aux questions."""
+    
+    CATEGORY_CHOICES = [
+        ('general', _('Général')),
+        ('account', _('Compte')),
+        ('competition', _('Compétition')),
+        ('grade', _('Grade')),
+        ('payment', _('Paiement')),
+        ('technical', _('Technique')),
+    ]
+    
+    category = models.CharField(_("Catégorie"), max_length=20, choices=CATEGORY_CHOICES)
+    question = models.CharField(_("Question"), max_length=500)
+    answer = models.TextField(_("Réponse"))
+    
+    is_active = models.BooleanField(_("Actif"), default=True)
+    is_featured = models.BooleanField(_("Mis en avant"), default=False)
+    
+    # Statistiques
+    view_count = models.PositiveIntegerField(_("Nombre de vues"), default=0)
+    helpful_count = models.PositiveIntegerField(_("Nombre de 'utile'"), default=0)
+    not_helpful_count = models.PositiveIntegerField(_("Nombre de 'non utile'"), default=0)
+    
+    # Ordre d'affichage
+    order = models.PositiveIntegerField(_("Ordre"), default=0)
+    
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis Ã  jour le"), auto_now=True)
+    
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("FAQ")
+        verbose_name_plural = _("FAQ")
+        ordering = ['category', 'order', '-helpful_count']
+    
+    def __str__(self):
+        return self.question
+

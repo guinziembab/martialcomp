@@ -1,0 +1,614 @@
+{% extends "competitions/management/base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Gestion des juges et arbitres" %} - {{ competition.title }}{% endblock %}
+
+{% block competition_content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4 mb-4">{% trans "Gestion des juges et arbitres" %}</h1>
+    
+    <!-- Onglets de navigation -->
+    <ul class="nav nav-tabs mb-4" id="judgesTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="assigned-tab" data-bs-toggle="tab" data-bs-target="#assigned" type="button" role="tab" aria-controls="assigned" aria-selected="true">
+                <i class="fas fa-user-check me-2"></i>{% trans "Juges assignés" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="available-tab" data-bs-toggle="tab" data-bs-target="#available" type="button" role="tab" aria-controls="available" aria-selected="false">
+                <i class="fas fa-user-plus me-2"></i>{% trans "Juges disponibles" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="assignments-tab" data-bs-toggle="tab" data-bs-target="#assignments" type="button" role="tab" aria-controls="assignments" aria-selected="false">
+                <i class="fas fa-tasks me-2"></i>{% trans "Affectations" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="qualifications-tab" data-bs-toggle="tab" data-bs-target="#qualifications" type="button" role="tab" aria-controls="qualifications" aria-selected="false">
+                <i class="fas fa-certificate me-2"></i>{% trans "Qualifications" %}
+            </button>
+        </li>
+    </ul>
+    
+    <!-- Contenu des onglets -->
+    <div class="tab-content" id="judgesTabContent">
+        <!-- Juges assignés -->
+        <div class="tab-pane fade show active" id="assigned" role="tabpanel" aria-labelledby="assigned-tab">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{% trans "Juges assignés à cette compétition" %}</h5>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#assignJudgeModal">
+                            <i class="fas fa-plus me-1"></i>{% trans "Assigner un juge" %}
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-2">
+                            <i class="fas fa-file-export me-1"></i>{% trans "Exporter" %}
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Nom" %}</th>
+                                    <th>{% trans "Rôle" %}</th>
+                                    <th>{% trans "Catégories" %}</th>
+                                    <th>{% trans "Qualification" %}</th>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for judge in assigned_judges %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if judge.profile.photo %}
+                                            <img src="{{ judge.profile.photo.url }}" alt="{{ judge.full_name }}" class="rounded-circle me-2" width="40" height="40">
+                                            {% else %}
+                                            <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
+                                                <i class="fas fa-user"></i>
+                                            </div>
+                                            {% endif %}
+                                            <div>
+                                                <div class="fw-medium">{{ judge.full_name }}</div>
+                                                <small class="text-muted">{{ judge.email }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if judge.is_chief_judge %}
+                                        <span class="badge bg-danger">{% trans "Juge en chef" %}</span>
+                                        {% elif judge.is_technical_judge %}
+                                        <span class="badge bg-primary">{% trans "Juge technique" %}</span>
+                                        {% elif judge.is_combat_referee %}
+                                        <span class="badge bg-warning">{% trans "Arbitre combat" %}</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{% trans "Assistant" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% for category in judge.categories %}
+                                        <span class="badge bg-info text-dark mb-1">{{ category.name }}</span>
+                                        {% empty %}
+                                        <span class="text-muted">{% trans "Aucune catégorie assignée" %}</span>
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{% if judge.qualification_level == 'international' %}success{% elif judge.qualification_level == 'national' %}primary{% elif judge.qualification_level == 'regional' %}info{% else %}secondary{% endif %}">
+                                            {{ judge.get_qualification_level_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if judge.is_confirmed %}
+                                        <span class="badge bg-success">{% trans "Confirmé" %}</span>
+                                        {% else %}
+                                        <span class="badge bg-warning text-dark">{% trans "En attente" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                {% trans "Actions" %}
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#"><i class="fas fa-edit me-2"></i>{% trans "Modifier" %}</a></li>
+                                                <li><a class="dropdown-item" href="#"><i class="fas fa-tasks me-2"></i>{% trans "Gérer les affectations" %}</a></li>
+                                                <li><a class="dropdown-item" href="#"><i class="fas fa-envelope me-2"></i>{% trans "Contacter" %}</a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item text-danger" href="#"><i class="fas fa-trash me-2"></i>{% trans "Retirer" %}</a></li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">
+                                        <div class="text-muted">
+                                            <i class="fas fa-info-circle me-2"></i>{% trans "Aucun juge n'a encore été assigné à cette compétition." %}
+                                        </div>
+                                        <button type="button" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#assignJudgeModal">
+                                            <i class="fas fa-plus me-2"></i>{% trans "Assigner un juge" %}
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Juges disponibles -->
+        <div class="tab-pane fade" id="available" role="tabpanel" aria-labelledby="available-tab">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{% trans "Juges disponibles" %}</h5>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-success">
+                            <i class="fas fa-envelope me-1"></i>{% trans "Inviter des juges" %}
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary ms-2">
+                            <i class="fas fa-user-plus me-1"></i>{% trans "Nouveau juge" %}
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Filtres -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <select class="form-select form-select-sm" aria-label="Filtre discipline">
+                                <option selected>{% trans "Toutes les disciplines" %}</option>
+                                <option value="1">{% trans "Karaté" %}</option>
+                                <option value="2">{% trans "Judo" %}</option>
+                                <option value="3">{% trans "Taekwondo" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select form-select-sm" aria-label="Filtre qualification">
+                                <option selected>{% trans "Toutes les qualifications" %}</option>
+                                <option value="international">{% trans "International" %}</option>
+                                <option value="national">{% trans "National" %}</option>
+                                <option value="regional">{% trans "Régional" %}</option>
+                                <option value="novice">{% trans "Novice" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select form-select-sm" aria-label="Filtre type">
+                                <option selected>{% trans "Tous les types" %}</option>
+                                <option value="technical">{% trans "Juge technique" %}</option>
+                                <option value="combat">{% trans "Arbitre combat" %}</option>
+                                <option value="chief">{% trans "Juge en chef" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="input-group input-group-sm">
+                                <input type="text" class="form-control" placeholder="{% trans 'Rechercher...' %}">
+                                <button class="btn btn-outline-secondary" type="button"><i class="fas fa-search"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Liste des juges disponibles -->
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Nom" %}</th>
+                                    <th>{% trans "Qualification" %}</th>
+                                    <th>{% trans "Expérience" %}</th>
+                                    <th>{% trans "Disciplines" %}</th>
+                                    <th>{% trans "Disponibilité" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Exemple de juge disponible -->
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
+                                                <i class="fas fa-user"></i>
+                                            </div>
+                                            <div>
+                                                <div class="fw-medium">{% trans "Martine Dupont" %}</div>
+                                                <small class="text-muted">{% trans "m.dupont@example.com" %}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success">{% trans "International" %}</span>
+                                    </td>
+                                    <td>12 {% trans "ans" %}</td>
+                                    <td>
+                                        <span class="badge bg-info text-dark mb-1">{% trans "Karaté" %}</span>
+                                        <span class="badge bg-info text-dark mb-1">{% trans "Taekwondo" %}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success">{% trans "Disponible" %}</span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary">
+                                            <i class="fas fa-plus me-1"></i>{% trans "Assigner" %}
+                                        </button>
+                                    </td>
+                                </tr>
+                                <!-- Fin exemple -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    <nav aria-label="Pagination des juges" class="mt-3">
+                        <ul class="pagination justify-content-center">
+                            <li class="page-item disabled">
+                                <a class="page-link" href="#" tabindex="-1" aria-disabled="true">{% trans "Précédent" %}</a>
+                            </li>
+                            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                            <li class="page-item"><a class="page-link" href="#">2</a></li>
+                            <li class="page-item"><a class="page-link" href="#">3</a></li>
+                            <li class="page-item">
+                                <a class="page-link" href="#">{% trans "Suivant" %}</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Affectations -->
+        <div class="tab-pane fade" id="assignments" role="tabpanel" aria-labelledby="assignments-tab">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{% trans "Affectations par catégorie" %}</h5>
+                    <button type="button" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-magic me-1"></i>{% trans "Affectation automatique" %}
+                    </button>
+                </div>
+                <div class="card-body">
+                    <!-- Navigation par catégories -->
+                    <ul class="nav nav-pills mb-3" id="categoryPills" role="tablist">
+                        <!-- Exemple de catégories -->
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="cat1-tab" data-bs-toggle="pill" data-bs-target="#cat1" type="button" role="tab" aria-controls="cat1" aria-selected="true">{% trans "Kata Seniors 18+" %}</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="cat2-tab" data-bs-toggle="pill" data-bs-target="#cat2" type="button" role="tab" aria-controls="cat2" aria-selected="false">
+                                Kumite -75kg
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="cat3-tab" data-bs-toggle="pill" data-bs-target="#cat3" type="button" role="tab" aria-controls="cat3" aria-selected="false">{% trans "Kata Juniors" %}</button>
+                        </li>
+                    </ul>
+                    
+                    <!-- Contenu pour chaque catégorie -->
+                    <div class="tab-content" id="categoryPillsContent">
+                        <div class="tab-pane fade show active" id="cat1" role="tabpanel" aria-labelledby="cat1-tab">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="card border h-100">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0">{% trans "Juges assignés à cette catégorie" %}</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <ul class="list-group list-group-flush">
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="badge bg-danger me-2">{% trans "Chef" %}</span>
+                                                        <span>{% trans "Jean Martin" %}</span>
+                                                    </div>
+                                                    <button class="btn btn-sm btn-outline-danger">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="badge bg-primary me-2">{% trans "Juge 1" %}</span>
+                                                        <span>{% trans "Sophie Dubois" %}</span>
+                                                    </div>
+                                                    <button class="btn btn-sm btn-outline-danger">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </li>
+                                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="badge bg-primary me-2">{% trans "Juge 2" %}</span>
+                                                        <span>{% trans "Paul Leroy" %}</span>
+                                                    </div>
+                                                    <button class="btn btn-sm btn-outline-danger">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                            <button class="btn btn-sm btn-primary mt-3">
+                                                <i class="fas fa-plus me-1"></i>{% trans "Ajouter un juge" %}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card border h-100">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0">{% trans "Planning des juges" %}</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label class="form-label">{% trans "Date de l'épreuve" %}</label>
+                                                <input type="date" class="form-control" value="2025-05-10">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">{% trans "Horaires" %}</label>
+                                                <div class="row g-2">
+                                                    <div class="col">
+                                                        <input type="time" class="form-control" value="09:00">
+                                                    </div>
+                                                    <div class="col-auto">
+                                                        <span class="form-text">à</span>
+                                                    </div>
+                                                    <div class="col">
+                                                        <input type="time" class="form-control" value="12:00">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">{% trans "Lieu / Tatami" %}</label>
+                                                <select class="form-select">
+                                                    <option value="1">{% trans "Tatami 1" %}</option>
+                                                    <option value="2">{% trans "Tatami 2" %}</option>
+                                                    <option value="3">{% trans "Tatami 3" %}</option>
+                                                </select>
+                                            </div>
+                                            <button class="btn btn-sm btn-primary">
+                                                <i class="fas fa-save me-1"></i>{% trans "Enregistrer" %}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="cat2" role="tabpanel" aria-labelledby="cat2-tab">
+                            <!-- Contenu similaire pour la catégorie 2 -->
+                            <p class="text-center py-5 text-muted">{% trans "Sélectionnez des juges pour cette catégorie" %}</p>
+                        </div>
+                        <div class="tab-pane fade" id="cat3" role="tabpanel" aria-labelledby="cat3-tab">
+                            <!-- Contenu similaire pour la catégorie 3 -->
+                            <p class="text-center py-5 text-muted">{% trans "Sélectionnez des juges pour cette catégorie" %}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Qualifications -->
+        <div class="tab-pane fade" id="qualifications" role="tabpanel" aria-labelledby="qualifications-tab">
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Niveaux de qualification" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="list-group">
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-success me-2">{% trans "International" %}</span>
+                                        <strong>{% trans "Juge International" %}</strong>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">8</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-primary me-2">{% trans "National" %}</span>
+                                        <strong>{% trans "Juge National" %}</strong>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">12</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-info text-dark me-2">{% trans "Régional" %}</span>
+                                        <strong>{% trans "Juge Régional" %}</strong>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">20</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-secondary me-2">{% trans "Novice" %}</span>
+                                        <strong>{% trans "Juge Débutant" %}</strong>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">5</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Types de qualification" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="list-group">
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-primary me-2">{% trans "Technique" %}</span>
+                                        <strong>{% trans "Juge Technique" %}</strong>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">25</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-warning text-dark me-2">{% trans "Combat" %}</span>
+                                        <strong>{% trans "Arbitre Combat" %}</strong>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">18</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-danger me-2">{% trans "Chef" %}</span>
+                                        <strong>{% trans "Juge en Chef" %}</strong>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">5</span>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge bg-secondary me-2">{% trans "Support" %}</span>
+                                        <strong>{% trans "Assistant/Chronométreur" %}</strong>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">10</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Statistiques des qualifications -->
+            <div class="card shadow-sm mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Récapitulatif des qualifications par discipline" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Discipline" %}</th>
+                                    <th>{% trans "International" %}</th>
+                                    <th>{% trans "National" %}</th>
+                                    <th>{% trans "Régional" %}</th>
+                                    <th>{% trans "Novice" %}</th>
+                                    <th>{% trans "Total" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>{% trans "Karaté" %}</td>
+                                    <td>4</td>
+                                    <td>6</td>
+                                    <td>8</td>
+                                    <td>2</td>
+                                    <td>20</td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "Judo" %}</td>
+                                    <td>2</td>
+                                    <td>4</td>
+                                    <td>5</td>
+                                    <td>1</td>
+                                    <td>12</td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "Taekwondo" %}</td>
+                                    <td>2</td>
+                                    <td>2</td>
+                                    <td>7</td>
+                                    <td>2</td>
+                                    <td>13</td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr class="table-secondary">
+                                    <td><strong>{% trans "Total" %}</strong></td>
+                                    <td><strong>8</strong></td>
+                                    <td><strong>12</strong></td>
+                                    <td><strong>20</strong></td>
+                                    <td><strong>5</strong></td>
+                                    <td><strong>45</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour assigner un juge -->
+<div class="modal fade" id="assignJudgeModal" tabindex="-1" aria-labelledby="assignJudgeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assignJudgeModalLabel">{% trans "Assigner un juge à la compétition" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="judgeSearchInput" class="form-label">{% trans "Rechercher un juge" %}</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="judgeSearchInput" placeholder="{% trans 'Nom, email ou qualification...' %}">
+                        <button class="btn btn-outline-secondary" type="button">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">{% trans "Rôle du juge" %}</label>
+                    <select class="form-select">
+                        <option value="technical">{% trans "Juge technique" %}</option>
+                        <option value="combat">{% trans "Arbitre combat" %}</option>
+                        <option value="chief">{% trans "Juge en chef" %}</option>
+                        <option value="assistant">{% trans "Assistant/Chronométreur" %}</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">{% trans "Catégories assignées" %}</label>
+                    <select class="form-select" multiple size="5">
+                        <option value="1">{% trans "Kata Senior Hommes" %}</option>
+                        <option value="2">{% trans "Kata Senior Femmes" %}</option>
+                        <option value="3">{% trans "Kumite -75kg Hommes" %}</option>
+                        <option value="4">{% trans "Kumite -55kg Femmes" %}</option>
+                        <option value="5">{% trans "Kata Junior Hommes" %}</option>
+                    </select>
+                    <div class="form-text">{% trans "Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs catégories." %}</div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "Date de début" %}</label>
+                            <input type="date" class="form-control">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">{% trans "Date de fin" %}</label>
+                            <input type="date" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="sendEmailCheckbox" checked>
+                    <label class="form-check-label" for="sendEmailCheckbox">
+                        {% trans "Envoyer un email d'invitation au juge" %}
+                    </label>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="confirmationRequiredCheckbox">
+                    <label class="form-check-label" for="confirmationRequiredCheckbox">
+                        {% trans "Confirmation requise" %}
+                    </label>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="notesInput" class="form-label">{% trans "Notes supplémentaires" %}</label>
+                    <textarea class="form-control" id="notesInput" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-primary">{% trans "Assigner le juge" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

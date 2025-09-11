@@ -1,0 +1,680 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}{% trans "Interface de Combat Taekwondo" %} - {{ combat.id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        background-color: #f0f0f0;
+        padding-bottom: 50px;
+    }
+    
+    .taekwondo-header {
+        background-color: #003366;
+        color: white;
+        padding: 15px 0;
+        margin-bottom: 20px;
+    }
+    
+    .taekwondo-logo {
+        font-size: 24px;
+        font-weight: bold;
+    }
+    
+    .score-card {
+        text-align: center;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+        background-color: white;
+    }
+    
+    .score-red {
+        background-color: #ffebee;
+        border: 2px solid #d50000;
+    }
+    
+    .score-blue {
+        background-color: #e3f2fd;
+        border: 2px solid #0d47a1;
+    }
+    
+    .competitor-name {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 15px;
+    }
+    
+    .score-display {
+        font-size: 5rem;
+        font-weight: bold;
+        line-height: 1;
+        margin: 20px 0;
+    }
+    
+    .timer-display {
+        background-color: #212121;
+        color: #f5f5f5;
+        border-radius: 10px;
+        padding: 15px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    
+    .time-remaining {
+        font-size: 3.5rem;
+        font-weight: bold;
+        margin: 0;
+    }
+    
+    .round-display {
+        font-size: 1.8rem;
+        margin: 0;
+    }
+    
+    .control-panel {
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .point-button {
+        width: 100%;
+        height: 60px;
+        margin-bottom: 10px;
+        font-size: 1.2rem;
+        font-weight: bold;
+    }
+    
+    .penalty-button {
+        width: 100%;
+        height: 60px;
+        margin-bottom: 10px;
+        font-size: 1.2rem;
+        font-weight: bold;
+    }
+    
+    .btn-punch {
+        background-color: #c8e6c9;
+        border-color: #2e7d32;
+        color: #2e7d32;
+    }
+    
+    .btn-kick-body {
+        background-color: #bbdefb;
+        border-color: #1565c0;
+        color: #1565c0;
+    }
+    
+    .btn-kick-head {
+        background-color: #e1bee7;
+        border-color: #6a1b9a;
+        color: #6a1b9a;
+    }
+    
+    .btn-turning-kick-body {
+        background-color: #ffecb3;
+        border-color: #ff8f00;
+        color: #ff8f00;
+    }
+    
+    .btn-turning-kick-head {
+        background-color: #ffccbc;
+        border-color: #bf360c;
+        color: #bf360c;
+    }
+    
+    .btn-kyong-go {
+        background-color: #fff9c4;
+        border-color: #fbc02d;
+        color: #f57f17;
+    }
+    
+    .btn-gam-jeom {
+        background-color: #ffcdd2;
+        border-color: #c62828;
+        color: #c62828;
+    }
+    
+    .match-controls {
+        text-align: center;
+        margin-top: 20px;
+    }
+    
+    .action-log {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .penalties-display {
+        margin-top: 15px;
+        text-align: center;
+    }
+    
+    .penalty-badge {
+        display: inline-block;
+        margin: 2px;
+        padding: 5px 10px;
+        border-radius: 50%;
+        font-weight: bold;
+    }
+    
+    .kyong-go-badge {
+        background-color: #fbc02d;
+        color: black;
+    }
+    
+    .gam-jeom-badge {
+        background-color: #c62828;
+        color: white;
+    }
+    
+    .penalty-count {
+        font-size: 1.2rem;
+        margin: 5px 0;
+    }
+</style>
+{% endblock %}
+
+{% block full_width %}
+<div class="taekwondo-header">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="taekwondo-logo">
+                <i class="fas fa-fist-raised"></i> {% trans "Taekwondo Combat" %} #{{ combat.id }}
+            </div>
+            <div>
+                <a href="{% url 'competitions:combat_taekwondo:detail_combat' combat.id %}" class="btn btn-outline-light">
+                    <i class="fas fa-arrow-left"></i> {% trans "Retour au détail" %}
+                </a>
+                {% if combat.status == 'en_cours' %}
+                <a href="{% url 'competitions:combat_taekwondo:terminer_combat' combat.id %}" class="btn btn-danger ms-2">
+                    <i class="fas fa-stop"></i> {% trans "Terminer le combat" %}
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row">
+        <!-- Combattant Rouge -->
+        <div class="col-md-4">
+            <div class="score-card score-red">
+                <div class="competitor-name text-danger">
+                    {% if combat.type_combat == 'individuel' %}
+                    {{ combat.pratiquant_rouge.full_name|default:"Combattant Rouge" }}
+                    {% else %}
+                    {{ combat.equipe_rouge.nom|default:"Équipe Rouge" }}
+                    {% endif %}
+                </div>
+                <div class="score-display text-danger" id="score-red">{{ combat.score_rouge }}</div>
+                <div class="penalties-display">
+                    <div class="penalty-count">
+                        <strong>Kyong-go:</strong> 
+                        <span id="kyong-go-red-count">{{ penalties.rouge.kyong-go }}</span>
+                        <div id="kyong-go-red-badges">
+                            {% for i in "x"|ljust:penalties.rouge.kyong-go %}
+                            <span class="penalty-badge kyong-go-badge">K</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="penalty-count">
+                        <strong>Gam-jeom:</strong> 
+                        <span id="gam-jeom-red-count">{{ penalties.rouge.gam-jeom }}</span>
+                        <div id="gam-jeom-red-badges">
+                            {% for i in "x"|ljust:penalties.rouge.gam-jeom %}
+                            <span class="penalty-badge gam-jeom-badge">G</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if is_judge and combat.status == 'en_cours' %}
+            <div class="control-panel">
+                <h4 class="text-center text-danger mb-3">{% trans "Points Rouge" %}</h4>
+                <button class="btn btn-punch point-button" data-color="rouge" data-type="point" data-point-type="punch">
+                    {% trans "Coup de poing" %} (1pt)
+                </button>
+                <button class="btn btn-kick-body point-button" data-color="rouge" data-type="point" data-point-type="kick_body">
+                    {% trans "Coup de pied au tronc" %} (2pts)
+                </button>
+                <button class="btn btn-kick-head point-button" data-color="rouge" data-type="point" data-point-type="kick_head">
+                    {% trans "Coup de pied à la tête" %} (3pts)
+                </button>
+                <button class="btn btn-turning-kick-body point-button" data-color="rouge" data-type="point" data-point-type="turning_kick_body">
+                    {% trans "Coup de pied retourné au tronc" %} (4pts)
+                </button>
+                <button class="btn btn-turning-kick-head point-button" data-color="rouge" data-type="point" data-point-type="turning_kick_head">
+                    {% trans "Coup de pied retourné à la tête" %} (5pts)
+                </button>
+                
+                <h4 class="text-center text-danger mt-4 mb-3">{% trans "Pénalités Rouge" %}</h4>
+                <button class="btn btn-kyong-go penalty-button" data-color="rouge" data-type="penalty" data-penalty-type="kyong-go">
+                    {% trans "Kyong-go (Avertissement)" %}
+                </button>
+                <button class="btn btn-gam-jeom penalty-button" data-color="rouge" data-type="penalty" data-penalty-type="gam-jeom">
+                    {% trans "Gam-jeom (Déduction -1pt)" %}
+                </button>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Centre (Timer et Contrôles) -->
+        <div class="col-md-4">
+            <div class="timer-display">
+                <p class="time-remaining" id="timer">
+                    {% if combat.status == 'en_cours' %}
+                    --:--
+                    {% elif combat.status == 'termine' %}
+                    {% trans "TERMINÉ" %}
+                    {% else %}
+                    {% trans "EN ATTENTE" %}
+                    {% endif %}
+                </p>
+                <p class="round-display">
+                    {% trans "Round" %} <span id="current-round">1</span>/3
+                </p>
+            </div>
+            
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{% trans "Historique des actions" %}</h5>
+                </div>
+                <div class="card-body action-log">
+                    <table class="table table-sm" id="action-log-table">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Temps" %}</th>
+                                <th>{% trans "Action" %}</th>
+                                <th>{% trans "Points" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for action in actions %}
+                            <tr>
+                                <td>{{ action.temps|date:"H:i:s" }}</td>
+                                <td class="{% if action.couleur == 'rouge' %}text-danger{% elif action.couleur == 'blanc' %}text-primary{% endif %}">
+                                    {{ action.get_couleur_display }} - 
+                                    {% if action.type_action == 'point' %}
+                                        {% if action.description == 'punch' %}
+                                            {% trans "Coup de poing" %}
+                                        {% elif action.description == 'kick_body' %}
+                                            {% trans "Coup de pied au tronc" %}
+                                        {% elif action.description == 'kick_head' %}
+                                            {% trans "Coup de pied à la tête" %}
+                                        {% elif action.description == 'turning_kick_body' %}
+                                            {% trans "Coup de pied retourné au tronc" %}
+                                        {% elif action.description == 'turning_kick_head' %}
+                                            {% trans "Coup de pied retourné à la tête" %}
+                                        {% else %}
+                                            {{ action.description }}
+                                        {% endif %}
+                                    {% elif action.type_action == 'penalite' %}
+                                        {% if action.description == 'kyong-go' %}
+                                            Kyong-go
+                                        {% elif action.description == 'gam-jeom' %}
+                                            Gam-jeom
+                                        {% else %}
+                                            {{ action.description }}
+                                        {% endif %}
+                                    {% else %}
+                                        {{ action.get_type_action_display }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if action.type_action == 'point' %}
+                                    <span class="badge bg-success">+{{ action.valeur }}</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">{{ action.valeur }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center">
+                                    {% trans "Aucune action enregistrée" %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            {% if is_judge and combat.status == 'en_cours' %}
+            <div class="match-controls mt-3">
+                <a href="{% url 'competitions:combat_taekwondo:terminer_combat' combat.id %}" class="btn btn-danger btn-lg">
+                    <i class="fas fa-stop"></i> {% trans "Terminer le combat" %}
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Combattant Blanc/Bleu -->
+        <div class="col-md-4">
+            <div class="score-card score-blue">
+                <div class="competitor-name text-primary">
+                    {% if combat.type_combat == 'individuel' %}
+                    {{ combat.pratiquant_blanc.full_name|default:"Combattant Blanc" }}
+                    {% else %}
+                    {{ combat.equipe_blanc.nom|default:"Équipe Blanche" }}
+                    {% endif %}
+                </div>
+                <div class="score-display text-primary" id="score-blue">{{ combat.score_blanc }}</div>
+                <div class="penalties-display">
+                    <div class="penalty-count">
+                        <strong>Kyong-go:</strong> 
+                        <span id="kyong-go-blue-count">{{ penalties.blanc.kyong-go }}</span>
+                        <div id="kyong-go-blue-badges">
+                            {% for i in "x"|ljust:penalties.blanc.kyong-go %}
+                            <span class="penalty-badge kyong-go-badge">K</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="penalty-count">
+                        <strong>Gam-jeom:</strong> 
+                        <span id="gam-jeom-blue-count">{{ penalties.blanc.gam-jeom }}</span>
+                        <div id="gam-jeom-blue-badges">
+                            {% for i in "x"|ljust:penalties.blanc.gam-jeom %}
+                            <span class="penalty-badge gam-jeom-badge">G</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if is_judge and combat.status == 'en_cours' %}
+            <div class="control-panel">
+                <h4 class="text-center text-primary mb-3">{% trans "Points Blanc" %}</h4>
+                <button class="btn btn-punch point-button" data-color="blanc" data-type="point" data-point-type="punch">
+                    {% trans "Coup de poing" %} (1pt)
+                </button>
+                <button class="btn btn-kick-body point-button" data-color="blanc" data-type="point" data-point-type="kick_body">
+                    {% trans "Coup de pied au tronc" %} (2pts)
+                </button>
+                <button class="btn btn-kick-head point-button" data-color="blanc" data-type="point" data-point-type="kick_head">
+                    {% trans "Coup de pied à la tête" %} (3pts)
+                </button>
+                <button class="btn btn-turning-kick-body point-button" data-color="blanc" data-type="point" data-point-type="turning_kick_body">
+                    {% trans "Coup de pied retourné au tronc" %} (4pts)
+                </button>
+                <button class="btn btn-turning-kick-head point-button" data-color="blanc" data-type="point" data-point-type="turning_kick_head">
+                    {% trans "Coup de pied retourné à la tête" %} (5pts)
+                </button>
+                
+                <h4 class="text-center text-primary mt-4 mb-3">{% trans "Pénalités Blanc" %}</h4>
+                <button class="btn btn-kyong-go penalty-button" data-color="blanc" data-type="penalty" data-penalty-type="kyong-go">
+                    {% trans "Kyong-go (Avertissement)" %}
+                </button>
+                <button class="btn btn-gam-jeom penalty-button" data-color="blanc" data-type="penalty" data-penalty-type="gam-jeom">
+                    {% trans "Gam-jeom (Déduction -1pt)" %}
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Éléments d'interface
+        const timerElement = document.getElementById('timer');
+        const roundElement = document.getElementById('current-round');
+        const scoreRedElement = document.getElementById('score-red');
+        const scoreBlueElement = document.getElementById('score-blue');
+        
+        // Éléments de pénalités
+        const kyongGoRedCount = document.getElementById('kyong-go-red-count');
+        const kyongGoBlueCount = document.getElementById('kyong-go-blue-count');
+        const gamJeomRedCount = document.getElementById('gam-jeom-red-count');
+        const gamJeomBlueCount = document.getElementById('gam-jeom-blue-count');
+        const kyongGoRedBadges = document.getElementById('kyong-go-red-badges');
+        const kyongGoBlueBadges = document.getElementById('kyong-go-blue-badges');
+        const gamJeomRedBadges = document.getElementById('gam-jeom-red-badges');
+        const gamJeomBlueBadges = document.getElementById('gam-jeom-blue-badges');
+        
+        // Liste des actions
+        const actionLogTable = document.getElementById('action-log-table').getElementsByTagName('tbody')[0];
+        
+        // Configuration des boutons d'actions
+        const pointButtons = document.querySelectorAll('.point-button');
+        const penaltyButtons = document.querySelectorAll('.penalty-button');
+        
+        // Traitement des clics sur les boutons de points
+        pointButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const color = this.dataset.color;
+                const pointType = this.dataset.pointType;
+                
+                addAction({
+                    type_action: 'point',
+                    couleur: color,
+                    point_type: pointType
+                });
+            });
+        });
+        
+        // Traitement des clics sur les boutons de pénalités
+        penaltyButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const color = this.dataset.color;
+                const penaltyType = this.dataset.penaltyType;
+                
+                addAction({
+                    type_action: 'penalty',
+                    couleur: color,
+                    penalty_type: penaltyType
+                });
+            });
+        });
+        
+        // Fonction pour ajouter une action
+        function addAction(data) {
+            fetch('{% url "competitions:combat_taekwondo:ajouter_action" combat.id %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Mettre à jour les scores
+                    scoreRedElement.textContent = data.score_rouge;
+                    scoreBlueElement.textContent = data.score_blanc;
+                    
+                    // Rafraîchir les données du combat
+                    updateCombatStatus();
+                } else {
+                    alert('Erreur: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                alert('Une erreur est survenue lors de l\'ajout de l\'action.');
+            });
+        }
+        
+        // Fonction pour obtenir la valeur d'un cookie (pour CSRF)
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // Fonction pour mettre à jour les pénalités affichées
+        function updatePenaltyDisplay(penalties) {
+            // Mettre à jour les compteurs
+            kyongGoRedCount.textContent = penalties.rouge['kyong-go'];
+            kyongGoBlueCount.textContent = penalties.blanc['kyong-go'];
+            gamJeomRedCount.textContent = penalties.rouge['gam-jeom'];
+            gamJeomBlueCount.textContent = penalties.blanc['gam-jeom'];
+            
+            // Mettre à jour les badges visuels
+            kyongGoRedBadges.innerHTML = '';
+            kyongGoBlueBadges.innerHTML = '';
+            gamJeomRedBadges.innerHTML = '';
+            gamJeomBlueBadges.innerHTML = '';
+            
+            for (let i = 0; i < penalties.rouge['kyong-go']; i++) {
+                kyongGoRedBadges.innerHTML += '<span class="penalty-badge kyong-go-badge">K</span>';
+            }
+            
+            for (let i = 0; i < penalties.blanc['kyong-go']; i++) {
+                kyongGoBlueBadges.innerHTML += '<span class="penalty-badge kyong-go-badge">K</span>';
+            }
+            
+            for (let i = 0; i < penalties.rouge['gam-jeom']; i++) {
+                gamJeomRedBadges.innerHTML += '<span class="penalty-badge gam-jeom-badge">G</span>';
+            }
+            
+            for (let i = 0; i < penalties.blanc['gam-jeom']; i++) {
+                gamJeomBlueBadges.innerHTML += '<span class="penalty-badge gam-jeom-badge">G</span>';
+            }
+        }
+        
+        // Fonction pour mettre à jour le journal des actions
+        function updateActionLog(actions) {
+            // Vider le tableau actuel
+            actionLogTable.innerHTML = '';
+            
+            if (actions.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td colspan="3" class="text-center">{% trans "Aucune action enregistrée" %}</td>`;
+                actionLogTable.appendChild(row);
+                return;
+            }
+            
+            // Ajouter les actions au tableau
+            actions.forEach(action => {
+                const row = document.createElement('tr');
+                
+                // Formater l'heure
+                const timestamp = new Date(action.timestamp);
+                const timeStr = timestamp.toLocaleTimeString();
+                
+                // Traduire la description
+                let actionDescription = action.description;
+                switch(action.description) {
+                    case 'punch':
+                        actionDescription = '{% trans "Coup de poing" %}';
+                        break;
+                    case 'kick_body':
+                        actionDescription = '{% trans "Coup de pied au tronc" %}';
+                        break;
+                    case 'kick_head':
+                        actionDescription = '{% trans "Coup de pied à la tête" %}';
+                        break;
+                    case 'turning_kick_body':
+                        actionDescription = '{% trans "Coup de pied retourné au tronc" %}';
+                        break;
+                    case 'turning_kick_head':
+                        actionDescription = '{% trans "Coup de pied retourné à la tête" %}';
+                        break;
+                    case 'kyong-go':
+                        actionDescription = 'Kyong-go';
+                        break;
+                    case 'gam-jeom':
+                        actionDescription = 'Gam-jeom';
+                        break;
+                }
+                
+                // Couleur de l'équipe
+                const teamClass = action.team === 'red' ? 'text-danger' : 'text-primary';
+                const teamName = action.team === 'red' ? '{% trans "Rouge" %}' : '{% trans "Blanc" %}';
+                
+                // Type d'action
+                const actionType = action.action_type === 'point' ? '{% trans "Point" %}' : '{% trans "Pénalité" %}';
+                
+                // Points badge
+                const pointsClass = action.action_type === 'point' ? 'bg-success' : 'bg-danger';
+                const pointsPrefix = action.action_type === 'point' ? '+' : '';
+                
+                row.innerHTML = `
+                    <td>${timeStr}</td>
+                    <td class="${teamClass}">${teamName} - ${actionDescription}</td>
+                    <td><span class="badge ${pointsClass}">${pointsPrefix}${action.points}</span></td>
+                `;
+                
+                actionLogTable.appendChild(row);
+            });
+        }
+        
+        // Fonction pour mettre à jour le statut du combat
+        function updateCombatStatus() {
+            fetch('{% url "competitions:combat_taekwondo:api_statut_combat" combat.id %}')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'en_cours') {
+                        // Mettre à jour les scores
+                        scoreRedElement.textContent = data.score_rouge;
+                        scoreBlueElement.textContent = data.score_blanc;
+                        
+                        // Mettre à jour le timer
+                        if (data.elapsed_time !== null) {
+                            // Calculer le temps restant dans le round
+                            const roundDuration = data.round_duration;
+                            const roundTime = data.round_time;
+                            const remainingTime = roundDuration - roundTime;
+                            
+                            // Formater en minutes:secondes
+                            const minutes = Math.floor(remainingTime / 60);
+                            const seconds = Math.floor(remainingTime % 60);
+                            timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                            
+                            // Mettre à jour le numéro du round
+                            roundElement.textContent = data.current_round;
+                        }
+                        
+                        // Mettre à jour les pénalités
+                        updatePenaltyDisplay(data.penalties);
+                        
+                        // Mettre à jour le journal des actions
+                        updateActionLog(data.actions);
+                        
+                        // Continuer à mettre à jour le statut
+                        setTimeout(updateCombatStatus, 1000);
+                    } else if (data.status === 'termine') {
+                        timerElement.textContent = '{% trans "TERMINÉ" %}';
+                        location.reload(); // Recharger la page pour afficher les résultats finaux
+                    } else {
+                        // Combat planifié ou annulé
+                        timerElement.textContent = data.status === 'planifie' ? '{% trans "EN ATTENTE" %}' : '{% trans "ANNULÉ" %}';
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur lors de la mise à jour du statut:', error);
+                    setTimeout(updateCombatStatus, 5000); // Réessayer après une erreur
+                });
+        }
+        
+        {% if combat.status == 'en_cours' %}
+        // Démarrer la mise à jour du statut pour les combats en cours
+        updateCombatStatus();
+        {% endif %}
+    });
+</script>
+{% endblock %}

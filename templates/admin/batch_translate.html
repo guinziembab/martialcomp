@@ -1,0 +1,150 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Batch Translation" %}{% endblock %}
+
+{% block content %}
+<h1>{% trans "Batch Translation with DeepL" %}</h1>
+
+{% if not deepl_available %}
+<div class="messagelist">
+    <div class="error">
+        {% trans "DeepL service is not available. Please check your API key configuration." %}
+    </div>
+</div>
+{% endif %}
+
+<div class="module">
+    <h2>{% trans "Translation Settings" %}</h2>
+    
+    <form method="post" id="batch-translate-form">
+        {% csrf_token %}
+        <table>
+            <tr>
+                <th><label for="target_language">{% trans "Target Language" %}</label></th>
+                <td>
+                    <select name="target_language" id="target_language" required>
+                        <option value="">{% trans "Select language..." %}</option>
+                        {% for lang_code in available_languages %}
+                            {% if lang_code != 'en' %}
+                                <option value="{{ lang_code }}">{{ lang_code|upper }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="source_language">{% trans "Source Language" %}</label></th>
+                <td>
+                    <select name="source_language" id="source_language">
+                        <option value="en">{% trans "English" %}</option>
+                        <option value="auto">{% trans "Auto-detect" %}</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="app_name">{% trans "Application" %}</label></th>
+                <td>
+                    <select name="app_name" id="app_name">
+                        <option value="">{% trans "All applications" %}</option>
+                        <option value="competitions">{% trans "Competitions" %}</option>
+                        <option value="grades">{% trans "Grades" %}</option>
+                        <option value="organizations">{% trans "Organizations" %}</option>
+                        <option value="finances">{% trans "Finances" %}</option>
+                        <option value="shop">{% trans "Shop" %}</option>
+                        <option value="documents">{% trans "Documents" %}</option>
+                        <option value="family_management">{% trans "Family Management" %}</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="dry_run">{% trans "Dry Run" %}</label></th>
+                <td>
+                    <input type="checkbox" name="dry_run" id="dry_run" checked>
+                    <label for="dry_run">{% trans "Preview changes without saving" %}</label>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="force">{% trans "Force Retranslation" %}</label></th>
+                <td>
+                    <input type="checkbox" name="force" id="force">
+                    <label for="force">{% trans "Retranslate existing translations" %}</label>
+                </td>
+            </tr>
+        </table>
+        
+        <div style="margin-top: 20px;">
+            <button type="submit" class="button" {% if not deepl_available %}disabled{% endif %}>
+                {% trans "Start Translation" %}
+            </button>
+        </div>
+    </form>
+</div>
+
+{% if usage_info %}
+<div class="module">
+    <h2>{% trans "Current API Usage" %}</h2>
+    <p>
+        <strong>{% trans "Characters used:" %}</strong> {{ usage_info.character_count|floatformat:0 }} / {{ usage_info.character_limit|floatformat:0 }}
+        ({{ usage_info.usage_percentage|floatformat:1 }}%)
+    </p>
+    <div style="background: #f0f0f0; border: 1px solid #ccc; width: 300px; height: 20px; position: relative;">
+        <div style="background: {% if usage_info.usage_percentage < 50 %}#4CAF50{% elif usage_info.usage_percentage < 80 %}#FF9800{% else %}#F44336{% endif %}; height: 100%; width: {{ usage_info.usage_percentage }}%;"></div>
+        <span style="position: absolute; top: 2px; left: 10px; font-size: 12px;">{{ usage_info.usage_percentage|floatformat:1 }}%</span>
+    </div>
+</div>
+{% endif %}
+
+<div class="module">
+    <h2>{% trans "Command Line Usage" %}</h2>
+    <p>{% trans "You can also use the Django management command:" %}</p>
+    <pre><code>python manage.py translate_missing --target-language fr --dry-run</code></pre>
+    <p>{% trans "Available options:" %}</p>
+    <ul>
+        <li><code>--target-language</code>: {% trans "Target language code (required)" %}</li>
+        <li><code>--source-language</code>: {% trans "Source language code (default: en)" %}</li>
+        <li><code>--app</code>: {% trans "Specific app to translate" %}</li>
+        <li><code>--dry-run</code>: {% trans "Preview without making changes" %}</li>
+        <li><code>--force</code>: {% trans "Retranslate existing translations" %}</li>
+    </ul>
+</div>
+
+<script>
+document.getElementById('batch-translate-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const targetLang = formData.get('target_language');
+    const sourceLang = formData.get('source_language');
+    const appName = formData.get('app_name');
+    const dryRun = formData.get('dry_run') ? '--dry-run' : '';
+    const force = formData.get('force') ? '--force' : '';
+    
+    if (!targetLang) {
+        alert('{% trans "Please select a target language" %}');
+        return;
+    }
+    
+    // Build command
+    let command = `python manage.py translate_missing --target-language ${targetLang}`;
+    if (sourceLang !== 'auto') {
+        command += ` --source-language ${sourceLang}`;
+    }
+    if (appName) {
+        command += ` --app ${appName}`;
+    }
+    if (dryRun) {
+        command += ` ${dryRun}`;
+    }
+    if (force) {
+        command += ` ${force}`;
+    }
+    
+    // Show command to user
+    const result = confirm(`{% trans "Execute this command?" %}\n\n${command}`);
+    if (result) {
+        alert('{% trans "Please run this command in your terminal. Web-based execution is not available for security reasons." %}');
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,606 @@
+﻿"""
+Module pour les QR codes des organisations et le système de parrainage.
+"""
+import uuid
+import json
+from io import BytesIO
+from django.db import models
+from django.core.files import File
+from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
+from django.conf import settings
+from django.urls import reverse
+
+# Import conditionnel de qrcode
+try:
+    import qrcode
+    HAS_QRCODE = True
+except ImportError:
+    HAS_QRCODE = False
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning("Module qrcode non installé. Installer avec: pip install qrcode[pil]")
+
+# Import de l'utilitaire de génération de QR codes
+from ..utils.qr_generator import generate_qr_code_for_entity
+
+
+class OrganizationQRCode(models.Model):
+    """
+    Code QR unique associé Ã  une organisation (club, fédération, coach).
+    Utilisé pour l'inscription rapide et le paiement direct.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Relations polymorphiques avec différents types d'organisations
+    club = models.ForeignKey(
+        'competitions.Club', 
+        on_delete=models.CASCADE,
+        related_name='qr_codes',
+        verbose_name=_("Club"),
+        null=True, blank=True
+    )
+    federation = models.ForeignKey(
+        'competitions.Federation', 
+        on_delete=models.CASCADE,
+        related_name='qr_codes',
+        verbose_name=_("Fédération"),
+        null=True, blank=True
+    )
+    coach_profile = models.ForeignKey(
+        'competitions.CoachProfile', 
+        on_delete=models.CASCADE,
+        related_name='qr_codes',
+        verbose_name=_("Coach"),
+        null=True, blank=True
+    )
+    
+    # Données du QR code
+    purpose = models.CharField(
+        max_length=50, 
+        verbose_name=_("Objectif"),
+        choices=[
+            ('registration', _("Inscription")),
+            ('payment', _("Paiement")),
+            ('both', _("Inscription et paiement")),
+            ('info', _("Information"))
+        ],
+        default='both'
+    )
+    code = models.CharField(max_length=50, unique=True, verbose_name=_("Code QR"))
+    qr_image = models.ImageField(
+        upload_to='qr_codes/organizations/',
+        verbose_name=_("Image QR Code"),
+        blank=True, null=True
+    )
+    url = models.URLField(verbose_name=_("URL"), blank=True)
+    
+    # Statistiques
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Date de création"))
+    last_used_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Dernière utilisation"))
+    scan_count = models.PositiveIntegerField(default=0, verbose_name=_("Nombre de scans"))
+    conversion_count = models.PositiveIntegerField(default=0, verbose_name=_("Nombre de conversions"))
+    is_active = models.BooleanField(default=True, verbose_name=_("Actif"))
+    
+    # Configuration
+    custom_title = models.CharField(max_length=100, blank=True, verbose_name=_("Titre personnalisé"))
+    custom_message = models.TextField(blank=True, verbose_name=_("Message personnalisé"))
+    expiration_date = models.DateTimeField(null=True, blank=True, verbose_name=_("Date d'expiration"))
+    max_uses = models.PositiveIntegerField(null=True, blank=True, verbose_name=_("Nombre maximum d'utilisations"))
+    
+    class Meta:
+        verbose_name = _("Code QR d'organisation")
+        verbose_name_plural = _("Codes QR d'organisations")
+        
+    def __str__(self):
+        if self.club:
+            return f"QR Code: {self.club.name}"
+        elif self.federation:
+            return f"QR Code: {self.federation.name}"
+        elif self.coach_profile:
+            return f"QR Code: {self.coach_profile.user.get_full_name()}"
+        return f"QR Code: {self.id}"
+    
+    def get_entity_type(self):
+        """Retourne le type d'entité associée."""
+        if self.club:
+            return 'club'
+        elif self.federation:
+            return 'federation'
+        elif self.coach_profile:
+            return 'coach'
+        return None
+        
+    def get_entity(self):
+        """Retourne l'entité associée au QR code."""
+        if self.club:
+            return self.club
+        elif self.federation:
+            return self.federation
+        elif self.coach_profile:
+            return self.coach_profile
+        return None
+    
+    def record_scan(self, user=None, ip_address=None, user_agent=None, location=None):
+        """Enregistre un scan et met Ã  jour les statistiques."""
+        self.scan_count += 1
+        self.last_used_at = timezone.now()
+        self.save(update_fields=['scan_count', 'last_used_at'])
+        
+        # Créer un enregistrement de scan
+        scan = OrganizationQRCodeScan.objects.create(
+            qr_code=self,
+            scanned_by=user,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            location=location
+        )
+        return scan
+        
+    def record_conversion(self):
+        """Enregistre une conversion (inscription ou paiement réussi)."""
+        self.conversion_count += 1
+        self.save(update_fields=['conversion_count'])
+        
+    def is_expired(self):
+        """Vérifie si le QR code est expiré."""
+        if not self.is_active:
+            return True
+        if self.expiration_date and timezone.now() > self.expiration_date:
+            return True
+        if self.max_uses and self.scan_count >= self.max_uses:
+            return True
+        return False
+        
+    def deactivate(self):
+        """Désactive le code QR."""
+        self.is_active = False
+        self.save(update_fields=['is_active'])
+        
+    def reactivate(self):
+        """Réactive le code QR."""
+        self.is_active = True
+        self.save(update_fields=['is_active'])
+        
+    def generate_qr_code(self):
+        """Génère l'image du QR code pour l'organisation."""
+        if not HAS_QRCODE:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Impossible de générer le QR code pour {self}. Module qrcode non installé.")
+            return
+            
+        # Obtenir l'entité et son type
+        entity = self.get_entity()
+        entity_type = self.get_entity_type()
+        
+        if not entity or not entity_type:
+            return
+            
+        # Déterminer l'action en fonction de l'objectif
+        if self.purpose == 'registration':
+            action = 'register'
+        elif self.purpose == 'payment':
+            action = 'payment'
+        elif self.purpose == 'both':
+            action = 'register'  # Par défaut, on utilise register qui aura l'option de paiement
+        else:
+            action = 'view'
+            
+        # Générer l'URL et le QR code
+        url, file_path = generate_qr_code_for_entity(entity, entity_type, action)
+        
+        # Mettre Ã  jour l'URL et l'image
+        self.url = url
+        self.code = str(uuid.uuid4())
+        
+        # Charger l'image du QR code
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+        
+        if default_storage.exists(file_path):
+            with default_storage.open(file_path) as f:
+                self.qr_image.save(file_path.split('/')[-1], ContentFile(f.read()), save=False)
+                
+        self.save()
+        
+    def save(self, *args, **kwargs):
+        # Générer le QR code si c'est une nouvelle instance et que l'image n'existe pas
+        is_new = not self.pk
+        super().save(*args, **kwargs)
+        
+        if is_new and not self.qr_image:
+            self.generate_qr_code()
+            super().save(update_fields=['url', 'code', 'qr_image'])
+
+
+class OrganizationQRCodeScan(models.Model):
+    """
+    Enregistrement d'un scan de QR code d'organisation.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    qr_code = models.ForeignKey(
+        OrganizationQRCode, 
+        on_delete=models.CASCADE,
+        related_name='scans',
+        verbose_name=_("Code QR")
+    )
+    
+    # Données du scan
+    scanned_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Date de scan"))
+    scanned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='organization_qr_scans',
+        verbose_name=_("Scanné par")
+    )
+    ip_address = models.GenericIPAddressField(
+        null=True, blank=True, 
+        verbose_name=_("Adresse IP")
+    )
+    user_agent = models.TextField(blank=True, verbose_name=_("Agent utilisateur"))
+    location = models.CharField(
+        max_length=200, blank=True, 
+        verbose_name=_("Lieu"),
+        help_text=_("Lieu oÃ¹ le scan a été effectué")
+    )
+    
+    # Suivi de conversion
+    converted = models.BooleanField(default=False, verbose_name=_("Converti"))
+    conversion_type = models.CharField(
+        max_length=50, blank=True, 
+        verbose_name=_("Type de conversion"),
+        choices=[
+            ('registration', _("Inscription")),
+            ('payment', _("Paiement")),
+            ('both', _("Inscription et paiement")),
+            ('other', _("Autre"))
+        ]
+    )
+    conversion_date = models.DateTimeField(null=True, blank=True, verbose_name=_("Date de conversion"))
+    
+    # Références aux entités créées
+    user_created = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='qr_registrations',
+        verbose_name=_("Utilisateur créé")
+    )
+    practitioner_created = models.ForeignKey(
+        'competitions.Practitioner',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='qr_registrations',
+        verbose_name=_("Pratiquant créé")
+    )
+    
+    # Informations de paiement
+    payment_amount = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        null=True, blank=True,
+        verbose_name=_("Montant payé")
+    )
+    payment_transaction = models.ForeignKey(
+        'finances.Transaction',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='qr_scans',
+        verbose_name=_("Transaction de paiement")
+    )
+    
+    # Métadonnées
+    notes = models.TextField(blank=True, verbose_name=_("Notes"))
+    
+    class Meta:
+        verbose_name = _("Scan de QR code d'organisation")
+        verbose_name_plural = _("Scans de QR codes d'organisations")
+        ordering = ['-scanned_at']
+        
+    def __str__(self):
+        entity_name = str(self.qr_code)
+        return f"Scan: {entity_name} le {self.scanned_at.strftime('%d/%m/%Y %H:%M')}"
+    
+    def mark_converted(self, conversion_type='registration', user=None, practitioner=None, payment_amount=None, transaction=None):
+        """Marque le scan comme converti avec les détails associés."""
+        self.converted = True
+        self.conversion_type = conversion_type
+        self.conversion_date = timezone.now()
+        
+        # Enregistrer les références
+        if user:
+            self.user_created = user
+        if practitioner:
+            self.practitioner_created = practitioner
+        if payment_amount:
+            self.payment_amount = payment_amount
+        if transaction:
+            self.payment_transaction = transaction
+            
+        self.save()
+        
+        # Mettre Ã  jour les statistiques du QR code
+        self.qr_code.record_conversion()
+        
+        return True
+
+
+class ReferralLink(models.Model):
+    """
+    Lien de parrainage permettant aux utilisateurs de parrainer de nouveaux membres.
+    Le parrain reçoit une réduction sur sa cotisation lorsque le parrainé paie la sienne.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Le parrain
+    referrer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='referral_links',
+        verbose_name=_("Parrain")
+    )
+    
+    # L'organisation associée
+    club = models.ForeignKey(
+        'competitions.Club',
+        on_delete=models.CASCADE,
+        related_name='referral_links',
+        verbose_name=_("Club"),
+        null=True, blank=True
+    )
+    federation = models.ForeignKey(
+        'competitions.Federation',
+        on_delete=models.CASCADE,
+        related_name='referral_links',
+        verbose_name=_("Fédération"),
+        null=True, blank=True
+    )
+    
+    # Données du lien
+    code = models.CharField(max_length=20, unique=True, verbose_name=_("Code de parrainage"))
+    url = models.URLField(verbose_name=_("URL"), blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Date de création"))
+    expires_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Date d'expiration"))
+    is_active = models.BooleanField(default=True, verbose_name=_("Actif"))
+    
+    # Configuration de la réduction
+    discount_amount = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        null=True, blank=True,
+        verbose_name=_("Montant de réduction")
+    )
+    discount_percentage = models.DecimalField(
+        max_digits=5, decimal_places=2,
+        null=True, blank=True,
+        verbose_name=_("Pourcentage de réduction")
+    )
+    max_uses = models.PositiveIntegerField(default=10, verbose_name=_("Utilisations maximales"))
+    current_uses = models.PositiveIntegerField(default=0, verbose_name=_("Utilisations actuelles"))
+    
+    # Personnalisation
+    custom_message = models.TextField(blank=True, verbose_name=_("Message personnalisé"))
+    
+    class Meta:
+        verbose_name = _("Lien de parrainage")
+        verbose_name_plural = _("Liens de parrainage")
+        
+    def __str__(self):
+        return f"Parrainage: {self.referrer.get_full_name()} ({self.code})"
+    
+    def save(self, *args, **kwargs):
+        # Générer un code s'il n'existe pas
+        if not self.code:
+            self.code = self.generate_code()
+        
+        # Générer l'URL si elle n'existe pas
+        if not self.url:
+            self.generate_url()
+            
+        super().save(*args, **kwargs)
+    
+    def generate_code(self):
+        """Génère un code de parrainage unique."""
+        import random
+        import string
+        
+        # Générer un code alphanumérique de 8 caractères
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        
+        # Vérifier l'unicité
+        while ReferralLink.objects.filter(code=code).exists():
+            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+            
+        return code
+    
+    def generate_url(self):
+        """Génère l'URL du lien de parrainage."""
+        base_url = getattr(settings, 'BASE_URL', 'http://localhost:8000')
+        
+        if self.club:
+            self.url = f"{base_url}/signup/club/{self.club.id}/?ref={self.code}"
+        elif self.federation:
+            self.url = f"{base_url}/signup/federation/{self.federation.id}/?ref={self.code}"
+        else:
+            self.url = f"{base_url}/signup/?ref={self.code}"
+    
+    def is_valid(self):
+        """Vérifie si le lien de parrainage est valide."""
+        if not self.is_active:
+            return False
+        if self.expires_at and timezone.now() > self.expires_at:
+            return False
+        if self.current_uses >= self.max_uses:
+            return False
+        return True
+    
+    def use(self):
+        """Utilise le lien de parrainage et met Ã  jour le compteur."""
+        if self.is_valid():
+            self.current_uses += 1
+            self.save(update_fields=['current_uses'])
+            return True
+        return False
+    
+    def get_discount_info(self):
+        """Retourne les informations de réduction."""
+        if self.discount_amount:
+            return {
+                'type': 'amount',
+                'value': self.discount_amount,
+                'formatted': f"{self.discount_amount} â‚¬"
+            }
+        elif self.discount_percentage:
+            return {
+                'type': 'percentage',
+                'value': self.discount_percentage,
+                'formatted': f"{self.discount_percentage}%"
+            }
+        return None
+    
+    def generate_qr_code(self):
+        """Génère un QR code pour le lien de parrainage."""
+        if not HAS_QRCODE:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Impossible de générer le QR code pour le parrainage {self.code}. Module qrcode non installé.")
+            return None
+            
+        # Créer le QR code
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(self.url)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Créer un BytesIO pour sauvegarder l'image
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+        
+        # Retourner l'image au format BytesIO
+        return buffer
+
+
+class ReferralUse(models.Model):
+    """
+    Enregistrement de l'utilisation d'un lien de parrainage.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    referral_link = models.ForeignKey(
+        ReferralLink,
+        on_delete=models.CASCADE,
+        related_name='uses',
+        verbose_name=_("Lien de parrainage")
+    )
+    referred_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='referral_signups',
+        verbose_name=_("Utilisateur parrainé")
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Date d'utilisation"))
+    
+    # Statut de la conversion
+    converted = models.BooleanField(default=False, verbose_name=_("Converti"))
+    payment_completed = models.BooleanField(default=False, verbose_name=_("Paiement effectué"))
+    payment_date = models.DateTimeField(null=True, blank=True, verbose_name=_("Date de paiement"))
+    
+    # Informations sur la réduction appliquée
+    discount_applied = models.BooleanField(default=False, verbose_name=_("Réduction appliquée"))
+    discount_amount = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        null=True, blank=True,
+        verbose_name=_("Montant de la réduction")
+    )
+    
+    # Informations sur le paiement
+    payment_transaction = models.ForeignKey(
+        'finances.Transaction',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='referral_uses',
+        verbose_name=_("Transaction de paiement")
+    )
+    
+    # Lien avec le pratiquant créé
+    practitioner_created = models.ForeignKey(
+        'competitions.Practitioner',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='referral_signups',
+        verbose_name=_("Pratiquant créé")
+    )
+    
+    class Meta:
+        verbose_name = _("Utilisation de parrainage")
+        verbose_name_plural = _("Utilisations de parrainage")
+        
+    def __str__(self):
+        return f"{self.referral_link.referrer.get_full_name()} a parrainé {self.referred_user.get_full_name()}"
+    
+    def mark_converted(self, practitioner=None):
+        """Marque l'utilisation comme convertie (inscription terminée)."""
+        self.converted = True
+        
+        if practitioner:
+            self.practitioner_created = practitioner
+            
+        self.save(update_fields=['converted', 'practitioner_created'] if practitioner else ['converted'])
+    
+    def mark_payment_completed(self, transaction=None, discount_amount=None):
+        """Marque le paiement comme complété."""
+        self.payment_completed = True
+        self.payment_date = timezone.now()
+        
+        if transaction:
+            self.payment_transaction = transaction
+            
+        if discount_amount:
+            self.discount_applied = True
+            self.discount_amount = discount_amount
+            
+        self.save()
+        
+        # Mettre Ã  jour le lien de parrainage
+        self.referral_link.use()
+        
+        # Notifier le parrain qu'il a droit Ã  une réduction
+        self.notify_referrer()
+    
+    def notify_referrer(self):
+        """Notifie le parrain qu'il a droit Ã  une réduction."""
+        # Créer une notification pour le parrain
+        from ..models.notifications import Notification
+        
+        # Récupérer le montant ou pourcentage de réduction
+        discount_info = self.referral_link.get_discount_info()
+        if not discount_info:
+            return
+            
+        discount_text = discount_info.get('formatted', '')
+        
+        # Créer la notification
+        try:
+            Notification.objects.create(
+                user=self.referral_link.referrer,
+                title=_("Parrainage réussi !"),
+                message=_(f"Votre filleul {self.referred_user.get_full_name()} a complété son inscription et son paiement. "
+                         f"Vous bénéficiez d'une réduction de {discount_text} sur votre prochaine cotisation."),
+                notification_type='referral',
+                data=json.dumps({
+                    'referral_use_id': str(self.id),
+                    'referral_link_id': str(self.referral_link.id),
+                    'discount_type': discount_info.get('type'),
+                    'discount_value': float(discount_info.get('value', 0))
+                })
+            )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Erreur lors de la création de la notification de parrainage: {e}")

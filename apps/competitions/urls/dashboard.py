@@ -1,8 +1,9 @@
 from django.urls import path
+from django.shortcuts import redirect
 from apps.competitions.views.dashboard import (
     admin, base, club, coach, coach_multidiscipline, combat,
     documentation, external_organizer, federations, finance,
-    manager, participant, participant_enhanced, pro, referee, spectator, coach_emergency, coach_fixed, coach_functions
+    manager, participant, participant_enhanced, pro, referee, spectator, coach_emergency, coach_fixed, coach_functions, club_tabbed, club_anti_scroll
 )
 
 app_name = 'dashboard'
@@ -18,8 +19,20 @@ urlpatterns = [
     # Dashboard admin
     path('admin/', admin.admin_dashboard, name='admin'),
     
-    # Dashboard club
+    # Dashboard club (version originale restaurée)
     path('club/', club.club_dashboard, name='club'),
+    
+    # Dashboard club avec onglets (nouvelle version)
+    path('club/tabbed/', club_tabbed.club_dashboard_tabbed, name='club_tabbed'),
+    
+    # Dashboard club avec onglets simples (test)
+    path('club/tabs/', club_tabbed.club_dashboard_simple_tabs, name='club_simple_tabs'),
+    
+    # Test de diagnostic
+    path('club/test-tabbed/', club_tabbed.club_dashboard_tabbed_test, name='club_tabbed_test'),
+    
+    # Dashboard club anti-scroll (nouvelle version complète)
+    path('club/anti-scroll/', club_anti_scroll.club_dashboard_anti_scroll, name='club_anti_scroll'),
     
     # Dashboard coach - VERSION CORRIGÉE
     path('coach/', coach_fixed.coach_dashboard, name='coach'),
@@ -73,6 +86,7 @@ urlpatterns = [
     
     # URLs fonctionnelles pour le coach
     path('coach/students/', coach_functions.coach_students, name='coach_students'),
+    path('coach/disciplines/', coach_functions.coach_disciplines, name='coach_disciplines'),
     path('coach/planning/', coach_functions.coach_planning, name='coach_planning'),
     path('coach/programs/', coach_functions.coach_programs, name='coach_programs'),
     path('coach/competitions/', coach_functions.coach_competitions, name='coach_competitions'),

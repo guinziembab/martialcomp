@@ -1,0 +1,528 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Résultats de la compétition" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .category-section {
+        margin-bottom: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    .category-header {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .results-table {
+        width: 100%;
+    }
+    
+    .results-table th {
+        position: sticky;
+        top: 0;
+        background-color: #f8f9fa;
+        z-index: 10;
+    }
+    
+    .medal-gold {
+        background-color: rgba(255, 215, 0, 0.2);
+    }
+    
+    .medal-silver {
+        background-color: rgba(192, 192, 192, 0.2);
+    }
+    
+    .medal-bronze {
+        background-color: rgba(205, 127, 50, 0.2);
+    }
+    
+    .competitor-row:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+    
+    .score-detail {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    .badge-discipline {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .badge-category {
+        background-color: #6610f2;
+        color: white;
+    }
+    
+    .badge-age {
+        background-color: #fd7e14;
+        color: white;
+    }
+    
+    .badge-gender {
+        background-color: #e83e8c;
+        color: white;
+    }
+    
+    .rank-number {
+        font-size: 1.2rem;
+        font-weight: bold;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+    
+    .rank-1 {
+        background-color: gold;
+        color: #212529;
+    }
+    
+    .rank-2 {
+        background-color: silver;
+        color: #212529;
+    }
+    
+    .rank-3 {
+        background-color: #cd7f32;
+        color: white;
+    }
+    
+    .print-button {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+    }
+    
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        
+        .page-break {
+            page-break-before: always;
+        }
+        
+        .category-section {
+            break-inside: avoid;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header with competition info -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="h2 mb-2">{{ competition.title }}</h1>
+            <p class="text-muted">
+                <i class="fas fa-calendar-day me-2"></i>{{ competition.start_date|date:"d F Y" }}
+                {% if competition.end_date and competition.end_date != competition.start_date %}
+                    - {{ competition.end_date|date:"d F Y" }}
+                {% endif %}
+                <i class="fas fa-map-marker-alt ms-3 me-2"></i>{{ competition.location }}
+            </p>
+            
+            <div class="badge-container mb-3">
+                {% if selected_discipline %}
+                    <span class="badge badge-discipline">{{ selected_discipline.name }}</span>
+                {% endif %}
+                {% if selected_category %}
+                    <span class="badge badge-category">{{ selected_category.name }}</span>
+                {% endif %}
+                {% if selected_age_group %}
+                    <span class="badge badge-age">{{ selected_age_group }}</span>
+                {% endif %}
+                {% if selected_gender %}
+                    <span class="badge badge-gender">{{ selected_gender_display }}</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="col-md-4 text-end">
+            <div class="btn-group mb-2">
+                <a href="{% url 'competitions:competitions:detail' competition.id %}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}</a>
+                <button id="printResults" class="btn btn-outline-secondary">
+                    <i class="fas fa-print me-2"></i>{% trans "Imprimer" %}</button>
+                {% if user_can_export %}
+                    <a href="{% url 'competitions:competitions:export_results' competition.id %}?format=pdf{% if selected_category %}&category={{ selected_category.id }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline.id }}{% endif %}" class="btn btn-outline-danger">
+                        <i class="fas fa-file-pdf me-2"></i>{% trans "PDF" %}</a>
+                    <a href="{% url 'competitions:competitions:export_results' competition.id %}?format=excel{% if selected_category %}&category={{ selected_category.id }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline.id }}{% endif %}" class="btn btn-outline-success">
+                        <i class="fas fa-file-excel me-2"></i>{% trans "Excel" %}</a>
+                {% endif %}
+            </div>
+            
+            <!-- Filters (desktop view) -->
+            <div class="dropdown d-none d-md-inline-block">
+                <button class="btn btn-outline-primary dropdown-toggle" type="button" id="filtersDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-filter me-2"></i>{% trans "Filtres" %}</button>
+                <div class="dropdown-menu dropdown-menu-end p-3" style="width: 300px;">
+                    <form method="GET" action="">
+                        <div class="mb-3">
+                            <label for="discipline" class="form-label">{% trans "Discipline" %}</label>
+                            <select name="discipline" id="discipline" class="form-select">
+                                <option value="">{% trans "Toutes les disciplines" %}</option>
+                                {% for discipline in disciplines %}
+                                    <option value="{{ discipline.id }}" {% if selected_discipline.id == discipline.id %}selected{% endif %}>
+                                        {{ discipline.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="category" class="form-label">{% trans "Catégorie" %}</label>
+                            <select name="category" id="category" class="form-select">
+                                <option value="">{% trans "Toutes les catégories" %}</option>
+                                {% for category in categories %}
+                                    <option value="{{ category.id }}" {% if selected_category.id == category.id %}selected{% endif %}>
+                                        {{ category.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="age_group" class="form-label">{% trans "Groupe d'âge" %}</label>
+                            <select name="age_group" id="age_group" class="form-select">
+                                <option value="">{% trans "Tous les âges" %}</option>
+                                {% for age_group in age_groups %}
+                                    <option value="{{ age_group }}" {% if selected_age_group == age_group %}selected{% endif %}>
+                                        {{ age_group }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="gender" class="form-label">{% trans "Genre" %}</label>
+                            <select name="gender" id="gender" class="form-select">
+                                <option value="">{% trans "Tous" %}</option>
+                                <option value="male" {% if selected_gender == 'male' %}selected{% endif %}>{% trans "Hommes" %}</option>
+                                <option value="female" {% if selected_gender == 'female' %}selected{% endif %}>{% trans "Femmes" %}</option>
+                                <option value="mixed" {% if selected_gender == 'mixed' %}selected{% endif %}>{% trans "Mixte" %}</option>
+                            </select>
+                        </div>
+                        
+                        <div class="text-end">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-filter me-2"></i>{% trans "Appliquer" %}</button>
+                            <a href="{% url 'competitions:scoring:results' competition.id %}" class="btn btn-outline-secondary btn-sm">
+                                <i class="fas fa-undo me-2"></i>{% trans "Réinitialiser" %}</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Mobile filters (collapsed by default) -->
+    <div class="d-md-none mb-4">
+        <button class="btn btn-outline-primary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#mobileFilters" aria-expanded="false" aria-controls="mobileFilters">
+            <i class="fas fa-filter me-2"></i>{% trans "Filtres" %}</button>
+        <div class="collapse mt-3" id="mobileFilters">
+            <div class="card card-body">
+                <form method="GET" action="">
+                    <div class="mb-3">
+                        <label for="mobile-discipline" class="form-label">{% trans "Discipline" %}</label>
+                        <select name="discipline" id="mobile-discipline" class="form-select">
+                            <option value="">{% trans "Toutes les disciplines" %}</option>
+                            {% for discipline in disciplines %}
+                                <option value="{{ discipline.id }}" {% if selected_discipline.id == discipline.id %}selected{% endif %}>
+                                    {{ discipline.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="mobile-category" class="form-label">{% trans "Catégorie" %}</label>
+                        <select name="category" id="mobile-category" class="form-select">
+                            <option value="">{% trans "Toutes les catégories" %}</option>
+                            {% for category in categories %}
+                                <option value="{{ category.id }}" {% if selected_category.id == category.id %}selected{% endif %}>
+                                    {{ category.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="mobile-age_group" class="form-label">{% trans "Groupe d'âge" %}</label>
+                        <select name="age_group" id="mobile-age_group" class="form-select">
+                            <option value="">{% trans "Tous les âges" %}</option>
+                            {% for age_group in age_groups %}
+                                <option value="{{ age_group }}" {% if selected_age_group == age_group %}selected{% endif %}>
+                                    {{ age_group }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="mobile-gender" class="form-label">{% trans "Genre" %}</label>
+                        <select name="gender" id="mobile-gender" class="form-select">
+                            <option value="">{% trans "Tous" %}</option>
+                            <option value="male" {% if selected_gender == 'male' %}selected{% endif %}>{% trans "Hommes" %}</option>
+                            <option value="female" {% if selected_gender == 'female' %}selected{% endif %}>{% trans "Femmes" %}</option>
+                            <option value="mixed" {% if selected_gender == 'mixed' %}selected{% endif %}>{% trans "Mixte" %}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-filter me-2"></i>{% trans "Appliquer" %}</button>
+                        <a href="{% url 'competitions:scoring:results' competition.id %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-undo me-2"></i>{% trans "Réinitialiser" %}</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results by category -->
+    {% if results_by_category %}
+        {% for category_id, category_data in results_by_category.items %}
+            <div class="category-section" id="category-{{ category_id }}">
+                <div class="category-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h2 class="h4 mb-0">{{ category_data.name }}</h2>
+                        <div>
+                            <span class="badge badge-discipline">{{ category_data.discipline.name }}</span>
+                            {% if category_data.age_group %}
+                                <span class="badge badge-age">{{ category_data.age_group }}</span>
+                            {% endif %}
+                            {% if category_data.gender %}
+                                <span class="badge badge-gender">{{ category_data.gender_display }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-hover results-table">
+                        <thead>
+                            <tr>
+                                <th scope="col" style="width: 80px;">{% trans "Rang" %}</th>
+                                <th scope="col">{% trans "Pratiquant" %}</th>
+                                <th scope="col">{% trans "Club" %}</th>
+                                <th scope="col" class="text-center">{% trans "Score" %}</th>
+                                {% if show_judge_scores %}
+                                    {% for judge in category_data.judges %}
+                                        <th scope="col" class="text-center">{{ judge.user.get_short_name }}</th>
+                                    {% endfor %}
+                                {% endif %}
+                                {% if user_can_manage %}
+                                    <th scope="col" class="text-center no-print">{% trans "Actions" %}</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for result in category_data.results %}
+                                <tr class="competitor-row {% if result.rank == 1 %}medal-gold{% elif result.rank == 2 %}medal-silver{% elif result.rank == 3 %}medal-bronze{% endif %}">
+                                    <td class="text-center">
+                                        <div class="rank-number rank-{{ result.rank }} mx-auto">
+                                            {{ result.rank }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if result.practitioner.photo %}
+                                                <img src="{{ result.practitioner.photo.url }}" alt="{% trans "Photo" %}" class="rounded-circle me-2" style="width: 32px; height: 32px;">
+                                            {% else %}
+                                                <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px;">
+                                                    <i class="fas fa-user"></i>
+                                                </div>
+                                            {% endif %}
+                                            <div>
+                                                <div>{{ result.practitioner.full_name }}</div>
+                                                <small class="text-muted">{{ result.practitioner.age }} ans</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if result.practitioner.club %}
+                                            <div class="d-flex align-items-center">
+                                                {% if result.practitioner.club.logo %}
+                                                    <img src="{{ result.practitioner.club.logo.url }}" alt="{% trans "Logo" %}" class="me-2" style="max-height: 20px; max-width: 20px;">
+                                                {% endif %}
+                                                {{ result.practitioner.club.name }}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">{% trans "Indépendant" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="fw-bold">{{ result.final_score|floatformat:2 }}</div>
+                                        {% if result.notes %}
+                                            <div class="score-detail">{{ result.notes }}</div>
+                                        {% endif %}
+                                    </td>
+                                    {% if show_judge_scores %}
+                                        {% for judge in category_data.judges %}
+                                            <td class="text-center">
+                                                {% with judge_score=result.judge_scores|get_item:judge.id %}
+                                                    {% if judge_score %}
+                                                        {{ judge_score|floatformat:2 }}
+                                                    {% else %}
+                                                        <span class="text-muted">-</span>
+                                                    {% endif %}
+                                                {% endwith %}
+                                            </td>
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% if user_can_manage %}
+                                        <td class="text-center no-print">
+                                            <div class="btn-group">
+                                                <a href="{% url 'competitions:scoring:edit_result' result.id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#deleteResultModal" 
+                                                        data-result-id="{{ result.id }}"
+                                                        data-practitioner-name="{{ result.practitioner.full_name }}">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    {% endif %}
+                                </tr>
+                            {% endfor %}
+                            
+                            {% if category_data.results|length == 0 %}
+                                <tr>
+                                    <td colspan="{% if show_judge_scores %}{{ category_data.judges|length|add:4 }}{% else %}4{% endif %}{% if user_can_manage %}|add:1{% endif %}" class="text-center py-4">
+                                        <div class="text-muted">
+                                            <i class="fas fa-info-circle me-2"></i>{% trans "Aucun résultat disponible pour cette catégorie" %}</div>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            {% if not forloop.last %}
+                <div class="page-break"></div>
+            {% endif %}
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            {% if selected_category or selected_discipline or selected_age_group or selected_gender %}
+                Aucun résultat trouvé pour les filtres sélectionnés.
+            {% else %}
+                Aucun résultat disponible pour cette compétition.
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+<!-- Delete Confirmation Modal -->
+{% if user_can_manage %}
+    <div class="modal fade" id="deleteResultModal" tabindex="-1" aria-labelledby="deleteResultModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteResultModalLabel">{% trans "Confirmer la suppression" %}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Êtes-vous sûr de vouloir supprimer le résultat de <span id="practitionerName"></span> ?
+                    <div class="alert alert-warning mt-2">
+                        <i class="fas fa-exclamation-triangle me-2"></i>{% trans "Cette action est irréversible." %}</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                    <form id="deleteResultForm" method="POST" action="">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">{% trans "Supprimer" %}</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+<!-- Print button (fixed position) -->
+<button id="printButtonFixed" class="btn btn-primary print-button no-print">
+    <i class="fas fa-print me-2"></i>{% trans "Imprimer" %}</button>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle discipline change (update categories dropdown)
+        const disciplineSelects = document.querySelectorAll('#discipline, #mobile-discipline');
+        disciplineSelects.forEach(disciplineSelect => {
+            disciplineSelect.addEventListener('change', function() {
+                const disciplineId = this.value;
+                // Fetch categories for this discipline using AJAX
+                if (disciplineId) {
+                    fetch(`/api/disciplines/${disciplineId}/categories/`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const categorySelects = document.querySelectorAll('#category, #mobile-category');
+                            categorySelects.forEach(categorySelect => {
+                                // Clear existing options
+                                categorySelect.innerHTML = '<option value="">{% trans "Toutes les catégories" %}</option>';
+                                
+                                // Add new options
+                                data.categories.forEach(category => {
+                                    const option = document.createElement('option');
+                                    option.value = category.id;
+                                    option.textContent = category.name;
+                                    categorySelect.appendChild(option);
+                                });
+                            });
+                        })
+                        .catch(error => console.error('Error fetching categories:', error));
+                }
+            });
+        });
+        
+        // Print functionality
+        const printButtons = document.querySelectorAll('#printResults, #printButtonFixed');
+        printButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                window.print();
+            });
+        });
+        
+        // Handle delete modal
+        const deleteResultModal = document.getElementById('deleteResultModal');
+        if (deleteResultModal) {
+            deleteResultModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                const resultId = button.getAttribute('data-result-id');
+                const practitionerName = button.getAttribute('data-practitioner-name');
+                
+                const practitionerNameSpan = document.getElementById('practitionerName');
+                const deleteForm = document.getElementById('deleteResultForm');
+                
+                if (practitionerNameSpan) {
+                    practitionerNameSpan.textContent = practitionerName;
+                }
+                
+                if (deleteForm) {
+                    deleteForm.action = `/competitions/scoring/results/${resultId}/delete/`;
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

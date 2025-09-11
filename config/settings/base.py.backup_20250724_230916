@@ -1,0 +1,375 @@
+import os
+from pathlib import Path
+import sys
+from decouple import config
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+# Ajouter le chemin du projet au sys.path pour faciliter les importations
+sys.path.append(str(BASE_DIR / 'apps'))
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-martialcomp-secret-key-change-in-production-2025-auth-system')
+
+# Application definition
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'django.contrib.sites',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+    'allauth.socialaccount.providers.facebook',
+    'rosetta',
+    'modeltranslation',
+    'widget_tweaks',
+    'crispy_forms',
+    'crispy_bootstrap5',
+    
+    # Applications MartialComp (maintenant dans apps/)
+    'competitions',
+    'organizations',
+    'multitenant',
+    'grades',               # ← Changé de 'grades.apps.GradesConfig'
+    'finances',
+    'shop',
+    'documents',
+    'family_management',
+    'permissions_manager',
+    'payment',
+    'accounts',
+    'security',             # ← Ajouté (trouvé dans apps/)
+]
+
+# Solution de secours avec chemin d'importation correct
+try:
+    # Le middleware est dans un package
+    from competitions.middleware import OnboardingRedirectMiddleware
+    MIDDLEWARE_ONBOARDING = 'competitions.middleware.OnboardingRedirectMiddleware'
+    print("SUCCESS: Middleware OnboardingRedirectMiddleware trouve et importe avec succes.")
+except (ImportError, AttributeError) as e:
+    # Si le middleware n'existe pas, utiliser un middleware générique
+    MIDDLEWARE_ONBOARDING = 'django.middleware.common.CommonMiddleware'
+    import logging
+    logging.getLogger(__name__).warning(
+        f"OnboardingRedirectMiddleware n'est pas disponible: {str(e)}. "
+        "Assurez-vous que le fichier competitions/middleware/__init__.py existe avec la classe OnboardingRedirectMiddleware."
+    )
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'multitenant.middleware.TenantMiddleware',  # Middleware tenant MUST be early
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
+    # Utiliser la variable au lieu de la référence directe
+    MIDDLEWARE_ONBOARDING,
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
+    'payment.middleware.SubscriptionMiddleware',  # Middleware pour vérifier les abonnements
+]
+
+ROOT_URLCONF = 'config.urls'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'competitions' / 'templates'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.template.context_processors.i18n',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+                'competitions.context_processors.language_context',
+                'payment.context_processors.subscription_context',
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = 'config.wsgi.application'
+
+# Password validation
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+
+# Internationalization
+LANGUAGE_CODE = 'en'
+TIME_ZONE = 'Europe/Paris'
+USE_I18N = True
+USE_L10N = True
+USE_TZ = True
+
+# Langues supportées (18 langues)
+LANGUAGES = [
+    ('fr', 'Français'),
+    ('en', 'English'),
+    ('es', 'Español'),
+    ('it', 'Italiano'),
+    ('de', 'Deutsch'),
+    ('pt', 'Português'),
+    ('ru', 'Русский'),
+    ('vi', 'Tiếng Việt'),
+    ('no', 'Norsk'),
+    ('ja', '日本語'),
+    ('zh-hans', '中文'),
+    ('hi', 'हिन्दी'),
+    ('ar', 'العربية'),
+    ('sw', 'Kiswahili'),
+    ('am', 'አማርኛ'),
+    ('zu', 'isiZulu'),
+    ('yo', 'Yorùbá'),
+    ('ko', '한국어'),
+]
+
+# Configuration django-modeltranslation
+MODELTRANSLATION_DEFAULT_LANGUAGE = 'fr'
+MODELTRANSLATION_LANGUAGES = ('fr', 'en')  # Pour commencer avec français et anglais
+MODELTRANSLATION_FALLBACK_LANGUAGES = ('fr', 'en')
+
+# Chemins des fichiers de traduction
+LOCALE_PATHS = [
+    BASE_DIR / 'locale',
+]
+
+# Static files (CSS, JavaScript, Images)
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Media files
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='MartialComp <noreply@martialcomp.com>')
+
+# Email addresses for different services
+ACCOUNTING_EMAIL = config('ACCOUNTING_EMAIL', default='finance@martialcomp.com')
+CUSTOMER_SERVICE_EMAIL = config('CUSTOMER_SERVICE_EMAIL', default='support@martialcomp.com')
+SUPPORT_EMAIL = config('SUPPORT_EMAIL', default='support@martialcomp.com')
+
+# Site URL for email links
+SITE_URL = config('SITE_URL', default='http://localhost:8000')
+
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Site framework
+SITE_ID = 1
+
+# Authentication
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+# ================================================================
+# 🔧 DJANGO ALLAUTH CONFIGURATION - VERSION MISE À JOUR
+# ================================================================
+
+# ✅ NOUVEAUX PARAMÈTRES (remplaçant les anciens dépréciés)
+ACCOUNT_LOGIN_METHODS = {'email', 'username'}  # Permet connexion par email OU username
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']  # Champs requis à l'inscription
+
+# Configuration d'authentification moderne
+ACCOUNT_EMAIL_VERIFICATION = 'optional'  # Vérification email optionnelle en développement
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
+ACCOUNT_LOGOUT_ON_GET = False
+ACCOUNT_SESSION_REMEMBER = True
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_USER_MODEL_USERNAME_FIELD = 'username'  # Utilise le champ username standard
+ACCOUNT_USER_MODEL_EMAIL_FIELD = 'email'
+
+# Adaptateurs personnalisés pour l'onboarding
+ACCOUNT_ADAPTER = 'competitions.adapters.CustomAccountAdapter'
+SOCIALACCOUNT_ADAPTER = 'competitions.adapters.CustomSocialAccountAdapter'
+
+# Configuration des URLs de redirection
+LOGIN_REDIRECT_URL = '/competitions/onboarding/role/'
+ACCOUNT_LOGIN_REDIRECT_URL = '/competitions/onboarding/role/'
+ACCOUNT_SIGNUP_REDIRECT_URL = '/competitions/onboarding/role/'
+LOGOUT_REDIRECT_URL = '/fr/'
+LOGIN_URL = '/accounts/login/'
+
+# Configuration d'authentification sociale
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_EMAIL_VERIFICATION = False  # Pas de vérification email pour les comptes sociaux
+SOCIALACCOUNT_LOGIN_ON_GET = False
+SOCIALACCOUNT_QUERY_EMAIL = True
+SOCIALACCOUNT_STORE_TOKENS = True
+
+# Social Account Providers
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'APP': {
+            'client_id': os.getenv('GOOGLE_CLIENT_ID', ''),
+            'secret': os.getenv('GOOGLE_CLIENT_SECRET', ''),
+        },
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
+        'OAUTH_PKCE_ENABLED': True,
+        'VERIFIED_EMAIL': True,  # Google emails sont considérés comme vérifiés
+    },
+    'facebook': {
+        'APP': {
+            'client_id': os.getenv('FACEBOOK_APP_ID', ''),
+            'secret': os.getenv('FACEBOOK_APP_SECRET', ''),
+        },
+        'METHOD': 'oauth2',
+        'SDK_URL': '//connect.facebook.net/{locale}/sdk.js',
+        'SCOPE': ['email', 'public_profile'],
+        'AUTH_PARAMS': {'auth_type': 'reauthenticate'},
+        'INIT_PARAMS': {'cookie': True},
+        'FIELDS': ['id', 'first_name', 'last_name', 'name', 'email'],
+        'EXCHANGE_TOKEN': True,
+        'VERIFIED_EMAIL': False,  # Facebook emails nécessitent vérification
+        'VERSION': 'v18.0',  # Version mise à jour
+    }
+}
+
+# Crispy Forms Configuration
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+CRISPY_TEMPLATE_PACK = "bootstrap5"
+
+# Multi-tenant Configuration
+PUBLIC_DOMAINS = ['localhost', '127.0.0.1', 'testserver']
+
+# CSRF Configuration
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_USE_SESSIONS = False
+
+# Configurations de logging pour mieux suivre les redirections
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'competitions': {  # Logger spécifique pour l'application competitions
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',  # Niveau de détail élevé pour le débogage
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': 'INFO',
+    },
+}
+
+# Créer le répertoire de logs s'il n'existe pas
+os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
+
+# ================================================================
+# CONFIGURATION ROSETTA POUR TRADUCTIONS
+# ================================================================
+
+# Configuration Rosetta spécifique pour sélection des langues
+if 'rosetta' in INSTALLED_APPS:
+    ROSETTA_MESSAGES_SOURCE_LANGUAGE_CODE = 'fr'
+    ROSETTA_MESSAGES_SOURCE_LANGUAGE_NAME = 'Français'
+    
+    # Langues disponibles dans Rosetta (sous-ensemble de LANGUAGES)
+    ROSETTA_LANGUAGES = [
+        ('es', 'Español'),
+        ('pt', 'Português'), 
+        ('no', 'Norsk'),
+        ('en', 'English'),
+        ('it', 'Italiano'),
+        ('de', 'Deutsch'),
+        ('ar', 'العربية'),
+    ]
+    
+    # Interface Rosetta
+    ROSETTA_SHOW_AT_ADMIN_PANEL = True
+    ROSETTA_AUTO_COMPILE = True
+    ROSETTA_ENABLE_TRANSLATION_SUGGESTIONS = True
+    ROSETTA_REQUIRES_AUTH = True
+    ROSETTA_MESSAGES_PER_PAGE = 25
+    
+    # Exclusions pour éviter la confusion
+    ROSETTA_EXCLUDED_APPLICATIONS = [
+        'django.contrib.admin',
+        'django.contrib.auth',
+        'django.contrib.contenttypes',
+        'django.contrib.sessions',
+        'django.contrib.messages',
+        'django.contrib.staticfiles',
+        'allauth',
+    ]
+
+# ================================================================
+# DEEPL TRANSLATION SERVICE CONFIGURATION
+# ================================================================
+
+# DeepL Translation Service Configuration
+DEEPL_API_KEY = config('DEEPL_API_KEY', default='')
+if not DEEPL_API_KEY:
+    print("WARNING DeepL API key not found in settings")
+
+DEEPL_API_URL = 'https://api-free.deepl.com/v2/translate'  # Use 'https://api.deepl.com/v2/translate' for pro account
+
+# DeepL language mapping (Django locale -> DeepL language code)
+DEEPL_LANGUAGE_MAPPING = {
+    'fr': 'FR',
+    'en': 'EN',
+    'es': 'ES',
+    'it': 'IT',
+    'de': 'DE',
+    'pt': 'PT',
+    'ru': 'RU',
+    'vi': 'VI',
+    'ja': 'JA',
+    'zh-hans': 'ZH',
+    'ar': 'AR',
+    'ko': 'KO',
+    'nl': 'NL',
+    'pl': 'PL',
+    'sv': 'SV',
+    'no': 'NB',
+}

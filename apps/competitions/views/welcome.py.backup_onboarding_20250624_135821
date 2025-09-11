@@ -1,0 +1,202 @@
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_GET
+from django.urls import NoReverseMatch
+from django.contrib import messages
+from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
+from datetime import datetime, timedelta
+from ..models import UserProfile, Competition, Discipline
+
+@require_GET
+def welcome(request):
+    # Si l'utilisateur vient d'une page dashboard, ne pas rediriger
+    referer = request.META.get('HTTP_REFERER', '')
+    if 'dashboard' in referer:
+        return render(request, 'competitions/welcome.html', get_welcome_context(request))
+    
+    # Si un paramètre no_redirect est présent, afficher simplement la page
+    if request.GET.get('no_redirect'):
+        return render(request, 'competitions/welcome.html', get_welcome_context(request))
+    
+    if request.user.is_authenticated:
+        try:
+            # Simplifiez cette partie - utilisez le rôle de l'utilisateur directement
+            role = getattr(request.user, 'role', None)  # Assurez-vous que votre modèle User a bien un champ role
+            
+            # Ajoutez no_redirect pour empêcher les boucles
+            if role == 'club_manager':
+                return redirect('/competitions/dashboard/club/?no_redirect=1')
+            # Autres rôles...
+            else:
+                # Rôle par défaut avec no_redirect
+                return redirect('/competitions/dashboard/spectator/?no_redirect=1')
+        except Exception as e:
+            # Log l'erreur et affiche la page d'accueil
+            print(f"Erreur de redirection: {str(e)}")
+            messages.error(request, _("Une erreur s'est produite. Veuillez réessayer."))
+            return render(request, 'competitions/welcome.html', get_welcome_context(request))
+    
+    # Utilisateurs non connectés
+    return render(request, 'competitions/welcome.html', get_welcome_context(request))
+
+def get_welcome_context(request):
+    """Récupère toutes les données nécessaires pour la page d'accueil"""
+    
+    # Statistiques générales de la plateforme
+    total_competitions = Competition.objects.count()
+    active_competitions = Competition.objects.filter(
+        start_date__gte=timezone.now().date(),
+        end_date__gte=timezone.now().date()
+    ).count()
+    
+    # Disciplines supportées
+    try:
+        disciplines = Discipline.objects.filter(is_active=True)[:12]  # Limiter à 12 disciplines principales
+    except:
+        disciplines = []
+    
+    # Prochaines compétitions publiques (utilise is_published au lieu de is_public)
+    upcoming_competitions = Competition.objects.filter(
+        start_date__gte=timezone.now().date(),
+        is_published=True
+    ).order_by('start_date')[:6]
+    
+    # Statistiques pour la section impact
+    try:
+        from competitions.models import Practitioner, Club
+        total_practitioners = Practitioner.objects.filter(is_active=True).count()
+        total_clubs = Club.objects.filter(is_active=True).count()
+    except:
+        total_practitioners = 0
+        total_clubs = 0
+    
+    # Fonctionnalités clés avec icônes et descriptions détaillées
+    key_features = [
+        {
+            'title': _('Gestion Complète des Compétitions'),
+            'description': _('Créez, organisez et gérez vos compétitions de A à Z avec des outils intuitifs adaptés à tous les arts martiaux.'),
+            'icon': 'trophy',
+            'benefits': [
+                _('Création automatique des poules'),
+                _('Génération des tableaux de progression'),
+                _('Gestion des catégories par âge, poids et niveau')
+            ]
+        },
+        {
+            'title': _('Système de Notation Technique'),
+            'description': _('Interface dédiée pour les juges avec notation par critères personnalisables et consolidation automatique des résultats.'),
+            'icon': 'clipboard-check',
+            'benefits': [
+                _('Notation en temps réel'),
+                _('Critères personnalisables par discipline'),
+                _('Synchronisation multi-juges')
+            ]
+        },
+        {
+            'title': _('Multi-Disciplines & Multi-Langues'),
+            'description': _('Support de 16 langues et adaptation à tous les arts martiaux : karaté, judo, taekwondo, kung fu et plus encore.'),
+            'icon': 'globe',
+            'benefits': [
+                _('16 langues supportées'),
+                _('Règlements par discipline'),
+                _('Interface adaptative')
+            ]
+        },
+        {
+            'title': _('Module Financier Intégré'),
+            'description': _('Gestion complète des paiements, adhésions, factures et rapports financiers pour clubs et fédérations.'),
+            'icon': 'credit-card',
+            'benefits': [
+                _('Suivi des paiements automatisé'),
+                _('Rapports financiers détaillés'),
+                _('Gestion des adhésions')
+            ]
+        },
+        {
+            'title': _('Boutique en Ligne'),
+            'description': _('Vente d\'équipements d\'arts martiaux avec gestion des stocks et système de paiement sécurisé intégré.'),
+            'icon': 'shopping-cart',
+            'benefits': [
+                _('Catalogue produits complet'),
+                _('Gestion automatique des stocks'),
+                _('Paiements sécurisés')
+            ]
+        },
+        {
+            'title': _('QR Codes & Mobile'),
+            'description': _('Application responsive avec système de validation par QR codes pour une expérience utilisateur moderne.'),
+            'icon': 'qrcode',
+            'benefits': [
+                _('Validation instantanée par QR'),
+                _('Interface mobile optimisée'),
+                _('Accès hors ligne')
+            ]
+        }
+    ]
+    
+    # Publics cibles avec leurs besoins spécifiques
+    target_audiences = [
+        {
+            'name': _('Fédérations'),
+            'description': _('Organisez et supervisez des compétitions à grande échelle'),
+            'icon': 'building',
+            'features': [
+                _('Gestion multi-clubs'),
+                _('Supervision des événements'),
+                _('Rapports consolidés'),
+                _('Licences et certifications')
+            ],
+            'cta': _('Solutions Fédérations')
+        },
+        {
+            'name': _('Clubs'),
+            'description': _('Gérez vos membres et simplifiez les inscriptions'),
+            'icon': 'users',
+            'features': [
+                _('Gestion des pratiquants'),
+                _('Suivi des grades'),
+                _('Planning des entraînements'),
+                _('Communications internes')
+            ],
+            'cta': _('Solutions Clubs')
+        },
+        {
+            'name': _('Juges & Arbitres'),
+            'description': _('Outils de notation professionnels et intuitifs'),
+            'icon': 'gavel',
+            'features': [
+                _('Interface de notation intuitive'),
+                _('Synchronisation temps réel'),
+                _('Historique des évaluations'),
+                _('Formations en ligne')
+            ],
+            'cta': _('Espace Juges')
+        },
+        {
+            'name': _('Pratiquants'),
+            'description': _('Suivez votre progression et participez aux compétitions'),
+            'icon': 'user-circle',
+            'features': [
+                _('Inscription simplifiée'),
+                _('Suivi des performances'),
+                _('Calendrier personnel'),
+                _('Résultats en temps réel')
+            ],
+            'cta': _('Espace Pratiquants')
+        }
+    ]
+    
+    return {
+        'total_competitions': total_competitions,
+        'active_competitions': active_competitions,
+        'total_practitioners': total_practitioners,
+        'total_clubs': total_clubs,
+        'disciplines': disciplines,
+        'upcoming_competitions': upcoming_competitions,
+        'key_features': key_features,
+        'target_audiences': target_audiences,
+        'test_phase_end': datetime(2025, 6, 30),
+        'launch_date': datetime(2025, 7, 1),
+        'is_test_phase': timezone.now().date() <= datetime(2025, 6, 30).date(),
+    }

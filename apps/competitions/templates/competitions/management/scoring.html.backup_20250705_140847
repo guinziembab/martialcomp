@@ -1,0 +1,960 @@
+{% extends "competitions/management/base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Système de notation" %} - {{ competition.title }}{% endblock %}
+
+{% block competition_content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4 mb-4">{% trans "Système de notation" %}</h1>
+    
+    <!-- Onglets pour les différentes sections -->
+    <ul class="nav nav-tabs mb-4" id="scoringTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="scoring-config-tab" data-bs-toggle="tab" data-bs-target="#scoring-config" type="button" role="tab" aria-controls="scoring-config" aria-selected="true">
+                <i class="fas fa-cog me-2"></i>{% trans "Configuration" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="scoring-criteria-tab" data-bs-toggle="tab" data-bs-target="#scoring-criteria" type="button" role="tab" aria-controls="scoring-criteria" aria-selected="false">
+                <i class="fas fa-list-check me-2"></i>{% trans "Critères" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="scoring-formulas-tab" data-bs-toggle="tab" data-bs-target="#scoring-formulas" type="button" role="tab" aria-controls="scoring-formulas" aria-selected="false">
+                <i class="fas fa-calculator me-2"></i>{% trans "Formules" %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="judge-view-tab" data-bs-toggle="tab" data-bs-target="#judge-view" type="button" role="tab" aria-controls="judge-view" aria-selected="false">
+                <i class="fas fa-user-tie me-2"></i>{% trans "Vue Juge" %}
+            </button>
+        </li>
+    </ul>
+    
+    <div class="tab-content" id="scoringTabsContent">
+        <!-- 1. Configuration du système de notation -->
+        <div class="tab-pane fade show active" id="scoring-config" role="tabpanel" aria-labelledby="scoring-config-tab">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{% trans "Configuration du système de notation" %}</h5>
+                    <button class="btn btn-primary btn-sm">
+                        <i class="fas fa-save me-1"></i>{% trans "Enregistrer" %}
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="mb-3">{% trans "Paramètres généraux" %}</h6>
+                            
+                            <div class="mb-3">
+                                <label for="scoringSystem" class="form-label">{% trans "Système de notation" %}</label>
+                                <select class="form-select" id="scoringSystem">
+                                    <option value="standard">{% trans "Standard (WKF)" %}</option>
+                                    <option value="point">{% trans "Points" %}</option>
+                                    <option value="custom">{% trans "Personnalisé" %}</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="minScore" class="form-label">{% trans "Score minimum" %}</label>
+                                <input type="number" class="form-control" id="minScore" value="5.0" step="0.1">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="maxScore" class="form-label">{% trans "Score maximum" %}</label>
+                                <input type="number" class="form-control" id="maxScore" value="10.0" step="0.1">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="scoreStep" class="form-label">{% trans "Pas de notation" %}</label>
+                                <input type="number" class="form-control" id="scoreStep" value="0.25" step="0.05">
+                                <div class="form-text">{% trans "Définit l'incrément minimal pour les scores (ex: 0.25)" %}</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="decimalPlaces" class="form-label">{% trans "Décimales affichées" %}</label>
+                                <select class="form-select" id="decimalPlaces">
+                                    <option value="1">1</option>
+                                    <option value="2" selected>2</option>
+                                    <option value="3">3</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="mb-3">{% trans "Options avancées" %}</h6>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="excludeExtremeScores" checked>
+                                <label class="form-check-label" for="excludeExtremeScores">
+                                    {% trans "Exclure les notes extrêmes (min et max)" %}
+                                </label>
+                                <div class="form-text">{% trans "Recommandé pour 5 juges et plus" %}</div>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="allowTies">
+                                <label class="form-check-label" for="allowTies">
+                                    {% trans "Autoriser les ex-aequo" %}
+                                </label>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="allowScoreModification" checked>
+                                <label class="form-check-label" for="allowScoreModification">
+                                    {% trans "Autoriser la modification des notes après soumission" %}
+                                </label>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="displayRealTimeResults" checked>
+                                <label class="form-check-label" for="displayRealTimeResults">
+                                    {% trans "Afficher les résultats en temps réel" %}
+                                </label>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="includeTrainingJudges">
+                                <label class="form-check-label" for="includeTrainingJudges">
+                                    {% trans "Inclure les juges en formation (notes non comptabilisées)" %}
+                                </label>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="judgeTiebreaker" class="form-label">{% trans "Juge départageur" %}</label>
+                                <select class="form-select" id="judgeTiebreaker">
+                                    <option value="none">{% trans "Aucun" %}</option>
+                                    <option value="chief">{% trans "Juge en chef" %}</option>
+                                    <option value="highest_rank">{% trans "Juge de plus haut rang" %}</option>
+                                </select>
+                                <div class="form-text">{% trans "En cas d'égalité, la note de ce juge sera privilégiée" %}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <h6 class="mb-3">{% trans "Application aux catégories" %}</h6>
+                            <div class="mb-3">
+                                <label for="categorySelection" class="form-label">{% trans "Appliquer la configuration à:" %}</label>
+                                <select class="form-select" id="categorySelection">
+                                    <option value="all">{% trans "Toutes les catégories" %}</option>
+                                    <option value="kata">{% trans "Catégories Kata uniquement" %}</option>
+                                    <option value="kumite">{% trans "Catégories Kumite uniquement" %}</option>
+                                    <option value="custom">{% trans "Sélection personnalisée" %}</option>
+                                </select>
+                            </div>
+                            
+                            <div id="customCategorySelection" class="d-none">
+                                <label class="form-label">{% trans "Sélectionnez les catégories:" %}</label>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="category1">
+                                    <label class="form-check-label" for="category1">
+                                        Kata Individuel Senior Hommes
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="category2">
+                                    <label class="form-check-label" for="category2">
+                                        Kata Individuel Senior Femmes
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="category3">
+                                    <label class="form-check-label" for="category3">
+                                        Kata Équipe Junior Mixte
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="category4">
+                                    <label class="form-check-label" for="category4">
+                                        Kumite Individuel Senior Hommes -75kg
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="mb-3">{% trans "Préréglages" %}</h6>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-outline-primary" type="button">
+                                    <i class="fas fa-file-import me-1"></i>{% trans "Importer une configuration" %}
+                                </button>
+                                <button class="btn btn-outline-primary" type="button">
+                                    <i class="fas fa-file-export me-1"></i>{% trans "Exporter cette configuration" %}
+                                </button>
+                                <button class="btn btn-outline-secondary" type="button">
+                                    <i class="fas fa-undo me-1"></i>{% trans "Réinitialiser aux valeurs par défaut" %}
+                                </button>
+                            </div>
+                            <div class="alert alert-info mt-3">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% trans "Les préréglages permettent de réutiliser la même configuration pour d'autres compétitions." %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 2. Critères de notation -->
+        <div class="tab-pane fade" id="scoring-criteria" role="tabpanel" aria-labelledby="scoring-criteria-tab">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{% trans "Critères de notation" %}</h5>
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addCriterionModal">
+                        <i class="fas fa-plus me-1"></i>{% trans "Ajouter un critère" %}
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="criteriaType" class="form-label">{% trans "Type de critères" %}</label>
+                            <select class="form-select" id="criteriaType">
+                                <option value="kata">{% trans "Kata" %}</option>
+                                <option value="kumite">{% trans "Kumite" %}</option>
+                                <option value="teams">{% trans "Équipes" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8 d-flex align-items-end justify-content-end">
+                            <button class="btn btn-outline-primary btn-sm me-2">
+                                <i class="fas fa-file-import me-1"></i>{% trans "Importer" %}
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm me-2">
+                                <i class="fas fa-file-export me-1"></i>{% trans "Exporter" %}
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm">
+                                <i class="fas fa-undo me-1"></i>{% trans "Réinitialiser" %}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;"></th>
+                                    <th>{% trans "Nom du critère" %}</th>
+                                    <th>{% trans "Description" %}</th>
+                                    <th>{% trans "Pondération" %}</th>
+                                    <th>{% trans "Score min" %}</th>
+                                    <th>{% trans "Score max" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="criteriaTableBody">
+                                <!-- Critère 1 -->
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-grip-vertical handle text-muted"></i>
+                                    </td>
+                                    <td>{% trans "Technique" %}</td>
+                                    <td>{% trans "Exécution technique (positions, coups de pied, blocages)" %}</td>
+                                    <td>3.0</td>
+                                    <td>5.0</td>
+                                    <td>10.0</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <!-- Critère 2 -->
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-grip-vertical handle text-muted"></i>
+                                    </td>
+                                    <td>{% trans "Force" %}</td>
+                                    <td>{% trans "Puissance et énergie déployées" %}</td>
+                                    <td>2.0</td>
+                                    <td>5.0</td>
+                                    <td>10.0</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <!-- Critère 3 -->
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-grip-vertical handle text-muted"></i>
+                                    </td>
+                                    <td>{% trans "Kime" %}</td>
+                                    <td>{% trans "Concentration et finalisation des techniques" %}</td>
+                                    <td>2.0</td>
+                                    <td>5.0</td>
+                                    <td>10.0</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <!-- Critère 4 -->
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-grip-vertical handle text-muted"></i>
+                                    </td>
+                                    <td>{% trans "Timing/Rythme" %}</td>
+                                    <td>{% trans "Temporalité et vitesse d'exécution des techniques" %}</td>
+                                    <td>1.5</td>
+                                    <td>5.0</td>
+                                    <td>10.0</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <!-- Critère 5 -->
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-grip-vertical handle text-muted"></i>
+                                    </td>
+                                    <td>{% trans "Respiration" %}</td>
+                                    <td>{% trans "Utilisation correcte de la respiration" %}</td>
+                                    <td>1.5</td>
+                                    <td>5.0</td>
+                                    <td>10.0</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="text-muted mt-3">
+                        <small><i class="fas fa-info-circle me-1"></i>{% trans "Glissez-déposez les lignes pour réorganiser les critères. La somme des pondérations est automatiquement normalisée." %}</small>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center">
+                                <span class="me-3">{% trans "Somme des pondérations:" %}</span>
+                                <span class="badge bg-primary">10.0</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <button class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>{% trans "Enregistrer les critères" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 3. Formules de calcul -->
+        <div class="tab-pane fade" id="scoring-formulas" role="tabpanel" aria-labelledby="scoring-formulas-tab">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Formules de calcul des scores" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="mb-3">{% trans "Score technique (Kata)" %}</h6>
+                            
+                            <div class="alert alert-secondary">
+                                <pre class="mb-0"><code>Score final = (Σ(Critère_i × Poids_i) - Min - Max) / (Nb_juges - 2)</code></pre>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <p>{% trans "Cette formule:" %}</p>
+                                <ol>
+                                    <li>{% trans "Calcule la somme pondérée des critères pour chaque juge" %}</li>
+                                    <li>{% trans "Exclut la note la plus haute et la plus basse" %}</li>
+                                    <li>{% trans "Fait la moyenne des notes restantes" %}</li>
+                                </ol>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="technicalFormula" class="form-label">{% trans "Modifier la formule (Experts uniquement)" %}</label>
+                                <textarea class="form-control font-monospace" id="technicalFormula" rows="4">score = (sum(criteria_values * weights) - min_score - max_score) / (num_judges - 2)</textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="mb-3">{% trans "Score athlétique (Kumite)" %}</h6>
+                            
+                            <div class="alert alert-secondary">
+                                <pre class="mb-0"><code>Score = Points - Pénalités
+Points = Σ(Yuko × 1 + Waza-ari × 2 + Ippon × 3)
+Pénalités = Σ(Avertissements × 1)</code></pre>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <p>{% trans "Cette formule:" %}</p>
+                                <ol>
+                                    <li>{% trans "Additionne les points selon leur valeur (1, 2 ou 3 points)" %}</li>
+                                    <li>{% trans "Soustrait les pénalités (avertissements)" %}</li>
+                                    <li>{% trans "Le score plus élevé détermine le gagnant" %}</li>
+                                </ol>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="athleticFormula" class="form-label">{% trans "Modifier la formule (Experts uniquement)" %}</label>
+                                <textarea class="form-control font-monospace" id="athleticFormula" rows="4">score = sum(yuko * 1 + waza_ari * 2 + ippon * 3) - sum(warnings * 1)</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <h6 class="mb-3">{% trans "Calcul du classement" %}</h6>
+                            
+                            <div class="mb-3">
+                                <label for="rankingMethod" class="form-label">{% trans "Méthode de classement" %}</label>
+                                <select class="form-select" id="rankingMethod">
+                                    <option value="highest">{% trans "Score le plus élevé" %}</option>
+                                    <option value="flags" selected>{% trans "Nombre de drapeaux (1ère place)" %}</option>
+                                    <option value="hybrid">{% trans "Hybride (drapeaux puis score)" %}</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="tieThirdPlace" checked>
+                                <label class="form-check-label" for="tieThirdPlace">
+                                    {% trans "Autoriser deux 3èmes places (bronze partagé)" %}
+                                </label>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% trans "La méthode par drapeaux compte le nombre de fois où un compétiteur est classé premier par les juges." %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="mb-3">{% trans "Test de la formule" %}</h6>
+                            
+                            <div class="mb-3">
+                                <button class="btn btn-outline-primary w-100">
+                                    <i class="fas fa-calculator me-1"></i>{% trans "Tester avec des exemples" %}
+                                </button>
+                            </div>
+                            
+                            <div class="alert alert-secondary">
+                                <h6>{% trans "Exemple de calcul:" %}</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>{% trans "Juge" %}</th>
+                                                <th>{% trans "Technique" %} (3.0)</th>
+                                                <th>{% trans "Force" %} (2.0)</th>
+                                                <th>{% trans "Kime" %} (2.0)</th>
+                                                <th>{% trans "Timing" %} (1.5)</th>
+                                                <th>{% trans "Respiration" %} (1.5)</th>
+                                                <th>{% trans "Total" %}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>Juge 1</td>
+                                                <td>8.5</td>
+                                                <td>8.2</td>
+                                                <td>8.0</td>
+                                                <td>7.8</td>
+                                                <td>7.5</td>
+                                                <td>8.1</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Juge 2</td>
+                                                <td>8.0</td>
+                                                <td>8.3</td>
+                                                <td>8.2</td>
+                                                <td>8.0</td>
+                                                <td>7.8</td>
+                                                <td>8.1</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Juge 3</td>
+                                                <td>8.2</td>
+                                                <td>8.0</td>
+                                                <td>7.8</td>
+                                                <td>7.5</td>
+                                                <td>7.7</td>
+                                                <td>7.9</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Juge 4</td>
+                                                <td>8.4</td>
+                                                <td>8.2</td>
+                                                <td>8.3</td>
+                                                <td>8.1</td>
+                                                <td>7.9</td>
+                                                <td>8.2</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Juge 5</td>
+                                                <td>8.3</td>
+                                                <td>8.4</td>
+                                                <td>8.5</td>
+                                                <td>8.2</td>
+                                                <td>8.0</td>
+                                                <td>8.3</td>
+                                            </tr>
+                                            <tr class="table-light">
+                                                <td colspan="6">{% trans "Score final (après exclusion min/max)" %}</td>
+                                                <td class="fw-bold">8.07</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex justify-content-end">
+                        <button class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>{% trans "Enregistrer les formules" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 4. Vue Juge (simulation) -->
+        <div class="tab-pane fade" id="judge-view" role="tabpanel" aria-labelledby="judge-view-tab">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Simulation de l'interface juge" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Voici une simulation de ce que les juges verront sur leur écran. Vous pouvez tester différentes configurations pour vous assurer que l'interface est intuitive et fonctionnelle." %}
+                    </div>
+                    
+                    <div class="judge-interface-simulation border rounded p-3 bg-light">
+                        <!-- En-tête de l'interface juge -->
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <h5 class="mb-0">Kata Individuel Senior Hommes</h5>
+                                <div class="text-muted">{% trans "Juge:" %} Sophie Dupont (Juge 2)</div>
+                            </div>
+                            <div>
+                                <span class="badge bg-primary">Tatami 1</span>
+                                <span class="badge bg-success ms-2">{% trans "Finale" %}</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Informations du compétiteur -->
+                        <div class="bg-white p-3 rounded mb-3">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <div>
+                                    <h5 class="mb-0">Jean Dupont</h5>
+                                    <div>Club Karaté Paris - {% trans "France" %}</div>
+                                    <div><small>Kata: Unsu</small></div>
+                                </div>
+                                <div class="ms-auto">
+                                    <div class="d-flex align-items-center">
+                                        <div class="text-center me-3">
+                                            <div class="h5 mb-0">12</div>
+                                            <small class="text-muted">{% trans "Passage" %}</small>
+                                        </div>
+                                        <div class="countdown-timer">
+                                            <div class="h4 mb-0 text-danger">0:45</div>
+                                            <small class="text-muted">{% trans "Temps restant" %}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Formulaire de notation -->
+                        <div class="bg-white p-3 rounded mb-3">
+                            <h6 class="mb-3">{% trans "Notation" %}</h6>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 30%;">{% trans "Critère" %}</th>
+                                            <th style="width: 40%;">{% trans "Note" %}</th>
+                                            <th>{% trans "Description" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Critère 1 -->
+                                        <tr>
+                                            <td>
+                                                <div class="fw-bold">{% trans "Technique" %}</div>
+                                                <small class="text-muted">{% trans "Pondération:" %} 3.0</small>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center judge-score-input">
+                                                    <button class="btn btn-outline-secondary btn-sm" disabled>
+                                                        <i class="fas fa-minus"></i>
+                                                    </button>
+                                                    <div class="mx-2 px-3 py-2 border rounded bg-white text-center flex-grow-1">
+                                                        <span class="score-value">8.0</span>
+                                                    </div>
+                                                    <button class="btn btn-outline-secondary btn-sm">
+                                                        <i class="fas fa-plus"></i>
+                                                    </button>
+                                                </div>
+                                                <div class="progress mt-2" style="height: 5px;">
+                                                    <div class="progress-bar bg-success" role="progressbar" style="width: 75%;" aria-valuenow="8" aria-valuemin="5" aria-valuemax="10"></div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <small>{% trans "Exécution technique (positions, coups de pied, blocages)" %}</small>
+                                            </td>
+                                        </tr>
+                                        <!-- Critère 2 -->
+                                        <tr>
+                                            <td>
+                                                <div class="fw-bold">{% trans "Force" %}</div>
+                                                <small class="text-muted">{% trans "Pondération:" %} 2.0</small>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center judge-score-input">
+                                                    <button class="btn btn-outline-secondary btn-sm">
+                                                        <i class="fas fa-minus"></i>
+                                                    </button>
+                                                    <div class="mx-2 px-3 py-2 border rounded bg-white text-center flex-grow-1">
+                                                        <span class="score-value">8.25</span>
+                                                    </div>
+                                                    <button class="btn btn-outline-secondary btn-sm">
+                                                        <i class="fas fa-plus"></i>
+                                                    </button>
+                                                </div>
+                                                <div class="progress mt-2" style="height: 5px;">
+                                                    <div class="progress-bar bg-success" role="progressbar" style="width: 80%;" aria-valuenow="8.25" aria-valuemin="5" aria-valuemax="10"></div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <small>{% trans "Puissance et énergie déployées" %}</small>
+                                            </td>
+                                        </tr>
+                                        <!-- Critère 3 -->
+                                        <tr>
+                                            <td>
+                                                <div class="fw-bold">{% trans "Kime" %}</div>
+                                                <small class="text-muted">{% trans "Pondération:" %} 2.0</small>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center judge-score-input">
+                                                    <button class="btn btn-outline-secondary btn-sm">
+                                                        <i class="fas fa-minus"></i>
+                                                    </button>
+                                                    <div class="mx-2 px-3py-2 border rounded bg-white text-center flex-grow-1">
+                                                        <span class="score-value">8.25</span>
+                                                    </div>
+                                                    <button class="btn btn-outline-secondary btn-sm">
+                                                        <i class="fas fa-plus"></i>
+                                                    </button>
+                                                </div>
+                                                <div class="progress mt-2" style="height: 5px;">
+                                                    <div class="progress-bar bg-success" role="progressbar" style="width: 80%;" aria-valuenow="8.25" aria-valuemin="5" aria-valuemax="10"></div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <small>{% trans "Concentration et finalisation des techniques" %}</small>
+                                            </td>
+                                        </tr>
+                                        <!-- Critère 4 -->
+                                        <tr>
+                                            <td>
+                                                <div class="fw-bold">{% trans "Timing/Rythme" %}</div>
+                                                <small class="text-muted">{% trans "Pondération:" %} 1.5</small>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center judge-score-input">
+                                                    <button class="btn btn-outline-secondary btn-sm">
+                                                        <i class="fas fa-minus"></i>
+                                                    </button>
+                                                    <div class="mx-2 px-3 py-2 border rounded bg-white text-center flex-grow-1">
+                                                        <span class="score-value">7.75</span>
+                                                    </div>
+                                                    <button class="btn btn-outline-secondary btn-sm">
+                                                        <i class="fas fa-plus"></i>
+                                                    </button>
+                                                </div>
+                                                <div class="progress mt-2" style="height: 5px;">
+                                                    <div class="progress-bar bg-warning" role="progressbar" style="width: 65%;" aria-valuenow="7.75" aria-valuemin="5" aria-valuemax="10"></div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <small>{% trans "Temporalité et vitesse d'exécution des techniques" %}</small>
+                                            </td>
+                                        </tr>
+                                        <!-- Critère 5 -->
+                                        <tr>
+                                            <td>
+                                                <div class="fw-bold">{% trans "Respiration" %}</div>
+                                                <small class="text-muted">{% trans "Pondération:" %} 1.5</small>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center judge-score-input">
+                                                    <button class="btn btn-outline-secondary btn-sm">
+                                                        <i class="fas fa-minus"></i>
+                                                    </button>
+                                                    <div class="mx-2 px-3 py-2 border rounded bg-white text-center flex-grow-1">
+                                                        <span class="score-value">7.5</span>
+                                                    </div>
+                                                    <button class="btn btn-outline-secondary btn-sm">
+                                                        <i class="fas fa-plus"></i>
+                                                    </button>
+                                                </div>
+                                                <div class="progress mt-2" style="height: 5px;">
+                                                    <div class="progress-bar bg-warning" role="progressbar" style="width: 60%;" aria-valuenow="7.5" aria-valuemin="5" aria-valuemax="10"></div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <small>{% trans "Utilisation correcte de la respiration" %}</small>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="mt-3 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-0">{% trans "Score total:" %} <span class="badge bg-primary">8.04</span></h5>
+                                    <small class="text-muted">{% trans "Score calculé selon la formule configurée" %}</small>
+                                </div>
+                                <div>
+                                    <button class="btn btn-outline-secondary me-2">
+                                        <i class="fas fa-undo me-1"></i>{% trans "Réinitialiser" %}
+                                    </button>
+                                    <button class="btn btn-success">
+                                        <i class="fas fa-check me-1"></i>{% trans "Soumettre" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Notes et commentaires -->
+                        <div class="bg-white p-3 rounded mb-3">
+                            <h6 class="mb-3">{% trans "Notes et commentaires" %}</h6>
+                            <textarea class="form-control" rows="3" placeholder="{% trans 'Ajoutez vos commentaires ici (facultatif)...' %}"></textarea>
+                        </div>
+                        
+                        <!-- Fonctions supplémentaires -->
+                        <div class="bg-white p-3 rounded">
+                            <div class="d-flex justify-content-between">
+                                <button class="btn btn-outline-danger">
+                                    <i class="fas fa-flag me-1"></i>{% trans "Signaler un problème" %}
+                                </button>
+                                <button class="btn btn-outline-primary">
+                                    <i class="fas fa-question-circle me-1"></i>{% trans "Aide" %}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="judgeViewMode" class="form-label">{% trans "Mode d'affichage" %}</label>
+                                <select class="form-select" id="judgeViewMode">
+                                    <option value="desktop">{% trans "Bureau" %}</option>
+                                    <option value="tablet">{% trans "Tablette" %}</option>
+                                    <option value="mobile">{% trans "Mobile" %}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6 text-end d-flex align-items-end justify-content-end">
+                            <button class="btn btn-outline-primary me-2">
+                                <i class="fas fa-undo me-1"></i>{% trans "Réinitialiser" %}
+                            </button>
+                            <button class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>{% trans "Enregistrer les paramètres" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal d'ajout de critère -->
+<div class="modal fade" id="addCriterionModal" tabindex="-1" aria-labelledby="addCriterionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addCriterionModalLabel">{% trans "Ajouter un critère de notation" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form>
+                    <div class="mb-3">
+                        <label for="criterionName" class="form-label">{% trans "Nom du critère" %}*</label>
+                        <input type="text" class="form-control" id="criterionName" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="criterionDescription" class="form-label">{% trans "Description" %}</label>
+                        <textarea class="form-control" id="criterionDescription" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="criterionWeight" class="form-label">{% trans "Pondération" %}*</label>
+                                <input type="number" class="form-control" id="criterionWeight" value="1.0" min="0.1" step="0.1" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="criterionMinScore" class="form-label">{% trans "Score minimum" %}*</label>
+                                <input type="number" class="form-control" id="criterionMinScore" value="5.0" step="0.1" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="criterionMaxScore" class="form-label">{% trans "Score maximum" %}*</label>
+                                <input type="number" class="form-control" id="criterionMaxScore" value="10.0" step="0.1" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="criterionApplicability" class="form-label">{% trans "Applicable à" %}</label>
+                        <select class="form-select" id="criterionApplicability">
+                            <option value="kata">{% trans "Kata uniquement" %}</option>
+                            <option value="kumite">{% trans "Kumite uniquement" %}</option>
+                            <option value="both">{% trans "Kata et Kumite" %}</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-primary">{% trans "Ajouter le critère" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Styles pour l'interface de simulation juge */
+    .judge-interface-simulation {
+        max-width: 100%;
+        margin: 0 auto;
+    }
+    
+    .judge-score-input .score-value {
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    
+    .handle {
+        cursor: grab;
+    }
+    
+    .handle:active {
+        cursor: grabbing;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion du changement de système de notation
+        document.getElementById('scoringSystem').addEventListener('change', function() {
+            // Logique pour mettre à jour les champs en fonction du système choisi
+            console.log('Système de notation changé:', this.value);
+        });
+        
+        // Gestion de la sélection de catégorie
+        document.getElementById('categorySelection').addEventListener('change', function() {
+            const customSelection = document.getElementById('customCategorySelection');
+            if (this.value === 'custom') {
+                customSelection.classList.remove('d-none');
+            } else {
+                customSelection.classList.add('d-none');
+            }
+        });
+        
+        // Simulation des boutons +/- pour les scores
+        const incrementButtons = document.querySelectorAll('.judge-score-input button:nth-child(3)');
+        const decrementButtons = document.querySelectorAll('.judge-score-input button:nth-child(1)');
+        
+        incrementButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const scoreElement = this.previousElementSibling.querySelector('.score-value');
+                let currentScore = parseFloat(scoreElement.textContent);
+                const newScore = Math.min(currentScore + 0.25, 10.0).toFixed(2);
+                scoreElement.textContent = newScore;
+                
+                // Mise à jour de la barre de progression
+                const progressBar = this.parentElement.nextElementSibling.querySelector('.progress-bar');
+                const percentage = (newScore - 5) / 5 * 100;
+                progressBar.style.width = percentage + '%';
+                progressBar.setAttribute('aria-valuenow', newScore);
+                
+                // Activer/désactiver les boutons si nécessaire
+                if (parseFloat(newScore) >= 10.0) {
+                    this.disabled = true;
+                }
+                this.parentElement.querySelector('button:first-child').disabled = false;
+            });
+        });
+        
+        decrementButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const scoreElement = this.nextElementSibling.querySelector('.score-value');
+                let currentScore = parseFloat(scoreElement.textContent);
+                const newScore = Math.max(currentScore - 0.25, 5.0).toFixed(2);
+                scoreElement.textContent = newScore;
+                
+                // Mise à jour de la barre de progression
+                const progressBar = this.parentElement.nextElementSibling.querySelector('.progress-bar');
+                const percentage = (newScore - 5) / 5 * 100;
+                progressBar.style.width = percentage + '%';
+                progressBar.setAttribute('aria-valuenow', newScore);
+                
+                // Activer/désactiver les boutons si nécessaire
+                if (parseFloat(newScore) <= 5.0) {
+                    this.disabled = true;
+                }
+                this.parentElement.querySelector('button:last-child').disabled = false;
+            });
+        });
+    });
+</script>
+{% endblock %}

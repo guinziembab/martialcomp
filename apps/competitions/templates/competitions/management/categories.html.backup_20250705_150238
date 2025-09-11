@@ -1,0 +1,604 @@
+{% extends "competitions/management/base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Gestion des catégories" %} - {{ competition.title }}{% endblock %}
+
+{% block competition_content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4 mb-4">{% trans "Gestion des catégories" %}</h1>
+    
+    <!-- Actions principales -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" placeholder="{% trans 'Rechercher une catégorie...' %}">
+                        <button class="btn btn-outline-secondary" type="button">{% trans "Rechercher" %}</button>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#createCategoryModal">
+                        <i class="fas fa-plus me-1"></i>{% trans "Nouvelle catégorie" %}
+                    </button>
+                    <div class="dropdown d-inline-block">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="categoryActionsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-cog me-1"></i>{% trans "Actions" %}
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="categoryActionsDropdown">
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-file-import me-2"></i>{% trans "Importer des catégories" %}</a></li>
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-file-export me-2"></i>{% trans "Exporter les catégories" %}</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#"><i class="fas fa-magic me-2"></i>{% trans "Générer automatiquement" %}</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filtres -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">{% trans "Filtres" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">{% trans "Discipline" %}</label>
+                    <select class="form-select">
+                        <option value="">{% trans "Toutes les disciplines" %}</option>
+                        <option value="karate">{% trans "Karaté" %}</option>
+                        <option value="judo">{% trans "Judo" %}</option>
+                        <option value="taekwondo">{% trans "Taekwondo" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">{% trans "Type" %}</label>
+                    <select class="form-select">
+                        <option value="">{% trans "Tous les types" %}</option>
+                        <option value="kata">Kata</option>
+                        <option value="kumite">Kumite</option>
+                        <option value="team">{% trans "Équipe" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">{% trans "Tranche d'âge" %}</label>
+                    <select class="form-select">
+                        <option value="">{% trans "Tous les âges" %}</option>
+                        <option value="children">{% trans "Enfants (6-11 ans)" %}</option>
+                        <option value="teenagers">{% trans "Adolescents (12-17 ans)" %}</option>
+                        <option value="adults">{% trans "Adultes (18-39 ans)" %}</option>
+                        <option value="veterans">{% trans "Vétérans (40+ ans)" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">{% trans "Genre" %}</label>
+                    <select class="form-select">
+                        <option value="">{% trans "Tous les genres" %}</option>
+                        <option value="male">{% trans "Hommes" %}</option>
+                        <option value="female">{% trans "Femmes" %}</option>
+                        <option value="mixed">{% trans "Mixte" %}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">{% trans "Statut" %}</label>
+                    <select class="form-select">
+                        <option value="">{% trans "Tous les statuts" %}</option>
+                        <option value="draft">{% trans "Brouillon" %}</option>
+                        <option value="open">{% trans "Ouvert aux inscriptions" %}</option>
+                        <option value="closed">{% trans "Inscriptions fermées" %}</option>
+                        <option value="in_progress">{% trans "En cours" %}</option>
+                        <option value="completed">{% trans "Terminé" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">{% trans "Système de compétition" %}</label>
+                    <select class="form-select">
+                        <option value="">{% trans "Tous les systèmes" %}</option>
+                        <option value="elimination">{% trans "Élimination directe" %}</option>
+                        <option value="repechage">{% trans "Repêchage" %}</option>
+                        <option value="round_robin">{% trans "Tournoi toutes rondes" %}</option>
+                        <option value="pool">{% trans "Poules" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">{% trans "Participants" %}</label>
+                    <select class="form-select">
+                        <option value="">{% trans "Tous" %}</option>
+                        <option value="less_than_5">{% trans "Moins de 5" %}</option>
+                        <option value="5_to_10">5 - 10</option>
+                        <option value="11_to_20">11 - 20</option>
+                        <option value="more_than_20">{% trans "Plus de 20" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button class="btn btn-primary w-100">
+                        <i class="fas fa-filter me-1"></i>{% trans "Appliquer les filtres" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Liste des catégories -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">{% trans "Catégories" %}</h5>
+            <span class="badge bg-primary">32 {% trans "catégories" %}</span>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="selectAllCategories">
+                                    <label class="form-check-label" for="selectAllCategories"></label>
+                                </div>
+                            </th>
+                            <th>{% trans "Nom" %}</th>
+                            <th>{% trans "Discipline" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Âge" %}</th>
+                            <th>{% trans "Genre" %}</th>
+                            <th>{% trans "Poids" %}</th>
+                            <th>{% trans "Participants" %}</th>
+                            <th>{% trans "Statut" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Exemple de catégorie 1 -->
+                        <tr>
+                            <td>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="category1">
+                                    <label class="form-check-label" for="category1"></label>
+                                </div>
+                            </td>
+                            <td>{% trans "Kata Individuel Senior Hommes" %}</td>
+                            <td>{% trans "Karaté" %}</td>
+                            <td><span class="badge bg-success">Kata</span></td>
+                            <td>{% trans "18+ ans" %}</td>
+                            <td>Hommes</td>
+                            <td>-</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2">24</span>
+                                    <div class="progress flex-grow-1" style="height: 5px;">
+                                        <div class="progress-bar bg-primary" role="progressbar" style="width: 80%;" aria-valuenow="24" aria-valuemin="0" aria-valuemax="30"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="badge bg-success">{% trans "Ouvert" %}</span></td>
+                            <td>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        {% trans "Actions" %}
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-eye me-2"></i>{% trans "Voir détails" %}</a></li>
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-user-plus me-2"></i>{% trans "Gérer les participants" %}</a></li>
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-edit me-2"></i>{% trans "Modifier" %}</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-danger" href="#"><i class="fas fa-trash me-2"></i>{% trans "Supprimer" %}</a></li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                        
+                        <!-- Exemple de catégorie 2 -->
+                        <tr>
+                            <td>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="category2">
+                                    <label class="form-check-label" for="category2"></label>
+                                </div>
+                            </td>
+                            <td>{% trans "Kumite Individuel Senior Femmes -55kg" %}</td>
+                            <td>{% trans "Karaté" %}</td>
+                            <td><span class="badge bg-warning text-dark">Kumite</span></td>
+                            <td>{% trans "18+ ans" %}</td>
+                            <td>Femmes</td>
+                            <td>{% trans "-55kg" %}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2">12</span>
+                                    <div class="progress flex-grow-1" style="height: 5px;">
+                                        <div class="progress-bar bg-primary" role="progressbar" style="width: 60%;" aria-valuenow="12" aria-valuemin="0" aria-valuemax="20"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="badge bg-success">{% trans "Ouvert" %}</span></td>
+                            <td>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        {% trans "Actions" %}
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-eye me-2"></i>{% trans "Voir détails" %}</a></li>
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-user-plus me-2"></i>{% trans "Gérer les participants" %}</a></li>
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-edit me-2"></i>{% trans "Modifier" %}</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-danger" href="#"><i class="fas fa-trash me-2"></i>{% trans "Supprimer" %}</a></li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                        
+                        <!-- Exemple de catégorie 3 -->
+                        <tr>
+                            <td>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="category3">
+                                    <label class="form-check-label" for="category3"></label>
+                                </div>
+                            </td>
+                            <td>{% trans "Kata Équipe Junior Mixte" %}</td>
+                            <td>{% trans "Karaté" %}</td>
+                            <td><span class="badge bg-info text-dark">Équipe</span></td>
+                            <td>12-17 ans</td>
+                            <td>Mixte</td>
+                            <td>-</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2">8</span>
+                                    <div class="progress flex-grow-1" style="height: 5px;">
+                                        <div class="progress-bar bg-primary" role="progressbar" style="width: 40%;" aria-valuenow="8" aria-valuemin="0" aria-valuemax="20"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="badge bg-info">{% trans "Brouillon" %}</span></td>
+                            <td>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        {% trans "Actions" %}
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-eye me-2"></i>{% trans "Voir détails" %}</a></li>
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-user-plus me-2"></i>{% trans "Gérer les participants" %}</a></li>
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-edit me-2"></i>{% trans "Modifier" %}</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-danger" href="#"><i class="fas fa-trash me-2"></i>{% trans "Supprimer" %}</a></li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                        
+                        <!-- Exemple de catégorie 4 -->
+                        <tr>
+                            <td>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="category4">
+                                    <label class="form-check-label" for="category4"></label>
+                                </div>
+                            </td>
+                            <td>{% trans "Kumite Individuel Senior Hommes -75kg" %}</td>
+                            <td>{% trans "Karaté" %}</td>
+                            <td><span class="badge bg-warning text-dark">Kumite</span></td>
+                            <td>{% trans "18+ ans" %}</td>
+                            <td>Hommes</td>
+                            <td>-75kg</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span class="me-2">16</span>
+                                    <div class="progress flex-grow-1" style="height: 5px;">
+                                        <div class="progress-bar bg-primary" role="progressbar" style="width: 80%;" aria-valuenow="16" aria-valuemin="0" aria-valuemax="20"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="badge bg-danger">{% trans "Fermé" %}</span></td>
+                            <td>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        {% trans "Actions" %}
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-eye me-2"></i>{% trans "Voir détails" %}</a></li>
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-user-plus me-2"></i>{% trans "Gérer les participants" %}</a></li>
+                                        <li><a class="dropdown-item" href="#"><i class="fas fa-edit me-2"></i>{% trans "Modifier" %}</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-danger" href="#"><i class="fas fa-trash me-2"></i>{% trans "Supprimer" %}</a></li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">{% trans "Précédent" %}</a>
+                    </li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item"><a class="page-link" href="#">2</a></li>
+                    <li class="page-item"><a class="page-link" href="#">3</a></li>
+                    <li class="page-item">
+                        <a class="page-link" href="#">{% trans "Suivant" %}</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+    
+    <!-- Statistiques des catégories -->
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Répartition par discipline" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <canvas id="disciplinesChart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Discipline" %}</th>
+                                    <th>{% trans "Catégories" %}</th>
+                                    <th>{% trans "Participants" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>{% trans "Karaté" %}</td>
+                                    <td>20</td>
+                                    <td>180</td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "Judo" %}</td>
+                                    <td>8</td>
+                                    <td>92</td>
+                                </tr>
+                                <tr>
+                                    <td>{% trans "Taekwondo" %}</td>
+                                    <td>4</td>
+                                    <td>45</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Répartition par type" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <canvas id="typesChart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <div class="card border">
+                                <div class="card-body">
+                                    <h3 class="text-success">18</h3>
+                                    <p class="mb-0">Kata</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card border">
+                                <div class="card-body">
+                                    <h3 class="text-warning">12</h3>
+                                    <p class="mb-0">Kumite</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card border">
+                                <div class="card-body">
+                                    <h3 class="text-info">2</h3>
+                                    <p class="mb-0">{% trans "Équipes" %}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour créer une catégorie -->
+<div class="modal fade" id="createCategoryModal" tabindex="-1" aria-labelledby="createCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createCategoryModalLabel">{% trans "Créer une nouvelle catégorie" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="categoryName" class="form-label">{% trans "Nom de la catégorie" %}*</label>
+                            <input type="text" class="form-control" id="categoryName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="categoryDiscipline" class="form-label">{% trans "Discipline" %}*</label>
+                            <select class="form-select" id="categoryDiscipline" required>
+                                <option value="" selected disabled>{% trans "Sélectionner une discipline" %}</option>
+                                <option value="karate">{% trans "Karaté" %}</option>
+                                <option value="judo">{% trans "Judo" %}</option>
+                                <option value="taekwondo">{% trans "Taekwondo" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="categoryType" class="form-label">{% trans "Type" %}*</label>
+                            <select class="form-select" id="categoryType" required>
+                                <option value="" selected disabled>{% trans "Sélectionner un type" %}</option>
+                                <option value="kata">Kata</option>
+                                <option value="kumite">Kumite</option>
+                                <option value="team">{% trans "Équipe" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="categoryGender" class="form-label">{% trans "Genre" %}*</label>
+                            <select class="form-select" id="categoryGender" required>
+                                <option value="" selected disabled>{% trans "Sélectionner un genre" %}</option>
+                                <option value="male">{% trans "Hommes" %}</option>
+                                <option value="female">{% trans "Femmes" %}</option>
+                                <option value="mixed">{% trans "Mixte" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="categoryMinAge" class="form-label">{% trans "Âge minimum" %}*</label>
+                            <input type="number" class="form-control" id="categoryMinAge" min="0" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="categoryMaxAge" class="form-label">{% trans "Âge maximum" %}</label>
+                            <input type="number" class="form-control" id="categoryMaxAge" min="0">
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="categoryMinWeight" class="form-label">{% trans "Poids minimum (kg)" %}</label>
+                            <input type="number" class="form-control" id="categoryMinWeight" min="0" step="0.1">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="categoryMaxWeight" class="form-label">{% trans "Poids maximum (kg)" %}</label>
+                            <input type="number" class="form-control" id="categoryMaxWeight" min="0" step="0.1">
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="categorySystem" class="form-label">{% trans "Système de compétition" %}*</label>
+                            <select class="form-select" id="categorySystem" required>
+                                <option value="" selected disabled>{% trans "Sélectionner un système" %}</option>
+                                <option value="elimination">{% trans "Élimination directe" %}</option>
+                                <option value="repechage">{% trans "Repêchage" %}</option>
+                                <option value="round_robin">{% trans "Tournoi toutes rondes" %}</option>
+                                <option value="pool">{% trans "Poules" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="categoryMaxParticipants" class="form-label">{% trans "Nombre maximum de participants" %}*</label>
+                            <input type="number" class="form-control" id="categoryMaxParticipants" min="2" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="categoryDescription" class="form-label">{% trans "Description" %}</label>
+                        <textarea class="form-control" id="categoryDescription" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="categoryStatus" class="form-label">{% trans "Statut initial" %}*</label>
+                            <select class="form-select" id="categoryStatus" required>
+                                <option value="draft">{% trans "Brouillon" %}</option>
+                                <option value="open">{% trans "Ouvert aux inscriptions" %}</option>
+                                <option value="closed">{% trans "Fermé" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="categoryRegistrationDeadline" class="form-label">{% trans "Date limite d'inscription" %}</label>
+                            <input type="date" class="form-control" id="categoryRegistrationDeadline">
+                        </div>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="categoryWeightCheck">
+                        <label class="form-check-label" for="categoryWeightCheck">
+                            {% trans "Vérification du poids requise" %}
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-primary">{% trans "Créer la catégorie" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts pour les graphiques (utilisant Chart.js) -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Graphique de répartition par discipline
+        var disciplinesCtx = document.getElementById('disciplinesChart').getContext('2d');
+        var disciplinesChart = new Chart(disciplinesCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Karaté', 'Judo', 'Taekwondo'],
+                datasets: [{
+                    data: [20, 8, 4],
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.7)',
+                        'rgba(54, 162, 235, 0.7)',
+                        'rgba(255, 206, 86, 0.7)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                    }
+                }
+            }
+        });
+        
+        // Graphique de répartition par type
+        var typesCtx = document.getElementById('typesChart').getContext('2d');
+        var typesChart = new Chart(typesCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Kata', 'Kumite', 'Équipes'],
+                datasets: [{
+                    data: [18, 12, 2],
+                    backgroundColor: [
+                        'rgba(40, 167, 69, 0.7)',
+                        'rgba(255, 193, 7, 0.7)',
+                        'rgba(23, 162, 184, 0.7)'
+                    ],
+                    borderColor: [
+                        'rgba(40, 167, 69, 1)',
+                        'rgba(255, 193, 7, 1)',
+                        'rgba(23, 162, 184, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

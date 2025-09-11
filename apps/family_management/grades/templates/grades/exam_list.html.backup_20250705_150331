@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Examens de Passage de Grade" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .exam-card {
+        transition: all 0.3s ease;
+        border-left: 4px solid #6c757d;
+    }
+    
+    .exam-card.status-scheduled {
+        border-left-color: #17a2b8;
+    }
+    
+    .exam-card.status-in_progress {
+        border-left-color: #007bff;
+    }
+    
+    .exam-card.status-completed {
+        border-left-color: #28a745;
+    }
+    
+    .exam-card.status-cancelled {
+        border-left-color: #dc3545;
+    }
+    
+    .exam-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .badge-discipline {
+        background-color: #6c757d;
+        color: white;
+    }
+    
+    .badge-status {
+        padding: 0.5em 0.75em;
+    }
+    
+    .stats-container {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .stats-item {
+        text-align: center;
+        padding: 1rem;
+        border-radius: 8px;
+        background-color: #fff;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    }
+    
+    .stats-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #495057;
+    }
+    
+    .stats-label {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+    }
+    
+    .exam-date {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-bottom: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{% trans "Examens de Passage de Grade" %}</h1>
+        
+        <div>
+            <a href="{% url 'grades:exam_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus-circle me-2"></i>{% trans "Créer un examen" %}
+            </a>
+        </div>
+    </div>
+    
+    <!-- Statistiques -->
+    <div class="stats-container">
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
+            <div class="col">
+                <div class="stats-item">
+                    <div class="stats-value text-primary">{{ page_obj.paginator.count }}</div>
+                    <div class="stats-label">{% trans "Examens au total" %}</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="stats-item">
+                    <div class="stats-value text-info">{{ upcoming_exams_count }}</div>
+                    <div class="stats-label">{% trans "Examens à venir" %}</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="stats-item">
+                    <div class="stats-value text-success">{{ past_exams_count }}</div>
+                    <div class="stats-label">{% trans "Examens passés" %}</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="stats-item">
+                    <div class="stats-value text-danger">{{ page_obj.paginator.count|default:0|add:"-"|add:upcoming_exams_count|add:"-"|add:past_exams_count }}</div>
+                    <div class="stats-label">{% trans "Examens annulés" %}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filtres -->
+    <div class="filter-section">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="discipline" class="form-label">{% trans "Discipline" %}</label>
+                <select name="discipline" id="discipline" class="form-select">
+                    <option value="">{% trans "Toutes les disciplines" %}</option>
+                    {% for discipline in disciplines %}
+                        <option value="{{ discipline.id }}" {% if selected_discipline == discipline.id|stringformat:"i" %}selected{% endif %}>
+                            {{ discipline.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label for="status" class="form-label">{% trans "Statut" %}</label>
+                <select name="status" id="status" class="form-select">
+                    <option value="">{% trans "Tous" %}</option>
+                    <option value="scheduled" {% if selected_status == 'scheduled' %}selected{% endif %}>{% trans "Programmé" %}</option>
+                    <option value="in_progress" {% if selected_status == 'in_progress' %}selected{% endif %}>{% trans "En cours" %}</option>
+                    <option value="completed" {% if selected_status == 'completed' %}selected{% endif %}>{% trans "Terminé" %}</option>
+                    <option value="cancelled" {% if selected_status == 'cancelled' %}selected{% endif %}>{% trans "Annulé" %}</option>
+                </select>
+            </div>
+            
+            <div class="col-md-5">
+                <label for="q" class="form-label">{% trans "Recherche" %}</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="q" name="q" value="{{ search_query }}" placeholder="{% trans 'Rechercher un examen...' %}">
+                    <button class="btn btn-outline-secondary" type="submit">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    {% if search_query or selected_discipline or selected_status %}
+                        <a href="{% url 'grades:exam_list' %}" class="btn btn-outline-danger">
+                            <i class="fas fa-times"></i>
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="col-12">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="upcoming" name="upcoming" value="true" {% if upcoming == 'true' %}checked{% endif %}>
+                    <label class="form-check-label" for="upcoming">{% trans "Afficher uniquement les examens à venir" %}</label>
+                </div>
+            </div>
+            
+            <div class="col-12 d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-filter me-2"></i>{% trans "Filtrer" %}
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Liste des examens -->
+    <div class="row">
+        {% for exam in exams %}
+            <div class="col-12 mb-4">
+                <div class="card h-100 exam-card status-{{ exam.status }}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h5 class="card-title mb-1">{{ exam.title }}</h5>
+                                <div class="exam-date">
+                                    <i class="fas fa-calendar-alt me-1"></i>{{ exam.date|date:"j F Y" }}
+                                    {% if exam.start_time %}
+                                        <i class="fas fa-clock ms-2 me-1"></i>{{ exam.start_time|time:"H:i" }}
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    {% if exam.discipline %}
+                                        <span class="badge badge-discipline me-2">{{ exam.discipline.name }}</span>
+                                    {% endif %}
+                                    
+                                    {% if exam.status == 'scheduled' %}
+                                        <span class="badge bg-info badge-status">{% trans "Programmé" %}</span>
+                                    {% elif exam.status == 'in_progress' %}
+                                        <span class="badge bg-primary badge-status">{% trans "En cours" %}</span>
+                                    {% elif exam.status == 'completed' %}
+                                        <span class="badge bg-success badge-status">{% trans "Terminé" %}</span>
+                                    {% elif exam.status == 'cancelled' %}
+                                        <span class="badge bg-danger badge-status">{% trans "Annulé" %}</span>
+                                    {% endif %}
+                                    
+                                    {% if exam.is_registration_open %}
+                                        <span class="badge bg-success ms-2">{% trans "Inscriptions ouvertes" %}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary ms-2">{% trans "Inscriptions fermées" %}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownMenuButton{{ exam.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton{{ exam.id }}">
+                                    <li><a class="dropdown-item" href="{% url 'grades:exam_detail' exam.id %}">
+                                        <i class="fas fa-eye me-2"></i>{% trans "Voir les détails" %}
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="{% url 'grades:exam_update' exam.id %}">
+                                        <i class="fas fa-edit me-2"></i>{% trans "Modifier" %}
+                                    </a></li>
+                                    {% if exam.is_registration_open %}
+                                        <li><a class="dropdown-item" href="{% url 'grades:register_for_exam' exam.id %}">
+                                            <i class="fas fa-user-plus me-2"></i>{% trans "Inscrire un pratiquant" %}
+                                        </a></li>
+                                    {% endif %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#deleteExamModal{{ exam.id }}">
+                                        <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                    </a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <p class="card-text">
+                                    <i class="fas fa-map-marker-alt me-1"></i>{{ exam.location }}
+                                </p>
+                                
+                                {% if exam.description %}
+                                    <p class="card-text">{{ exam.description|truncatechars:150 }}</p>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="card bg-light">
+                                    <div class="card-body p-3">
+                                        <h6 class="card-subtitle mb-2 text-muted">{% trans "Informations" %}</h6>
+                                        <ul class="list-unstyled mb-0">
+                                            <li>
+                                                <i class="fas fa-users me-2"></i>
+                                                <span>{{ exam.registrations.count }} {% trans "inscriptions" %}</span>
+                                            </li>
+                                            <li>
+                                                <i class="fas fa-user-tie me-2"></i>
+                                                <span>{{ exam.examiners }}</span>
+                                            </li>
+                                            {% if exam.registration_deadline %}
+                                                <li>
+                                                    <i class="fas fa-hourglass-end me-2"></i>
+                                                    <span>{% trans "Fin inscriptions" %}: {{ exam.registration_deadline|date:"j F Y" }}</span>
+                                                </li>
+                                            {% endif %}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3 text-end">
+                            <a href="{% url 'grades:exam_detail' exam.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye me-1"></i>{% trans "Détails" %}
+                            </a>
+                            
+                            {% if exam.is_registration_open %}
+                                <a href="{% url 'grades:register_for_exam' exam.id %}" class="btn btn-sm btn-success ms-2">
+                                    <i class="fas fa-user-plus me-1"></i>{% trans "Inscrire" %}
+                                </a>
+                            {% endif %}
+                            
+                            <a href="{% url 'grades:exam_update' exam.id %}" class="btn btn-sm btn-outline-secondary ms-2">
+                                <i class="fas fa-edit me-1"></i>{% trans "Modifier" %}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Modal de confirmation de suppression -->
+            <div class="modal fade" id="deleteExamModal{{ exam.id }}" tabindex="-1" aria-labelledby="deleteExamModalLabel{{ exam.id }}" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title" id="deleteExamModalLabel{{ exam.id }}">
+                                {% trans "Supprimer l'examen" %} "{{ exam.title }}"
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>{% trans "Êtes-vous sûr de vouloir supprimer cet examen de passage de grade ?" %}</p>
+                            <p class="text-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                {% trans "Cette action est irréversible. Toutes les inscriptions associées seront également supprimées." %}
+                            </p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                {% trans "Annuler" %}
+                            </button>
+                            <form action="{% url 'grades:exam_delete' exam.id %}" method="post">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="fas fa-trash-alt me-2"></i>{% trans "Supprimer" %}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% if search_query or selected_discipline or selected_status %}
+                        {% trans "Aucun examen ne correspond à vos critères de recherche." %}
+                    {% else %}
+                        {% trans "Aucun examen de passage de grade n'a été créé pour le moment." %}
+                    {% endif %}
+                </div>
+                
+                <div class="text-center mt-4">
+                    <a href="{% url 'grades:exam_create' %}" class="btn btn-primary">
+                        <i class="fas fa-plus-circle me-2"></i>{% trans "Créer un examen" %}
+                    </a>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    {% if is_paginated %}
+        <nav aria-label="Pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if upcoming %}&upcoming={{ upcoming }}{% endif %}" aria-label="{% trans 'Première' %}">
+                            <span aria-hidden="true">&laquo;&laquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if upcoming %}&upcoming={{ upcoming }}{% endif %}" aria-label="{% trans 'Précédente' %}">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">&laquo;&laquo;</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">&laquo;</span>
+                    </li>
+                {% endif %}
+                
+                {% for i in page_obj.paginator.page_range %}
+                    {% if page_obj.number == i %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ i }}</span>
+                        </li>
+                    {% elif i > page_obj.number|add:'-3' and i < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ i }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if upcoming %}&upcoming={{ upcoming }}{% endif %}">{{ i }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if upcoming %}&upcoming={{ upcoming }}{% endif %}" aria-label="{% trans 'Suivante' %}">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_discipline %}&discipline={{ selected_discipline }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if upcoming %}&upcoming={{ upcoming }}{% endif %}" aria-label="{% trans 'Dernière' %}">
+                            <span aria-hidden="true">&raquo;&raquo;</span>
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">&raquo;</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">&raquo;&raquo;</span>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animation des cartes au chargement
+        const cards = document.querySelectorAll('.exam-card');
+        cards.forEach((card, index) => {
+            setTimeout(() => {
+                card.style.opacity = '1';
+            }, 100 * index);
+        });
+        
+        // Auto-submit du formulaire quand on change le filtre "Examens à venir"
+        document.getElementById('upcoming').addEventListener('change', function() {
+            this.form.submit();
+        });
+    });
+</script>
+{% endblock %}

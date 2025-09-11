@@ -1,0 +1,201 @@
+{% comment %}
+Tableau des assignations de juges.
+Ce template partiel est inclus dans judges.html et judge_detail.html.
+{% endcomment %}
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+        <thead class="bg-light">
+            <tr>
+                <th>{% trans "Catégorie" %}</th>
+                <th>{% trans "Type d'assignation" %}</th>
+                <th>{% trans "Juge" %}</th>
+                <th>{% trans "Tatami" %}</th>
+                <th>{% trans "Horaire" %}</th>
+                <th>{% trans "Statut" %}</th>
+                <th class="text-end">{% trans "Actions" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for assignment in assignments %}
+                <tr>
+                    <td>
+                        {{ assignment.category.name }}
+                        <div class="small text-muted">{{ assignment.category.competition_type.name }}</div>
+                    </td>
+                    <td>
+                        {% if assignment.assignment_type == 'technical_judge' %}
+                            <span class="badge bg-info">{% trans "Juge Technique" %}</span>
+                        {% elif assignment.assignment_type == 'combat_referee' %}
+                            <span class="badge bg-danger">{% trans "Arbitre Combat" %}</span>
+                        {% elif assignment.assignment_type == 'chief_judge' %}
+                            <span class="badge bg-primary">{% trans "Juge en Chef" %}</span>
+                        {% elif assignment.assignment_type == 'timekeeper' %}
+                            <span class="badge bg-warning text-dark">{% trans "Chronométreur" %}</span>
+                        {% elif assignment.assignment_type == 'scorekeeper' %}
+                            <span class="badge bg-secondary">{% trans "Marqueur" %}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            {% if assignment.registration.practitioner.photo %}
+                                <img src="{{ assignment.registration.practitioner.photo.url }}" alt="" class="rounded-circle me-2" width="30" height="30">
+                            {% else %}
+                                <div class="rounded-circle bg-secondary text-white d-flex justify-content-center align-items-center me-2" style="width: 30px; height: 30px;">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            {% endif %}
+                            <div>
+                                <strong>{{ assignment.registration.practitioner.full_name }}</strong>
+                                {% if assignment.user %}
+                                    <div class="small text-muted">{{ assignment.user.email }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% if assignment.tatami %}
+                            <span class="badge bg-success">
+                                {% trans "Tatami" %} {{ assignment.tatami }}
+                            </span>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if assignment.start_time and assignment.end_time %}
+                            <div>
+                                <i class="far fa-clock me-1"></i>
+                                {{ assignment.start_time|date:"H:i" }} - {{ assignment.end_time|date:"H:i" }}
+                            </div>
+                            <div class="small text-muted">
+                                {{ assignment.start_time|date:"d/m/Y" }}
+                            </div>
+                        {% else %}
+                            <span class="text-muted">{% trans "Non planifié" %}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if assignment.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">{% trans "En attente" %}</span>
+                        {% elif assignment.status == 'confirmed' %}
+                            <span class="badge bg-success">{% trans "Confirmé" %}</span>
+                        {% elif assignment.status == 'declined' %}
+                            <span class="badge bg-danger">{% trans "Refusé" %}</span>
+                        {% elif assignment.status == 'completed' %}
+                            <span class="badge bg-secondary">{% trans "Terminé" %}</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <div class="btn-group" role="group">
+                            {% if perms.competitions.change_judgeassignment %}
+                                <a href="{% url 'competitions:judge:edit_assignment' assignment.id %}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            {% endif %}
+                            
+                            {% if assignment.status == 'pending' %}
+                                <form method="POST" action="{% url 'competitions:judge:update_assignment_status' assignment.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="status" value="confirmed">
+                                    <button type="submit" class="btn btn-sm btn-outline-success">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                </form>
+                                
+                                <form method="POST" action="{% url 'competitions:judge:update_assignment_status' assignment.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="status" value="declined">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </form>
+                            {% endif %}
+                            
+                            {% if perms.competitions.delete_judgeassignment %}
+                                <button type="button" class="btn btn-sm btn-outline-danger delete-assignment-btn"
+                                        data-bs-toggle="modal" data-bs-target="#deleteAssignmentModal"
+                                        data-assignment-id="{{ assignment.id }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center py-4">
+                        <div class="d-flex flex-column align-items-center">
+                            <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                            <p class="mb-0">{% trans "Aucune assignation trouvée" %}</p>
+                            {% if show_add_button %}
+                                <a href="{% url 'competitions:judge:create_assignment' %}" class="btn btn-primary mt-3">
+                                    <i class="fas fa-plus me-2"></i>{% trans "Ajouter une assignation" %}
+                                </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if assignments.has_other_pages %}
+    <nav aria-label="{% trans 'Navigation des assignations' %}">
+        <ul class="pagination justify-content-center">
+            {% if assignments.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{{ url_params }}" aria-label="{% trans 'Première' %}">
+                        <span aria-hidden="true">&laquo;&laquo;</span>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ assignments.previous_page_number }}{{ url_params }}" aria-label="{% trans 'Précédente' %}">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">&laquo;&laquo;</span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">&laquo;</span>
+                </li>
+            {% endif %}
+            
+            {% for i in assignments.paginator.page_range %}
+                {% if assignments.number == i %}
+                    <li class="page-item active" aria-current="page">
+                        <span class="page-link">{{ i }}</span>
+                    </li>
+                {% elif i > assignments.number|add:"-3" and i < assignments.number|add:"3" %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ i }}{{ url_params }}">{{ i }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+            
+            {% if assignments.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ assignments.next_page_number }}{{ url_params }}" aria-label="{% trans 'Suivante' %}">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ assignments.paginator.num_pages }}{{ url_params }}" aria-label="{% trans 'Dernière' %}">
+                        <span aria-hidden="true">&raquo;&raquo;</span>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">&raquo;</span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">&raquo;&raquo;</span>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+{% endif %}

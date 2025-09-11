@@ -1,0 +1,520 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Exporter le planning" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .export-option {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+    
+    .export-option:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .export-option.selected {
+        border-color: #007bff;
+        background-color: #f8f9ff;
+    }
+    
+    .export-format-icon {
+        font-size: 2rem;
+        margin-bottom: 10px;
+        color: #495057;
+    }
+    
+    .export-option.selected .export-format-icon {
+        color: #007bff;
+    }
+    
+    .export-configuration {
+        display: none;
+    }
+    
+    .export-configuration.active {
+        display: block;
+        animation: fadeIn 0.5s;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .preview-container {
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 15px;
+        margin-top: 20px;
+        background-color: #f8f9fa;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:dashboard:manager' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:competitions:detail' competition.pk %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:schedule:index' competition.pk %}">{% trans "Planning" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% trans "Exporter le planning" %}</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h4 mb-0">{% trans "Exporter le planning de compétition" %}</h2>
+        </div>
+        <div class="card-body">
+            <form method="post" id="exportForm">
+                {% csrf_token %}
+                
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <h3 class="h5 mb-3">{% trans "Choisir le format d'export" %}</h3>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-4 col-6">
+                        <div class="export-option text-center selected" data-format="pdf">
+                            <div class="export-format-icon">
+                                <i class="far fa-file-pdf"></i>
+                            </div>
+                            <h4 class="h6">{% trans "PDF" %}</h4>
+                            <div class="small text-muted">{% trans "Document PDF complet" %}</div>
+                            <input type="radio" name="export_format" value="pdf" class="d-none" checked>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-4 col-6">
+                        <div class="export-option text-center" data-format="excel">
+                            <div class="export-format-icon">
+                                <i class="far fa-file-excel"></i>
+                            </div>
+                            <h4 class="h6">{% trans "Excel" %}</h4>
+                            <div class="small text-muted">{% trans "Feuille de calcul" %}</div>
+                            <input type="radio" name="export_format" value="excel" class="d-none">
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-4 col-6">
+                        <div class="export-option text-center" data-format="csv">
+                            <div class="export-format-icon">
+                                <i class="far fa-file-csv"></i>
+                            </div>
+                            <h4 class="h6">{% trans "CSV" %}</h4>
+                            <div class="small text-muted">{% trans "Fichier texte délimité" %}</div>
+                            <input type="radio" name="export_format" value="csv" class="d-none">
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-3 col-md-4 col-6">
+                        <div class="export-option text-center" data-format="ics">
+                            <div class="export-format-icon">
+                                <i class="far fa-calendar-alt"></i>
+                            </div>
+                            <h4 class="h6">{% trans "iCalendar" %}</h4>
+                            <div class="small text-muted">{% trans "Pour les agendas" %}</div>
+                            <input type="radio" name="export_format" value="ics" class="d-none">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Options de configuration spécifiques à chaque format -->
+                <div class="export-configurations">
+                    <!-- Configuration PDF -->
+                    <div id="pdf-config" class="export-configuration active">
+                        <h3 class="h5 mb-3">{% trans "Options d'export PDF" %}</h3>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="pdf-page-size">{% trans "Taille de page" %}</label>
+                                    <select class="form-select" name="pdf_page_size" id="pdf-page-size">
+                                        <option value="a4">A4</option>
+                                        <option value="letter">{% trans "Letter" %}</option>
+                                        <option value="legal">{% trans "Legal" %}</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="pdf-orientation">{% trans "Orientation" %}</label>
+                                    <select class="form-select" name="pdf_orientation" id="pdf-orientation">
+                                        <option value="portrait">{% trans "Portrait" %}</option>
+                                        <option value="landscape" selected>{% trans "Paysage" %}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="pdf_include_header" id="pdf-include-header" checked>
+                                    <label class="form-check-label" for="pdf-include-header">
+                                        {% trans "Inclure l'en-tête" %}
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="pdf_include_footer" id="pdf-include-footer" checked>
+                                    <label class="form-check-label" for="pdf-include-footer">
+                                        {% trans "Inclure le pied de page" %}
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="pdf_include_page_numbers" id="pdf-include-page-numbers" checked>
+                                    <label class="form-check-label" for="pdf-include-page-numbers">
+                                        {% trans "Inclure la numérotation des pages" %}
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="pdf_color_coded" id="pdf-color-coded" checked>
+                                    <label class="form-check-label" for="pdf-color-coded">
+                                        {% trans "Utiliser le code couleur" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mt-3">
+                            <label for="pdf-sections">{% trans "Sections à inclure" %}</label>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="pdf_include_overview" id="pdf-include-overview" checked>
+                                        <label class="form-check-label" for="pdf-include-overview">
+                                            {% trans "Vue d'ensemble" %}
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="pdf_include_tatami" id="pdf-include-tatami" checked>
+                                        <label class="form-check-label" for="pdf-include-tatami">
+                                            {% trans "Planning par tatami" %}
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="pdf_include_categories" id="pdf-include-categories" checked>
+                                        <label class="form-check-label" for="pdf-include-categories">
+                                            {% trans "Planning par catégorie" %}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Configuration Excel -->
+                    <div id="excel-config" class="export-configuration">
+                        <h3 class="h5 mb-3">{% trans "Options d'export Excel" %}</h3>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="excel_separate_sheets" id="excel-separate-sheets" checked>
+                                    <label class="form-check-label" for="excel-separate-sheets">
+                                        {% trans "Feuilles séparées pour chaque tatami" %}
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="excel_include_formulas" id="excel-include-formulas" checked>
+                                    <label class="form-check-label" for="excel-include-formulas">
+                                        {% trans "Inclure les formules de calcul" %}
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="excel_format_cells" id="excel-format-cells" checked>
+                                    <label class="form-check-label" for="excel-format-cells">
+                                        {% trans "Formater les cellules (couleurs, bordures)" %}
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="excel_auto_filters" id="excel-auto-filters" checked>
+                                    <label class="form-check-label" for="excel-auto-filters">
+                                        {% trans "Activer les filtres automatiques" %}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Configuration CSV -->
+                    <div id="csv-config" class="export-configuration">
+                        <h3 class="h5 mb-3">{% trans "Options d'export CSV" %}</h3>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="csv-delimiter">{% trans "Délimiteur" %}</label>
+                                    <select class="form-select" name="csv_delimiter" id="csv-delimiter">
+                                        <option value="comma">{% trans "Virgule (,)" %}</option>
+                                        <option value="semicolon">{% trans "Point-virgule (;)" %}</option>
+                                        <option value="tab">{% trans "Tabulation" %}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="csv-encoding">{% trans "Encodage" %}</label>
+                                    <select class="form-select" name="csv_encoding" id="csv-encoding">
+                                        <option value="utf8">{% trans "UTF-8" %}</option>
+                                        <option value="latin1">{% trans "ISO-8859-1" %}</option>
+                                        <option value="cp1252">{% trans "Windows-1252" %}</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="csv_include_header" id="csv-include-header" checked>
+                            <label class="form-check-label" for="csv-include-header">
+                                {% trans "Inclure la ligne d'en-tête" %}
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Configuration iCalendar -->
+                    <div id="ics-config" class="export-configuration">
+                        <h3 class="h5 mb-3">{% trans "Options d'export iCalendar" %}</h3>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="ics_include_location" id="ics-include-location" checked>
+                                    <label class="form-check-label" for="ics-include-location">
+                                        {% trans "Inclure les informations de lieu" %}
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="ics_include_description" id="ics-include-description" checked>
+                                    <label class="form-check-label" for="ics-include-description">
+                                        {% trans "Inclure les descriptions détaillées" %}
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="ics_include_reminders" id="ics-include-reminders" checked>
+                                    <label class="form-check-label" for="ics-include-reminders">
+                                        {% trans "Inclure les rappels" %}
+                                    </label>
+                                </div>
+                                
+                                <div class="form-group mb-3">
+                                    <label for="ics-reminder-minutes">{% trans "Rappel (minutes avant)" %}</label>
+                                    <select class="form-select" name="ics_reminder_minutes" id="ics-reminder-minutes">
+                                        <option value="15">15 {% trans "minutes" %}</option>
+                                        <option value="30" selected>30 {% trans "minutes" %}</option>
+                                        <option value="60">1 {% trans "heure" %}</option>
+                                        <option value="120">2 {% trans "heures" %}</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Boutons d'action -->
+                <div class="mt-4 d-flex justify-content-between">
+                    <a href="{% url 'competitions:schedule:index' competition.pk %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> {% trans "Retour au planning" %}
+                    </a>
+                    
+                    <div>
+                        <button type="button" id="previewButton" class="btn btn-outline-primary me-2">
+                            <i class="fas fa-eye me-1"></i> {% trans "Aperçu" %}
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-download me-1"></i> {% trans "Télécharger" %}
+                        </button>
+                    </div>
+                </div>
+            </form>
+            
+            <!-- Aperçu (caché par défaut) -->
+            <div class="preview-container mt-4" id="previewContainer" style="display: none;">
+                <h4 class="h5 mb-3">{% trans "Aperçu" %}</h4>
+                <div id="previewContent" class="border p-3 bg-white">
+                    <!-- Le contenu de l'aperçu sera injecté ici via JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion de la sélection du format d'export
+        const exportOptions = document.querySelectorAll('.export-option');
+        const exportConfigs = document.querySelectorAll('.export-configuration');
+        
+        exportOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                // Mettre à jour la sélection visuelle
+                exportOptions.forEach(o => o.classList.remove('selected'));
+                this.classList.add('selected');
+                
+                // Cocher le bon radio button
+                const radio = this.querySelector('input[type="radio"]');
+                radio.checked = true;
+                
+                // Afficher la configuration correspondante
+                const format = this.dataset.format;
+                exportConfigs.forEach(config => config.classList.remove('active'));
+                document.getElementById(`${format}-config`).classList.add('active');
+            });
+        });
+        
+        // Fonction d'aperçu
+        const previewButton = document.getElementById('previewButton');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewContent = document.getElementById('previewContent');
+        
+        previewButton.addEventListener('click', function() {
+            // Récupérer le format sélectionné
+            const selectedFormat = document.querySelector('input[name="export_format"]:checked').value;
+            
+            // Simulation d'un aperçu (à adapter avec les données réelles)
+            let previewHTML = '';
+            
+            switch (selectedFormat) {
+                case 'pdf':
+                    previewHTML = `
+                        <div class="text-center mb-3">
+                            <strong>${competition.title}</strong><br>{% trans "Planning de compétition - Version PDF" %}</div>
+                        <table class="table table-bordered table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Heure</th>
+                                    <th>Tatami 1</th>
+                                    <th>Tatami 2</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>09:00</td>
+                                    <td>Catégorie A</td>
+                                    <td>Catégorie B</td>
+                                </tr>
+                                <tr>
+                                    <td>10:30</td>
+                                    <td>Catégorie C</td>
+                                    <td>Catégorie D</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="text-center text-muted mt-3">
+                            <small>{% trans "Aperçu limité. Le PDF final inclura toutes les sections sélectionnées." %}</small>
+                        </div>`;
+                    break;
+                case 'excel':
+                    previewHTML = `
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm">
+                                <thead>
+                                    <tr class="bg-light">
+                                        <th>A</th>
+                                        <th>B</th>
+                                        <th>C</th>
+                                        <th>D</th>
+                                        <th>E</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Heure</strong></td>
+                                        <td><strong>Catégorie</strong></td>
+                                        <td><strong>Tatami</strong></td>
+                                        <td><strong>Participants</strong></td>
+                                        <td><strong>Type</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td>09:00</td>
+                                        <td>Catégorie A</td>
+                                        <td>Tatami 1</td>
+                                        <td>12</td>
+                                        <td>Éliminatoires</td>
+                                    </tr>
+                                    <tr>
+                                        <td>10:30</td>
+                                        <td>Catégorie C</td>
+                                        <td>Tatami 1</td>
+                                        <td>8</td>
+                                        <td>Finales</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="text-muted mt-2">
+                            <small>{% trans "La feuille Excel finale contiendra toutes les données du planning." %}</small>
+                        </div>`;
+                    break;
+                case 'csv':
+                    previewHTML = `
+                        <pre class="bg-light p-2">{% trans "Heure,Catégorie,Tatami,Participants,Type
+09:00,Catégorie A,Tatami 1,12,Éliminatoires
+10:30,Catégorie C,Tatami 1,8,Finales
+09:00,Catégorie B,Tatami 2,15,Éliminatoires
+10:30,Catégorie D,Tatami 2,10,Finales" %}</pre>
+                        <div class="text-muted mt-2">
+                            <small>{% trans "Le fichier CSV contiendra toutes les entrées du planning." %}</small>
+                        </div>`;
+                    break;
+                case 'ics':
+                    previewHTML = `
+                        <div class="bg-light p-3">
+                            <p><strong>{% trans "BEGIN:VCALENDAR" %}</strong></p>
+                            <p>{% trans "VERSION:2.0" %}</p>
+                            <p>{% trans "PRODID:-//MartialComp//Schedule//EN" %}</p>
+                            <p>X-WR-CALNAME:${competition.title}</p>
+                            <p>{% trans "BEGIN:VEVENT" %}</p>
+                            <p>{% trans "UID:category-a@martialcomp" %}</p>
+                            <p>{% trans "SUMMARY:Catégorie A - Éliminatoires" %}</p>
+                            <p>{% trans "LOCATION:Tatami 1" %}</p>
+                            <p>{% trans "DESCRIPTION:Compétition de la catégorie A" %}</p>
+                            <p>{% trans "DTSTART:20250101T090000" %}</p>
+                            <p>{% trans "DTEND:20250101T103000" %}</p>
+                            <p>{% trans "BEGIN:VALARM" %}</p>
+                            <p>{% trans "ACTION:DISPLAY" %}</p>
+                            <p>{% trans "DESCRIPTION:Rappel: Catégorie A commence dans 30 minutes" %}</p>
+                            <p>{% trans "TRIGGER:-PT30M" %}</p>
+                            <p>{% trans "END:VALARM" %}</p>
+                            <p>{% trans "END:VEVENT" %}</p>
+                            <p>...</p>
+                            <p><strong>{% trans "END:VCALENDAR" %}</strong></p>
+                        </div>
+                        <div class="text-muted mt-2">
+                            <small>{% trans "Le fichier iCalendar contiendra toutes les catégories sous forme d'événements." %}</small>
+                        </div>`;
+                    break;
+            }
+            
+            // Afficher l'aperçu
+            previewContent.innerHTML = previewHTML;
+            previewContainer.style.display = 'block';
+            
+            // Scroll vers l'aperçu
+            previewContainer.scrollIntoView({behavior: 'smooth'});
+        });
+    });
+</script>
+{% endblock %}

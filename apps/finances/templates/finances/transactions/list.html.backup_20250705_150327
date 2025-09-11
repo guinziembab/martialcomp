@@ -1,0 +1,302 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Liste des transactions" %}{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">{% trans "Transactions" %}</h1>
+
+    <!-- Filtres -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Filtres" %}</h6>
+            <div>
+                <button class="btn btn-sm btn-outline-primary" type="button" data-toggle="collapse" data-target="#collapseFilters">
+                    <i class="fas fa-filter"></i> {% trans "Afficher/Masquer" %}
+                </button>
+            </div>
+        </div>
+        <div class="card-body collapse show" id="collapseFilters">
+            <form method="get" class="mb-0">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="category">{% trans "Catégorie" %}</label>
+                        {{ filter_form.category }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="type">{% trans "Type" %}</label>
+                        {{ filter_form.type }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="status">{% trans "Statut" %}</label>
+                        {{ filter_form.status }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="account">{% trans "Compte" %}</label>
+                        {{ filter_form.account }}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="start_date">{% trans "Date de début" %}</label>
+                        {{ filter_form.start_date }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="end_date">{% trans "Date de fin" %}</label>
+                        {{ filter_form.end_date }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="min_amount">{% trans "Montant min" %}</label>
+                        {{ filter_form.min_amount }}
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="max_amount">{% trans "Montant max" %}</label>
+                        {{ filter_form.max_amount }}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="keywords">{% trans "Mots-clés" %}</label>
+                        {{ filter_form.keywords }}
+                    </div>
+                    <div class="col-md-3 mb-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary mr-2">
+                            <i class="fas fa-search"></i> {% trans "Filtrer" %}
+                        </button>
+                        <a href="{% url 'finances:transaction_list' %}" class="btn btn-secondary">
+                            <i class="fas fa-undo"></i> {% trans "Réinitialiser" %}
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <div>
+            <a href="{% url 'finances:transactions:transaction_create' %}" class="btn btn-success">
+                <i class="fas fa-plus-circle"></i> {% trans "Nouvelle transaction" %}
+            </a>
+            {% if permissions.can_export_transactions %}
+            <div class="btn-group ml-2">
+                <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">
+                    <i class="fas fa-download"></i> {% trans "Exporter" %}
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="{% url 'finances:transaction_export' %}?format=csv{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">
+                        CSV
+                    </a>
+                    <a class="dropdown-item" href="{% url 'finances:transaction_export' %}?format=xlsx{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">
+                        Excel
+                    </a>
+                    <a class="dropdown-item" href="{% url 'finances:transaction_export' %}?format=pdf{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">
+                        PDF
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+            {% if permissions.can_import_transactions %}
+            <a href="{% url 'finances:transaction_import' %}" class="btn btn-info ml-2">
+                <i class="fas fa-upload"></i> {% trans "Importer" %}
+            </a>
+            {% endif %}
+        </div>
+        <div class="text-muted">
+            {% blocktrans with count=transactions.paginator.count %}
+            {{ count }} transactions trouvées
+            {% endblocktrans %}
+        </div>
+    </div>
+
+    <!-- Transactions -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">{% trans "Liste des transactions" %}</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="transactionsTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>{% trans "ID" %}</th>
+                            <th>{% trans "Date" %}</th>
+                            <th>{% trans "Description" %}</th>
+                            <th>{% trans "Catégorie" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Montant" %}</th>
+                            <th>{% trans "Compte" %}</th>
+                            <th>{% trans "Statut" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in transactions %}
+                        <tr>
+                            <td>{{ transaction.reference|default:transaction.pk }}</td>
+                            <td>{{ transaction.date|date:"d/m/Y" }}</td>
+                            <td>{{ transaction.description }}</td>
+                            <td>
+                                {% if transaction.category %}
+                                <span class="badge rounded-pill bg-primary">
+                                    {{ transaction.category.name }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">{% trans "Non catégorisé" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if transaction.type == 'income' %}
+                                <span class="badge bg-success">{% trans "Revenu" %}</span>
+                                {% elif transaction.type == 'expense' %}
+                                <span class="badge bg-danger">{% trans "Dépense" %}</span>
+                                {% elif transaction.type == 'transfer' %}
+                                <span class="badge bg-info">{% trans "Transfert" %}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{% trans "Autre" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="{% if transaction.amount > 0 %}text-success{% elif transaction.amount < 0 %}text-danger{% endif %} text-end">
+                                {{ transaction.amount|floatformat:2 }} €
+                            </td>
+                            <td>
+                                {% if transaction.account %}
+                                {{ transaction.account.name }}
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if transaction.status == 'pending' %}
+                                <span class="badge bg-warning">{% trans "En attente" %}</span>
+                                {% elif transaction.status == 'validated' %}
+                                <span class="badge bg-success">{% trans "Validée" %}</span>
+                                {% elif transaction.status == 'cancelled' %}
+                                <span class="badge bg-danger">{% trans "Annulée" %}</span>
+                                {% elif transaction.status == 'rejected' %}
+                                <span class="badge bg-secondary">{% trans "Rejetée" %}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ transaction.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'finances:transactions:transaction_detail' transaction.id %}" class="btn btn-info" title="{% trans 'Voir' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if permissions.can_add_transactions %}
+                                    <a href="{% url 'finances:transactions:transaction_update' transaction.id %}" class="btn btn-primary" title="{% trans 'Modifier' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if permissions.can_add_transactions %}
+                                    <a href="{% url 'finances:transactions:transaction_delete' transaction.id %}" class="btn btn-danger" title="{% trans 'Supprimer' %}">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9">
+                                <div class="text-center py-5">
+                                    <i class="fas fa-exchange-alt fa-4x text-muted mb-3"></i>
+                                    <h5 class="text-muted">{% trans "Aucune transaction trouvée" %}</h5>
+                                    <p class="text-muted mb-4">
+                                        {% trans "Il n'y a pas encore de transactions dans le système ou aucune ne correspond à vos critères de recherche." %}
+                                    </p>
+                                    <a href="{% url 'finances:transactions:transaction_create' %}" class="btn btn-primary">
+                                        <i class="fas fa-plus"></i> {% trans "Créer votre première transaction" %}
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <!-- Pagination -->
+                {% if transactions.has_other_pages %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mt-4">
+                        {% if transactions.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}" aria-label="First">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ transactions.previous_page_number }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}" aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">&laquo;&laquo;</span>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">&laquo;</span>
+                        </li>
+                        {% endif %}
+                        
+                        {% for i in transactions.paginator.page_range %}
+                            {% if transactions.number == i %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ i }}</span>
+                            </li>
+                            {% elif i > transactions.number|add:'-3' and i < transactions.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ i }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">{{ i }}</a>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if transactions.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ transactions.next_page_number }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}" aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ transactions.paginator.num_pages }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}" aria-label="Last">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">&raquo;</span>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">&raquo;&raquo;</span>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Initialize datepickers
+        $('.datepicker').datepicker({
+            format: 'dd/mm/yyyy',
+            language: 'fr',
+            autoclose: true
+        });
+        
+        // Initialize select2 for enhanced dropdowns
+        $('.select2').select2({
+            theme: 'bootstrap4',
+            width: '100%'
+        });
+    });
+</script>
+{% endblock %}

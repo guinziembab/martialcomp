@@ -1,0 +1,1507 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Tableau de bord Fédération" %} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Variables de couleur et configuration de base */
+  :root {
+    --primary: #dc3545;
+    --primary-light: #fde9eb;
+    --primary-dark: #c82333;
+    --secondary: #6c757d;
+    --success: #28a745;
+    --info: #17a2b8;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --light: #f8f9fa;
+    --dark: #343a40;
+    --gray-100: #f8f9fa;
+    --gray-200: #e9ecef;
+    --gray-300: #dee2e6;
+    --gray-800: #343a40;
+    --sidebar-width: 280px;
+    --sidebar-width-collapsed: 80px;
+    --card-border-radius: 12px;
+    --btn-border-radius: 6px;
+    --transition-speed: 0.3s;
+  }
+  
+  /* Structure principale */
+  body {
+    background-color: #f5f7fa;
+    overflow-x: hidden;
+  }
+
+  .dashboard-container {
+    display: flex;
+    min-height: calc(100vh - 56px);
+  }
+  
+  /* Barre latérale moderne */
+  .sidebar {
+    width: var(--sidebar-width);
+    background: linear-gradient(to bottom, var(--dark) 0%, #931a27 100%);
+    color: white;
+    position: fixed;
+    top: 56px;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    padding: 0;
+    overflow-y: auto;
+    transition: all var(--transition-speed);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Contenu principal */
+  .main-content {
+    flex: 1;
+    padding: 2rem;
+    margin-left: var(--sidebar-width);
+    transition: all var(--transition-speed);
+    max-width: 100%;
+  }
+  
+  /* Menu de navigation */
+  .nav-link {
+    padding: 0.8rem 1.5rem;
+    color: rgba(255, 255, 255, 0.8);
+    border-left: 3px solid transparent;
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    transition: all var(--transition-speed);
+  }
+  
+  .nav-link:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-left: 3px solid var(--primary);
+    transform: translateX(4px);
+  }
+  
+  .nav-link.active {
+    color: white;
+    background-color: var(--primary);
+    border-left: 3px solid white;
+    font-weight: 500;
+    box-shadow: 0 0 10px rgba(220, 53, 69, 0.3);
+  }
+  
+  .nav-link i {
+    margin-right: 12px;
+    width: 20px;
+    text-align: center;
+  }
+  
+  .sidebar-heading {
+    padding: 1rem 1.5rem 0.5rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+  }
+  
+  /* Profil fédération */
+  .federation-profile {
+    padding: 1.5rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(0, 0, 0, 0.1);
+    transition: all var(--transition-speed);
+  }
+  
+  .federation-avatar {
+    width: 80px;
+    height: 80px;
+    background-color: white;
+    border-radius: 12px;
+    margin: 0 auto 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    transition: all var(--transition-speed);
+    padding: 8px;
+  }
+  
+  .federation-avatar img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  
+  .federation-avatar:hover {
+    transform: scale(1.05);
+  }
+  
+  /* Cards modernes */
+  .dashboard-card {
+    border-radius: var(--card-border-radius);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.5rem;
+    background-color: white;
+    border: none;
+    transition: all var(--transition-speed);
+    overflow: hidden;
+  }
+  
+  .dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Cartes de statistiques */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  .card-stats {
+    padding: 1.75rem;
+    text-align: center;
+    border-radius: var(--card-border-radius);
+    height: 100%;
+  }
+  
+  .stats-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.07);
+    transition: all var(--transition-speed);
+  }
+  
+  .card-stats:hover .stats-icon {
+    transform: scale(1.1) rotate(5deg);
+  }
+  
+  /* Couleurs des icônes de stats */
+  .stats-clubs {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+  }
+  
+  .stats-competitions {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+  
+  .stats-events {
+    background-color: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+  }
+  
+  .stats-participants {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+  }
+  
+  .stats-finances {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+  
+  .stats-value {
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: var(--dark);
+    transition: all var(--transition-speed);
+  }
+  
+  .stats-label {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    color: var(--secondary);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  
+  /* Section des actions rapides */
+  .quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  .quick-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 2rem 1.5rem;
+    background-color: white;
+    border-radius: var(--card-border-radius);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    transition: all var(--transition-speed);
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .quick-action:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+  
+  .quick-action::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background-color: var(--primary);
+  }
+  
+  .action-icon {
+    width: 70px;
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    margin-bottom: 1.25rem;
+    font-size: 1.75rem;
+    background-color: var(--primary-light);
+    color: var(--primary);
+    transition: all var(--transition-speed);
+  }
+  
+  .quick-action:hover .action-icon {
+    transform: scale(1.1);
+    background-color: var(--primary);
+    color: white;
+  }
+  
+  .action-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--dark);
+  }
+  
+  .action-description {
+    font-size: 0.95rem;
+    color: var(--secondary);
+    margin-bottom: 1.5rem;
+    flex-grow: 1;
+  }
+  
+  /* Sections */
+  .dashboard-section {
+    margin-bottom: 2.5rem;
+  }
+  
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+  }
+  
+  .section-title {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--dark);
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+  }
+  
+  .section-title i {
+    margin-right: 0.75rem;
+    color: var(--primary);
+    font-size: 1.25rem;
+  }
+  
+  /* Liste des compétitions */
+  .competitions-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.25rem;
+  }
+  
+  .competition-card {
+    position: relative;
+    padding: 1.25rem;
+    border-radius: var(--card-border-radius);
+    background-color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: all var(--transition-speed);
+    overflow: hidden;
+  }
+  
+  .competition-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  }
+  
+  .competition-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 5px;
+  }
+  
+  /* États des compétitions */
+  .competition-card.draft::before {
+    background-color: var(--secondary);
+  }
+  
+  .competition-card.published::before {
+    background-color: var(--success);
+  }
+  
+  .competition-card.ongoing::before {
+    background-color: var(--primary);
+  }
+  
+  .competition-card.completed::before {
+    background-color: var(--dark);
+  }
+  
+  .competition-card.cancelled::before {
+    background-color: var(--danger);
+  }
+  
+  .competition-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--dark);
+  }
+  
+  .competition-info {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    color: var(--secondary);
+  }
+  
+  .competition-info i {
+    margin-right: 0.5rem;
+    width: 16px;
+    text-align: center;
+    color: var(--primary);
+  }
+  
+  .competition-badges {
+    margin-bottom: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .competition-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1rem;
+    gap: 0.5rem;
+  }
+  
+  /* Activité récente */
+  .activity-timeline {
+    position: relative;
+    padding-left: 30px;
+  }
+  
+  .activity-item {
+    position: relative;
+    padding-bottom: 1.75rem;
+    margin-bottom: 1.75rem;
+  }
+  
+  .activity-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: -22px;
+    top: 8px;
+    bottom: -8px;
+    width: 2px;
+    background-color: var(--gray-300);
+  }
+  
+  .activity-dot {
+    position: absolute;
+    left: -30px;
+    top: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 3px solid white;
+    background-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.2);
+  }
+  
+  .activity-time {
+    font-size: 0.8rem;
+    color: var(--secondary);
+    margin-bottom: 0.25rem;
+    display: block;
+  }
+  
+  .activity-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  
+  /* Modules à venir */
+  .coming-soon-badge {
+    background-color: var(--secondary);
+    color: white;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 30px;
+    margin-left: 0.5rem;
+  }
+  
+  /* Mode responsive */
+  @media (max-width: 992px) {
+    .sidebar {
+      width: var(--sidebar-width-collapsed);
+      text-align: center;
+    }
+    
+    .main-content {
+      margin-left: var(--sidebar-width-collapsed);
+    }
+    
+    .federation-profile {
+      padding: 1rem 0.5rem;
+    }
+    
+    .federation-avatar {
+      width: 50px;
+      height: 50px;
+    }
+    
+    .nav-link {
+      justify-content: center;
+      padding: 0.8rem 0.5rem;
+    }
+    
+    .nav-link i {
+      margin-right: 0;
+    }
+    
+    .sidebar-heading, 
+    .nav-item span, 
+    .federation-profile h5, 
+    .federation-profile p, 
+    .federation-profile .badge,
+    .menu-badge {
+      display: none;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .sidebar {
+      transform: translateX(-100%);
+      width: var(--sidebar-width);
+    }
+    
+    .sidebar.active {
+      transform: translateX(0);
+    }
+    
+    .sidebar-heading, 
+    .nav-item span, 
+    .federation-profile h5, 
+    .federation-profile p, 
+    .federation-profile .badge,
+    .menu-badge {
+      display: block;
+    }
+    
+    .nav-link {
+      justify-content: flex-start;
+      padding: 0.8rem 1.5rem;
+    }
+    
+    .nav-link i {
+      margin-right: 12px;
+    }
+    
+    .main-content {
+      margin-left: 0;
+    }
+    
+    .toggle-sidebar {
+      display: block;
+    }
+    
+    .stats-grid,
+    .quick-actions-grid,
+    .competitions-list {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+  <!-- Barre latérale -->
+  <div class="sidebar">
+    <!-- Profil fédération -->
+    <div class="federation-profile text-center">
+      <div class="federation-avatar">
+        {% if federation.logo %}
+          <img src="{{ federation.logo.url }}" alt="{{ federation.name }}">
+        {% else %}
+          <i class="fas fa-building fa-2x text-muted"></i>
+        {% endif %}
+      </div>
+      <h5 class="mb-1 text-white">{{ federation.name }}</h5>
+      <p class="mb-2 text-white-50 small">{% trans "Fédération" %}</p>
+      <span class="badge bg-danger">{% trans "Administration" %}</span>
+    </div>
+    
+    <!-- Menu principal -->
+    <nav class="mt-3">
+      <div class="sidebar-heading">{% trans "Général" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="{% url 'competitions:dashboard:federations' %}" class="nav-link active">
+            <i class="fas fa-tachometer-alt"></i> <span>{% trans "Tableau de bord" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:federations:calendar' federation.id %}" class="nav-link">
+            <i class="fas fa-calendar-alt"></i> <span>{% trans "Calendrier" %}</span>
+          </a>
+        </li>
+      </ul>
+      
+      <div class="sidebar-heading">{% trans "Compétitions" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="{% url 'competitions:federations:competitions' federation.id %}" class="nav-link">
+            <i class="fas fa-trophy"></i> <span>{% trans "Compétitions" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:federations:create_competition' federation.id %}" class="nav-link">
+            <i class="fas fa-plus-circle"></i> <span>{% trans "Créer une compétition" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:dashboard:manager' %}" class="nav-link">
+            <i class="fas fa-tasks"></i> <span>{% trans "Gérer comme organisateur" %}</span>
+            {% if stats.competitions_to_manage|default:0 > 0 %}
+              <span class="badge rounded-pill bg-success ms-auto">{{ stats.competitions_to_manage }}</span>
+            {% endif %}
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:dashboard:combat' %}" class="nav-link">
+            <i class="fas fa-fist-raised"></i> <span>{% trans "Module Combat" %}</span>
+            {% if combat_stats.total_combats|default:0 > 0 %}
+              <span class="badge rounded-pill bg-danger ms-auto">{{ combat_stats.total_combats }}</span>
+            {% endif %}
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:federations:clubs' federation.id %}" class="nav-link">
+            <i class="fas fa-users"></i> <span>{% trans "Clubs membres" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:federations:categories' federation.id %}" class="nav-link">
+            <i class="fas fa-layer-group"></i> <span>{% trans "Catégories" %}</span>
+          </a>
+        </li>
+      </ul>
+      
+      <div class="sidebar-heading">{% trans "Administration" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="{% url 'competitions:federations:clubs' federation.id %}" class="nav-link">
+            <i class="fas fa-dojo"></i> <span>{% trans "Clubs affiliés" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:federations:users' federation.id %}" class="nav-link">
+            <i class="fas fa-user-cog"></i> <span>{% trans "Utilisateurs" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:federations:roles' federation.id %}" class="nav-link">
+            <i class="fas fa-user-tag"></i> <span>{% trans "Rôles et permissions" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:federations:judges' federation.id %}" class="nav-link">
+            <i class="fas fa-gavel"></i> <span>{% trans "Juges et arbitres" %}</span>
+          </a>
+        </li>
+      </ul>
+      
+      <div class="sidebar-heading">{% trans "Grades" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="{% url 'grades:grade_list' %}" class="nav-link">
+            <i class="fas fa-award"></i> <span>{% trans "Gestion des grades" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link disabled">
+            <i class="fas fa-certificate"></i> <span>{% trans "Certifications" %}</span>
+            <span class="badge rounded-pill bg-secondary ms-auto">{% trans "Bientôt" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link disabled">
+            <i class="fas fa-clipboard-check"></i> <span>{% trans "Examens" %}</span>
+            <span class="badge rounded-pill bg-secondary ms-auto">{% trans "Bientôt" %}</span>
+          </a>
+        </li>
+      </ul>
+      
+      <div class="sidebar-heading">{% trans "Finances & Licences" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="{% url 'competitions:licences:list' federation.id %}" class="nav-link">
+            <i class="fas fa-id-card"></i> <span>{% trans "Licences" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'finances:dashboard' %}" class="nav-link">
+            <i class="fas fa-file-invoice-dollar"></i> <span>{% trans "Finances" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'finances:transaction_list' %}" class="nav-link">
+            <i class="fas fa-exchange-alt"></i> <span>{% trans "Transactions" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'finances:invoice_list' %}" class="nav-link">
+            <i class="fas fa-file-invoice"></i> <span>{% trans "Factures" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'shop:dashboard:federation_dashboard' %}?federation_id={{ federation.id }}" class="nav-link">
+            <i class="fas fa-shopping-cart"></i> <span>{% trans "Boutique" %}</span>
+            <span class="badge rounded-pill bg-primary ms-auto">{% trans "Nouveau" %}</span>
+          </a>
+        </li>
+      </ul>
+      
+      <div class="sidebar-heading">{% trans "Paramètres" %}</div>
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a href="{% url 'competitions:federations:settings' federation.id %}" class="nav-link">
+            <i class="fas fa-cog"></i> <span>{% trans "Paramètres" %}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'competitions:federations:import_export' federation.id %}" class="nav-link">
+            <i class="fas fa-file-export"></i> <span>{% trans "Import / Export" %}</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+
+  <!-- Contenu principal -->
+  <div class="main-content">
+    <!-- En-tête avec actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h1 class="h3 mb-0">{% trans "Tableau de bord Fédération" %}</h1>
+        <p class="text-muted mb-0">{{ federation.name }}</p>
+      </div>
+      <div class="d-flex">
+        <button id="toggleSidebarBtn" class="btn btn-light me-2 d-md-none">
+          <i class="fas fa-bars"></i>
+        </button>
+        <div class="dropdown">
+          <button type="button" class="btn btn-danger dropdown-toggle" data-bs-toggle="dropdown">
+            <i class="fas fa-plus me-1"></i> {% trans "Actions rapides" %}
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'competitions:federations:create_competition' federation.id %}">
+              <i class="fas fa-trophy me-2 text-danger"></i> {% trans "Nouvelle compétition" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'competitions:federations:add_club' federation.id %}">
+              <i class="fas fa-dojo me-2 text-success"></i> {% trans "Ajouter un club" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'competitions:licences:create' federation.id %}">
+              <i class="fas fa-id-card me-2 text-info"></i> {% trans "Nouvelle licence" %}
+            </a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'shop:dashboard:federation_product_create' %}?federation_id={{ federation.id }}">
+              <i class="fas fa-shopping-basket me-2 text-info"></i> {% trans "Nouveau produit" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'shop:dashboard:federation_orders' %}?federation_id={{ federation.id }}">
+              <i class="fas fa-shopping-cart me-2 text-primary"></i> {% trans "Gérer les commandes" %}
+            </a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'finances:transaction_create' %}">
+              <i class="fas fa-exchange-alt me-2 text-primary"></i> {% trans "Nouvelle transaction" %}
+            </a></li>
+            <li><a class="dropdown-item" href="{% url 'competitions:federations:import_export' federation.id %}">
+              <i class="fas fa-file-import me-2 text-secondary"></i> {% trans "Importer des données" %}
+            </a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Messages d'alerte -->
+    {% if messages %}
+      <div class="messages mb-4">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+            <i class="fas {% if message.tags == 'success' %}fa-check-circle{% elif message.tags == 'error' %}fa-exclamation-circle{% elif message.tags == 'warning' %}fa-exclamation-triangle{% else %}fa-info-circle{% endif %} me-2"></i>
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <!-- Résumé financier -->
+    <div class="card dashboard-card mb-4">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-md-3 text-center text-md-start mb-3 mb-md-0">
+            <div class="d-flex align-items-center">
+              <div class="stats-icon stats-finances me-3" style="margin: 0;">
+                <i class="fas fa-wallet"></i>
+              </div>
+              <div>
+                <h5 class="mb-0">{% trans "Finances" %}</h5>
+                <p class="text-muted mb-0 small">{% trans "Résumé financier" %}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-9">
+            <div class="row text-center">
+              <div class="col-6 col-md-3 mb-3 mb-md-0">
+                <h5 class="mb-0">{{ financial_stats.balance|default:"0" }} {{ financial_stats.currency|default:"€" }}</h5>
+                <p class="text-muted mb-0 small">{% trans "Solde total" %}</p>
+              </div>
+              <div class="col-6 col-md-3 mb-3 mb-md-0">
+                <h5 class="mb-0">{{ financial_stats.income|default:"0" }} {{ financial_stats.currency|default:"€" }}</h5>
+                <p class="text-muted mb-0 small">{% trans "Revenus" %}</p>
+              </div>
+              <div class="col-6 col-md-3">
+                <h5 class="mb-0">{{ financial_stats.expense|default:"0" }} {{ financial_stats.currency|default:"€" }}</h5>
+                <p class="text-muted mb-0 small">{% trans "Dépenses" %}</p>
+              </div>
+              <div class="col-6 col-md-3">
+                <h5 class="mb-0">{{ financial_stats.pending_invoices|default:"0" }}</h5>
+                <p class="text-muted mb-0 small">{% trans "Factures en attente" %}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer bg-light">
+        <a href="{% url 'finances:dashboard' %}" class="btn btn-sm btn-danger">
+          <i class="fas fa-chart-line me-1"></i> {% trans "Voir le détail" %}
+        </a>
+      </div>
+    </div>
+
+    <!-- Cartes de statistiques -->
+    <div class="stats-grid">
+      <div class="dashboard-card card-stats">
+        <div class="stats-icon stats-clubs">
+          <i class="fas fa-dojo"></i>
+        </div>
+        <div class="stats-value">{{ stats.clubs_count|default:"0" }}</div>
+        <div class="stats-label">{% trans "Clubs affiliés" %}</div>
+        <div class="mt-3">
+          <a href="{% url 'competitions:federations:clubs' federation.id %}" class="btn btn-sm btn-outline-danger">
+            <i class="fas fa-eye me-1"></i> {% trans "Voir les clubs" %}
+          </a>
+        </div>
+      </div>
+      
+      <div class="dashboard-card card-stats">
+        <div class="stats-icon stats-competitions">
+          <i class="fas fa-trophy"></i>
+        </div>
+        <div class="stats-value">{{ stats.competitions_count|default:"0" }}</div>
+        <div class="stats-label">{% trans "Compétitions" %}</div>
+        <div class="mt-3">
+          <a href="{% url 'competitions:federations:competitions' federation.id %}" class="btn btn-sm btn-outline-danger">
+            <i class="fas fa-eye me-1"></i> {% trans "Voir" %}
+          </a>
+          <a href="{% url 'competitions:federations:create_competition' federation.id %}" class="btn btn-sm btn-outline-success ms-1">
+            <i class="fas fa-plus me-1"></i> {% trans "Créer" %}
+          </a>
+        </div>
+      </div>
+      
+      <div class="dashboard-card card-stats">
+        <div class="stats-icon stats-events">
+          <i class="fas fa-calendar-alt"></i>
+        </div>
+        <div class="stats-value">{{ stats.upcoming_events|default:"0" }}</div>
+        <div class="stats-label">{% trans "Événements à venir" %}</div>
+        <div class="mt-3">
+          <a href="{% url 'competitions:federations:calendar' federation.id %}" class="btn btn-sm btn-outline-danger">
+            <i class="fas fa-calendar-alt me-1"></i> {% trans "Calendrier" %}
+          </a>
+        </div>
+      </div>
+      
+      <div class="dashboard-card card-stats">
+        <div class="stats-icon stats-participants">
+          <i class="fas fa-users"></i>
+        </div>
+        <div class="stats-value">{{ stats.participants_count|default:"0" }}</div>
+        <div class="stats-label">{% trans "Participants" %}</div>
+        <div class="mt-3">
+          <a href="{% url 'competitions:licences:list' federation.id %}" class="btn btn-sm btn-outline-danger">
+            <i class="fas fa-id-card me-1"></i> {% trans "Voir les licences" %}
+          </a>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Section des actions rapides -->
+    <div class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-bolt"></i> {% trans "Actions rapides" %}
+        </h2>
+      </div>
+      
+      <div class="quick-actions-grid">
+        <div class="quick-action">
+          <div class="action-icon">
+            <i class="fas fa-trophy"></i>
+          </div>
+          <h3 class="action-title">{% trans "Créer une compétition" %}</h3>
+          <p class="action-description">{% trans "Configurez et publiez une nouvelle compétition pour votre fédération." %}</p>
+          <div class="mt-auto">
+            <a href="{% url 'competitions:federations:create_competition' federation.id %}" class="btn btn-danger">
+              <i class="fas fa-plus me-1"></i> {% trans "Nouvelle compétition" %}
+            </a>
+          </div>
+        </div>
+        
+        <div class="quick-action">
+          <div class="action-icon">
+            <i class="fas fa-dojo"></i>
+          </div>
+          <h3 class="action-title">{% trans "Gérer les clubs" %}</h3>
+          <p class="action-description">{% trans "Ajoutez, approuvez et gérez les clubs affiliés à votre fédération." %}</p>
+          <div class="mt-auto">
+            <a href="{% url 'competitions:federations:clubs' federation.id %}" class="btn btn-danger">
+              <i class="fas fa-users me-1"></i> {% trans "Voir les clubs" %}
+            </a>
+          </div>
+        </div>
+        
+        <div class="quick-action">
+          <div class="action-icon">
+            <i class="fas fa-shopping-cart"></i>
+          </div>
+          <h3 class="action-title">{% trans "Gérer la boutique" %}</h3>
+          <p class="action-description">{% trans "Vendez du matériel d'arts martiaux et gérez vos produits, commandes et stocks." %}</p>
+          <div class="mt-auto">
+            <a href="{% url 'shop:dashboard:federation_dashboard' %}?federation_id={{ federation.id }}" class="btn btn-danger">
+              <i class="fas fa-shopping-cart me-1"></i> {% trans "Accéder à la boutique" %}
+            </a>
+          </div>
+        </div>
+        
+        <div class="quick-action">
+          <div class="action-icon">
+            <i class="fas fa-id-card"></i>
+          </div>
+          <h3 class="action-title">{% trans "Gestion des licences" %}</h3>
+          <p class="action-description">{% trans "Émettez, renouvelez et gérez les licences pour les pratiquants." %}</p>
+          <div class="mt-auto">
+            <a href="{% url 'competitions:licences:list' federation.id %}" class="btn btn-danger">
+              <i class="fas fa-id-card me-1"></i> {% trans "Voir les licences" %}
+            </a>
+          </div>
+        </div>
+        
+        <div class="quick-action">
+          <div class="action-icon">
+            <i class="fas fa-award"></i>
+          </div>
+          <h3 class="action-title">{% trans "Gestion des grades" %}</h3>
+          <p class="action-description">{% trans "Configurez et gérez le système de grades de votre fédération." %}</p>
+          <div class="mt-auto">
+            <a href="{% url 'grades:grade_list' %}" class="btn btn-danger">
+              <i class="fas fa-award me-1"></i> {% trans "Voir les grades" %}
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Compétitions à venir -->
+    <div class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-calendar-alt"></i> {% trans "Compétitions à venir" %}
+        </h2>
+        <a href="{% url 'competitions:federations:competitions' federation.id %}" class="btn btn-outline-danger">
+          <i class="fas fa-eye me-1"></i> {% trans "Voir toutes" %}
+        </a>
+      </div>
+      
+      <div class="competitions-list">
+        {% for competition in upcoming_competitions|slice:":4" %}
+        <div class="competition-card {{ competition.status }}">
+          <div class="competition-badges">
+            <span class="status-badge status-{{ competition.status }}">
+              <i class="fas fa-circle"></i> {{ competition.get_status_display }}
+            </span>
+            <span class="status-badge status-published">
+              <i class="fas fa-dumbbell"></i> {{ competition.discipline.name }}
+            </span>
+          </div>
+          <h3 class="competition-title">{{ competition.name }}</h3>
+          
+          <div class="competition-info">
+            <i class="far fa-calendar-alt"></i> {{ competition.start_date|date:"d/m/Y" }}
+            {% if competition.end_date and competition.end_date != competition.start_date %}
+            - {{ competition.end_date|date:"d/m/Y" }}
+            {% endif %}
+          </div>
+          
+          <div class="competition-info">
+            <i class="fas fa-map-marker-alt"></i> {{ competition.location }}
+          </div>
+          
+          <div class="competition-info">
+            <i class="fas fa-users"></i> {{ competition.get_participant_count }} {% trans "participants" %}
+          </div>
+          
+          <div class="competition-actions">
+            <a href="{% url 'competitions:competitions:detail' competition.id %}" class="btn btn-sm btn-outline-danger">
+              <i class="fas fa-eye me-1"></i> {% trans "Détails" %}
+            </a>
+            
+            <a href="{% url 'competitions:management:dashboard' competition.id %}" class="btn btn-sm btn-danger">
+              <i class="fas fa-cog me-1"></i> {% trans "Gérer" %}
+            </a>
+          </div>
+        </div>
+        {% empty %}
+        <div class="card dashboard-card w-100">
+          <div class="card-body text-center p-4">
+            <div class="mb-3">
+              <i class="fas fa-calendar-alt fa-3x text-muted"></i>
+            </div>
+            <h4>{% trans "Aucune compétition à venir" %}</h4>
+            <p class="text-muted">{% trans "Il n'y a actuellement aucune compétition planifiée pour votre fédération." %}</p>
+            <a href="{% url 'competitions:federations:create_competition' federation.id %}" class="btn btn-danger mt-2">
+              <i class="fas fa-plus me-1"></i> {% trans "Créer une compétition" %}
+            </a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    
+    <!-- Activité récente -->
+    <div class="dashboard-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-history"></i> {% trans "Activité récente" %}
+        </h2>
+      </div>
+      
+      <div class="row">
+        <div class="col-lg-8">
+          <div class="card dashboard-card">
+            <div class="card-body">
+              <div class="activity-timeline">
+                {% if recent_activities %}
+                  {% for activity in recent_activities %}
+                  <div class="activity-item">
+                    <div class="activity-dot"></div>
+                    <span class="activity-time">{{ activity.timestamp|date:"d/m/Y H:i" }}</span>
+                    <h5 class="activity-title">{{ activity.title }}</h5>
+                    <p class="mb-0">{{ activity.description }}</p>
+                  </div>
+                  {% endfor %}
+                {% else %}
+                  <div class="text-center py-4">
+                    <i class="fas fa-info-circle fa-2x text-muted mb-3"></i>
+                    <h5>{% trans "Aucune activité récente" %}</h5>
+                    <p class="text-muted">{% trans "Les activités récentes apparaîtront ici." %}</p>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-lg-4">
+          <div class="card dashboard-card h-100">
+            <div class="card-header">
+              <h5 class="card-title mb-0">{% trans "À faire" %}</h5>
+            </div>
+            <div class="card-body">
+              {% if todo_items %}
+                <ul class="list-group list-group-flush">
+                  {% for item in todo_items %}
+                  <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                    <div>
+                      <h6 class="mb-1">{{ item.title }}</h6>
+                      <p class="text-muted small mb-0">{{ item.description }}</p>
+                    </div>
+                    <a href="{{ item.url }}" class="btn btn-sm btn-outline-danger">
+                      <i class="fas fa-arrow-right"></i>
+                    </a>
+                  </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-check-circle fa-2x text-success mb-3"></i>
+                  <h5>{% trans "Tout est à jour" %}</h5>
+                  <p class="text-muted">{% trans "Vous n'avez aucune tâche en attente." %}</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Suivi des Commandes -->
+    <div class="dashboard-section mt-5">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-box"></i> {% trans "Suivi des Commandes Boutique" %}
+        </h2>
+        <a href="{% url 'shop:dashboard:federation_orders' %}?federation_id={{ federation.id }}" class="btn btn-outline-danger">
+          <i class="fas fa-list me-1"></i> {% trans "Voir toutes" %}
+        </a>
+      </div>
+      
+      <div class="row">
+        <div class="col-12">
+          <div class="card dashboard-card">
+            <div class="card-body">
+              {% if recent_orders %}
+                <div class="table-responsive">
+                  <table class="table table-hover">
+                    <thead>
+                      <tr>
+                        <th>{% trans "Référence" %}</th>
+                        <th>{% trans "Client" %}</th>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Montant" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for order in recent_orders %}
+                      <tr>
+                        <td>
+                          <a href="{% url 'shop:dashboard:federation_order_detail' order.id %}?federation_id={{ federation.id }}">
+                            #{{ order.order_number }}
+                          </a>
+                        </td>
+                        <td>{{ order.user.get_full_name|default:order.user.username }}</td>
+                        <td>{{ order.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>{{ order.total }} €</td>
+                        <td>
+                          <span class="badge bg-{% if order.status == 'pending' %}warning{% elif order.status == 'completed' %}success{% else %}secondary{% endif %}">
+                            {{ order.get_status_display }}
+                          </span>
+                        </td>
+                        <td>
+                          <a href="{% url 'shop:dashboard:federation_order_detail' order.id %}?federation_id={{ federation.id }}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-eye"></i>
+                          </a>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-box fa-3x text-muted mb-3"></i>
+                  <h5>{% trans "Aucune commande récente" %}</h5>
+                  <p class="text-muted">{% trans "Les commandes de votre boutique fédérale apparaîtront ici." %}</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Suivi des Paiements -->
+    <div class="dashboard-section mt-4">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-credit-card"></i> {% trans "Suivi des Paiements" %}
+        </h2>
+        <a href="{% url 'finances:payments:payment_attempt_list' %}" class="btn btn-outline-danger">
+          <i class="fas fa-list me-1"></i> {% trans "Voir tous" %}
+        </a>
+      </div>
+      
+      <div class="row">
+        <div class="col-12">
+          <div class="card dashboard-card">
+            <div class="card-body">
+              {% if recent_payments %}
+                <div class="table-responsive">
+                  <table class="table table-hover">
+                    <thead>
+                      <tr>
+                        <th>{% trans "Référence" %}</th>
+                        <th>{% trans "Type" %}</th>
+                        <th>{% trans "Club/Pratiquant" %}</th>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Montant" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for payment in recent_payments %}
+                      <tr>
+                        <td>{{ payment.reference }}</td>
+                        <td>{{ payment.payment_type }}</td>
+                        <td>{{ payment.payer_name }}</td>
+                        <td>{{ payment.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>{{ payment.amount }} €</td>
+                        <td>
+                          <span class="badge bg-{% if payment.status == 'paid' %}success{% elif payment.status == 'pending' %}warning{% else %}danger{% endif %}">
+                            {{ payment.get_status_display }}
+                          </span>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
+                  <h5>{% trans "Aucun paiement récent" %}</h5>
+                  <p class="text-muted">{% trans "Les paiements de votre fédération apparaîtront ici." %}</p>
+                </div>
+              {% endif %}
+            </div>
+            <div class="card-footer bg-light">
+              <div class="row text-center">
+                <div class="col-4">
+                  <h5 class="mb-0">{{ payment_stats.total|default:"0" }} €</h5>
+                  <small class="text-muted">{% trans "Total" %}</small>
+                </div>
+                <div class="col-4">
+                  <h5 class="mb-0">{{ payment_stats.paid|default:"0" }}</h5>
+                  <small class="text-muted">{% trans "Payés" %}</small>
+                </div>
+                <div class="col-4">
+                  <h5 class="mb-0">{{ payment_stats.pending|default:"0" }}</h5>
+                  <small class="text-muted">{% trans "En attente" %}</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Suivi des Affiliations Clubs -->
+    <div class="dashboard-section mt-4">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-handshake"></i> {% trans "Affiliation des Clubs" %}
+        </h2>
+        <a href="{% url 'competitions:federations:clubs' federation.id %}" class="btn btn-outline-danger">
+          <i class="fas fa-list me-1"></i> {% trans "Gérer les clubs" %}
+        </a>
+      </div>
+      
+      <div class="row">
+        <div class="col-lg-6">
+          <div class="card dashboard-card">
+            <div class="card-header">
+              <h5 class="card-title mb-0">{% trans "Demandes d'affiliation" %}</h5>
+            </div>
+            <div class="card-body">
+              {% if pending_affiliations %}
+                <div class="list-group list-group-flush">
+                  {% for request in pending_affiliations %}
+                  <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                      <h6 class="mb-1">{{ request.club_name }}</h6>
+                      <p class="mb-0 text-muted">
+                        <small>{{ request.created_at|date:"d/m/Y" }} - {{ request.contact_email }}</small>
+                      </p>
+                    </div>
+                    <div>
+                      <a href="{% url 'competitions:federations:approve_affiliation' federation.id request.id %}" class="btn btn-sm btn-success">
+                        <i class="fas fa-check"></i>
+                      </a>
+                      <a href="{% url 'competitions:federations:reject_affiliation' federation.id request.id %}" class="btn btn-sm btn-danger">
+                        <i class="fas fa-times"></i>
+                      </a>
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-handshake fa-2x text-muted mb-3"></i>
+                  <p class="text-muted">{% trans "Aucune demande d'affiliation en attente." %}</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-lg-6">
+          <div class="card dashboard-card">
+            <div class="card-header">
+              <h5 class="card-title mb-0">{% trans "Clubs récemment affiliés" %}</h5>
+            </div>
+            <div class="card-body">
+              {% if recent_affiliations %}
+                <div class="list-group list-group-flush">
+                  {% for affiliation in recent_affiliations %}
+                  <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h6 class="mb-1">{{ affiliation.club.name }}</h6>
+                        <p class="mb-0 text-muted">
+                          <small>Affilié le {{ affiliation.date_affiliated|date:"d/m/Y" }}</small>
+                        </p>
+                      </div>
+                      <span class="badge bg-success">
+                        <i class="fas fa-check-circle"></i>{% trans "Actif" %}</span>
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-users fa-2x text-muted mb-3"></i>
+                  <p class="text-muted">{% trans "Aucun club récemment affilié." %}</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Notifications -->
+    <div class="dashboard-section mt-4">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-bell"></i> {% trans "Notifications" %}
+        </h2>
+        <a href="{% url 'competitions:dashboard:federations' %}?tab=notifications" class="btn btn-outline-danger">
+          <i class="fas fa-cog me-1"></i> {% trans "Gérer les notifications" %}
+        </a>
+      </div>
+      
+      <div class="row">
+        <div class="col-12">
+          <div class="card dashboard-card">
+            <div class="card-body">
+              <div class="nav nav-tabs" role="tablist">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#recent-notifications">
+                  {% trans "Récentes" %}
+                  {% if unread_notifications %}<span class="badge bg-danger ms-1">{{ unread_notifications|length }}</span>{% endif %}
+                </button>
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#system-notifications">
+                  {% trans "Système" %}
+                </button>
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#competition-notifications">
+                  {% trans "Compétitions" %}
+                </button>
+              </div>
+              
+              <div class="tab-content mt-3">
+                <div class="tab-pane fade show active" id="recent-notifications">
+                  {% if recent_notifications %}
+                    <div class="list-group">
+                      {% for notification in recent_notifications %}
+                      <div class="list-group-item {% if not notification.is_read %}bg-light{% endif %}">
+                        <div class="d-flex w-100 justify-content-between">
+                          <h6 class="mb-1">{{ notification.title }}</h6>
+                          <small>{{ notification.created_at|date:"d/m/Y H:i" }}</small>
+                        </div>
+                        <p class="mb-1">{{ notification.message }}</p>
+                        {% if not notification.is_read %}
+                        <small><a href="#" class="mark-as-read" data-notification-id="{{ notification.id }}">{% trans "Marquer comme lu" %}</a></small>
+                        {% endif %}
+                      </div>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <div class="text-center py-4">
+                      <i class="fas fa-bell-slash fa-2x text-muted mb-3"></i>
+                      <p class="text-muted">{% trans "Aucune notification récente." %}</p>
+                    </div>
+                  {% endif %}
+                </div>
+                
+                <div class="tab-pane fade" id="system-notifications">
+                  <div class="text-center py-4">
+                    <i class="fas fa-cog fa-2x text-muted mb-3"></i>
+                    <p class="text-muted">{% trans "Les notifications système apparaîtront ici." %}</p>
+                  </div>
+                </div>
+                
+                <div class="tab-pane fade" id="competition-notifications">
+                  <div class="text-center py-4">
+                    <i class="fas fa-trophy fa-2x text-muted mb-3"></i>
+                    <p class="text-muted">{% trans "Les notifications de compétitions apparaîtront ici." %}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Suivi des Demandes Support -->
+    <div class="dashboard-section mt-4">
+      <div class="section-header">
+        <h2 class="section-title">
+          <i class="fas fa-question-circle"></i> {% trans "Support et Demandes" %}
+        </h2>
+        <a href="{% url 'competitions:dashboard:federations' %}?tab=support" class="btn btn-outline-danger">
+          <i class="fas fa-list me-1"></i> {% trans "Voir toutes" %}
+        </a>
+      </div>
+      
+      <div class="row">
+        <div class="col-12">
+          <div class="card dashboard-card">
+            <div class="card-body">
+              {% if support_tickets %}
+                <div class="table-responsive">
+                  <table class="table table-hover">
+                    <thead>
+                      <tr>
+                        <th>{% trans "Ticket" %}</th>
+                        <th>{% trans "Sujet" %}</th>
+                        <th>{% trans "Demandeur" %}</th>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Priorité" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for ticket in support_tickets %}
+                      <tr>
+                        <td>#{{ ticket.id }}</td>
+                        <td>{{ ticket.subject }}</td>
+                        <td>{{ ticket.requester.get_full_name|default:ticket.requester.username }}</td>
+                        <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>
+                          <span class="badge bg-{% if ticket.priority == 'high' %}danger{% elif ticket.priority == 'medium' %}warning{% else %}info{% endif %}">
+                            {{ ticket.get_priority_display }}
+                          </span>
+                        </td>
+                        <td>
+                          <span class="badge bg-{% if ticket.status == 'open' %}primary{% elif ticket.status == 'in_progress' %}warning{% elif ticket.status == 'resolved' %}success{% else %}secondary{% endif %}">
+                            {{ ticket.get_status_display }}
+                          </span>
+                        </td>
+                        <td>
+                          <a href="#" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#ticketModal{{ ticket.id }}">
+                            <i class="fas fa-eye"></i>
+                          </a>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-question-circle fa-3x text-muted mb-3"></i>
+                  <h5>{% trans "Aucune demande de support" %}</h5>
+                  <p class="text-muted">{% trans "Les demandes de support apparaîtront ici." %}</p>
+                </div>
+              {% endif %}
+            </div>
+            <div class="card-footer bg-light">
+              <div class="row text-center">
+                <div class="col-3">
+                  <h5 class="mb-0">{{ support_stats.open|default:"0" }}</h5>
+                  <small class="text-muted">{% trans "Ouverts" %}</small>
+                </div>
+                <div class="col-3">
+                  <h5 class="mb-0">{{ support_stats.in_progress|default:"0" }}</h5>
+                  <small class="text-muted">{% trans "En cours" %}</small>
+                </div>
+                <div class="col-3">
+                  <h5 class="mb-0">{{ support_stats.resolved|default:"0" }}</h5>
+                  <small class="text-muted">{% trans "Résolus" %}</small>
+                </div>
+                <div class="col-3">
+                  <h5 class="mb-0">{{ support_stats.closed|default:"0" }}</h5>
+                  <small class="text-muted">{% trans "Fermés" %}</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block extra_js %}
+<script>
+  // Fonction pour gérer le basculement de la barre latérale
+  document.addEventListener('DOMContentLoaded', function() {
+    const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+    const sidebar = document.querySelector('.sidebar');
+    
+    if (toggleSidebarBtn) {
+      toggleSidebarBtn.addEventListener('click', function() {
+        sidebar.classList.toggle('active');
+      });
+    }
+    
+    // Fermer la barre latérale quand on clique à l'extérieur (sur mobile)
+    document.addEventListener('click', function(event) {
+      const isClickInsideSidebar = sidebar.contains(event.target);
+      const isClickOnToggleBtn = toggleSidebarBtn && toggleSidebarBtn.contains(event.target);
+      
+      if (!isClickInsideSidebar && !isClickOnToggleBtn && window.innerWidth < 768 && sidebar.classList.contains('active')) {
+        sidebar.classList.remove('active');
+      }
+    });
+  });
+</script>
+{% endblock %}
+{% endblock %}

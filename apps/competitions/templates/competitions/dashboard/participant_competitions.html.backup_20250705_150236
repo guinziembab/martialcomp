@@ -1,0 +1,575 @@
+{% extends "competitions/dashboard/base.html" %}
+{% load i18n %}
+{% load competition_tags %}
+
+{% block title %}{% trans "Mes compétitions" %} - MartialComp{% endblock %}
+
+{% block user_role %}{% trans "Participant" %}{% endblock %}
+
+{% block page_title %}{% trans "Mes compétitions" %}{% endblock %}
+
+{% block sidebar_menu %}
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        {% trans "Tableau de bord" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant_competitions' %}" class="nav-link active">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+        {% trans "Mes compétitions" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:competitions:list' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+        {% trans "Toutes les compétitions" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant_results' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        {% trans "Mes résultats" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant_profile' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        {% trans "Mon profil" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:logout' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        {% trans "Déconnexion" %}
+    </a>
+</li>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Tabs navigation -->
+        <ul class="nav nav-tabs" id="competitionsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="upcoming-tab" data-bs-toggle="tab" data-bs-target="#upcoming" 
+                    type="button" role="tab" aria-controls="upcoming" aria-selected="true">
+                    <i class="fas fa-calendar-day me-1"></i> {% trans "À venir" %}
+                    {% if upcoming_registrations %}
+                        <span class="badge rounded-pill bg-primary ms-1">{{ upcoming_registrations|length }}</span>
+                    {% endif %}
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" 
+                    type="button" role="tab" aria-controls="pending" aria-selected="false">
+                    <i class="fas fa-clock me-1"></i> {% trans "En attente" %}
+                    {% if pending_registrations %}
+                        <span class="badge rounded-pill bg-warning text-dark ms-1">{{ pending_registrations|length }}</span>
+                    {% endif %}
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="past-tab" data-bs-toggle="tab" data-bs-target="#past" 
+                    type="button" role="tab" aria-controls="past" aria-selected="false">
+                    <i class="fas fa-history me-1"></i> {% trans "Passées" %}
+                    {% if past_registrations %}
+                        <span class="badge rounded-pill bg-secondary ms-1">{{ past_registrations|length }}</span>
+                    {% endif %}
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="available-tab" data-bs-toggle="tab" data-bs-target="#available" 
+                    type="button" role="tab" aria-controls="available" aria-selected="false">
+                    <i class="fas fa-search me-1"></i> {% trans "Disponibles" %}
+                    {% if available_competitions.paginator.count %}
+                        <span class="badge rounded-pill bg-success ms-1">{{ available_competitions.paginator.count }}</span>
+                    {% endif %}
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tabs content -->
+        <div class="tab-content p-3 border border-top-0 rounded-bottom" id="competitionsTabsContent">
+            <!-- Upcoming competitions tab -->
+            <div class="tab-pane fade show active" id="upcoming" role="tabpanel" aria-labelledby="upcoming-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="mb-0">{% trans "Compétitions à venir" %}</h3>
+                </div>
+                
+                {% if upcoming_registrations %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Compétition" %}</th>
+                                    <th>{% trans "Date" %}</th>
+                                    <th>{% trans "Lieu" %}</th>
+                                    <th>{% trans "Catégories" %}</th>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for reg in upcoming_registrations %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="ms-2">
+                                                <strong>{{ reg.competition.title }}</strong>
+                                                <div class="small text-muted">
+                                                    {{ reg.competition.discipline.name|default:"-" }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-column">
+                                            <span>{{ reg.competition.start_date|date:"d M Y" }}</span>
+                                            {% if reg.competition.end_date and reg.competition.end_date != reg.competition.start_date %}
+                                                <small class="text-muted">→ {{ reg.competition.end_date|date:"d M Y" }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if reg.competition.city %}
+                                            <span class="d-flex align-items-center">
+                                                <i class="fas fa-map-marker-alt me-1 text-danger"></i>
+                                                {{ reg.competition.city }}
+                                            </span>
+                                            {% if reg.competition.address %}
+                                                <small class="text-muted">{{ reg.competition.address }}</small>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if reg.categories.exists %}
+                                            {% for cat in reg.categories.all %}
+                                                <span class="badge bg-secondary">{{ cat.name }}</span>{% if not forloop.last %} {% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success">{% trans "Approuvée" %}</span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{% url 'competitions:competitions:detail' reg.competition.pk %}" class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="#" class="btn btn-outline-success btn-sm">
+                                                <i class="fas fa-calendar-check"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> {% trans "Vous n'avez aucune compétition à venir. Consultez les compétitions disponibles pour vous inscrire." %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Pending registrations tab -->
+            <div class="tab-pane fade" id="pending" role="tabpanel" aria-labelledby="pending-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="mb-0">{% trans "Inscriptions en attente" %}</h3>
+                </div>
+                
+                {% if pending_registrations %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Compétition" %}</th>
+                                    <th>{% trans "Date" %}</th>
+                                    <th>{% trans "Lieu" %}</th>
+                                    <th>{% trans "Catégories" %}</th>
+                                    <th>{% trans "Date d'inscription" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for reg in pending_registrations %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="ms-2">
+                                                <strong>{{ reg.competition.title }}</strong>
+                                                <div class="small text-muted">
+                                                    {{ reg.competition.discipline.name|default:"-" }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-column">
+                                            <span>{{ reg.competition.start_date|date:"d M Y" }}</span>
+                                            {% if reg.competition.end_date and reg.competition.end_date != reg.competition.start_date %}
+                                                <small class="text-muted">→ {{ reg.competition.end_date|date:"d M Y" }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if reg.competition.city %}
+                                            <span class="d-flex align-items-center">
+                                                <i class="fas fa-map-marker-alt me-1 text-danger"></i>
+                                                {{ reg.competition.city }}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if reg.categories.exists %}
+                                            {% for cat in reg.categories.all %}
+                                                <span class="badge bg-secondary">{{ cat.name }}</span>{% if not forloop.last %} {% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span>{{ reg.created_at|date:"d M Y" }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{% url 'competitions:competitions:detail' reg.competition.pk %}" class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> {% trans "Vous n'avez aucune inscription en attente d'approbation." %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Past competitions tab -->
+            <div class="tab-pane fade" id="past" role="tabpanel" aria-labelledby="past-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="mb-0">{% trans "Compétitions passées" %}</h3>
+                    <a href="{% url 'competitions:dashboard:participant_results' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-trophy me-1"></i> {% trans "Voir tous mes résultats" %}
+                    </a>
+                </div>
+                
+                {% if past_registrations %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Compétition" %}</th>
+                                    <th>{% trans "Date" %}</th>
+                                    <th>{% trans "Lieu" %}</th>
+                                    <th>{% trans "Catégories" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for reg in past_registrations %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="ms-2">
+                                                <strong>{{ reg.competition.title }}</strong>
+                                                <div class="small text-muted">
+                                                    {{ reg.competition.discipline.name|default:"-" }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-column">
+                                            <span>{{ reg.competition.start_date|date:"d M Y" }}</span>
+                                            {% if reg.competition.end_date and reg.competition.end_date != reg.competition.start_date %}
+                                                <small class="text-muted">→ {{ reg.competition.end_date|date:"d M Y" }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if reg.competition.city %}
+                                            <span class="d-flex align-items-center">
+                                                <i class="fas fa-map-marker-alt me-1 text-danger"></i>
+                                                {{ reg.competition.city }}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if reg.categories.exists %}
+                                            {% for cat in reg.categories.all %}
+                                                <span class="badge bg-secondary">{{ cat.name }}</span>{% if not forloop.last %} {% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{% url 'competitions:competitions:detail' reg.competition.pk %}" class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{% url 'competitions:dashboard:participant_results' %}?comp_id={{ reg.competition.id }}" class="btn btn-outline-info btn-sm">
+                                                <i class="fas fa-medal"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> {% trans "Vous n'avez participé à aucune compétition pour le moment." %}
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Available competitions tab -->
+            <div class="tab-pane fade" id="available" role="tabpanel" aria-labelledby="available-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="mb-0">{% trans "Compétitions disponibles" %}</h3>
+                    <a href="{% url 'competitions:competitions:list' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-search me-1"></i> {% trans "Recherche avancée" %}
+                    </a>
+                </div>
+                
+                {% if available_competitions %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Compétition" %}</th>
+                                    <th>{% trans "Date" %}</th>
+                                    <th>{% trans "Lieu" %}</th>
+                                    <th>{% trans "Discipline" %}</th>
+                                    <th>{% trans "Date limite d'inscription" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for comp in available_competitions %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="ms-2">
+                                                <strong>{{ comp.title }}</strong>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-column">
+                                            <span>{{ comp.start_date|date:"d M Y" }}</span>
+                                            {% if comp.end_date and comp.end_date != comp.start_date %}
+                                                <small class="text-muted">→ {{ comp.end_date|date:"d M Y" }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if comp.city %}
+                                            <span class="d-flex align-items-center">
+                                                <i class="fas fa-map-marker-alt me-1 text-danger"></i>
+                                                {{ comp.city }}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if comp.discipline %}
+                                            {{ comp.discipline.name }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if comp.registration_deadline %}
+                                            <div class="d-flex flex-column">
+                                                <span>{{ comp.registration_deadline|date:"d M Y" }}</span>
+                                                {% if comp.registration_deadline|date:"Y-m-d" == today %}
+                                                    <span class="badge bg-danger">{% trans "Dernier jour" %}</span>
+                                                {% else %}
+                                                    <small class="text-muted">
+                                                        {{ comp.registration_deadline|timeuntil }} {% trans "restants" %}
+                                                    </small>
+                                                {% endif %}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{% url 'competitions:competitions:detail' comp.id %}" class="btn btn-outline-secondary btn-sm">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{% url 'competitions:competitions:register' comp.id %}" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-plus-circle"></i> {% trans "S'inscrire" %}
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination -->
+                    {% if available_competitions.has_other_pages %}
+                        <nav aria-label="Page navigation" class="mt-4">
+                            <ul class="pagination justify-content-center">
+                                {% if available_competitions.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page=1" aria-label="First">
+                                            <span aria-hidden="true">{% trans "&laquo;&laquo;" %}</span>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ available_competitions.previous_page_number }}" aria-label="Previous">
+                                            <span aria-hidden="true">&laquo;</span>
+                                        </a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" aria-label="First">
+                                            <span aria-hidden="true">{% trans "&laquo;&laquo;" %}</span>
+                                        </a>
+                                    </li>
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" aria-label="Previous">
+                                            <span aria-hidden="true">&laquo;</span>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                
+                                {% for i in available_competitions.paginator.page_range %}
+                                    {% if available_competitions.number == i %}
+                                        <li class="page-item active"><a class="page-link" href="#">{{ i }}</a></li>
+                                    {% elif i > available_competitions.number|add:'-3' and i < available_competitions.number|add:'3' %}
+                                        <li class="page-item"><a class="page-link" href="?page={{ i }}">{{ i }}</a></li>
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                {% if available_competitions.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ available_competitions.next_page_number }}" aria-label="Next">
+                                            <span aria-hidden="true">{% trans "&raquo;" %}</span>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ available_competitions.paginator.num_pages }}" aria-label="Last">
+                                            <span aria-hidden="true">{% trans "&raquo;&raquo;" %}</span>
+                                        </a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" aria-label="Next">
+                                            <span aria-hidden="true">{% trans "&raquo;" %}</span>
+                                        </a>
+                                    </li>
+                                    <li class="page-item disabled">
+                                        <a class="page-link" href="#" aria-label="Last">
+                                            <span aria-hidden="true">{% trans "&raquo;&raquo;" %}</span>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    {% endif %}
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i> {% trans "Aucune compétition disponible à l'inscription pour le moment." %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Custom styling for the participants competitions page */
+    .tab-content {
+        background-color: #fff;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    
+    .nav-tabs .nav-link {
+        font-weight: 600;
+        color: #6c757d;
+        border-radius: 0;
+        padding: 0.75rem 1.25rem;
+        transition: all 0.2s ease;
+    }
+    
+    .nav-tabs .nav-link:hover {
+        color: #495057;
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: #0d6efd;
+        background-color: #fff;
+        border-color: #dee2e6 #dee2e6 #fff;
+        position: relative;
+    }
+    
+    .nav-tabs .nav-link.active:after {
+        content: '';
+        position: absolute;
+        height: 3px;
+        left: 0;
+        right: 0;
+        bottom: -1px;
+        background: #0d6efd;
+    }
+    
+    .badge {
+        font-weight: 500;
+    }
+    
+    .table {
+        margin-bottom: 0;
+    }
+</style>
+{% endblock %}

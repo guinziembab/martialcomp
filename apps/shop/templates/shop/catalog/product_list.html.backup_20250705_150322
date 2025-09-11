@@ -1,0 +1,174 @@
+{% extends 'shop/base.html' %}
+{% load i18n %}
+
+{% block shop_title %}
+    {% if current_category %}
+        {{ current_category.name }}
+    {% elif current_brand %}
+        {{ current_brand.name }}
+    {% else %}
+        {% trans "Tous les produits" %}
+    {% endif %}
+{% endblock %}
+
+{% block shop_subtitle %}
+    {% if current_category %}
+        {% trans "Produits dans la catégorie" %}: {{ current_category.name }}
+    {% elif current_brand %}
+        {% trans "Produits de la marque" %}: {{ current_brand.name }}
+    {% else %}
+        {% trans "Découvrez notre sélection complète d'équipements" %}
+    {% endif %}
+{% endblock %}
+
+{% block shop_content %}
+    <!-- Filter and sorting options -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label for="sort" class="form-label">{% trans "Trier par" %}</label>
+                    <select name="sort" id="sort" class="form-select" onchange="this.form.submit()">
+                        <option value="name" {% if sort == 'name' %}selected{% endif %}>{% trans "Nom (A-Z)" %}</option>
+                        <option value="-name" {% if sort == '-name' %}selected{% endif %}>{% trans "Nom (Z-A)" %}</option>
+                        <option value="price" {% if sort == 'price' %}selected{% endif %}>{% trans "Prix croissant" %}</option>
+                        <option value="-price" {% if sort == '-price' %}selected{% endif %}>{% trans "Prix décroissant" %}</option>
+                        <option value="-created_at" {% if sort == '-created_at' %}selected{% endif %}>{% trans "Nouveautés" %}</option>
+                        <option value="-popularity" {% if sort == '-popularity' %}selected{% endif %}>{% trans "Popularité" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="price_min" class="form-label">{% trans "Prix minimum" %}</label>
+                    <input type="number" name="price_min" id="price_min" class="form-control" value="{{ price_min }}" min="0" step="1">
+                </div>
+                <div class="col-md-4">
+                    <label for="price_max" class="form-label">{% trans "Prix maximum" %}</label>
+                    <input type="number" name="price_max" id="price_max" class="form-control" value="{{ price_max }}" min="0" step="1">
+                </div>
+                
+                {% if filter_attributes %}
+                <div class="col-12 mt-3">
+                    <div class="accordion" id="attributeFilters">
+                        {% for attr_group in filter_attributes %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="heading{{ forloop.counter }}">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#collapse{{ forloop.counter }}" aria-expanded="false">
+                                    {{ attr_group.name }}
+                                </button>
+                            </h2>
+                            <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse" 
+                                aria-labelledby="heading{{ forloop.counter }}">
+                                <div class="accordion-body">
+                                    <div class="d-flex flex-wrap gap-2">
+                                        {% for value in attr_group.values %}
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                name="attr_{{ attr_group.id }}" value="{{ value.id }}" 
+                                                id="attr_{{ value.id }}" 
+                                                {% if value.id|stringformat:"s" in selected_attrs %} checked{% endif %}>
+                                            <label class="form-check-label" for="attr_{{ value.id }}">
+                                                {{ value.value }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="col-12 mt-3">
+                    <button type="submit" class="btn btn-primary">{% trans "Filtrer" %}</button>
+                    <a href="{% url 'shop:catalog:product_list' %}" class="btn btn-outline-secondary">{% trans "Réinitialiser" %}</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Product list -->
+    {% if products %}
+        <div class="row">
+            {% for product in products %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card product-card h-100">
+                    {% if product.main_image %}
+                        <img src="{{ product.main_image.url }}" alt="{{ product.name }}" class="card-img-top">
+                    {% else %}
+                        <img src="{{ MEDIA_URL }}shop/images/placeholder.png" alt="{{ product.name }}" class="card-img-top">
+                    {% endif %}
+                    <div class="card-body">
+                        <h5 class="card-title">{{ product.name }}</h5>
+                        <div class="mb-2">
+                            {% for category in product.categories.all %}
+                                <span class="category-badge">{{ category.name }}</span>
+                            {% endfor %}
+                        </div>
+                        <p class="card-text">{{ product.short_description|truncatechars:100 }}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="price">{{ product.price_display }}</span>
+                            {% if product.has_variations %}
+                                <a href="{% url 'shop:product_detail' product.slug %}" class="btn btn-sm btn-primary">
+                                    {% trans "Voir les options" %}
+                                </a>
+                            {% else %}
+                                <button class="btn btn-sm btn-success add-to-cart" data-product-id="{{ product.id }}">
+                                    <i class="fas fa-cart-plus me-1"></i> {% trans "Ajouter" %}
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination -->
+        {% if is_paginated %}
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{{ query_params }}" aria-label="First">
+                        <span aria-hidden="true">&laquo;&laquo;</span>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{{ query_params }}" aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>
+                {% endif %}
+                
+                {% for num in paginator.page_range %}
+                    {% if page_obj.number == num %}
+                        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item"><a class="page-link" href="?page={{ num }}{{ query_params }}">{{ num }}</a></li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{{ query_params }}" aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ paginator.num_pages }}{{ query_params }}" aria-label="Last">
+                        <span aria-hidden="true">&raquo;&raquo;</span>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-info">
+            {% trans "Aucun produit ne correspond à votre recherche. Veuillez essayer avec d'autres critères." %}
+        </div>
+    {% endif %}
+{% endblock %}

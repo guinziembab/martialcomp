@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Historique des grades" %} | MartialComp{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{% trans "Historique des grades" %}</h1>
+        <div>
+            <a href="{% url 'competitions:grades:history_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus-circle me-2"></i>{% trans "Ajouter un grade à un pratiquant" %}
+            </a>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- Filtres -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">{% trans "Filtres" %}</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" id="filter-form">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="practitioner" class="form-label">{% trans "Pratiquant" %}</label>
+                            <select name="practitioner" id="practitioner" class="form-select">
+                                <option value="">{% trans "Tous les pratiquants" %}</option>
+                                {% for practitioner in practitioners %}
+                                    <option value="{{ practitioner.id }}" {% if request.GET.practitioner == practitioner.id|stringformat:"i" %}selected{% endif %}>
+                                        {{ practitioner.full_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="discipline" class="form-label">{% trans "Discipline" %}</label>
+                            <select name="discipline" id="discipline" class="form-select">
+                                <option value="">{% trans "Toutes les disciplines" %}</option>
+                                {% for discipline in disciplines %}
+                                    <option value="{{ discipline.id }}" {% if request.GET.discipline == discipline.id|stringformat:"i" %}selected{% endif %}>
+                                        {{ discipline.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label for="date_range" class="form-label">{% trans "Période" %}</label>
+                            <select name="date_range" id="date_range" class="form-select">
+                                <option value="">{% trans "Toutes les dates" %}</option>
+                                <option value="last_month" {% if request.GET.date_range == 'last_month' %}selected{% endif %}>{% trans "Dernier mois" %}</option>
+                                <option value="last_3_months" {% if request.GET.date_range == 'last_3_months' %}selected{% endif %}>{% trans "3 derniers mois" %}</option>
+                                <option value="last_6_months" {% if request.GET.date_range == 'last_6_months' %}selected{% endif %}>{% trans "6 derniers mois" %}</option>
+                                <option value="last_year" {% if request.GET.date_range == 'last_year' %}selected{% endif %}>{% trans "Dernière année" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-2"></i>{% trans "Filtrer" %}
+                    </button>
+                    <a href="{% url 'competitions:grades:history_list' %}" class="btn btn-outline-secondary ms-2">
+                        <i class="fas fa-times me-2"></i>{% trans "Réinitialiser" %}
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Liste de l'historique des grades -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">{% trans "Historique" %}</h5>
+        </div>
+        <div class="card-body">
+            {% if grade_history %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Pratiquant" %}</th>
+                                <th>{% trans "Grade" %}</th>
+                                <th>{% trans "Catégorie" %}</th>
+                                <th>{% trans "Discipline" %}</th>
+                                <th>{% trans "Date d'obtention" %}</th>
+                                <th>{% trans "Grade actuel" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for history in grade_history %}
+                                <tr>
+                                    <td>{{ history.practitioner.full_name }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if history.grade.color %}
+                                                <div class="color-indicator me-2" 
+                                                     style="width: 20px; height: 20px; background-color: {{ history.grade.color }}; border-radius: 50%;"></div>
+                                            {% endif %}
+                                            {{ history.grade.name }}
+                                        </div>
+                                    </td>
+                                    <td>{{ history.grade.category.name }}</td>
+                                    <td>{{ history.grade.category.system.discipline.name }}</td>
+                                    <td>{{ history.obtained_date|date:"d/m/Y" }}</td>
+                                    <td>
+                                        {% if history.is_current %}
+                                            <span class="badge bg-success">{% trans "Actuel" %}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{% trans "Inactif" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'competitions:grades:history_update' history.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{% url 'competitions:grades:history_delete' history.id %}" class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                        {% if not history.is_current %}
+                                            <form action="{% url 'competitions:grades:set_current_grade' history.id %}" method="post" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-outline-success" title="{% trans 'Définir comme grade actuel' %}">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                {% if grade_history.has_other_pages %}
+                    <nav aria-label="Page navigation" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if grade_history.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% if request.GET.practitioner %}&practitioner={{ request.GET.practitioner }}{% endif %}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.date_range %}&date_range={{ request.GET.date_range }}{% endif %}" aria-label="{% trans 'Première' %}">
+                                        <span aria-hidden="true">{% trans "&laquo;&laquo;" %}</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ grade_history.previous_page_number }}{% if request.GET.practitioner %}&practitioner={{ request.GET.practitioner }}{% endif %}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.date_range %}&date_range={{ request.GET.date_range }}{% endif %}" aria-label="{% trans 'Précédente' %}">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">{% trans "&laquo;&laquo;" %}</span>
+                                </li>
+                                <li class="page-item disabled">
+                                    <span class="page-link">&laquo;</span>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in grade_history.paginator.page_range %}
+                                {% if grade_history.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > grade_history.number|add:'-3' and num < grade_history.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ num }}{% if request.GET.practitioner %}&practitioner={{ request.GET.practitioner }}{% endif %}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.date_range %}&date_range={{ request.GET.date_range }}{% endif %}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if grade_history.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ grade_history.next_page_number }}{% if request.GET.practitioner %}&practitioner={{ request.GET.practitioner }}{% endif %}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.date_range %}&date_range={{ request.GET.date_range }}{% endif %}" aria-label="{% trans 'Suivante' %}">
+                                        <span aria-hidden="true">{% trans "&raquo;" %}</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ grade_history.paginator.num_pages }}{% if request.GET.practitioner %}&practitioner={{ request.GET.practitioner }}{% endif %}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.date_range %}&date_range={{ request.GET.date_range }}{% endif %}" aria-label="{% trans 'Dernière' %}">
+                                        <span aria-hidden="true">{% trans "&raquo;&raquo;" %}</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">{% trans "&raquo;" %}</span>
+                                </li>
+                                <li class="page-item disabled">
+                                    <span class="page-link">{% trans "&raquo;&raquo;" %}</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucun historique de grade trouvé pour les critères sélectionnés." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Aide et informations -->
+    <div class="card mt-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">{% trans "Informations" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6><i class="fas fa-info-circle me-2 text-primary"></i>{% trans "À propos de l'historique des grades" %}</h6>
+                    <p class="text-muted">
+                        {% trans "L'historique des grades permet de suivre la progression des pratiquants dans leurs disciplines respectives." %}
+                        {% trans "Un pratiquant peut avoir plusieurs grades dans différentes disciplines, mais un seul grade actif par discipline." %}
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <h6><i class="fas fa-question-circle me-2 text-primary"></i>{% trans "Comment utiliser cette page" %}</h6>
+                    <ul class="text-muted small">
+                        <li>{% trans "Utilisez les filtres pour affiner votre recherche" %}</li>
+                        <li>{% trans "Cliquez sur le bouton d'édition pour modifier un historique" %}</li>
+                        <li>{% trans "Pour définir un grade comme actuel, utilisez le bouton avec la coche" %}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Ajouter une confirmation avant suppression
+        const deleteLinks = document.querySelectorAll('a[href*="history_delete"]');
+        deleteLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                if (!confirm("{% trans 'Êtes-vous sûr de vouloir supprimer cet historique de grade ?' %}")) {
+                    e.preventDefault();
+                }
+            });
+        });
+        
+        // Mise à jour automatique du formulaire lors de la sélection
+        const selects = document.querySelectorAll('#filter-form select');
+        selects.forEach(select => {
+            select.addEventListener('change', function() {
+                document.getElementById('filter-form').submit();
+            });
+        });
+    });
+</script>
+{% endblock %}

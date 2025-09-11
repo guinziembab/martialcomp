@@ -1,0 +1,1048 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Répondre au sondage" %} - {{ poll.title }} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+  .poll-container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  
+  .poll-card {
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+    overflow: hidden;
+  }
+  
+  .poll-header {
+    padding: 2rem;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .poll-title {
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #333;
+  }
+  
+  .poll-description {
+    color: #666;
+    margin-bottom: 0;
+  }
+  
+  .poll-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+  }
+  
+  .poll-meta-item {
+    display: flex;
+    align-items: center;
+  }
+  
+  .poll-meta-icon {
+    width: 18px;
+    margin-right: 0.5rem;
+    color: #3366ff;
+    text-align: center;
+  }
+  
+  .poll-meta-text {
+    font-size: 0.9rem;
+    color: #666;
+  }
+  
+  .poll-meta-text strong {
+    color: #333;
+  }
+  
+  .poll-status {
+    display: inline-block;
+    padding: 0.35rem 0.75rem;
+    border-radius: 30px;
+    font-weight: 500;
+    font-size: 0.8rem;
+    margin-bottom: 1rem;
+  }
+  
+  .poll-status.active {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+  
+  .poll-status.closed {
+    background-color: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+  }
+  
+  .poll-status.finalized {
+    background-color: rgba(51, 102, 255, 0.1);
+    color: #3366ff;
+  }
+  
+  .poll-status.cancelled {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+  }
+  
+  .poll-status i {
+    margin-right: 0.4rem;
+  }
+  
+  .poll-body {
+    padding: 2rem;
+  }
+  
+  .poll-option {
+    border: 1px solid #eee;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    transition: all 0.3s ease;
+    overflow: hidden;
+  }
+  
+  .poll-option:hover {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  }
+  
+  .poll-option-header {
+    padding: 1.25rem 1.5rem;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .poll-option-date {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: #333;
+  }
+  
+  .poll-option-info {
+    display: flex;
+    align-items: center;
+    margin-top: 0.5rem;
+    color: #666;
+    font-size: 0.9rem;
+  }
+  
+  .poll-option-info i {
+    margin-right: 0.5rem;
+    width: 16px;
+    text-align: center;
+    color: #3366ff;
+  }
+  
+  .poll-option-body {
+    padding: 1.25rem 1.5rem;
+  }
+  
+  .poll-option-stats {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .poll-option-stat {
+    flex: 1;
+    text-align: center;
+    padding: 0.5rem;
+    border-radius: 8px;
+    font-weight: 500;
+  }
+  
+  .poll-option-stat.yes {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+  
+  .poll-option-stat.maybe {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+  }
+  
+  .poll-option-stat.no {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+  }
+  
+  .poll-option-stat-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+  
+  .poll-option-stat-label {
+    font-size: 0.8rem;
+  }
+  
+  .poll-option-responses {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+  }
+  
+  .poll-response-btn {
+    flex: 1;
+    padding: 0.75rem;
+    text-align: center;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+  }
+  
+  .poll-response-btn.yes {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+    border: 1px solid rgba(40, 167, 69, 0.2);
+  }
+  
+  .poll-response-btn.maybe {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+    border: 1px solid rgba(255, 193, 7, 0.2);
+  }
+  
+  .poll-response-btn.no {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+    border: 1px solid rgba(220, 53, 69, 0.2);
+  }
+  
+  .poll-response-btn:hover {
+    transform: translateY(-2px);
+  }
+  
+  .poll-response-btn.yes:hover,
+  .poll-response-btn.yes.active {
+    background-color: #28a745;
+    color: white;
+    border-color: #28a745;
+  }
+  
+  .poll-response-btn.maybe:hover,
+  .poll-response-btn.maybe.active {
+    background-color: #ffc107;
+    color: #212529;
+    border-color: #ffc107;
+  }
+  
+  .poll-response-btn.no:hover,
+  .poll-response-btn.no.active {
+    background-color: #dc3545;
+    color: white;
+    border-color: #dc3545;
+  }
+  
+  .poll-response-btn i {
+    margin-right: 0.5rem;
+  }
+  
+  .poll-comment {
+    margin-top: 1rem;
+  }
+  
+  .poll-option-participants {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #eee;
+  }
+  
+  .poll-participants-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #333;
+  }
+  
+  .poll-participants-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .poll-participant {
+    display: flex;
+    align-items: center;
+    background-color: #f8f9fa;
+    padding: 0.35rem 0.75rem;
+    border-radius: 30px;
+    font-size: 0.85rem;
+  }
+  
+  .poll-participant.yes {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+  
+  .poll-participant.maybe {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #212529;
+  }
+  
+  .poll-participant.no {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+  }
+  
+  .poll-participant-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+  
+  .poll-selected-option {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background-color: #28a745;
+    color: white;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    font-size: 0.8rem;
+    border-radius: 0 8px 0 8px;
+  }
+  
+  .poll-selected-option i {
+    margin-right: 0.4rem;
+  }
+  
+  .poll-footer {
+    padding: 1.5rem 2rem;
+    background-color: #f8f9fa;
+    border-top: 1px solid #eee;
+    text-align: right;
+  }
+  
+  .poll-footer-left {
+    display: flex;
+    align-items: center;
+  }
+  
+  .poll-anon-check {
+    margin-right: 1rem;
+  }
+  
+  .summary-card {
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+    overflow: hidden;
+  }
+  
+  .summary-header {
+    padding: 1.25rem 1.5rem;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .summary-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0;
+    color: #333;
+  }
+  
+  .summary-body {
+    padding: 1.5rem;
+  }
+  
+  .summary-stat {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
+  
+  .summary-stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: #3366ff;
+  }
+  
+  .summary-stat-label {
+    color: #666;
+  }
+  
+  .top-dates {
+    margin-top: 1.5rem;
+  }
+  
+  .top-date-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+  }
+  
+  .top-date-item:hover {
+    background-color: #f8f9fa;
+  }
+  
+  .top-date-info {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .top-date-date {
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .top-date-time {
+    font-size: 0.85rem;
+    color: #666;
+  }
+  
+  .top-date-score {
+    display: flex;
+    align-items: center;
+  }
+  
+  .top-date-score-label {
+    font-size: 0.85rem;
+    color: #666;
+    margin-right: 0.5rem;
+  }
+  
+  .top-date-score-value {
+    font-weight: 600;
+    color: #3366ff;
+  }
+  
+  .select-date-btn {
+    margin-top: 1rem;
+  }
+  
+  .finalized-event {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    background-color: #f0f4ff;
+    border: 1px solid #3366ff;
+    border-radius: 8px;
+  }
+  
+  .finalized-event-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #3366ff;
+    display: flex;
+    align-items: center;
+  }
+  
+  .finalized-event-title i {
+    margin-right: 0.75rem;
+  }
+  
+  .finalized-event-info {
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+  }
+  
+  .finalized-event-info i {
+    width: 20px;
+    margin-right: 0.5rem;
+    color: #3366ff;
+  }
+  
+  @media (max-width: 768px) {
+    .poll-header, .poll-body, .poll-footer {
+      padding: 1.25rem;
+    }
+    
+    .poll-meta {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .poll-option-stats {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .poll-option-responses {
+      flex-direction: column;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="poll-container">
+    <!-- En-tête de la page -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h1 class="h2 mb-1">{% trans "Sondage de disponibilité" %}</h1>
+        <p class="text-muted mb-0">{% trans "Indiquez vos disponibilités pour les dates proposées" %}</p>
+      </div>
+      <div>
+        <a href="{% url 'competitions:events:event_list' %}" class="btn btn-outline-secondary">
+          <i class="fas fa-arrow-left me-1"></i> {% trans "Retour aux événements" %}
+        </a>
+      </div>
+    </div>
+    
+    <!-- Messages d'alerte -->
+    {% if messages %}
+      <div class="messages mb-4">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+            <i class="fas {% if message.tags == 'success' %}fa-check-circle{% elif message.tags == 'error' %}fa-exclamation-circle{% elif message.tags == 'warning' %}fa-exclamation-triangle{% else %}fa-info-circle{% endif %} me-2"></i>
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    
+    <div class="row">
+      <div class="col-lg-8">
+        <!-- Carte du sondage principal -->
+        <div class="poll-card">
+          <div class="poll-header">
+            <span class="poll-status {{ poll.status }}">
+              <i class="fas fa-circle"></i>
+              {% if poll.status == 'active' %}
+                {% trans "Actif" %}
+              {% elif poll.status == 'closed' %}
+                {% trans "Clôturé" %}
+              {% elif poll.status == 'finalized' %}
+                {% trans "Finalisé" %}
+              {% elif poll.status == 'cancelled' %}
+                {% trans "Annulé" %}
+              {% endif %}
+            </span>
+            
+            <h2 class="poll-title">{{ poll.title }}</h2>
+            <p class="poll-description">{{ poll.description }}</p>
+            
+            <div class="poll-meta">
+              <div class="poll-meta-item">
+                <div class="poll-meta-icon">
+                  <i class="fas fa-user"></i>
+                </div>
+                <div class="poll-meta-text">
+                  {% trans "Créé par" %} <strong>{{ poll.created_by.get_full_name|default:poll.created_by.username }}</strong>
+                </div>
+              </div>
+              
+              <div class="poll-meta-item">
+                <div class="poll-meta-icon">
+                  <i class="fas fa-calendar-alt"></i>
+                </div>
+                <div class="poll-meta-text">
+                  {% trans "Créé le" %} <strong>{{ poll.created_at|date:"d/m/Y" }}</strong>
+                </div>
+              </div>
+              
+              {% if poll.expires_at %}
+              <div class="poll-meta-item">
+                <div class="poll-meta-icon">
+                  <i class="fas fa-clock"></i>
+                </div>
+                <div class="poll-meta-text">
+                  {% trans "Expire le" %} <strong>{{ poll.expires_at|date:"d/m/Y à H:i" }}</strong>
+                </div>
+              </div>
+              {% endif %}
+              
+              <div class="poll-meta-item">
+                <div class="poll-meta-icon">
+                  <i class="fas fa-users"></i>
+                </div>
+                <div class="poll-meta-text">
+                  <strong>{{ poll.total_responses }}</strong> {% trans "participants" %}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="poll-body">
+            {% if poll.status == 'finalized' %}
+              <!-- Informations sur l'événement finalisé -->
+              <div class="finalized-event">
+                <div class="finalized-event-title">
+                  <i class="fas fa-calendar-check"></i> {% trans "Événement finalisé" %}
+                </div>
+                
+                <div class="finalized-event-info">
+                  <i class="fas fa-calendar-alt"></i>
+                  <strong>{{ selected_option.date|date:"l d F Y" }}</strong>
+                </div>
+                
+                <div class="finalized-event-info">
+                  <i class="fas fa-clock"></i>
+                  {% if selected_option.all_day %}
+                    {% trans "Toute la journée" %}
+                  {% elif selected_option.start_time and selected_option.end_time %}
+                    {{ selected_option.start_time|time:"H:i" }} - {{ selected_option.end_time|time:"H:i" }}
+                  {% elif selected_option.start_time %}
+                    {% trans "À partir de" %} {{ selected_option.start_time|time:"H:i" }}
+                  {% else %}
+                    {% trans "Heure non spécifiée" %}
+                  {% endif %}
+                </div>
+                
+                {% if selected_option.location %}
+                <div class="finalized-event-info">
+                  <i class="fas fa-map-marker-alt"></i>
+                  {{ selected_option.location }}
+                </div>
+                {% endif %}
+                
+                {% if event %}
+                <div class="mt-3">
+                  <a href="{% url 'competitions:events:event_detail' event.id %}" class="btn btn-primary">
+                    <i class="fas fa-external-link-alt me-1"></i> {% trans "Voir les détails de l'événement" %}
+                  </a>
+                </div>
+                {% endif %}
+              </div>
+            {% endif %}
+            
+            <form method="post" action="{% url 'competitions:events:poll_response' poll.id %}" id="pollResponseForm">
+              {% csrf_token %}
+              
+              {% if poll.options.exists %}
+                {% for option in poll.options.all %}
+                  <div class="poll-option">
+                    {% if option.is_selected %}
+                      <div class="poll-selected-option">
+                        <i class="fas fa-check"></i> {% trans "Date sélectionnée" %}
+                      </div>
+                    {% endif %}
+                    
+                    <div class="poll-option-header">
+                      <div class="poll-option-date">{{ option.date|date:"l d F Y" }}</div>
+                      
+                      <div class="d-flex flex-wrap gap-3">
+                        {% if option.start_time or option.all_day %}
+                        <div class="poll-option-info">
+                          <i class="fas fa-clock"></i>
+                          {% if option.all_day %}
+                            {% trans "Toute la journée" %}
+                          {% elif option.start_time and option.end_time %}
+                            {{ option.start_time|time:"H:i" }} - {{ option.end_time|time:"H:i" }}
+                          {% elif option.start_time %}
+                            {% trans "À partir de" %} {{ option.start_time|time:"H:i" }}
+                          {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if option.location %}
+                        <div class="poll-option-info">
+                          <i class="fas fa-map-marker-alt"></i>
+                          {{ option.location }}
+                        </div>
+                        {% endif %}
+                      </div>
+                    </div>
+                    
+                    <div class="poll-option-body">
+                      {% if poll.show_vote_counts %}
+                      <div class="poll-option-stats">
+                        <div class="poll-option-stat yes">
+                          <span class="poll-option-stat-value">{{ option.yes_count }}</span>
+                          <span class="poll-option-stat-label">{% trans "Oui" %}</span>
+                        </div>
+                        
+                        {% if poll.response_type == 'yes_maybe_no' %}
+                        <div class="poll-option-stat maybe">
+                          <span class="poll-option-stat-value">{{ option.maybe_count }}</span>
+                          <span class="poll-option-stat-label">{% trans "Peut-être" %}</span>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="poll-option-stat no">
+                          <span class="poll-option-stat-value">{{ option.no_count }}</span>
+                          <span class="poll-option-stat-label">{% trans "Non" %}</span>
+                        </div>
+                      </div>
+                      {% endif %}
+                      
+                      {% if poll.is_active %}
+                      <div class="poll-option-responses">
+                        <input type="hidden" name="responses[{{ option.id }}]" id="response_{{ option.id }}" value="{{ user_responses|get_item:option.id|default:'' }}">
+                        
+                        <div class="poll-response-btn yes {% if user_responses|get_item:option.id == 'yes' %}active{% endif %}" data-option-id="{{ option.id }}" data-value="yes">
+                          <i class="fas fa-check"></i> {% trans "Oui" %}
+                        </div>
+                        
+                        {% if poll.response_type == 'yes_maybe_no' %}
+                        <div class="poll-response-btn maybe {% if user_responses|get_item:option.id == 'maybe' %}active{% endif %}" data-option-id="{{ option.id }}" data-value="maybe">
+                          <i class="fas fa-question"></i> {% trans "Peut-être" %}
+                        </div>
+                        {% endif %}
+                        
+                        <div class="poll-response-btn no {% if user_responses|get_item:option.id == 'no' %}active{% endif %}" data-option-id="{{ option.id }}" data-value="no">
+                          <i class="fas fa-times"></i> {% trans "Non" %}
+                        </div>
+                      </div>
+                      {% endif %}
+                      
+                      {% if poll.show_participants and option.responses.exists %}
+                      <div class="poll-option-participants">
+                        <div class="poll-participants-title">{% trans "Participants" %}</div>
+                        <div class="poll-participants-list">
+                          {% for response in option.responses.all %}
+                            {% if not response.is_anonymous or user.is_staff %}
+                              <div class="poll-participant {{ response.response }}">
+                                <div class="poll-participant-avatar">
+                                  {% if response.user.first_name %}
+                                    {{ response.user.first_name|first|upper }}{{ response.user.last_name|first|upper }}
+                                  {% else %}
+                                    {{ response.user.username|first|upper }}
+                                  {% endif %}
+                                </div>
+                                <span>{{ response.user.get_full_name|default:response.user.username }}</span>
+                              </div>
+                            {% else %}
+                              <div class="poll-participant {{ response.response }}">
+                                <div class="poll-participant-avatar">
+                                  <i class="fas fa-user"></i>
+                                </div>
+                                <span>{% trans "Anonyme" %}</span>
+                              </div>
+                            {% endif %}
+                          {% endfor %}
+                        </div>
+                      </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+                
+                {% if poll.allow_comments and poll.is_active %}
+                <div class="poll-comment">
+                  <label for="comment" class="form-label">{% trans "Commentaire" %} <small class="text-muted">({% trans "optionnel" %})</small></label>
+                  <textarea name="comment" id="comment" class="form-control" rows="3">{{ user_comment }}</textarea>
+                </div>
+                {% endif %}
+              {% else %}
+                <div class="alert alert-info">
+                  <i class="fas fa-info-circle me-2"></i> {% trans "Aucune option de date n'a été proposée pour ce sondage." %}
+                </div>
+              {% endif %}
+            </form>
+          </div>
+          
+          {% if poll.is_active %}
+          <div class="poll-footer d-flex justify-content-between align-items-center">
+            <div class="poll-footer-left">
+              {% if poll.show_participants %}
+              <div class="poll-anon-check">
+                <div class="form-check">
+                  <input type="checkbox" name="is_anonymous" id="is_anonymous" class="form-check-input" {% if user_anonymous %}checked{% endif %}>
+                  <label class="form-check-label" for="is_anonymous">{% trans "Répondre anonymement" %}</label>
+                </div>
+              </div>
+              {% else %}
+                <input type="hidden" name="is_anonymous" value="true">
+              {% endif %}
+            </div>
+            
+            <button type="submit" form="pollResponseForm" class="btn btn-primary">
+              <i class="fas fa-save me-1"></i> {% trans "Enregistrer mes réponses" %}
+            </button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <div class="col-lg-4">
+        <!-- Panneau latéral -->
+        <div class="summary-card">
+          <div class="summary-header">
+            <h3 class="summary-title">
+              <i class="fas fa-chart-pie me-2"></i> {% trans "Synthèse" %}
+            </h3>
+          </div>
+          <div class="summary-body">
+            <div class="summary-stat">
+              <span class="summary-stat-value">{{ poll.total_responses }}</span>
+              <span class="summary-stat-label">{% trans "Participants" %}</span>
+            </div>
+            
+            {% if poll.show_vote_counts and poll.statistics.has_poll_data %}
+              <div class="top-dates">
+                <h4 class="h6 mb-3">{% trans "Dates les plus populaires" %}</h4>
+                
+                {% for date in popular_dates %}
+                  <div class="top-date-item">
+                    <div class="top-date-info">
+                      <span class="top-date-date">{{ date.date|date:"d/m/Y" }}</span>
+                      {% if date.start_time %}
+                        <span class="top-date-time">{{ date.start_time|date:"H:i" }}{% if date.end_time %} - {{ date.end_time|date:"H:i" }}{% endif %}</span>
+                      {% elif date.all_day %}
+                        <span class="top-date-time">{% trans "Toute la journée" %}</span>
+                      {% endif %}
+                    </div>
+                    <div class="top-date-score">
+                      <span class="top-date-score-label">{% trans "Score:" %}</span>
+                      <span class="top-date-score-value">{{ date.score }}</span>
+                    </div>
+                  </div>
+                {% empty %}
+                  <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i> {% trans "Pas encore assez de réponses pour déterminer les dates populaires." %}
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+            
+            {% if is_poll_admin and poll.status == 'active' and poll.options.exists %}
+            <div class="mt-4">
+              <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#finalizeModal">
+                <i class="fas fa-check-circle me-1"></i> {% trans "Finaliser le sondage" %}
+              </button>
+            </div>
+            {% endif %}
+            
+            {% if is_poll_admin and poll.status != 'cancelled' %}
+            <div class="mt-2">
+              <button type="button" class="btn btn-outline-danger w-100" data-bs-toggle="modal" data-bs-target="#cancelPollModal">
+                <i class="fas fa-times-circle me-1"></i> {% trans "Annuler le sondage" %}
+              </button>
+            </div>
+            {% endif %}
+            
+            <div class="mt-4">
+              <a href="#" class="btn btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#sharePollModal">
+                <i class="fas fa-share-alt me-1"></i> {% trans "Partager le sondage" %}
+              </a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="summary-card">
+          <div class="summary-header">
+            <h3 class="summary-title">
+              <i class="fas fa-info-circle me-2"></i> {% trans "À propos" %}
+            </h3>
+          </div>
+          <div class="summary-body">
+            <p>{% blocktranslate with name=poll.organization.name %}Ce sondage est organisé par <strong>{{ name }}</strong>.{% endblocktranslate %}</p>
+            
+            <p>{% blocktranslate with date=poll.created_at|date:"d/m/Y" %}Créé le {{ date }}.{% endblocktranslate %}</p>
+            
+            {% if poll.event_type %}
+            <p>{% blocktranslate with type=poll.get_event_type_display %}Type d'événement envisagé: <strong>{{ type }}</strong>.{% endblocktranslate %}</p>
+            {% endif %}
+            
+            {% if poll.expires_at %}
+            <p>{% blocktranslate with date=poll.expires_at|date:"d/m/Y H:i" %}Les réponses sont ouvertes jusqu'au {{ date }}.{% endblocktranslate %}</p>
+            {% endif %}
+            
+            {% if poll.event %}
+            <div class="mt-3">
+              <a href="{% url 'competitions:events:event_detail' poll.event.id %}" class="btn btn-outline-primary w-100">
+                <i class="fas fa-calendar-alt me-1"></i> {% trans "Voir l'événement associé" %}
+              </a>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Finaliser le sondage -->
+{% if is_poll_admin and poll.status == 'active' %}
+<div class="modal fade" id="finalizeModal" tabindex="-1" aria-labelledby="finalizeModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="finalizeModalLabel">{% trans "Finaliser le sondage" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{% url 'competitions:events:finalize_poll' poll.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p>{% trans "Vous êtes sur le point de finaliser ce sondage et de créer un événement à la date sélectionnée. Cette action est irréversible." %}</p>
+          
+          <div class="mb-3">
+            <label for="selected_option" class="form-label">{% trans "Sélectionnez la date finale" %}</label>
+            <select name="selected_option" id="selected_option" class="form-select" required>
+              {% for option in poll.options.all %}
+                <option value="{{ option.id }}">
+                  {{ option.date|date:"d/m/Y" }}
+                  {% if option.all_day %}
+                    ({% trans "Toute la journée" %})
+                  {% elif option.start_time %}
+                    {{ option.start_time|time:"H:i" }}{% if option.end_time %} - {{ option.end_time|time:"H:i" }}{% endif %}
+                  {% endif %}
+                  {% if option.location %} - {{ option.location }}{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div class="mb-3">
+            <label for="notify_participants" class="form-label">{% trans "Notification" %}</label>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="notify_participants" id="notify_participants" checked>
+              <label class="form-check-label" for="notify_participants">
+                {% trans "Notifier tous les participants" %}
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+          <button type="submit" class="btn btn-primary">{% trans "Finaliser le sondage" %}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Modal Annuler le sondage -->
+{% if is_poll_admin and poll.status != 'cancelled' %}
+<div class="modal fade" id="cancelPollModal" tabindex="-1" aria-labelledby="cancelPollModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cancelPollModalLabel">{% trans "Annuler le sondage" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{% url 'competitions:events:cancel_poll' poll.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p>{% trans "Vous êtes sur le point d'annuler ce sondage. Cette action est irréversible." %}</p>
+          
+          <div class="mb-3">
+            <label for="cancellation_reason" class="form-label">{% trans "Raison de l'annulation" %}</label>
+            <textarea name="cancellation_reason" id="cancellation_reason" class="form-control" rows="3" required></textarea>
+          </div>
+          
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="notify_participants" id="notify_participants_cancel" checked>
+              <label class="form-check-label" for="notify_participants_cancel">
+                {% trans "Notifier tous les participants" %}
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+          <button type="submit" class="btn btn-danger">{% trans "Confirmer l'annulation" %}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Modal Partager le sondage -->
+<div class="modal fade" id="sharePollModal" tabindex="-1" aria-labelledby="sharePollModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="sharePollModalLabel">{% trans "Partager le sondage" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="poll-url" class="form-label">{% trans "Lien du sondage" %}</label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="poll-url" value="{{ request.build_absolute_uri }}" readonly>
+            <button class="btn btn-outline-secondary" type="button" id="copy-link-btn">
+              <i class="fas fa-copy"></i>
+            </button>
+          </div>
+        </div>
+        
+        <div class="d-flex justify-content-center gap-3 mt-4">
+          <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.build_absolute_uri|urlencode }}" target="_blank" class="btn btn-outline-primary">
+            <i class="fab fa-facebook fa-lg"></i>
+          </a>
+          <a href="https://twitter.com/intent/tweet?text={{ poll.title|urlencode }}%20-%20{{ request.build_absolute_uri|urlencode }}" target="_blank" class="btn btn-outline-primary">
+            <i class="fab fa-twitter fa-lg"></i>
+          </a>
+          <a href="https://wa.me/?text={{ poll.title|urlencode }}%20{{ request.build_absolute_uri|urlencode }}" target="_blank" class="btn btn-outline-primary">
+            <i class="fab fa-whatsapp fa-lg"></i>
+          </a>
+          <a href="mailto:?subject={{ poll.title|urlencode }}&body={{ poll.description|truncatewords:30|urlencode }}%0A%0A{{ request.build_absolute_uri|urlencode }}" target="_blank" class="btn btn-outline-primary">
+            <i class="fas fa-envelope fa-lg"></i>
+          </a>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Fermer" %}</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Gestion des réponses au sondage
+    const responseButtons = document.querySelectorAll('.poll-response-btn');
+    const isAnonymousCheckbox = document.getElementById('is_anonymous');
+    
+    responseButtons.forEach(btn => {
+      btn.addEventListener('click', function() {
+        const optionId = this.getAttribute('data-option-id');
+        const value = this.getAttribute('data-value');
+        
+        // Désélectionner les autres boutons du même groupe
+        document.querySelectorAll(`.poll-response-btn[data-option-id="${optionId}"]`).forEach(b => {
+          b.classList.remove('active');
+        });
+        
+        // Sélectionner le bouton cliqué
+        this.classList.add('active');
+        
+        // Mettre à jour l'input caché
+        document.getElementById(`response_${optionId}`).value = value;
+      });
+    });
+    
+    // Copier le lien de partage
+    const copyLinkBtn = document.getElementById('copy-link-btn');
+    const pollUrlInput = document.getElementById('poll-url');
+    
+    copyLinkBtn.addEventListener('click', function() {
+      pollUrlInput.select();
+      document.execCommand('copy');
+      
+      // Feedback visuel
+      copyLinkBtn.innerHTML = '<i class="fas fa-check"></i>';
+      setTimeout(() => {
+        copyLinkBtn.innerHTML = '<i class="fas fa-copy"></i>';
+      }, 2000);
+    });
+  });
+</script>
+{% endblock %}

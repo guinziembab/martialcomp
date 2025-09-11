@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "QR Code" %} - {{ practitioner.full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .qr-code-container {
+        text-align: center;
+        margin: 30px auto;
+    }
+    
+    .qr-code-image {
+        max-width: 300px;
+        margin: 20px auto;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        padding: 20px;
+        background: white;
+    }
+    
+    .qr-code-image img {
+        width: 100%;
+        height: auto;
+    }
+    
+    .qr-info {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 20px;
+    }
+    
+    .qr-stats {
+        display: flex;
+        justify-content: space-around;
+        margin-top: 20px;
+    }
+    
+    .stat-item {
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .stat-label {
+        color: #666;
+        font-size: 0.9rem;
+    }
+    
+    .validation-badge {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 30px;
+        margin-top: 20px;
+    }
+    
+    .validation-badge.validated {
+        background: #28a745;
+        color: white;
+    }
+    
+    .validation-badge.not-validated {
+        background: #ffc107;
+        color: #333;
+    }
+    
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        
+        .qr-code-container {
+            margin: 0;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h3>
+                        {% trans "QR Code Pratiquant" %}
+                        <button class="btn btn-sm btn-primary float-right no-print" onclick="window.print()">
+                            <i class="fas fa-print"></i> {% trans "Imprimer" %}
+                        </button>
+                    </h3>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Informations du pratiquant -->
+                    <div class="text-center mb-4">
+                        {% if practitioner.photo %}
+                        <img src="{{ practitioner.photo.url }}" class="rounded-circle mb-3" 
+                             style="width: 120px; height: 120px; object-fit: cover;">
+                        {% endif %}
+                        <h4>{{ practitioner.full_name }}</h4>
+                        <p class="text-muted mb-1">{{ practitioner.organization.name }}</p>
+                        <p class="mb-0">
+                            <strong>{% trans "Licence" %}:</strong> {{ practitioner.license_number|default:"-" }}
+                        </p>
+                    </div>
+                    
+                    <!-- QR Code -->
+                    <div class="qr-code-container">
+                        <div class="qr-code-image">
+                            {% if qr_code.qr_image %}
+                            <img src="{{ qr_code.qr_image.url }}" alt="QR Code">
+                            {% else %}
+                            <img src="{% url 'competitions:qr:qr_image' practitioner.id %}" alt="QR Code">
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Badge de validation -->
+                        {% if qr_code.is_federation_validated %}
+                        <div class="validation-badge validated">
+                            <i class="fas fa-check-circle"></i> {% trans "Validé Fédération" %}
+                        </div>
+                        {% else %}
+                        <div class="validation-badge not-validated">
+                            <i class="fas fa-exclamation-circle"></i> {% trans "En attente de validation" %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Informations du QR Code -->
+                    <div class="qr-info">
+                        <h5>{% trans "Informations du QR Code" %}</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>{% trans "Code" %}:</strong> <code>{{ qr_code.code }}</code></p>
+                                <p><strong>{% trans "Créé le" %}:</strong> {{ qr_code.created_at|date:"d/m/Y H:i" }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>{% trans "Statut" %}:</strong> 
+                                    {% if qr_code.is_active %}
+                                    <span class="badge badge-success">{% trans "Actif" %}</span>
+                                    {% else %}
+                                    <span class="badge badge-danger">{% trans "Inactif" %}</span>
+                                    {% endif %}
+                                </p>
+                                {% if qr_code.federation_validation_date %}
+                                <p><strong>{% trans "Validé le" %}:</strong> {{ qr_code.federation_validation_date|date:"d/m/Y" }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Information sur le mode hors-ligne -->
+                        <div class="alert alert-info mt-3 mb-0 no-print">
+                            <i class="fas fa-info-circle"></i>
+                            {% trans "Nouveau : Utilisez le mode profil hors-ligne pour permettre la vérification de l'identité du pratiquant sans connexion internet." %}
+                            <a href="{% url 'competitions:qr:offline_profile' practitioner.id %}" class="alert-link">
+                                {% trans "Générer un QR code de profil hors-ligne" %}
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Statistiques -->
+                    <div class="qr-stats no-print">
+                        <div class="stat-item">
+                            <div class="stat-value">{{ qr_code.scan_count }}</div>
+                            <div class="stat-label">{% trans "Scans totaux" %}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">{{ recent_scans_count|default:"0" }}</div>
+                            <div class="stat-label">{% trans "Scans (30j)" %}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">
+                                {% if qr_code.last_scan_date %}
+                                {{ qr_code.last_scan_date|timesince }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </div>
+                            <div class="stat-label">{% trans "Dernier scan" %}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Actions -->
+                    <div class="mt-4 text-center no-print">
+                        {% if perms.competitions.change_practitioner %}
+                        <a href="{% url 'competitions:practitioner:detail' practitioner.id %}" class="btn btn-secondary">
+                            <i class="fas fa-user"></i> {% trans "Voir le profil" %}
+                        </a>
+                        {% endif %}
+                        
+                        {% if perms.competitions.change_federation and not qr_code.is_federation_validated %}
+                        <a href="{% url 'competitions:qr:validate_federation' practitioner.id %}" 
+                           class="btn btn-success"
+                           onclick="return confirm('{% trans "Confirmer la validation fédération ?" %}')">
+                            <i class="fas fa-check"></i> {% trans "Valider Fédération" %}
+                        </a>
+                        {% endif %}
+                        
+                        <button class="btn btn-primary" onclick="downloadQR()">
+                            <i class="fas fa-download"></i> {% trans "Télécharger" %}
+                        </button>
+                        
+                        <a href="{% url 'competitions:qr:offline_profile' practitioner.id %}" class="btn btn-info ml-2">
+                            <i class="fas fa-wifi-slash"></i> {% trans "Profil hors-ligne" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Historique des scans récents -->
+            <div class="card mt-4 no-print">
+                <div class="card-header">
+                    <h5>{% trans "Scans récents" %}</h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_scans %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Date" %}</th>
+                                    <th>{% trans "Type" %}</th>
+                                    <th>{% trans "Lieu" %}</th>
+                                    <th>{% trans "Scanné par" %}</th>
+                                    <th>{% trans "Statut" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for scan in recent_scans %}
+                                <tr>
+                                    <td>{{ scan.scan_date|date:"d/m/Y H:i" }}</td>
+                                    <td>{{ scan.get_scan_type_display }}</td>
+                                    <td>{{ scan.location|default:"-" }}</td>
+                                    <td>{{ scan.scanned_by.get_full_name|default:scan.scanned_by.username }}</td>
+                                    <td>
+                                        {% if scan.is_valid %}
+                                        <span class="badge badge-success">{% trans "Valide" %}</span>
+                                        {% else %}
+                                        <span class="badge badge-danger">{% trans "Invalide" %}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">{% trans "Aucun scan récent" %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function downloadQR() {
+    const qrImage = document.querySelector('.qr-code-image img');
+    const link = document.createElement('a');
+    link.download = 'qr_{{ practitioner.id }}_{{ practitioner.last_name }}.png';
+    link.href = qrImage.src;
+    link.click();
+}
+
+// Actualiser automatiquement les stats
+setInterval(function() {
+    // Ici on pourrait faire un appel AJAX pour actualiser les stats
+}, 30000); // Toutes les 30 secondes
+</script>
+{% endblock %}

@@ -1,0 +1,954 @@
+{% extends "competitions/management/base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Résultats et classements" %} - {{ competition.title }}{% endblock %}
+
+{% block competition_content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4 mb-4">{% trans "Résultats et classements" %}</h1>
+    
+    <!-- Filtres et actions -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-9">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <select class="form-select" id="disciplineFilter">
+                                <option value="">{% trans "Toutes les disciplines" %}</option>
+                                <option value="karate">Karaté</option>
+                                <option value="judo">Judo</option>
+                                <option value="taekwondo">Taekwondo</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="categoryFilter">
+                                <option value="">{% trans "Toutes les catégories" %}</option>
+                                <option value="kata">Kata</option>
+                                <option value="kumite">Kumite</option>
+                                <option value="team">{% trans "Équipe" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="statusFilter">
+                                <option value="">{% trans "Tous les statuts" %}</option>
+                                <option value="in_progress">{% trans "En cours" %}</option>
+                                <option value="completed">{% trans "Terminé" %}</option>
+                                <option value="pending">{% trans "À venir" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="input-group">
+                                <input type="text" class="form-control" placeholder="{% trans 'Rechercher...' %}">
+                                <button class="btn btn-outline-secondary" type="button"><i class="fas fa-search"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 text-end">
+                    <div class="btn-group">
+                        <button class="btn btn-outline-primary">
+                            <i class="fas fa-print me-1"></i>{% trans "Imprimer" %}
+                        </button>
+                        <button class="btn btn-outline-primary">
+                            <i class="fas fa-file-export me-1"></i>{% trans "Exporter" %}
+                        </button>
+                        <button class="btn btn-outline-primary">
+                            <i class="fas fa-share-alt me-1"></i>{% trans "Publier" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tableau de bord des résultats -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary h-100">
+                <div class="card-body text-center">
+                    <div class="display-4">32</div>
+                    <div class="text-muted">{% trans "Catégories" %}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success h-100">
+                <div class="card-body text-center">
+                    <div class="display-4">18</div>
+                    <div class="text-muted">{% trans "Catégories terminées" %}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning h-100">
+                <div class="card-body text-center">
+                    <div class="display-4">8</div>
+                    <div class="text-muted">{% trans "Catégories en cours" %}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info h-100">
+                <div class="card-body text-center">
+                    <div class="display-4">6</div>
+                    <div class="text-muted">{% trans "Catégories à venir" %}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Liste des catégories et résultats -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs" id="resultsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="completed-tab" data-bs-toggle="tab" data-bs-target="#completed" type="button" role="tab" aria-controls="completed" aria-selected="true">
+                        <i class="fas fa-check-circle me-1"></i>{% trans "Terminées" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="in-progress-tab" data-bs-toggle="tab" data-bs-target="#in-progress" type="button" role="tab" aria-controls="in-progress" aria-selected="false">
+                        <i class="fas fa-clock me-1"></i>{% trans "En cours" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab" aria-controls="pending" aria-selected="false">
+                        <i class="fas fa-hourglass-start me-1"></i>{% trans "À venir" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="all-tab" data-bs-toggle="tab" data-bs-target="#all" type="button" role="tab" aria-controls="all" aria-selected="false">
+                        <i class="fas fa-list me-1"></i>{% trans "Toutes" %}
+                    </button>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body">
+            <div class="tab-content" id="resultsTabContent">
+                <!-- Catégories terminées -->
+                <div class="tab-pane fade show active" id="completed" role="tabpanel" aria-labelledby="completed-tab">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th>{% trans "Type" %}</th>
+                                    <th>{% trans "Participants" %}</th>
+                                    <th>{% trans "Médaille d'or" %}</th>
+                                    <th>{% trans "Médaille d'argent" %}</th>
+                                    <th>{% trans "Médaille de bronze" %}</th>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Exemple 1 -->
+                                <tr>
+                                    <td>Kata Individuel Senior Hommes</td>
+                                    <td><span class="badge bg-success">Kata</span></td>
+                                    <td>24</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="medal gold me-2"></div>
+                                            <div>
+                                                <div class="fw-bold">Jean Dupont</div>
+                                                <small class="text-muted">Club Karaté Paris</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="medal silver me-2"></div>
+                                            <div>
+                                                <div class="fw-bold">Michel Martin</div>
+                                                <small class="text-muted">Shotokan Lyon</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="medal bronze me-2"></div>
+                                            <div>
+                                                <div class="fw-bold">Paul Dubois</div>
+                                                <small class="text-muted">Karaté Club Marseille</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge bg-success">{% trans "Terminé" %}</span></td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-success">
+                                                <i class="fas fa-share-alt"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Exemple 2 -->
+                                <tr>
+                                    <td>Kumite Individuel Senior Femmes -55kg</td>
+                                    <td><span class="badge bg-warning text-dark">Kumite</span></td>
+                                    <td>12</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="medal gold me-2"></div>
+                                            <div>
+                                                <div class="fw-bold">Sophie Bernard</div>
+                                                <small class="text-muted">Karaté Club Nice</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="medal silver me-2"></div>
+                                            <div>
+                                                <div class="fw-bold">Laura Petit</div>
+                                                <small class="text-muted">Karaté Toulouse</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="medal bronze me-2"></div>
+                                            <div>
+                                                <div class="fw-bold">Julie Moreau</div>
+                                                <small class="text-muted">Club Bordeaux</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge bg-success">{% trans "Terminé" %}</span></td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-success">
+                                                <i class="fas fa-share-alt"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Catégories en cours -->
+                <div class="tab-pane fade" id="in-progress" role="tabpanel" aria-labelledby="in-progress-tab">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th>{% trans "Type" %}</th>
+                                    <th>{% trans "Participants" %}</th>
+                                    <th>{% trans "Phase actuelle" %}</th>
+                                    <th>{% trans "Progression" %}</th>
+                                    <th>{% trans "Lieu" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Exemple 1 -->
+                                <tr>
+                                    <td>Kumite Individuel Senior Hommes -75kg</td>
+                                    <td><span class="badge bg-warning text-dark">Kumite</span></td>
+                                    <td>16</td>
+                                    <td>{% trans "Quarts de finale" %}</td>
+                                    <td>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-warning" role="progressbar" style="width: 50%;" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                        <div class="small mt-1">8/16 {% trans "matchs terminés" %}</div>
+                                    </td>
+                                    <td>Tatami 1</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-success">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-flag"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Exemple 2 -->
+                                <tr>
+                                    <td>Kata Individuel Junior Femmes</td>
+                                    <td><span class="badge bg-success">Kata</span></td>
+                                    <td>18</td>
+                                    <td>{% trans "Demi-finales" %}</td>
+                                    <td>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: 75%;" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                        <div class="small mt-1">6/8 {% trans "prestations notées" %}</div>
+                                    </td>
+                                    <td>Tatami 2</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-success">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-flag"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Catégories à venir -->
+                <div class="tab-pane fade" id="pending" role="tabpanel" aria-labelledby="pending-tab">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th>{% trans "Type" %}</th>
+                                    <th>{% trans "Participants" %}</th>
+                                    <th>{% trans "Heure prévue" %}</th>
+                                    <th>{% trans "Lieu prévu" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Exemple 1 -->
+                                <tr>
+                                    <td>Kata Individuel Minimes Mixte</td>
+                                    <td><span class="badge bg-success">Kata</span></td>
+                                    <td>15</td>
+                                    <td>14:30</td>
+                                    <td>Tatami 3</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-success">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-clock"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Exemple 2 -->
+                                <tr>
+                                    <td>Kumite Individuel Senior Hommes +84kg</td>
+                                    <td><span class="badge bg-warning text-dark">Kumite</span></td>
+                                    <td>8</td>
+                                    <td>15:45</td>
+                                    <td>Tatami 1</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-success">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-clock"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Toutes les catégories -->
+                <div class="tab-pane fade" id="all" role="tabpanel" aria-labelledby="all-tab">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th>{% trans "Type" %}</th>
+                                    <th>{% trans "Participants" %}</th>
+                                    <th>{% trans "Statut" %}</th>
+                                    <th>{% trans "Progression" %}</th>
+                                    <th>{% trans "Actions" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Exemples de toutes les catégories, mélangeant terminées, en cours et à venir -->
+                                <tr>
+                                    <td>Kata Individuel Senior Hommes</td>
+                                    <td><span class="badge bg-success">Kata</span></td>
+                                    <td>24</td>
+                                    <td><span class="badge bg-success">{% trans "Terminé" %}</span></td>
+                                    <td>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: 100%;" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Kumite Individuel Senior Hommes -75kg</td>
+                                    <td><span class="badge bg-warning text-dark">Kumite</span></td>
+                                    <td>16</td>
+                                    <td><span class="badge bg-warning text-dark">{% trans "En cours" %}</span></td>
+                                    <td>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-warning" role="progressbar" style="width: 50%;" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-success">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Kata Individuel Minimes Mixte</td>
+                                    <td><span class="badge bg-success">Kata</span></td>
+                                    <td>15</td>
+                                    <td><span class="badge bg-info">{% trans "À venir" %}</span></td>
+                                    <td>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-info" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-success">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Détails des médailles -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Tableau des médailles" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Position" %}</th>
+                                    <th>{% trans "Club" %}</th>
+                                    <th class="text-center">
+                                        <div class="medal gold"></div>
+                                    </th>
+                                    <th class="text-center">
+                                        <div class="medal silver"></div>
+                                    </th>
+                                    <th class="text-center">
+                                        <div class="medal bronze"></div>
+                                    </th>
+                                    <th class="text-center">{% trans "Total" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>1</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="{% static 'img/clubs/club1.png' %}" alt="Club Karaté Paris" class="me-2" width="30" height="30">
+                                            <span>Club Karaté Paris</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">5</td>
+                                    <td class="text-center">3</td>
+                                    <td class="text-center">2</td>
+                                    <td class="text-center">10</td>
+                                </tr>
+                                <tr>
+                                    <td>2</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="{% static 'img/clubs/club2.png' %}" alt="Shotokan Lyon" class="me-2" width="30" height="30">
+                                            <span>Shotokan Lyon</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">3</td>
+                                    <td class="text-center">4</td>
+                                    <td class="text-center">2</td>
+                                    <td class="text-center">9</td>
+                                </tr>
+                                <tr>
+                                    <td>3</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="{% static 'img/clubs/club3.png' %}" alt="Karaté Club Marseille" class="me-2" width="30" height="30">
+                                            <span>Karaté Club Marseille</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">2</td>
+                                    <td class="text-center">2</td>
+                                    <td class="text-center">4</td>
+                                    <td class="text-center">8</td>
+                                </tr>
+                                <tr>
+                                    <td>4</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="{% static 'img/clubs/club4.png' %}" alt="Karaté Club Nice" class="me-2" width="30" height="30">
+                                            <span>Karaté Club Nice</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">2</td>
+                                    <td class="text-center">1</td>
+                                    <td class="text-center">3</td>
+                                    <td class="text-center">6</td>
+                                </tr>
+                                <tr>
+                                    <td>5</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <img src="{% static 'img/clubs/club5.png' %}" alt="Karaté Toulouse" class="me-2" width="30" height="30">
+                                            <span>Karaté Toulouse</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">1</td>
+                                    <td class="text-center">2</td>
+                                    <td class="text-center">2</td>
+                                    <td class="text-center">5</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">{% trans "Statistiques des médailles" %}</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="medalsChart" height="250"></canvas>
+                    <div class="row mt-4 text-center">
+                        <div class="col">
+                            <div class="medal gold mx-auto mb-2"></div>
+                            <h4>13</h4>
+                            <div class="text-muted">{% trans "Or" %}</div>
+                        </div>
+                        <div class="col">
+                            <div class="medal silver mx-auto mb-2"></div>
+                            <h4>12</h4>
+                            <div class="text-muted">{% trans "Argent" %}</div>
+                        </div>
+                        <div class="col">
+                            <div class="medal bronze mx-auto mb-2"></div>
+                            <h4>13</h4>
+                            <div class="text-muted">{% trans "Bronze" %}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Détails d'une catégorie sélectionnée -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">{% trans "Détails de la catégorie: Kata Individuel Senior Hommes" %}</h5>
+            <div class="badge bg-success">{% trans "Terminé" %}</div>
+        </div>
+        <div class="card-body">
+            <ul class="nav nav-tabs mb-3" id="categoryDetailsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="results-tab" data-bs-toggle="tab" data-bs-target="#results-content" type="button" role="tab" aria-controls="results-content" aria-selected="true">
+                        <i class="fas fa-trophy me-1"></i>{% trans "Résultats" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="brackets-tab" data-bs-toggle="tab" data-bs-target="#brackets-content" type="button" role="tab" aria-controls="brackets-content" aria-selected="false">
+                        <i class="fas fa-sitemap me-1"></i>{% trans "Tableau" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="scores-tab" data-bs-toggle="tab" data-bs-target="#scores-content" type="button" role="tab" aria-controls="scores-content" aria-selected="false">
+                        <i class="fas fa-clipboard-list me-1"></i>{% trans "Détail des scores" %}
+                    </button>
+                </li>
+            </ul>
+            <div class="tab-content" id="categoryDetailsTabContent">
+                <!-- Contenu de l'onglet Résultats -->
+                <div class="tab-pane fade show active" id="results-content" role="tabpanel" aria-labelledby="results-tab">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Position" %}</th>
+                                    <th>{% trans "Compétiteur" %}</th>
+                                    <th>{% trans "Club" %}</th>
+                                    <th>{% trans "Score final" %}</th>
+                                    <th>{% trans "Médaille" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>1</td>
+                                    <td>Jean Dupont</td>
+                                    <td>Club Karaté Paris</td>
+                                    <td>42.8</td>
+                                    <td><div class="medal gold"></div></td>
+                                </tr>
+                                <tr>
+                                    <td>2</td>
+                                    <td>Michel Martin</td>
+                                    <td>Shotokan Lyon</td>
+                                    <td>41.5</td>
+                                    <td><div class="medal silver"></div></td>
+                                </tr>
+                                <tr>
+                                    <td>3</td>
+                                    <td>Paul Dubois</td>
+                                    <td>Karaté Club Marseille</td>
+                                    <td>40.2</td>
+                                    <td><div class="medal bronze"></div></td>
+                                </tr>
+                                <tr>
+                                    <td>4</td>
+                                    <td>Philippe Leroy</td>
+                                    <td>Karaté Club Nice</td>
+                                    <td>39.8</td>
+                                    <td></td>
+                                </tr>
+                                <tr>
+                                    <td>5</td>
+                                    <td>Thomas Girard</td>
+                                    <td>Shotokan Lyon</td>
+                                    <td>39.5</td>
+                                    <td></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Contenu de l'onglet Tableau -->
+                <div class="tab-pane fade" id="brackets-content" role="tabpanel" aria-labelledby="brackets-tab">
+                    <div class="tournament-bracket">
+                        <!-- Schéma visuel du tableau d'élimination -->
+                        <div class="text-center py-5">
+                            <img src="{% static 'img/bracket-example.svg' %}" alt="Tableau d'élimination" class="img-fluid">
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "Le tableau ci-dessus montre la progression des compétiteurs dans les tours éliminatoires." %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Contenu de l'onglet Détail des scores -->
+                <div class="tab-pane fade" id="scores-content" role="tabpanel" aria-labelledby="scores-tab">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Compétiteur" %}</th>
+                                    <th>{% trans "Tour" %}</th>
+                                    <th>{% trans "Kata" %}</th>
+                                    <th>{% trans "Juge 1" %}</th>
+                                    <th>{% trans "Juge 2" %}</th>
+                                    <th>{% trans "Juge 3" %}</th>
+                                    <th>{% trans "Juge 4" %}</th>
+                                    <th>{% trans "Juge 5" %}</th>
+                                    <th>{% trans "Min" %}</th>
+                                    <th>{% trans "Max" %}</th>
+                                    <th>{% trans "Score" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Jean Dupont</td>
+                                    <td>{% trans "Finale" %}</td>
+                                    <td>Unsu</td>
+                                    <td>8.6</td>
+                                    <td>8.8</td>
+                                    <td>8.5</td>
+                                    <td>8.7</td>
+                                    <td>8.6</td>
+                                    <td><span class="text-danger">8.5</span></td>
+                                    <td><span class="text-danger">8.8</span></td>
+                                    <td><strong>26.3</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Jean Dupont</td>
+                                    <td>{% trans "Demi-finale" %}</td>
+                                    <td>Gojushiho Sho</td>
+                                    <td>8.3</td>
+                                    <td>8.4</td>
+                                    <td>8.2</td>
+                                    <td>8.5</td>
+                                    <td>8.3</td>
+                                    <td><span class="text-danger">8.2</span></td>
+                                    <td><span class="text-danger">8.5</span></td>
+                                    <td><strong>25.0</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Michel Martin</td>
+                                    <td>{% trans "Finale" %}</td>
+                                    <td>Gojushiho Dai</td>
+                                    <td>8.4</td>
+                                    <td>8.5</td>
+                                    <td>8.3</td>
+                                    <td>8.6</td>
+                                    <td>8.4</td>
+                                    <td><span class="text-danger">8.3</span></td>
+                                    <td><span class="text-danger">8.6</span></td>
+                                    <td><strong>25.3</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Michel Martin</td>
+                                    <td>{% trans "Demi-finale" %}</td>
+                                    <td>Unsu</td>
+                                    <td>8.2</td>
+                                    <td>8.3</td>
+                                    <td>8.1</td>
+                                    <td>8.4</td>
+                                    <td>8.2</td>
+                                    <td><span class="text-danger">8.1</span></td>
+                                    <td><span class="text-danger">8.4</span></td>
+                                    <td><strong>24.7</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-secondary mt-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Les scores minimum et maximum (en rouge) sont exclus du calcul pour les compétitions de kata selon les règles WKF." %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-footer text-end">
+            <button class="btn btn-outline-primary me-2">
+                <i class="fas fa-print me-1"></i>{% trans "Imprimer les résultats" %}
+            </button>
+            <button class="btn btn-primary">
+                <i class="fas fa-share-alt me-1"></i>{% trans "Publier les résultats" %}
+            </button>
+        </div>
+    </div>
+    
+    <!-- Publication des résultats -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">{% trans "Publication des résultats" %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>{% trans "Options de publication" %}</h6>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="publishOnScreen" checked>
+                        <label class="form-check-label" for="publishOnScreen">
+                            {% trans "Afficher sur les écrans de la compétition" %}
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="publishOnWebsite" checked>
+                        <label class="form-check-label" for="publishOnWebsite">
+                            {% trans "Publier sur le site web de la compétition" %}
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="publishOnFederation">
+                        <label class="form-check-label" for="publishOnFederation">
+                            {% trans "Publier sur le site de la fédération" %}
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="notifyParticipants" checked>
+                        <label class="form-check-label" for="notifyParticipants">
+                            {% trans "Notifier les participants par email" %}
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="notifySocial">
+                        <label class="form-check-label" for="notifySocial">
+                            {% trans "Poster sur les réseaux sociaux" %}
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6>{% trans "État de la publication" %}</h6>
+                    <div class="list-group">
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{% trans "Kata Individuel Senior Hommes" %}</h6>
+                                <small><span class="badge bg-success">{% trans "Publié" %}</span></small>
+                            </div>
+                            <small class="d-flex justify-content-between">
+                                <span>{% trans "Publié le:" %} 10:45</span>
+                                <span>{% trans "Par:" %} Admin</span>
+                            </small>
+                        </div>
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{% trans "Kumite Individuel Senior Femmes -55kg" %}</h6>
+                                <small><span class="badge bg-success">{% trans "Publié" %}</span></small>
+                            </div>
+                            <small class="d-flex justify-content-between">
+                                <span>{% trans "Publié le:" %} 11:30</span>
+                                <span>{% trans "Par:" %} Admin</span>
+                            </small>
+                        </div>
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{% trans "Kumite Individuel Senior Hommes -75kg" %}</h6>
+                                <small><span class="badge bg-warning text-dark">{% trans "En attente" %}</span></small>
+                            </div>
+                            <small>{% trans "Catégorie encore en cours" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-footer">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="autoPublishResults">
+                    <label class="form-check-label" for="autoPublishResults">
+                        {% trans "Publier automatiquement les résultats dès qu'une catégorie est terminée" %}
+                    </label>
+                </div>
+                <button class="btn btn-primary">
+                    <i class="fas fa-share-alt me-1"></i>{% trans "Publier toutes les catégories terminées" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Styles pour les médailles */
+    .medal {
+        width: 25px;
+        height: 25px;
+        border-radius: 50%;
+        display: inline-block;
+        vertical-align: middle;
+        border: 1px solid rgba(0,0,0,0.1);
+    }
+    
+    .medal.gold {
+        background: linear-gradient(145deg, #ffd700, #ffb900);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .medal.silver {
+        background: linear-gradient(145deg, #e0e0e0, #c0c0c0);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .medal.bronze {
+        background: linear-gradient(145deg, #cd7f32, #a05a2c);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Graphique pour les médailles
+        var medalsCtx = document.getElementById('medalsChart').getContext('2d');
+        var medalsChart = new Chart(medalsCtx, {
+            type: 'horizontalBar',
+            data: {
+                labels: ['Club Karaté Paris', 'Shotokan Lyon', 'Karaté Club Marseille', 'Karaté Club Nice', 'Karaté Toulouse'],
+                datasets: [
+                    {
+                        label: 'Or',
+                        data: [5, 3, 2, 2, 1],
+                        backgroundColor: 'rgba(255, 215, 0, 0.8)',
+                        borderColor: 'rgba(255, 215, 0, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Argent',
+                        data: [3, 4, 2, 1, 2],
+                        backgroundColor: 'rgba(192, 192, 192, 0.8)',
+                        borderColor: 'rgba(192, 192, 192, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Bronze',
+                        data: [2, 2, 4, 3, 2],
+                        backgroundColor: 'rgba(205, 127, 50, 0.8)',
+                        borderColor: 'rgba(205, 127, 50, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                indexAxis: 'y',
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        stacked: false
+                    },
+                    y: {
+                        stacked: false
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

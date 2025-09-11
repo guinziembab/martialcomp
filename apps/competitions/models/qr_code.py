@@ -1,0 +1,559 @@
+import uuid
+import json
+from io import BytesIO
+from django.db import models
+from django.core.files import File
+from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
+from django.conf import settings
+from django.urls import reverse
+
+# Import conditionnel de qrcode
+try:
+    import qrcode
+    HAS_QRCODE = True
+except ImportError:
+    HAS_QRCODE = False
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning("Module qrcode non installé. Installer avec: pip install qrcode[pil]")
+
+# Import pour le support hors-ligne
+from ..utils.qr_offline import OfflineQRTokenGenerator
+
+
+class PractitionerQRCode(models.Model):
+    """
+    Modèle pour gérer les QR codes uniques des pratiquants
+    """
+    practitioner = models.OneToOneField(
+        'competitions.Practitioner',
+        on_delete=models.CASCADE,
+        related_name='qr_code',
+        verbose_name=_("Pratiquant")
+    )
+    
+    code = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        verbose_name=_("Code unique")
+    )
+    
+    qr_image = models.ImageField(
+        upload_to='qr_codes/practitioners/',
+        verbose_name=_("Image QR Code"),
+        blank=True,
+        null=True
+    )
+    
+    # Pour stocker l'image QR avec le token hors-ligne
+    qr_offline_image = models.ImageField(
+        upload_to='qr_codes/practitioners/offline/',
+        verbose_name=_("Image QR Code (hors-ligne)"),
+        blank=True,
+        null=True
+    )
+    
+    # Dernier token hors-ligne généré
+    offline_token = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name=_("Token hors-ligne")
+    )
+    
+    offline_token_generated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Date de génération du token hors-ligne")
+    )
+    
+    # Support pour profil hors-ligne
+    offline_profile_token = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name=_("Token de profil hors-ligne")
+    )
+    
+    offline_profile_generated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Date de génération du profil hors-ligne")
+    )
+    
+    offline_profile_qr_image = models.ImageField(
+        upload_to='qr_codes/practitioners/profile/',
+        verbose_name=_("Image QR Code du profil hors-ligne"),
+        blank=True,
+        null=True
+    )
+    
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name=_("Actif")
+    )
+    
+    # Validation au niveau fédération
+    is_federation_validated = models.BooleanField(
+        default=False,
+        verbose_name=_("Validé par la fédération")
+    )
+    
+    federation_validation_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Date de validation fédération")
+    )
+    
+    # Dates
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_("Créé le")
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name=_("Modifié le")
+    )
+    
+    # Statistiques d'utilisation
+    scan_count = models.PositiveIntegerField(
+        default=0,
+        verbose_name=_("Nombre de scans")
+    )
+    
+    last_scan_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Dernier scan")
+    )
+    
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("QR Code Pratiquant")
+        verbose_name_plural = _("QR Codes Pratiquants")
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"QR Code - {self.practitioner.full_name}"
+    
+    def generate_qr_code(self):
+        """Génère l'image du QR code standard"""
+        if not HAS_QRCODE:
+            # Si qrcode n'est pas installé, on ne génère pas d'image
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Impossible de générer le QR code pour {self.practitioner}. Module qrcode non installé.")
+            return
+            
+        # Créer l'URL de scan
+        base_url = getattr(settings, 'BASE_URL', 'http://localhost:8000')
+        scan_url = f"{base_url}/scan/practitioner/{self.code}/"
+        
+        # Générer le QR code
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(scan_url)
+        qr.make(fit=True)
+        
+        # Créer l'image
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Sauvegarder l'image
+        blob = BytesIO()
+        img.save(blob, 'PNG')
+        blob.seek(0)
+        
+        filename = f'qr_{self.practitioner.id}_{self.code}.png'
+        self.qr_image.save(filename, File(blob), save=False)
+    
+    def generate_offline_token(self):
+        """Génère un token pour la validation hors-ligne"""
+        # Obtenir le club du pratiquant
+        club_id = None
+        if hasattr(self.practitioner, 'organization') and self.practitioner.organization:
+            club_id = self.practitioner.organization.id
+        
+        # Générer le token
+        token = OfflineQRTokenGenerator.generate_offline_token(
+            practitioner_id=self.practitioner.id,
+            qr_code_uuid=self.code,
+            federation_validated=self.is_federation_validated,
+            club_id=club_id
+        )
+        
+        # Mettre Ã  jour les données de token
+        self.offline_token = token
+        self.offline_token_generated_at = timezone.now()
+        
+        return token
+    
+    def generate_offline_qr_code(self):
+        """Génère un QR code contenant un token offline"""
+        if not HAS_QRCODE:
+            # Si qrcode n'est pas installé, on ne génère pas d'image
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Impossible de générer le QR code hors-ligne pour {self.practitioner}. Module qrcode non installé.")
+            return
+        
+        # S'assurer qu'on a un token
+        if not self.offline_token or not self.offline_token_generated_at or \
+           (timezone.now() - self.offline_token_generated_at).days > 7:
+            self.generate_offline_token()
+        
+        # Les données QR seront le token lui-mÃªme (approche simple)
+        # Une approche plus avancée pourrait inclure des données supplémentaires
+        
+        # Créer un QR code de plus grande taille pour contenir plus de données
+        qr = qrcode.QRCode(
+            version=4,  # Taille plus grande pour contenir plus de données
+            error_correction=qrcode.constants.ERROR_CORRECT_M,  # Meilleure correction d'erreur
+            box_size=12,
+            border=4,
+        )
+        qr.add_data(self.offline_token)
+        qr.make(fit=True)
+        
+        # Créer l'image
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Sauvegarder l'image
+        blob = BytesIO()
+        img.save(blob, 'PNG')
+        blob.seek(0)
+        
+        filename = f'qr_offline_{self.practitioner.id}_{self.code}.png'
+        self.qr_offline_image.save(filename, File(blob), save=False)
+        self.save()
+        
+        return self.qr_offline_image.url
+    
+    def get_offline_token_data(self):
+        """Renvoie les données structurées pour l'utilisation mobile"""
+        # S'assurer qu'on a un token récent (< 7 jours)
+        if not self.offline_token or not self.offline_token_generated_at or \
+           (timezone.now() - self.offline_token_generated_at).days > 7:
+            self.generate_offline_token()
+            self.save()
+        
+        # Retourner les données structurées
+        return {
+            "token": self.offline_token,
+            "generated_at": self.offline_token_generated_at.isoformat() if self.offline_token_generated_at else None,
+            "qr_image_url": self.qr_image.url if self.qr_image else None,
+            "qr_offline_url": self.qr_offline_image.url if self.qr_offline_image else None,
+            "practitioner_id": self.practitioner.id,
+            "qr_uuid": str(self.code),
+            "federation_validated": self.is_federation_validated,
+            "is_active": self.is_active,
+        }
+        
+    def generate_offline_profile(self):
+        """Génère un token et un QR code contenant le profil complet du pratiquant"""
+        from ..utils.qr_offline import OfflineProfileGenerator
+        
+        # Générer le token de profil
+        profile_data = OfflineProfileGenerator.generate_offline_profile(self.practitioner)
+        
+        # Stocker le token
+        self.offline_profile_token = profile_data["token"]
+        self.offline_profile_generated_at = timezone.now()
+        
+        # Générer l'image QR code
+        qr_image, _ = OfflineProfileGenerator.generate_profile_qr_image(self.practitioner)
+        if qr_image:
+            # Supprimer l'ancienne image si elle existe
+            if self.offline_profile_qr_image:
+                try:
+                    storage = self.offline_profile_qr_image.storage
+                    if storage.exists(self.offline_profile_qr_image.name):
+                        storage.delete(self.offline_profile_qr_image.name)
+                except Exception:
+                    pass
+                    
+            # Sauvegarder la nouvelle image
+            filename = f'profile_{self.practitioner.id}_{self.code}.png'
+            self.offline_profile_qr_image.save(filename, qr_image, save=False)
+        
+        self.save()
+        return profile_data
+    
+    def get_offline_profile_data(self):
+        """Récupère les données du profil hors-ligne"""
+        from ..utils.qr_offline import OfflineProfileGenerator, PROFILE_VALIDITY_DAYS
+        
+        # S'assurer qu'on a un token récent
+        if not self.offline_profile_token or not self.offline_profile_generated_at or \
+           (timezone.now() - self.offline_profile_generated_at).days > PROFILE_VALIDITY_DAYS / 2:
+            return self.generate_offline_profile()
+        
+        # Vérifier la validité du token existant
+        if self.offline_profile_token:
+            profile_data = OfflineProfileGenerator.verify_offline_profile(self.offline_profile_token)
+            if profile_data.get("valid", False):
+                return {
+                    "token": self.offline_profile_token,
+                    "profile_data": profile_data,
+                    "generated_at": self.offline_profile_generated_at.isoformat() if self.offline_profile_generated_at else None,
+                    "qr_profile_url": self.offline_profile_qr_image.url if self.offline_profile_qr_image else None
+                }
+        
+        # Si le token n'est pas valide, en générer un nouveau
+        return self.generate_offline_profile()
+        
+    def save(self, *args, **kwargs):
+        if not self.pk:  # Nouvelle instance
+            super().save(*args, **kwargs)
+            self.generate_qr_code()
+            super().save(*args, **kwargs)
+        else:
+            super().save(*args, **kwargs)
+    
+    def validate_for_federation(self):
+        """Valide le QR code au niveau fédération si le club est en règle"""
+        if self.practitioner.club and self.practitioner.club.is_in_good_standing():
+            self.is_federation_validated = True
+            self.federation_validation_date = timezone.now()
+            self.save()
+            return True
+        return False
+    
+    def record_scan(self):
+        """Enregistre un scan du QR code"""
+        self.scan_count += 1
+        self.last_scan_date = timezone.now()
+        self.save()
+
+
+class QRCodeScan(models.Model):
+    """
+    Historique des scans de QR codes
+    """
+    SCAN_TYPE_CHOICES = [
+        ('attendance', _('Présence')),
+        ('competition', _('Compétition')),
+        ('event', _('Ã‰vénement')),
+        ('training', _('EntraÃ®nement')),
+        ('check_in', _('Check-in')),
+    ]
+    
+    qr_code = models.ForeignKey(
+        PractitionerQRCode,
+        on_delete=models.CASCADE,
+        related_name='scans',
+        verbose_name=_("QR Code")
+    )
+    
+    scan_type = models.CharField(
+        max_length=20,
+        choices=SCAN_TYPE_CHOICES,
+        verbose_name=_("Type de scan")
+    )
+    
+    scanned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='qr_scans_performed',
+        verbose_name=_("Scanné par")
+    )
+    
+    scan_date = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_("Date du scan")
+    )
+    
+    location = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name=_("Lieu")
+    )
+    
+    # Relations optionnelles selon le type de scan
+    competition = models.ForeignKey(
+        'competitions.Competition',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='qr_scans',
+        verbose_name=_("Compétition")
+    )
+    
+    training_session = models.ForeignKey(
+        'competitions.TrainingSession',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='qr_scans',
+        verbose_name=_("Session d'entraÃ®nement")
+    )
+    
+    event = models.ForeignKey(
+        'competitions.Event',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='qr_scans',
+        verbose_name=_("Ã‰vénement")
+    )
+    
+    # Validation
+    is_valid = models.BooleanField(
+        default=True,
+        verbose_name=_("Valide")
+    )
+    
+    validation_message = models.TextField(
+        blank=True,
+        verbose_name=_("Message de validation")
+    )
+    
+    # Support hors-ligne
+    is_offline_scan = models.BooleanField(
+        default=False,
+        verbose_name=_("Scan effectué hors-ligne")
+    )
+    
+    offline_scan_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name=_("ID du scan hors-ligne")
+    )
+    
+    synced_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Date de synchronisation")
+    )
+    
+    # Metadata
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        verbose_name=_("Adresse IP")
+    )
+    
+    user_agent = models.TextField(
+        blank=True,
+        verbose_name=_("User Agent")
+    )
+    
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Scan QR Code")
+        verbose_name_plural = _("Scans QR Code")
+        ordering = ['-scan_date']
+        indexes = [
+            models.Index(fields=['qr_code', 'scan_type']),
+            models.Index(fields=['scan_date']),
+            models.Index(fields=['is_offline_scan']),
+            models.Index(fields=['offline_scan_id']),
+        ]
+    
+    def __str__(self):
+        practitioner_name = self.qr_code.practitioner.full_name if self.qr_code.practitioner else "Inconnu"
+        offline_status = _(" (hors-ligne)") if self.is_offline_scan else ""
+        return f"{self.get_scan_type_display()} - {practitioner_name} - {self.scan_date}{offline_status}"
+    
+    def validate_scan(self):
+        """Valide le scan selon les règles métier"""
+        # Si c'est un scan hors-ligne déjÃ  validé, on ne réexécute pas la validation
+        if self.is_offline_scan and self.is_valid:
+            return True
+            
+        # Vérifier si le QR code est actif
+        if not self.qr_code.is_active:
+            self.is_valid = False
+            self.validation_message = _("QR Code inactif")
+            return False
+        
+        # Vérifier si le pratiquant est actif
+        if not self.qr_code.practitioner.is_active:
+            self.is_valid = False
+            self.validation_message = _("Pratiquant inactif")
+            return False
+        
+        # Vérifier la validation fédération si nécessaire
+        if self.scan_type in ['competition', 'event']:
+            if not self.qr_code.is_federation_validated:
+                # Vérifier si le club est en règle
+                club = self.qr_code.practitioner.club
+                if not club or not club.is_in_good_standing():
+                    self.is_valid = False
+                    self.validation_message = _("Club non en règle avec la fédération")
+                    return False
+        
+        # Vérifier les doublons pour la présence
+        if self.scan_type == 'attendance' and self.training_session:
+            # Vérifier si un scan existe déjÃ  pour ce pratiquant, cette session et cette date
+            existing_scan = QRCodeScan.objects.filter(
+                qr_code=self.qr_code,
+                training_session=self.training_session,
+                scan_type='attendance',
+                scan_date__date=timezone.now().date() if self.scan_date is None else self.scan_date.date()
+            ).exclude(pk=self.pk).exists()
+            
+            if existing_scan:
+                self.is_valid = False
+                self.validation_message = _("Présence déjÃ  enregistrée pour cette session")
+                return False
+        
+        self.is_valid = True
+        self.validation_message = _("Scan valide")
+        return True
+    
+    def save(self, *args, **kwargs):
+        # Valider automatiquement lors de la création si ce n'est pas un scan hors-ligne déjÃ  validé
+        if not self.pk and not (self.is_offline_scan and self.is_valid):
+            self.validate_scan()
+        
+        super().save(*args, **kwargs)
+        
+        # Enregistrer le scan dans le QR code
+        if self.is_valid:
+            self.qr_code.record_scan()
+            
+    @classmethod
+    def create_from_offline_data(cls, scan_data, qr_code):
+        """
+        Crée un scan Ã  partir des données hors-ligne
+        
+        Args:
+            scan_data: Données du scan hors-ligne
+            qr_code: Instance de PractitionerQRCode
+            
+        Returns:
+            QRCodeScan: Instance créée
+        """
+        scan = cls(
+            qr_code=qr_code,
+            scan_type=scan_data.get('scan_type', 'check_in'),
+            is_offline_scan=True,
+            offline_scan_id=scan_data.get('id'),
+            scan_date=timezone.datetime.fromtimestamp(scan_data.get('timestamp')),
+            location=scan_data.get('location', ''),
+            is_valid=True,  # La validation a été faite cÃ´té client
+            validation_message=_("Validé hors-ligne"),
+            synced_at=timezone.now(),
+            user_agent=f"Offline Scan - Synced {timezone.now().isoformat()}"
+        )
+        
+        # Ajouter les références selon le type
+        event_id = scan_data.get('event_id')
+        if event_id:
+            if scan_data.get('scan_type') == 'competition':
+                scan.competition_id = event_id
+            elif scan_data.get('scan_type') == 'training':
+                scan.training_session_id = event_id
+            elif scan_data.get('scan_type') == 'event':
+                scan.event_id = event_id
+        
+        scan.save()
+        return scan
+

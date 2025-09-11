@@ -1,0 +1,988 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}{% if competition %}{% trans "Modifier" %} {{ competition.title }}{% else %}{% trans "Créer une nouvelle compétition" %}{% endif %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<style>
+    .form-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    .form-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 2rem;
+        color: #333;
+    }
+    
+    .form-header i {
+        font-size: 1.8rem;
+        margin-right: 0.8rem;
+        color: #dc3545;
+    }
+    
+    .form-section {
+        background-color: #f9f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .section-title {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.2rem;
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #dc3545;
+    }
+    
+    .section-title i {
+        margin-right: 0.5rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+    
+    .form-control {
+        border-radius: 6px;
+        padding: 0.75rem;
+        border: 1px solid #ced4da;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+    
+    .form-control:focus {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    
+    .nav-tabs {
+        border-bottom: 1px solid #dee2e6;
+        margin-bottom: 1.5rem;
+    }
+    
+    .nav-tabs .nav-link {
+        border: 1px solid transparent;
+        border-top-left-radius: 0.25rem;
+        border-top-right-radius: 0.25rem;
+        color: #495057;
+    }
+    
+    .nav-tabs .nav-link:hover {
+        border-color: #e9ecef #e9ecef #dee2e6;
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: #dc3545;
+        background-color: #fff;
+        border-color: #dee2e6 #dee2e6 #fff;
+        font-weight: 500;
+    }
+    
+    .btn-submit {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        padding: 0.75rem 1.5rem;
+        font-weight: 500;
+    }
+    
+    .btn-submit:hover {
+        background-color: #c82333;
+        border-color: #bd2130;
+    }
+    
+    .required::after {
+        content: " *";
+        color: #dc3545;
+    }
+    
+    /* Personnalisation pour les éléments JSON */
+    .json-editor {
+        font-family: monospace;
+        height: 150px;
+    }
+    
+    /* Afficher une alerte si l'utilisateur est un admin de fédération */
+    .federation-notice {
+        background-color: #e8f4fd;
+        border-left: 4px solid #0d6efd;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="form-container">
+        <div class="form-header">
+            <i class="fas fa-trophy"></i>
+            <h2 class="mb-0">
+                {% if competition %}
+                    {% trans "Modifier la compétition" %}: {{ competition.title }}
+                {% else %}
+                    {% trans "Créer une nouvelle compétition" %}
+                {% endif %}
+            </h2>
+        </div>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        {% if form.errors %}
+            <div class="alert alert-danger">
+                <strong>{% trans "Des erreurs sont présentes dans le formulaire" %}:</strong>
+                <ul>
+                {% for field in form %}
+                    {% for error in field.errors %}
+                        <li>{{ field.label }}: {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+        
+        {# Alerte spécifique pour les responsables de fédération #}
+        {% if user.role == 'federation_admin' %}
+            <div class="federation-notice">
+                <i class="fas fa-info-circle me-2"></i>
+                {% trans "En tant qu'administrateur de fédération, vous créez une compétition officielle qui sera visible par tous les clubs affiliés." %}
+            </div>
+        {% endif %}
+        
+        <!-- Navigation par onglets -->
+        <ul class="nav nav-tabs" id="competitionTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <a class="nav-link active" id="general-tab" data-bs-toggle="tab" href="#general" role="tab" aria-controls="general" aria-selected="true">
+                    <i class="fas fa-info-circle me-1"></i> {% trans "Informations générales" %}
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" id="categories-tab" data-bs-toggle="tab" href="#categories" role="tab" aria-controls="categories" aria-selected="false">
+                    <i class="fas fa-layer-group me-1"></i> {% trans "Catégories" %}
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" id="participants-tab" data-bs-toggle="tab" href="#participants" role="tab" aria-controls="participants" aria-selected="false">
+                    <i class="fas fa-users me-1"></i> {% trans "Participants" %}
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" id="referees-tab" data-bs-toggle="tab" href="#referees" role="tab" aria-controls="referees" aria-selected="false">
+                    <i class="fas fa-gavel me-1"></i> {% trans "Arbitrage" %}
+                </a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" id="logistics-tab" data-bs-toggle="tab" href="#logistics" role="tab" aria-controls="logistics" aria-selected="false">
+                    <i class="fas fa-cogs me-1"></i> {% trans "Logistique" %}
+                </a>
+            </li>
+        </ul>
+        
+        <form method="post" enctype="multipart/form-data" id="competition-form">
+            {% csrf_token %}
+            
+            <div class="tab-content" id="competitionTabContent">
+                <!-- Onglet Informations générales -->
+                <div class="tab-pane fade show active" id="general" role="tabpanel" aria-labelledby="general-tab">
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-info-circle"></i>
+                            {% trans "Informations de base" %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.title.id_for_label }}" class="form-label required">{% trans "Nom de la compétition" %}</label>
+                            {{ form.title }}
+                            {% if form.title.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.title.errors }}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">{% trans "Donnez un nom clair et descriptif à votre compétition" %}</small>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.start_date.id_for_label }}" class="form-label required">{% trans "Date de début" %}</label>
+                                    {{ form.start_date }}
+                                    {% if form.start_date.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.start_date.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.end_date.id_for_label }}" class="form-label required">{% trans "Date de fin" %}</label>
+                                    {{ form.end_date }}
+                                    {% if form.end_date.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.end_date.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.start_time.id_for_label }}" class="form-label">{% trans "Heure de début" %}</label>
+                                    {{ form.start_time }}
+                                    {% if form.start_time.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.start_time.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.end_time.id_for_label }}" class="form-label">{% trans "Heure de fin" %}</label>
+                                    {{ form.end_time }}
+                                    {% if form.end_time.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.end_time.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.address.id_for_label }}" class="form-label required">{% trans "Adresse" %}</label>
+                            {{ form.address }}
+                            {% if form.address.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.address.errors }}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">{% trans "Indiquez l'adresse complète du lieu de la compétition" %}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-list-alt"></i>
+                            {% trans "Type et disciplines" %}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.discipline.id_for_label }}" class="form-label required">{% trans "Discipline" %}</label>
+                                    {{ form.discipline }}
+                                    {% if form.discipline.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.discipline.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.competition_types.id_for_label }}" class="form-label required">{% trans "Types de compétition" %}</label>
+                                    {{ form.competition_types }}
+                                    {% if form.competition_types.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.competition_types.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">{% trans "Description détaillée" %}</label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.description.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="{{ form.logo.id_for_label }}" class="form-label">{% trans "Bannière de la compétition" %}</label>
+                        <div class="custom-file">
+                            {{ form.logo }}
+                            <label class="custom-file-label" for="{{ form.logo.id_for_label }}">
+                                {% if competition and competition.logo %}
+                                    {{ competition.logo.name }}
+                                {% else %}
+                                    {% trans "Choisir un fichier" %}
+                                {% endif %}
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">{% trans "Format recommandé: 1200x300px, max 2MB" %}</small>
+                        {% if form.logo.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ form.logo.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="form-check">
+                            {{ form.is_published }}
+                            <label class="form-check-label" for="{{ form.is_published.id_for_label }}">
+                                {% trans "Publier immédiatement la compétition" %}
+                            </label>
+                            <small class="form-text text-muted d-block">{% trans "Si non cochée, la compétition sera enregistrée comme brouillon" %}</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Onglet Catégories -->
+                <div class="tab-pane fade" id="categories" role="tabpanel" aria-labelledby="categories-tab">
+                    <div class="alert alert-info" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Configurez les catégories des participants pour votre compétition." %}
+                    </div>
+                    
+                    {% if competition %}
+                        <div class="mb-3">
+                            <a href="{% url 'competitions:categories' competition.id %}" class="btn btn-outline-primary">
+                                <i class="fas fa-edit me-2"></i>{% trans "Gérer les catégories existantes" %}
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="form-section">
+                            <div class="section-title">
+                                <i class="fas fa-weight"></i>
+                                {% trans "Catégories de poids" %}
+                            </div>
+                            
+                            <div class="form-group">
+                                <textarea class="form-control json-editor" id="weight_categories" name="weight_categories" rows="5" required>{
+  "categories": [
+    {"name": "Poids léger", "min_kg": 55, "max_kg": 65},
+    {"name": "Poids moyen", "min_kg": 65, "max_kg": 75},
+    {"name": "Poids lourd", "min_kg": 75, "max_kg": 85},
+    {"name": "Poids super-lourd", "min_kg": 85, "max_kg": null}
+  ]
+}</textarea>
+                                <small class="form-text text-muted">{% trans "Les catégories de poids seront configurées après la création de la compétition" %}</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <div class="section-title">
+                                <i class="fas fa-user-clock"></i>
+                                {% trans "Catégories d'âge" %}
+                            </div>
+                            
+                            <div class="form-group">
+                                <textarea class="form-control json-editor" id="age_categories" name="age_categories" rows="5" required>{
+  "categories": [
+    {"name": "Enfants", "min_age": 6, "max_age": 11},
+    {"name": "Adolescents", "min_age": 12, "max_age": 17},
+    {"name": "Adultes", "min_age": 18, "max_age": 39},
+    {"name": "Vétérans", "min_age": 40, "max_age": null}
+  ]
+}</textarea>
+                                <small class="form-text text-muted">{% trans "Les catégories d'âge seront configurées après la création de la compétition" %}</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <div class="section-title">
+                                <i class="fas fa-certificate"></i>
+                                {% trans "Catégories de grade" %}
+                            </div>
+                            
+                            <div class="form-group">
+                                <textarea class="form-control json-editor" id="grade_categories" name="grade_categories" rows="5" required>{
+  "categories": [
+    {"name": "Débutants", "grades": ["Blanche", "Jaune", "Orange"]},
+    {"name": "Intermédiaires", "grades": ["Verte", "Bleue"]},
+    {"name": "Avancés", "grades": ["Marron", "Rouge"]},
+    {"name": "Experts", "grades": ["Noire 1er Dan", "Noire 2ème Dan", "Noire 3ème Dan et plus"]}
+  ]
+}</textarea>
+                                <small class="form-text text-muted">{% trans "Les catégories de grade seront configurées après la création de la compétition" %}</small>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Onglet Participants -->
+                <div class="tab-pane fade" id="participants" role="tabpanel" aria-labelledby="participants-tab">
+                    <div class="alert alert-info" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Configurez les critères de participation et les règles d'inscription à votre compétition." %}
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-user-check"></i>
+                            {% trans "Critères de participation" %}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.min_age.id_for_label }}" class="form-label">{% trans "Âge minimum" %}</label>
+                                    {{ form.min_age }}
+                                    {% if form.min_age.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.min_age.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.max_participants.id_for_label }}" class="form-label">{% trans "Nombre maximum de participants" %}</label>
+                                    {{ form.max_participants }}
+                                    {% if form.max_participants.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.max_participants.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {% if form.participation_requirements %}
+                            <div class="form-group">
+                                <label for="{{ form.participation_requirements.id_for_label }}" class="form-label">{% trans "Exigences de participation" %}</label>
+                                {{ form.participation_requirements }}
+                                {% if form.participation_requirements.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.participation_requirements.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-clipboard-list"></i>
+                            {% trans "Configuration des inscriptions" %}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="{{ form.registration_deadline.id_for_label }}" class="form-label">{% trans "Date limite d'inscription" %}</label>
+                                    {{ form.registration_deadline }}
+                                    {% if form.registration_deadline.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.registration_deadline.errors }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% if form.registration_fee %}
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="{{ form.registration_fee.id_for_label }}" class="form-label">{% trans "Frais d'inscription" %}</label>
+                                        {{ form.registration_fee }}
+                                        {% if form.registration_fee.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.registration_fee.errors }}
+                                            </div>
+                                        {% endif %}
+                                        <small class="form-text text-muted">{% trans "En euros (€)" %}</small>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        {% if form.registration_requirements %}
+                            <div class="form-group">
+                                <label for="{{ form.registration_requirements.id_for_label }}" class="form-label">{% trans "Conditions d'inscription" %}</label>
+                                {{ form.registration_requirements }}
+                                {% if form.registration_requirements.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.registration_requirements.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Onglet Arbitrage -->
+                <div class="tab-pane fade" id="referees" role="tabpanel" aria-labelledby="referees-tab">
+                    <div class="alert alert-info" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Configurez les critères pour les arbitres et le système de notation de votre compétition." %}
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-gavel"></i>
+                            {% trans "Critères des arbitres" %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="referee_requirements" class="form-label">{% trans "Exigences pour les arbitres" %}</label>
+                            <textarea class="form-control json-editor" id="referee_requirements" name="referee_requirements" rows="4">{
+                          "min_grade": "Noire 1er Dan",
+                          "min_certification_level": "Régional",
+                          "min_experience_years": 2,
+                          "referee_per_tatami": 3,
+                          "chief_referee_required": true,
+                          "technical_judges_required": 3
+                        }</textarea>
+                            <small class="form-text text-muted">{% trans "Configurez les exigences pour les arbitres au format JSON" %}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-star-half-alt"></i>
+                            {% trans "Configuration de notation" %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="scoring_config" class="form-label">{% trans "Configuration du système de notation" %}</label>
+                            <textarea class="form-control json-editor" id="scoring_config" name="scoring_config" rows="4">{
+                          "scoring_system": "points",
+                          "max_technical_score": 10,
+                          "max_artistic_score": 10,
+                          "use_penalties": true,
+                          "tie_breaker_rule": "chief_referee",
+                          "throw_away_highest_lowest": true
+                        }</textarea>
+                            <small class="form-text text-muted">{% trans "Configurez les paramètres de notation au format JSON" %}</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Onglet Logistique -->
+                <div class="tab-pane fade" id="logistics" role="tabpanel" aria-labelledby="logistics-tab">
+                    <div class="alert alert-info" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Configurez le planning et les besoins en équipement pour votre compétition." %}
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-clock"></i>
+                            {% trans "Configuration du planning" %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="schedule_config" class="form-label">{% trans "Configuration du planning" %}</label>
+                            <textarea class="form-control json-editor" id="schedule_config" name="schedule_config" rows="4">{
+                          "start_time": "09:00",
+                          "end_time": "18:00",
+                          "check_in_time": "08:00",
+                          "warm_up_time": "08:30",
+                          "break_duration_minutes": 60,
+                          "match_duration_minutes": 3,
+                          "break_between_matches_minutes": 2
+                        }</textarea>
+                            <small class="form-text text-muted">{% trans "Configurez le planning de la compétition au format JSON" %}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-tools"></i>
+                            {% trans "Besoins en équipement" %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="equipment_requirements" class="form-label">{% trans "Besoins en équipement" %}</label>
+                            <textarea class="form-control json-editor" id="equipment_requirements" name="equipment_requirements" rows="4">{
+                          "tatami_count": 3,
+                          "warm_up_area_required": true,
+                          "electronic_scoring_system": true,
+                          "video_replay_system": false,
+                          "protective_gear": ["casque", "protège-dents", "gants", "protège-tibias"],
+                          "specific_uniform_required": true
+                        }</textarea>
+                            <small class="form-text text-muted">{% trans "Définissez les besoins en équipement au format JSON" %}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <div class="section-title">
+                            <i class="fas fa-cog"></i>
+                            {% trans "Options additionnelles" %}
+                        </div>
+                        
+                        <div class="row">
+                            {% if form.allow_spectators %}
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <div class="form-check">
+                                            {{ form.allow_spectators }}
+                                            <label class="form-check-label" for="{{ form.allow_spectators.id_for_label }}">
+                                                {% trans "Autoriser les spectateurs" %}
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            
+                            {% if form.live_results %}
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <div class="form-check">
+                                            {{ form.live_results }}
+                                            <label class="form-check-label" for="{{ form.live_results.id_for_label }}">
+                                                {% trans "Afficher les résultats en direct" %}
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center mt-4">
+                {% if competition %}
+                    <button type="submit" class="btn btn-submit btn-lg">
+                        <i class="fas fa-save me-2"></i> {% trans "Enregistrer les modifications" %}
+                    </button>
+                {% else %}
+                    <button type="submit" class="btn btn-submit btn-lg">
+                        <i class="fas fa-save me-2"></i> {% trans "Créer la compétition" %}
+                    </button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/fr.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Activer manuellement les onglets
+        const tabElems = document.querySelectorAll('[data-bs-toggle="tab"]');
+        tabElems.forEach(tabElem => {
+            tabElem.addEventListener('click', function(event) {
+                event.preventDefault();
+                const tab = new bootstrap.Tab(tabElem);
+                tab.show();
+            });
+        });
+
+        // S'assurer que le premier onglet est actif
+        const generalTab = document.getElementById('general-tab');
+        if (generalTab) {
+            const tab = new bootstrap.Tab(generalTab);
+            tab.show();
+        }
+        
+        // Configuration de base pour les datepickers
+        const dateConfig = {
+            altInput: true,
+            altFormat: "d F Y",
+            dateFormat: "Y-m-d",
+            locale: "fr",
+            minDate: "today",
+            time_24hr: true
+        };
+        
+        // Date de début
+        const startDateInput = document.querySelector('input[name="start_date"]');
+        let startDatePicker;
+        if (startDateInput) {
+            startDatePicker = flatpickr(startDateInput, {
+                ...dateConfig,
+                onChange: function(selectedDates, dateStr, instance) {
+                    // Mettre à jour la date minimale du datepicker de fin
+                    if (selectedDates[0] && endDatePicker) {
+                        endDatePicker.set('minDate', selectedDates[0]);
+                    }
+                }
+            });
+        }
+        
+        // Date de fin - CORRECTION ICI
+        const endDateInput = document.querySelector('input[name="end_date"]');
+        let endDatePicker;
+        if (endDateInput) {
+            // Vérifier si une date de début est définie pour l'utiliser comme minDate
+            const startDate = startDateInput && startDateInput.value ? 
+                              new Date(startDateInput.value) : new Date();
+            
+            endDatePicker = flatpickr(endDateInput, {
+                ...dateConfig,
+                minDate: startDate
+            });
+        }
+        
+        // Date limite d'inscription
+        const registrationDeadlineInput = document.querySelector('input[name="registration_deadline"]');
+        if (registrationDeadlineInput) {
+            flatpickr(registrationDeadlineInput, {
+                ...dateConfig
+            });
+        }
+        
+        // Gestion du changement de nom de fichier pour l'upload de logo
+        const logoInput = document.querySelector('input[name="logo"]');
+        if (logoInput) {
+            logoInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    const fileName = e.target.files[0].name;
+                    const fileLabel = document.querySelector('.custom-file-label');
+                    if (fileLabel) {
+                        fileLabel.textContent = fileName;
+                    }
+                }
+            });
+        }
+        
+        // Chargement dynamique des types de compétition en fonction de la discipline sélectionnée
+        const disciplineSelect = document.querySelector('select[name="discipline"]');
+        const competitionTypesSelect = document.querySelector('select[name="competition_types"]');
+        
+        if (disciplineSelect && competitionTypesSelect) {
+            // Déclencher le chargement initial si une discipline est déjà sélectionnée
+            if (disciplineSelect.value) {
+                loadCompetitionTypes(disciplineSelect.value);
+            }
+            
+            // Ajouter l'écouteur d'événement pour les changements futurs
+            disciplineSelect.addEventListener('change', function() {
+                const disciplineId = this.value;
+                if (disciplineId) {
+                    loadCompetitionTypes(disciplineId);
+                }
+            });
+            
+            // Fonction pour charger les types de compétition
+            function loadCompetitionTypes(disciplineId) {
+                // Vider les options actuelles
+                while (competitionTypesSelect.options.length > 0) {
+                    competitionTypesSelect.remove(0);
+                }
+                
+                // Ajouter une option vide (placeholder)
+                const placeholderOption = document.createElement('option');
+                placeholderOption.text = "Chargement...";
+                placeholderOption.disabled = true;
+                placeholderOption.selected = true;
+                competitionTypesSelect.add(placeholderOption);
+                
+                // Récupérer les types de compétition associés à cette discipline
+                fetch(`/competitions/competitions/api/discipline/${disciplineId}/types/`)
+                    .then(response => {
+                        console.log("Réponse du serveur:", response.status);
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log("Données reçues:", data);
+                        
+                        // Vider l'option "Chargement..."
+                        while (competitionTypesSelect.options.length > 0) {
+                            competitionTypesSelect.remove(0);
+                        }
+                        
+                        // Ajouter une option vide (placeholder)
+                        const emptyOption = document.createElement('option');
+                        emptyOption.text = "Sélectionnez le(s) type(s) de compétition";
+                        emptyOption.disabled = true;
+                        emptyOption.selected = true;
+                        competitionTypesSelect.add(emptyOption);
+                        
+                        // Filtrer les types de compétition si nécessaire
+                        const typesToDisplay = data.competition_types;
+                        
+                        // Ajouter les types de compétition
+                        if (typesToDisplay && typesToDisplay.length > 0) {
+                            typesToDisplay.forEach(type => {
+                                const option = document.createElement('option');
+                                option.value = type.id;
+                                option.text = type.name;
+                                competitionTypesSelect.add(option);
+                            });
+                            
+                            // Enlever l'attribut required du select si présent
+                            if (competitionTypesSelect.hasAttribute('required')) {
+                                competitionTypesSelect.removeAttribute('required');
+                            }
+                        } else {
+                            const noTypesOption = document.createElement('option');
+                            noTypesOption.text = "Aucun type disponible pour cette discipline";
+                            noTypesOption.disabled = true;
+                            competitionTypesSelect.add(noTypesOption);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erreur lors du chargement des types de compétition:', error);
+                        
+                        // En cas d'erreur, afficher un message
+                        while (competitionTypesSelect.options.length > 0) {
+                            competitionTypesSelect.remove(0);
+                        }
+                        
+                        const errorOption = document.createElement('option');
+                        errorOption.text = "Erreur de chargement";
+                        errorOption.disabled = true;
+                        competitionTypesSelect.add(errorOption);
+                    });
+            }
+        }
+        
+        // Fonction pour valider le JSON
+        function validateJSON(fieldId) {
+            const textarea = document.getElementById(fieldId);
+            if (!textarea) return true;
+            
+            try {
+                const jsonContent = textarea.value;
+                JSON.parse(jsonContent);
+                
+                // Supprimer la classe d'erreur si présente
+                textarea.classList.remove('is-invalid');
+                
+                // Supprimer le message d'erreur s'il existe
+                const errorElement = document.getElementById(`${fieldId}-error`);
+                if (errorElement) {
+                    errorElement.textContent = '';
+                    errorElement.style.display = 'none';
+                }
+                
+                return true;
+            } catch (e) {
+                // Ajouter la classe d'erreur
+                textarea.classList.add('is-invalid');
+                
+                // Créer ou mettre à jour le message d'erreur
+                let errorElement = document.getElementById(`${fieldId}-error`);
+                if (!errorElement) {
+                    errorElement = document.createElement('div');
+                    errorElement.id = `${fieldId}-error`;
+                    errorElement.className = 'invalid-feedback d-block';
+                    textarea.parentNode.appendChild(errorElement);
+                }
+                
+                errorElement.textContent = `Erreur JSON: ${e.message}`;
+                errorElement.style.display = 'block';
+                
+                return false;
+            }
+        }
+        
+        // Validation du formulaire avant soumission
+        const form = document.getElementById('competition-form');
+        if (form) {
+            form.addEventListener('submit', function(event) {
+                let isValid = true;
+                
+                // Vérifier que la date de fin est après la date de début
+                const startDate = startDateInput?.value;
+                const endDate = endDateInput?.value;
+                
+                if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+                    isValid = false;
+                    
+                    // Créer une alerte pour notifier l'erreur
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+                    alertDiv.innerHTML = `
+                        <strong>Erreur :</strong> La date de fin doit être postérieure à la date de début.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    
+                    // Insérer l'alerte en haut du formulaire
+                    const firstChild = form.firstChild;
+                    form.insertBefore(alertDiv, firstChild);
+                    
+                    // Activer l'onglet général
+                    if (generalTab) {
+                        const tab = new bootstrap.Tab(generalTab);
+                        tab.show();
+                    }
+                }
+                
+                // Vérifier les champs requis visibles dans l'onglet actif
+                const activeTab = document.querySelector('.tab-pane.active');
+                if (activeTab) {
+                    const requiredFields = activeTab.querySelectorAll('[required]');
+                    requiredFields.forEach(field => {
+                        if (!field.value.trim()) {
+                            field.classList.add('is-invalid');
+                            isValid = false;
+                            
+                            // Créer un message d'erreur s'il n'existe pas déjà
+                            let feedbackElement = field.nextElementSibling;
+                            if (!feedbackElement || !feedbackElement.classList.contains('invalid-feedback')) {
+                                feedbackElement = document.createElement('div');
+                                feedbackElement.className = 'invalid-feedback d-block';
+                                feedbackElement.textContent = 'Ce champ est obligatoire.';
+                                field.parentNode.insertBefore(feedbackElement, field.nextSibling);
+                            }
+                        } else {
+                            field.classList.remove('is-invalid');
+                            
+                            // Supprimer le message d'erreur s'il existe
+                            const feedbackElement = field.nextElementSibling;
+                            if (feedbackElement && feedbackElement.classList.contains('invalid-feedback')) {
+                                feedbackElement.remove();
+                            }
+                        }
+                    });
+                }
+                
+                // Valider les champs JSON
+                const jsonFields = [
+                    'weight_categories', 'age_categories', 'grade_categories',
+                    'participant_requirements', 'registration_requirements',
+                    'referee_requirements', 'scoring_config', 'schedule_config',
+                    'equipment_requirements'
+                ];
+                
+                jsonFields.forEach(field => {
+                    if (document.getElementById(field) && !validateJSON(field)) {
+                        isValid = false;
+                    }
+                });
+                
+                // Empêcher la soumission si le formulaire n'est pas valide
+                if (!isValid) {
+                    event.preventDefault();
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

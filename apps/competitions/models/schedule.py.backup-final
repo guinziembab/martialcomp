@@ -1,0 +1,294 @@
+﻿from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.contrib.auth.models import User
+
+from apps.organizations.models import Organization, OrganizationMember, OrganizationRole
+
+
+class CompetitionSchedule(models.Model):
+    """Modèle pour le planning général d'une compétition."""
+    
+    competition = models.OneToOneField(
+        'competitions.Competition',
+        on_delete=models.CASCADE,
+        related_name='schedule',
+        verbose_name=_("Compétition")
+    )
+    start_time = models.TimeField(_("Heure de début"), default='09:00')
+    end_time = models.TimeField(_("Heure de fin"), default='18:00')
+    break_start = models.TimeField(_("Début de la pause"), null=True, blank=True)
+    break_end = models.TimeField(_("Fin de la pause"), null=True, blank=True)
+    weigh_in_start = models.DateTimeField(_("Début de la pesée"), null=True, blank=True)
+    weigh_in_end = models.DateTimeField(_("Fin de la pesée"), null=True, blank=True)
+    briefing_time = models.TimeField(_("Heure du briefing"), null=True, blank=True)
+    awards_ceremony_time = models.TimeField(_("Heure de la cérémonie"), null=True, blank=True)
+    
+    # Configuration des tatamis
+    tatami_count = models.PositiveSmallIntegerField(
+        _("Nombre de tatamis"), 
+        default=1,
+        validators=[MinValueValidator(1), MaxValueValidator(10)]
+    )
+    
+    # Paramètres du planning
+    match_duration = models.PositiveSmallIntegerField(
+        _("Durée par défaut des matchs (minutes)"), 
+        default=3
+    )
+    break_between_matches = models.PositiveSmallIntegerField(
+        _("Pause entre les matchs (minutes)"), 
+        default=1
+    )
+    
+    # Statut du planning
+    is_published = models.BooleanField(_("Publié"), default=False)
+    last_updated = models.DateTimeField(_("Dernière mise Ã  jour"), auto_now=True)
+    updated_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL,
+        null=True, 
+        blank=True,
+        related_name='updated_schedules',
+        verbose_name=_("Mis Ã  jour par")
+    )
+    notes = models.TextField(_("Notes"), blank=True)
+    
+    class Meta:
+        verbose_name = _("Planning de compétition")
+        verbose_name_plural = _("Plannings de compétition")
+    
+    def __str__(self):
+        return _("Planning: {}").format(self.competition.title)
+    
+    def is_break_time(self, current_time=None):
+        """Vérifie si l'heure actuelle est dans la période de pause."""
+        if not current_time:
+            current_time = timezone.localtime().time()
+        
+        if self.break_start and self.break_end:
+            return self.break_start <= current_time <= self.break_end
+        return False
+
+
+class TatamiSchedule(models.Model):
+    """Modèle pour le planning spécifique d'un tatami."""
+    
+    competition_schedule = models.ForeignKey(
+        CompetitionSchedule,
+        on_delete=models.CASCADE,
+        related_name='tatami_schedules',
+        verbose_name=_("Planning de compétition")
+    )
+    tatami_number = models.PositiveSmallIntegerField(_("Numéro de tatami"))
+    name = models.CharField(_("Nom"), max_length=100, blank=True)
+    
+    # Responsable du tatami
+    responsible = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='responsible_for_tatamis',
+        verbose_name=_("Responsable")
+    )
+    
+    class Meta:
+        verbose_name = _("Planning de tatami")
+        verbose_name_plural = _("Plannings de tatami")
+        unique_together = ('competition_schedule', 'tatami_number')
+        ordering = ['competition_schedule', 'tatami_number']
+    
+    def __str__(self):
+        if self.name:
+            return f"Tatami {self.tatami_number} - {self.name}"
+        return f"Tatami {self.tatami_number}"
+
+
+class CategorySchedule(models.Model):
+    """Planning pour une catégorie spécifique de compétition."""
+    
+    PRIORITY_CHOICES = [
+        ('high', _('Haute')),
+        ('normal', _('Normale')),
+        ('low', _('Basse')),
+    ]
+    
+    competition_schedule = models.ForeignKey(
+        CompetitionSchedule,
+        on_delete=models.CASCADE,
+        related_name='category_schedules',
+        verbose_name=_("Planning de compétition")
+    )
+    category = models.ForeignKey(
+        'competitions.CompetitionCategory',
+        on_delete=models.CASCADE,
+        related_name='schedules',
+        verbose_name=_("Catégorie")
+    )
+    tatami = models.ForeignKey(
+        TatamiSchedule,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='category_schedules',
+        verbose_name=_("Tatami")
+    )
+    
+    # Planification
+    estimated_start_time = models.TimeField(_("Heure de début estimée"), null=True, blank=True)
+    estimated_end_time = models.TimeField(_("Heure de fin estimée"), null=True, blank=True)
+    actual_start_time = models.TimeField(_("Heure de début réelle"), null=True, blank=True)
+    actual_end_time = models.TimeField(_("Heure de fin réelle"), null=True, blank=True)
+    
+    # Priorité et ordre
+    priority = models.CharField(
+        _("Priorité"),
+        max_length=10,
+        choices=PRIORITY_CHOICES,
+        default='normal'
+    )
+    order = models.PositiveSmallIntegerField(_("Ordre"), default=0)
+    
+    # Statut
+    is_completed = models.BooleanField(_("Terminée"), default=False)
+    
+    class Meta:
+        verbose_name = _("Planning de catégorie")
+        verbose_name_plural = _("Plannings de catégorie")
+        ordering = ['competition_schedule', 'order', 'estimated_start_time']
+    
+    def __str__(self):
+        return f"{self.category.name} - {self.estimated_start_time or '??:??'}"
+    
+    def duration_in_minutes(self):
+        """Calcule la durée estimée de la catégorie en minutes."""
+        from . import Match
+        
+        # Nombre de matchs dans cette catégorie
+        matches_count = Match.objects.filter(category=self.category).count()
+        
+        # Si pas de matchs, estimation basée sur le nombre de participants
+        if matches_count == 0:
+            participants_count = self.category.registrations.count()
+            if participants_count <= 1:
+                return 0
+            
+            # Estimation du nombre de matchs selon le système de compétition
+            if self.category.competition_system == 'elimination':
+                # Tournoi Ã  élimination directe
+                import math
+                matches_count = participants_count - 1
+            elif self.category.competition_system == 'round_robin':
+                # Tournoi en poule (tous contre tous)
+                matches_count = (participants_count * (participants_count - 1)) // 2
+            else:
+                # Système mixte ou autre
+                matches_count = participants_count
+        
+        # Calcul de la durée totale
+        match_duration = self.competition_schedule.match_duration
+        break_duration = self.competition_schedule.break_between_matches
+        
+        return matches_count * (match_duration + break_duration)
+
+
+class ScheduleChange(models.Model):
+    """Historique des modifications du planning."""
+    
+    CHANGE_TYPES = [
+        ('time_change', _('Changement d\'horaire')),
+        ('tatami_change', _('Changement de tatami')),
+        ('order_change', _('Changement d\'ordre')),
+        ('category_added', _('Catégorie ajoutée')),
+        ('category_removed', _('Catégorie supprimée')),
+        ('other', _('Autre changement')),
+    ]
+    
+    competition_schedule = models.ForeignKey(
+        CompetitionSchedule,
+        on_delete=models.CASCADE,
+        related_name='changes',
+        verbose_name=_("Planning")
+    )
+    category_schedule = models.ForeignKey(
+        CategorySchedule,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='changes',
+        verbose_name=_("Planning de catégorie")
+    )
+    change_type = models.CharField(
+        _("Type de changement"),
+        max_length=20,
+        choices=CHANGE_TYPES
+    )
+    timestamp = models.DateTimeField(_("Date et heure"), auto_now_add=True)
+    changed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='schedule_changes',
+        verbose_name=_("Modifié par")
+    )
+    description = models.TextField(_("Description"))
+    old_value = models.CharField(_("Ancienne valeur"), max_length=255, blank=True)
+    new_value = models.CharField(_("Nouvelle valeur"), max_length=255, blank=True)
+    
+    class Meta:
+        verbose_name = _("Modification de planning")
+        verbose_name_plural = _("Modifications de planning")
+        ordering = ['-timestamp']
+    
+    def __str__(self):
+        return f"{self.get_change_type_display()} - {self.timestamp.strftime('%H:%M:%S')}"
+
+
+class MatchTimeSlot(models.Model):
+    """Créneau horaire pour un match."""
+    
+    category_schedule = models.ForeignKey(
+        CategorySchedule,
+        on_delete=models.CASCADE,
+        related_name='time_slots',
+        verbose_name=_("Planning de catégorie")
+    )
+    match = models.OneToOneField(
+        'competitions.Match',
+        on_delete=models.CASCADE,
+        related_name='time_slot',
+        verbose_name=_("Match"),
+        null=True,
+        blank=True
+    )
+    start_time = models.TimeField(_("Heure de début"))
+    end_time = models.TimeField(_("Heure de fin"))
+    is_break = models.BooleanField(_("Pause"), default=False)
+    
+    # Statut
+    status = models.CharField(
+        _("Statut"),
+        max_length=20,
+        choices=[
+            ('scheduled', _('Planifié')),
+            ('in_progress', _('En cours')),
+            ('completed', _('Terminé')),
+            ('delayed', _('Retardé')),
+            ('cancelled', _('Annulé')),
+        ],
+        default='scheduled'
+    )
+    
+    class Meta:
+        verbose_name = _("Créneau horaire")
+        verbose_name_plural = _("Créneaux horaires")
+        ordering = ['start_time']
+    
+    def __str__(self):
+        if self.is_break:
+            return f"Pause: {self.start_time} - {self.end_time}"
+        return f"Match {self.match.id if self.match else 'N/A'}: {self.start_time} - {self.end_time}"
+
+

@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Gestion des grades" %} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .grade-color {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+        vertical-align: middle;
+        border: 1px solid #ddd;
+    }
+    
+    .discipline-filter {
+        max-width: 250px;
+    }
+    
+    .system-filter {
+        max-width: 250px;
+    }
+    
+    .grade-card {
+        transition: all 0.3s;
+        border-left: 4px solid transparent;
+    }
+    
+    .grade-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{% trans "Gestion des grades" %}</h1>
+        <div>
+            <a href="{% url 'competitions:grades:create' %}" class="btn btn-primary">
+                <i class="fas fa-plus-circle me-2"></i>{% trans "Ajouter un grade" %}
+            </a>
+            <a href="{% url 'competitions:grades:systems_list' %}" class="btn btn-outline-primary ms-2">
+                <i class="fas fa-cogs me-2"></i>{% trans "Systèmes de grades" %}
+            </a>
+        </div>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- Filtres -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">{% trans "Filtres" %}</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" id="filter-form" class="row align-items-end">
+                <div class="col-md-4">
+                    <label for="discipline" class="form-label">{% trans "Discipline" %}</label>
+                    <select name="discipline" id="discipline" class="form-select discipline-filter">
+                        <option value="">{% trans "Toutes les disciplines" %}</option>
+                        {% for discipline in disciplines %}
+                            <option value="{{ discipline.id }}" {% if request.GET.discipline == discipline.id|stringformat:"i" %}selected{% endif %}>
+                                {{ discipline.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="col-md-4">
+                    <label for="system" class="form-label">{% trans "Système de grades" %}</label>
+                    <select name="system" id="system" class="form-select system-filter">
+                        <option value="">{% trans "Tous les systèmes" %}</option>
+                        <!-- Rempli dynamiquement via JavaScript -->
+                    </select>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="d-flex">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search me-2"></i>{% trans "Filtrer" %}
+                        </button>
+                        <a href="{% url 'competitions:grades:list' %}" class="btn btn-outline-secondary ms-2">
+                            <i class="fas fa-times me-2"></i>{% trans "Réinitialiser" %}
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Liste des grades -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">{% trans "Grades disponibles" %}</h5>
+        </div>
+        <div class="card-body">
+            {% if grades %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Grade" %}</th>
+                                <th>{% trans "Catégorie" %}</th>
+                                <th>{% trans "Système" %}</th>
+                                <th>{% trans "Discipline" %}</th>
+                                <th>{% trans "Niveau" %}</th>
+                                <th>{% trans "Ordre" %}</th>
+                                <th>{% trans "Actions" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for grade in grades %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if grade.color %}
+                                                <div class="grade-color" style="background-color: {{ grade.color }};"></div>
+                                            {% endif %}
+                                            {{ grade.name }}
+                                        </div>
+                                    </td>
+                                    <td>{{ grade.category.name }}</td>
+                                    <td>{{ grade.category.system.name }}</td>
+                                    <td>{{ grade.category.system.discipline.name }}</td>
+                                    <td>{{ grade.level }}</td>
+                                    <td>{{ grade.order }}</td>
+                                    <td>
+                                        <a href="{% url 'competitions:grades:update' grade.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{% url 'competitions:grades:delete' grade.id %}" class="btn btn-sm btn-outline-danger">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                {% if grades.has_other_pages %}
+                    <nav aria-label="Page navigation" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if grades.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.system %}&system={{ request.GET.system }}{% endif %}" aria-label="{% trans 'Première' %}">
+                                        <span aria-hidden="true">{% trans "&laquo;&laquo;" %}</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ grades.previous_page_number }}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.system %}&system={{ request.GET.system }}{% endif %}" aria-label="{% trans 'Précédente' %}">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">{% trans "&laquo;&laquo;" %}</span>
+                                </li>
+                                <li class="page-item disabled">
+                                    <span class="page-link">&laquo;</span>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in grades.paginator.page_range %}
+                                {% if grades.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > grades.number|add:'-3' and num < grades.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ num }}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.system %}&system={{ request.GET.system }}{% endif %}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if grades.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ grades.next_page_number }}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.system %}&system={{ request.GET.system }}{% endif %}" aria-label="{% trans 'Suivante' %}">
+                                        <span aria-hidden="true">{% trans "&raquo;" %}</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ grades.paginator.num_pages }}{% if request.GET.discipline %}&discipline={{ request.GET.discipline }}{% endif %}{% if request.GET.system %}&system={{ request.GET.system }}{% endif %}" aria-label="{% trans 'Dernière' %}">
+                                        <span aria-hidden="true">{% trans "&raquo;&raquo;" %}</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">{% trans "&raquo;" %}</span>
+                                </li>
+                                <li class="page-item disabled">
+                                    <span class="page-link">{% trans "&raquo;&raquo;" %}</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Aucun grade trouvé pour les critères sélectionnés." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Récupérer les systèmes en fonction de la discipline sélectionnée
+        const disciplineSelect = document.getElementById('discipline');
+        const systemSelect = document.getElementById('system');
+        
+        function loadSystems(disciplineId) {
+            // Vider la liste des systèmes
+            systemSelect.innerHTML = '<option value="">{% trans "Tous les systèmes" %}</option>';
+            
+            if (!disciplineId) return;
+            
+            // Requête AJAX pour récupérer les systèmes
+            fetch(`/api/disciplines/${disciplineId}/grade-systems/`)
+                .then(response => response.json())
+                .then(data => {
+                    data.systems.forEach(system => {
+                        const option = document.createElement('option');
+                        option.value = system.id;
+                        option.textContent = system.name;
+                        
+                        // Sélectionner l'option si elle correspond au paramètre d'URL
+                        const urlParams = new URLSearchParams(window.location.search);
+                        if (urlParams.get('system') == system.id) {
+                            option.selected = true;
+                        }
+                        
+                        systemSelect.appendChild(option);
+                    });
+                })
+                .catch(error => console.error('Erreur lors du chargement des systèmes:', error));
+        }
+        
+        // Initialiser les systèmes au chargement
+        if (disciplineSelect.value) {
+            loadSystems(disciplineSelect.value);
+        }
+        
+        // Mettre à jour les systèmes lors du changement de discipline
+        disciplineSelect.addEventListener('change', function() {
+            loadSystems(this.value);
+        });
+        
+        // Ajouter une confirmation avant suppression
+        const deleteLinks = document.querySelectorAll('a[href*="delete"]');
+        deleteLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                if (!confirm("{% trans 'Êtes-vous sûr de vouloir supprimer ce grade ?' %}")) {
+                    e.preventDefault();
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

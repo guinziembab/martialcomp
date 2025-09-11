@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Lien de partage public" %} - {{ competition.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Titre et navigation -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">{% trans "Lien de partage public" %}</h1>
+        <a href="{% url 'competitions:management:results_dashboard' competition.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+        </a>
+    </div>
+
+    <!-- Information sur la compétition -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h5 mb-0">{{ competition.title }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><i class="fas fa-calendar-alt me-2"></i>{% trans "Dates" %}: {{ competition.start_date|date:"d/m/Y" }} {% if competition.end_date and competition.end_date != competition.start_date %}- {{ competition.end_date|date:"d/m/Y" }}{% endif %}</p>
+                    <p class="mb-1"><i class="fas fa-map-marker-alt me-2"></i>{% trans "Lieu" %}: {{ competition.location }}</p>
+                    <p class="mb-0"><i class="fas fa-info-circle me-2"></i>{% trans "Statut" %}: 
+                        {% if competition.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">{% trans "En attente" %}</span>
+                        {% elif competition.status == 'ongoing' %}
+                            <span class="badge bg-info">{% trans "En cours" %}</span>
+                        {% elif competition.status == 'completed' %}
+                            <span class="badge bg-success">{% trans "Terminée" %}</span>
+                        {% elif competition.status == 'cancelled' %}
+                            <span class="badge bg-danger">{% trans "Annulée" %}</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <a href="{% url 'competitions:management:all_competition_results' competition.id %}" class="btn btn-primary">
+                        <i class="fas fa-trophy me-2"></i>{% trans "Voir tous les résultats" %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lien de partage -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h3 class="h5 mb-0">{% trans "Lien de partage public" %}</h3>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info mb-4">
+                <i class="fas fa-info-circle me-2"></i>
+                {% trans "Ce lien permet de partager les résultats de la compétition avec le public sans nécessiter de connexion." %}
+            </div>
+            
+            <div class="mb-4">
+                <label for="publicUrl" class="form-label fw-bold">{% trans "URL de partage public" %}</label>
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control" id="publicUrl" value="{{ results_url }}" readonly>
+                    <button class="btn btn-primary" type="button" id="copyUrlBtn">
+                        <i class="fas fa-copy me-2"></i>{% trans "Copier" %}
+                    </button>
+                </div>
+                <div id="copyStatus" class="form-text"></div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4 class="h6 mb-3">{% trans "Informations sur le lien" %}</h4>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {% trans "Créé le" %}
+                                    <span class="badge bg-secondary">{{ token.created_at|date:"d/m/Y H:i" }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {% trans "Créé par" %}
+                                    <span class="badge bg-secondary">{{ token.created_by.username }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {% trans "Expire le" %}
+                                    {% if token.expires_at %}
+                                        <span class="badge bg-warning text-dark">{{ token.expires_at|date:"d/m/Y" }}</span>
+                                    {% else %}
+                                        <span class="badge bg-success">{% trans "Jamais" %}</span>
+                                    {% endif %}
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    {% trans "Type de token" %}
+                                    <span class="badge bg-primary">{{ token.token_type }}</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h4 class="h6 mb-3">{% trans "QR Code" %}</h4>
+                            <div class="text-center mb-3">
+                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{ results_url|urlencode }}" 
+                                     alt="QR Code" class="img-fluid border rounded" style="max-width: 200px;">
+                            </div>
+                            <div class="d-grid">
+                                <a href="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={{ results_url|urlencode }}" 
+                                   class="btn btn-outline-primary" download="resultats_{{ competition.title|slugify }}.png">
+                                    <i class="fas fa-download me-2"></i>{% trans "Télécharger le QR code" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Options de partage -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h4 class="h6 mb-3">{% trans "Partager via" %}</h4>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="mailto:?subject={% trans 'Résultats de' %} {{ competition.title }}&body={{ results_url }}" 
+                           class="btn btn-outline-primary">
+                            <i class="fas fa-envelope me-2"></i>{% trans "Email" %}
+                        </a>
+                        <a href="https://www.facebook.com/sharer/sharer.php?u={{ results_url|urlencode }}" 
+                           target="_blank" class="btn btn-outline-primary">
+                            <i class="fab fa-facebook-f me-2"></i>{% trans "Facebook" %}
+                        </a>
+                        <a href="https://twitter.com/intent/tweet?url={{ results_url|urlencode }}&text={% trans 'Résultats de' %} {{ competition.title }}" 
+                           target="_blank" class="btn btn-outline-info">
+                            <i class="fab fa-twitter me-2"></i>{% trans "Twitter" %}
+                        </a>
+                        <a href="https://api.whatsapp.com/send?text={% trans 'Résultats de' %} {{ competition.title }}: {{ results_url|urlencode }}" 
+                           target="_blank" class="btn btn-outline-success">
+                            <i class="fab fa-whatsapp me-2"></i>{% trans "WhatsApp" %}
+                        </a>
+                        <a href="https://t.me/share/url?url={{ results_url|urlencode }}&text={% trans 'Résultats de' %} {{ competition.title }}" 
+                           target="_blank" class="btn btn-outline-info">
+                            <i class="fab fa-telegram-plane me-2"></i>{% trans "Telegram" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Options de gestion du lien -->
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="h6 mb-3">{% trans "Gestion du lien" %}</h4>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <form method="POST" action="{% url 'competitions:management:regenerate_token' competition.id token.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="token_type" value="results">
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-warning" onclick="return confirm('{% trans "Êtes-vous sûr de vouloir régénérer ce lien ? L\'ancien lien ne fonctionnera plus." %}')">
+                                        <i class="fas fa-sync-alt me-2"></i>{% trans "Régénérer le lien" %}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-md-6">
+                            <form method="POST" action="{% url 'competitions:management:update_token_expiry' competition.id token.id %}">
+                                {% csrf_token %}
+                                <div class="input-group">
+                                    <select class="form-select" name="expiry_days">
+                                        <option value="7">{% trans "7 jours" %}</option>
+                                        <option value="30" selected>{% trans "30 jours" %}</option>
+                                        <option value="90">{% trans "90 jours" %}</option>
+                                        <option value="365">{% trans "1 an" %}</option>
+                                        <option value="0">{% trans "Jamais" %}</option>
+                                    </select>
+                                    <button class="btn btn-primary" type="submit">
+                                        <i class="fas fa-calendar-alt me-2"></i>{% trans "Changer l'expiration" %}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Prévisualisation -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h3 class="h5 mb-0">{% trans "Prévisualisation" %}</h3>
+        </div>
+        <div class="card-body">
+            <p>{% trans "Voici un aperçu de ce que les utilisateurs verront en accédant au lien de partage public:" %}</p>
+            <div class="card bg-light">
+                <div class="card-body">
+                    <h4 class="h5 mb-3">{{ competition.title }} - {% trans "Résultats" %}</h4>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p class="mb-1"><i class="fas fa-calendar-alt me-2"></i>{% trans "Dates" %}: {{ competition.start_date|date:"d/m/Y" }} {% if competition.end_date and competition.end_date != competition.start_date %}- {{ competition.end_date|date:"d/m/Y" }}{% endif %}</p>
+                            <p class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>{% trans "Lieu" %}: {{ competition.location }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1"><i class="fas fa-users me-2"></i>{% trans "Participants" %}: {{ competition.total_registrations }}</p>
+                            <p class="mb-0"><i class="fas fa-layer-group me-2"></i>{% trans "Catégories" %}: {{ competition.categories.count }}</p>
+                        </div>
+                    </div>
+                    <div class="alert alert-secondary">
+                        <i class="fas fa-info-circle me-2"></i>
+                        {% trans "Liste des résultats par catégories, podiums et classements des clubs..." %}
+                    </div>
+                    <div class="text-center">
+                        <a href="{{ results_url }}" target="_blank" class="btn btn-primary">
+                            <i class="fas fa-external-link-alt me-2"></i>{% trans "Voir la page réelle" %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Copier l'URL
+        const copyUrlBtn = document.getElementById('copyUrlBtn');
+        const publicUrl = document.getElementById('publicUrl');
+        const copyStatus = document.getElementById('copyStatus');
+        
+        if (copyUrlBtn) {
+            copyUrlBtn.addEventListener('click', function() {
+                publicUrl.select();
+                document.execCommand('copy');
+                
+                try {
+                    navigator.clipboard.writeText(publicUrl.value).then(function() {
+                        copyStatus.textContent = "{% trans 'Lien copié avec succès !' %}";
+                        copyStatus.classList.add('text-success');
+                        
+                        setTimeout(function() {
+                            copyStatus.textContent = "";
+                            copyStatus.classList.remove('text-success');
+                        }, 3000);
+                    });
+                } catch (err) {
+                    // Fallback pour les navigateurs plus anciens
+                    copyStatus.textContent = "{% trans 'Lien copié avec succès !' %}";
+                    copyStatus.classList.add('text-success');
+                    
+                    setTimeout(function() {
+                        copyStatus.textContent = "";
+                        copyStatus.classList.remove('text-success');
+                    }, 3000);
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

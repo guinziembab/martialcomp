@@ -1,0 +1,453 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Mise à jour du grade" %} | {{ practitioner.full_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 1.5rem;
+        background-color: #fff;
+        border-radius: 0.5rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    
+    .profile-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .profile-picture {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border-radius: 50%;
+        background-color: #f8f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1.5rem;
+        border: 2px solid #e9ecef;
+    }
+    
+    .profile-picture img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+    
+    .profile-picture i {
+        font-size: 2rem;
+        color: #6c757d;
+    }
+    
+    .profile-details h2 {
+        margin-bottom: 0.25rem;
+    }
+    
+    .profile-details .text-muted {
+        font-size: 0.9rem;
+    }
+    
+    .grade-badge {
+        display: inline-block;
+        padding: 0.35em 0.65em;
+        font-size: 0.85em;
+        font-weight: 500;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.25rem;
+        margin-right: 0.5rem;
+    }
+    
+    .grade-circle {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        vertical-align: middle;
+        border: 1px solid rgba(0, 0, 0, 0.2);
+    }
+    
+    .grade-white { background-color: #FFFFFF; }
+    .grade-yellow { background-color: #FFFF00; }
+    .grade-orange { background-color: #FFA500; }
+    .grade-green { background-color: #008000; color: white; }
+    .grade-blue { background-color: #0000FF; color: white; }
+    .grade-brown { background-color: #A52A2A; color: white; }
+    .grade-black { background-color: #000000; color: white; }
+    .grade-red { background-color: #FF0000; color: white; }
+    .grade-purple { background-color: #800080; color: white; }
+    
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .grade-container {
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 1rem;
+        background-color: #fff;
+        border-radius: 0.25rem;
+        border: 1px solid #ced4da;
+    }
+    
+    .grade-item {
+        cursor: pointer;
+        padding: 0.75rem;
+        border-radius: 0.25rem;
+        margin-bottom: 0.5rem;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+    }
+    
+    .grade-item:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    .grade-item.selected {
+        background-color: rgba(220, 53, 69, 0.1);
+        border-color: rgba(220, 53, 69, 0.2);
+    }
+    
+    .grade-item-header {
+        display: flex;
+        align-items: center;
+    }
+    
+    .grade-category {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="mb-4">
+        <!-- Le paramètre next permet de rediriger après l'action -->
+        {% if next %}
+            <a href="{{ next }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+            </a>
+        {% else %}
+            <a href="{% url 'grades:club_management' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour au tableau de bord" %}
+            </a>
+        {% endif %}
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-3">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="form-container">
+        <!-- En-tête du profil -->
+        <div class="profile-header">
+            <div class="profile-picture">
+                {% if practitioner.photo %}
+                    <img src="{{ practitioner.photo.url }}" alt="{{ practitioner.full_name }}">
+                {% else %}
+                    <i class="fas fa-user"></i>
+                {% endif %}
+            </div>
+            <div class="profile-details">
+                <h2>{{ practitioner.full_name }}</h2>
+                <p class="text-muted mb-1">
+                    {% if practitioner.birth_date %}
+                        {{ practitioner.age }} {% trans "ans" %} ({{ practitioner.birth_date|date:"d/m/Y" }})
+                    {% endif %}
+                </p>
+                <div>
+                    {% if current_grade %}
+                        <span class="grade-badge" title="{{ current_grade }}">
+                            {% if "Blanche" in current_grade %}
+                                <span class="grade-circle grade-white"></span>
+                            {% elif "Jaune" in current_grade %}
+                                <span class="grade-circle grade-yellow"></span>
+                            {% elif "Orange" in current_grade %}
+                                <span class="grade-circle grade-orange"></span>
+                            {% elif "Verte" in current_grade %}
+                                <span class="grade-circle grade-green"></span>
+                            {% elif "Bleue" in current_grade %}
+                                <span class="grade-circle grade-blue"></span>
+                            {% elif "Marron" in current_grade %}
+                                <span class="grade-circle grade-brown"></span>
+                            {% elif "Noire" in current_grade %}
+                                <span class="grade-circle grade-black"></span>
+                            {% elif "Rouge" in current_grade %}
+                                <span class="grade-circle grade-red"></span>
+                            {% else %}
+                                <span class="grade-circle"></span>
+                            {% endif %}
+                            {{ current_grade }}
+                        </span>
+                    {% else %}
+                        <span class="badge bg-secondary">{% trans "Aucun grade défini" %}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <h3 class="mb-4">{% trans "Mise à jour du grade" %}</h3>
+        
+        <form method="post" id="updateGradeForm">
+            {% csrf_token %}
+            
+            {% if next %}
+                <input type="hidden" name="next" value="{{ next }}">
+            {% endif %}
+            
+            <div class="form-section">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="discipline" class="form-label">{% trans "Discipline" %}</label>
+                        <select id="discipline" name="discipline" class="form-select" required>
+                            <option value="">{% trans "Sélectionner une discipline" %}</option>
+                            {% for discipline in disciplines %}
+                                <option value="{{ discipline.id }}">{{ discipline.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">{% trans "Sélectionnez la discipline pour laquelle le grade est attribué." %}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="attribution_date" class="form-label">{% trans "Date d'attribution" %}</label>
+                        <input type="date" id="attribution_date" name="attribution_date" class="form-control" value="{{ today|date:'Y-m-d' }}" required>
+                        <div class="form-text">{% trans "Date à laquelle le grade a été obtenu." %}</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="notes" class="form-label">{% trans "Notes" %}</label>
+                    <textarea id="notes" name="notes" class="form-control" rows="2" placeholder="{% trans 'Informations complémentaires sur l\'obtention du grade' %}"></textarea>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h4 class="mb-3">{% trans "Sélection du grade" %}</h4>
+                
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Sélectionnez d'abord une discipline, puis choisissez le grade correspondant." %}
+                </div>
+                
+                <div class="grade-container" id="gradeContainer">
+                    <div class="text-center text-muted py-4" id="emptyGradeMessage">
+                        <i class="fas fa-exclamation-circle mb-2" style="font-size: 2rem;"></i>
+                        <p>{% trans "Sélectionnez une discipline pour voir les grades disponibles." %}</p>
+                    </div>
+                    
+                    <!-- Les grades seront injectés ici par JavaScript -->
+                    <div id="gradesList" class="d-none"></div>
+                </div>
+                
+                <!-- Champ caché pour stocker le grade sélectionné -->
+                <input type="hidden" id="grade" name="grade" value="" required>
+            </div>
+            
+            <div class="d-flex justify-content-between mt-4">
+                {% if next %}
+                    <a href="{{ next }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-2"></i>{% trans "Annuler" %}
+                    </a>
+                {% else %}
+                    <a href="{% url 'grades:club_management' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-2"></i>{% trans "Annuler" %}
+                    </a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary" id="submitButton">
+                    <i class="fas fa-save me-2"></i>{% trans "Mettre à jour le grade" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Éléments du DOM
+        const disciplineSelect = document.getElementById('discipline');
+        const gradeContainer = document.getElementById('gradeContainer');
+        const emptyGradeMessage = document.getElementById('emptyGradeMessage');
+        const gradesList = document.getElementById('gradesList');
+        const gradeInput = document.getElementById('grade');
+        const submitButton = document.getElementById('submitButton');
+        
+        // Désactiver le bouton de soumission par défaut
+        submitButton.disabled = true;
+        
+        // Fonction pour charger les grades d'une discipline
+        function loadGradesForDiscipline(disciplineId) {
+            if (!disciplineId) {
+                emptyGradeMessage.classList.remove('d-none');
+                gradesList.classList.add('d-none');
+                return;
+            }
+            
+            // Afficher un message de chargement
+            emptyGradeMessage.innerHTML = '<i class="fas fa-spinner fa-spin mb-2" style="font-size: 2rem;"></i><p>Chargement des grades...</p>';
+            emptyGradeMessage.classList.remove('d-none');
+            gradesList.classList.add('d-none');
+            
+            // IMPORTANT: Utilisation de la bonne URL API en correspondance avec urls.py
+            const apiUrl = `/grades/api/discipline/${disciplineId}/grades/`;
+            console.log("Fetching grades from:", apiUrl);
+            
+            // Requête AJAX pour récupérer les grades
+            fetch(apiUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Erreur réseau: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Grades data received:", data);
+                    
+                    // Réinitialiser la liste des grades
+                    gradesList.innerHTML = '';
+                    
+                    if (!data.grades || data.grades.length === 0) {
+                        // Aucun grade disponible pour cette discipline
+                        emptyGradeMessage.innerHTML = '<i class="fas fa-exclamation-triangle mb-2" style="font-size: 2rem;"></i><p>Aucun grade disponible pour cette discipline.</p>';
+                        emptyGradeMessage.classList.remove('d-none');
+                        gradesList.classList.add('d-none');
+                        return;
+                    }
+                    
+                    // Cacher le message vide et afficher la liste
+                    emptyGradeMessage.classList.add('d-none');
+                    gradesList.classList.remove('d-none');
+                    
+                    // Regrouper les grades par catégorie
+                    const gradesByCategory = {};
+                    data.grades.forEach(grade => {
+                        const category = grade.category || 'Sans catégorie';
+                        if (!gradesByCategory[category]) {
+                            gradesByCategory[category] = [];
+                        }
+                        gradesByCategory[category].push(grade);
+                    });
+                    
+                    // Ajouter les grades par catégorie
+                    for (const category in gradesByCategory) {
+                        // Ajouter l'en-tête de catégorie
+                        const categoryHeader = document.createElement('div');
+                        categoryHeader.className = 'category-header mb-2';
+                        categoryHeader.innerHTML = `<h5 class="text-muted">${category}</h5>`;
+                        gradesList.appendChild(categoryHeader);
+                        
+                        // Ajouter les grades de cette catégorie
+                        gradesByCategory[category].forEach(grade => {
+                            const gradeItem = document.createElement('div');
+                            gradeItem.className = 'grade-item';
+                            gradeItem.dataset.gradeId = grade.id;
+                            gradeItem.dataset.gradeName = grade.name;
+                            
+                            // Déterminer la couleur du grade
+                            let colorClass = '';
+                            if (grade.name.includes('Blanche')) colorClass = 'grade-white';
+                            else if (grade.name.includes('Jaune')) colorClass = 'grade-yellow';
+                            else if (grade.name.includes('Orange')) colorClass = 'grade-orange';
+                            else if (grade.name.includes('Verte')) colorClass = 'grade-green';
+                            else if (grade.name.includes('Bleue')) colorClass = 'grade-blue';
+                            else if (grade.name.includes('Marron')) colorClass = 'grade-brown';
+                            else if (grade.name.includes('Noire')) colorClass = 'grade-black';
+                            else if (grade.name.includes('Rouge')) colorClass = 'grade-red';
+                            else if (grade.color_code) {
+                                // Utiliser la couleur personnalisée si disponible
+                                gradeItem.style.backgroundColor = grade.color_code;
+                            }
+                            
+                            gradeItem.innerHTML = `
+                                <div class="grade-item-header">
+                                    <span class="grade-circle ${colorClass}" style="${grade.color_code ? 'background-color:' + grade.color_code : ''}"></span>
+                                    <strong>${grade.name}</strong>
+                                </div>
+                            `;
+                            
+                            // Événement de clic pour sélectionner ce grade
+                            gradeItem.addEventListener('click', function() {
+                                // Désélectionner tous les autres grades
+                                document.querySelectorAll('.grade-item').forEach(item => {
+                                    item.classList.remove('selected');
+                                });
+                                
+                                // Sélectionner ce grade
+                                this.classList.add('selected');
+                                
+                                // Mettre à jour le champ caché avec l'ID du grade
+                                gradeInput.value = this.dataset.gradeId;
+                                console.log("Selected grade ID:", this.dataset.gradeId);
+                                
+                                // Activer le bouton de soumission
+                                submitButton.disabled = false;
+                            });
+                            
+                            gradesList.appendChild(gradeItem);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur lors du chargement des grades:', error);
+                    emptyGradeMessage.innerHTML = `<i class="fas fa-exclamation-triangle mb-2" style="font-size: 2rem;"></i><p>Erreur lors du chargement des grades: ${error.message}</p>`;
+                    emptyGradeMessage.classList.remove('d-none');
+                    gradesList.classList.add('d-none');
+                });
+        }
+        
+        // Écouter les changements de discipline
+        disciplineSelect.addEventListener('change', function() {
+            const disciplineId = this.value;
+            loadGradesForDiscipline(disciplineId);
+            
+            // Réinitialiser le grade sélectionné
+            gradeInput.value = '';
+            submitButton.disabled = true;
+        });
+        
+        // Si une discipline est présélectionnée
+        if (disciplineSelect.value) {
+            loadGradesForDiscipline(disciplineSelect.value);
+        }
+        
+        // Validation du formulaire
+        document.getElementById('updateGradeForm').addEventListener('submit', function(event) {
+            // Vérifier si une discipline est sélectionnée
+            if (!disciplineSelect.value) {
+                event.preventDefault();
+                alert("Veuillez sélectionner une discipline.");
+                return;
+            }
+            
+            // Vérifier si un grade est sélectionné
+            if (!gradeInput.value) {
+                event.preventDefault();
+                alert("Veuillez sélectionner un grade.");
+                return;
+            }
+        });
+    });
+</script>
+{% endblock %}

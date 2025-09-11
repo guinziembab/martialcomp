@@ -1,0 +1,531 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}
+    {% if history %}
+        {% trans "Modifier un grade" %}
+    {% else %}
+        {% trans "Ajouter un grade" %}
+    {% endif %}
+    | MartialComp
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .form-label.required::after {
+        content: " *";
+        color: #dc3545;
+    }
+    
+    .grade-preview {
+        display: flex;
+        align-items: center;
+        margin-top: 1rem;
+        padding: 10px;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+    }
+    
+    .grade-color {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        margin-right: 10px;
+        border: 1px solid #ddd;
+    }
+    
+    .help-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+    
+    .field-error {
+        color: #dc3545;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="form-container">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'competitions:grades:history_list' %}">{% trans "Historique des grades" %}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">
+                    {% if history %}
+                        {% trans "Modifier" %}
+                    {% else %}
+                        {% trans "Ajouter" %}
+                    {% endif %}
+                </li>
+            </ol>
+        </nav>
+        
+        <h1 class="mb-4">
+            {% if history %}
+                {% trans "Modifier un grade pour un pratiquant" %}
+            {% else %}
+                {% trans "Ajouter un grade à un pratiquant" %}
+            {% endif %}
+        </h1>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <!-- Informations sur le pratiquant -->
+            <div class="form-section">
+                <h5 class="mb-3">{% trans "Pratiquant" %}</h5>
+                
+                <div class="mb-3">
+                    <label for="{{ form.practitioner.id_for_label }}" class="form-label required">
+                        {{ form.practitioner.label }}
+                    </label>
+                    {{ form.practitioner }}
+                    {% if form.practitioner.help_text %}
+                        <div class="help-text">{{ form.practitioner.help_text }}</div>
+                    {% endif %}
+                    {% if form.practitioner.errors %}
+                        <div class="field-error">
+                            {% for error in form.practitioner.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Informations sur le grade -->
+            <div class="form-section">
+                <h5 class="mb-3">{% trans "Grade" %}</h5>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.discipline.id_for_label }}" class="form-label required">
+                                {% trans "Discipline" %}
+                            </label>
+                            {{ form.discipline }}
+                            {% if form.discipline.help_text %}
+                                <div class="help-text">{{ form.discipline.help_text }}</div>
+                            {% endif %}
+                            {% if form.discipline.errors %}
+                                <div class="field-error">
+                                    {% for error in form.discipline.errors %}
+                                        <div>{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.grade_system.id_for_label }}" class="form-label required">
+                                {% trans "Système de grades" %}
+                            </label>
+                            {{ form.grade_system }}
+                            {% if form.grade_system.help_text %}
+                                <div class="help-text">{{ form.grade_system.help_text }}</div>
+                            {% endif %}
+                            {% if form.grade_system.errors %}
+                                <div class="field-error">
+                                    {% for error in form.grade_system.errors %}
+                                        <div>{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.grade.id_for_label }}" class="form-label required">
+                        {{ form.grade.label }}
+                    </label>
+                    {{ form.grade }}
+                    {% if form.grade.help_text %}
+                        <div class="help-text">{{ form.grade.help_text }}</div>
+                    {% endif %}
+                    {% if form.grade.errors %}
+                        <div class="field-error">
+                            {% for error in form.grade.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    
+                    <div id="grade-preview" class="grade-preview" style="display: none;">
+                        <div id="preview-color" class="grade-color"></div>
+                        <span id="preview-name"></span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Informations sur l'obtention -->
+            <div class="form-section">
+                <h5 class="mb-3">{% trans "Informations sur l'obtention" %}</h5>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.obtained_date.id_for_label }}" class="form-label required">
+                                {{ form.obtained_date.label }}
+                            </label>
+                            {{ form.obtained_date }}
+                            {% if form.obtained_date.help_text %}
+                                <div class="help-text">{{ form.obtained_date.help_text }}</div>
+                            {% endif %}
+                            {% if form.obtained_date.errors %}
+                                <div class="field-error">
+                                    {% for error in form.obtained_date.errors %}
+                                        <div>{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.certifier.id_for_label }}" class="form-label">
+                                {{ form.certifier.label }}
+                            </label>
+                            {{ form.certifier }}
+                            {% if form.certifier.help_text %}
+                                <div class="help-text">{{ form.certifier.help_text }}</div>
+                            {% endif %}
+                            {% if form.certifier.errors %}
+                                <div class="field-error">
+                                    {% for error in form.certifier.errors %}
+                                        <div>{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.location.id_for_label }}" class="form-label">
+                        {{ form.location.label }}
+                    </label>
+                    {{ form.location }}
+                    {% if form.location.help_text %}
+                        <div class="help-text">{{ form.location.help_text }}</div>
+                    {% endif %}
+                    {% if form.location.errors %}
+                        <div class="field-error">
+                            {% for error in form.location.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.is_current.id_for_label }}" class="form-label">
+                        {{ form.is_current.label }}
+                    </label>
+                    <div class="form-check">
+                        {{ form.is_current }}
+                        <label class="form-check-label" for="{{ form.is_current.id_for_label }}">
+                            {% trans "Définir comme grade actuel" %}
+                        </label>
+                    </div>
+                    {% if form.is_current.help_text %}
+                        <div class="help-text">{{ form.is_current.help_text }}</div>
+                    {% endif %}
+                    {% if form.is_current.errors %}
+                        <div class="field-error">
+                            {% for error in form.is_current.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="{{ form.notes.id_for_label }}" class="form-label">
+                        {{ form.notes.label }}
+                    </label>
+                    {{ form.notes }}
+                    {% if form.notes.help_text %}
+                        <div class="help-text">{{ form.notes.help_text }}</div>
+                    {% endif %}
+                    {% if form.notes.errors %}
+                        <div class="field-error">
+                            {% for error in form.notes.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <a href="{% url 'competitions:grades:history_list' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-times me-2"></i>{% trans "Annuler" %}
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>
+                    {% if history %}
+                        {% trans "Modifier" %}
+                    {% else %}
+                        {% trans "Enregistrer" %}
+                    {% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Récupérer les éléments du formulaire
+        const form = document.querySelector('form');
+        const disciplineSelect = document.getElementById('{{ form.discipline.id_for_label }}');
+        const systemSelect = document.getElementById('{{ form.grade_system.id_for_label }}');
+        const gradeSelect = document.getElementById('{{ form.grade.id_for_label }}');
+        const previewDiv = document.getElementById('grade-preview');
+        const previewColor = document.getElementById('preview-color');
+        const previewName = document.getElementById('preview-name');
+        
+        console.log("DEBUG - Identification des éléments de formulaire:", {
+            "disciplineSelect": disciplineSelect ? disciplineSelect.id : "non trouvé",
+            "systemSelect": systemSelect ? systemSelect.id : "non trouvé",
+            "gradeSelect": gradeSelect ? gradeSelect.id : "non trouvé",
+            "form": form ? "trouvé" : "non trouvé"
+        });
+        
+        // Fonction pour charger les systèmes de grades
+        function loadGradeSystems(disciplineId) {
+            console.log("DEBUG - Chargement des systèmes pour discipline:", disciplineId);
+            
+            if (!disciplineId) return;
+            
+            // Désactiver pendant le chargement
+            systemSelect.disabled = true;
+            systemSelect.innerHTML = '<option value="">{% trans "Chargement..." %}</option>';
+            gradeSelect.disabled = true;
+            gradeSelect.innerHTML = '<option value="">---------</option>';
+            
+            fetch(`/api/disciplines/${disciplineId}/grade-systems/`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("DEBUG - Données systèmes reçues:", data);
+                
+                // Réinitialiser le sélecteur
+                systemSelect.innerHTML = '<option value="">{% trans "Sélectionnez un système" %}</option>';
+                systemSelect.disabled = false;
+                
+                // Extraire les systèmes (compatibilité avec différentes structures API)
+                const systems = data.grade_systems || data.systems || [];
+                if (systems.length === 0) {
+                    console.warn("Aucun système trouvé dans la réponse");
+                    return;
+                }
+                
+                // Remplir le sélecteur
+                systems.forEach(system => {
+                    const option = document.createElement('option');
+                    option.value = system.id;
+                    option.textContent = system.name;
+                    systemSelect.appendChild(option);
+                });
+                
+                // Déclencher le changement pour charger les grades si une seule option
+                if (systems.length === 1) {
+                    systemSelect.value = systems[0].id;
+                    systemSelect.dispatchEvent(new Event('change'));
+                }
+            })
+            .catch(error => {
+                console.error("Erreur lors du chargement des systèmes:", error);
+                systemSelect.innerHTML = '<option value="">{% trans "Erreur de chargement" %}</option>';
+                systemSelect.disabled = false;
+            });
+        }
+        
+        // Fonction pour charger les grades
+        function loadGrades(systemId) {
+            console.log("DEBUG - Chargement des grades pour système:", systemId);
+            
+            if (!systemId) return;
+            
+            // Désactiver pendant le chargement
+            gradeSelect.disabled = true;
+            gradeSelect.innerHTML = '<option value="">{% trans "Chargement..." %}</option>';
+            
+            fetch(`/api/grade-systems/${systemId}/grades/`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("DEBUG - Données grades reçues:", data);
+                
+                // Réinitialiser le sélecteur
+                gradeSelect.innerHTML = '<option value="">{% trans "Sélectionnez un grade" %}</option>';
+                gradeSelect.disabled = false;
+                
+                // Extraire les grades
+                const grades = data.grades || [];
+                if (grades.length === 0) {
+                    console.warn("Aucun grade trouvé dans la réponse");
+                    return;
+                }
+                
+                // Regrouper par catégorie si présent
+                const categories = {};
+                
+                grades.forEach(grade => {
+                    const categoryName = grade.category || 'Autre';
+                    
+                    if (!categories[categoryName]) {
+                        categories[categoryName] = document.createElement('optgroup');
+                        categories[categoryName].label = categoryName;
+                        gradeSelect.appendChild(categories[categoryName]);
+                    }
+                    
+                    const option = document.createElement('option');
+                    option.value = grade.id;
+                    option.textContent = grade.name;
+                    option.dataset.color = grade.color || '';
+                    
+                    categories[categoryName].appendChild(option);
+                });
+                
+                // Mettre à jour l'aperçu si un seul grade disponible
+                if (grades.length === 1) {
+                    gradeSelect.value = grades[0].id;
+                    gradeSelect.dispatchEvent(new Event('change'));
+                }
+            })
+            .catch(error => {
+                console.error("Erreur lors du chargement des grades:", error);
+                gradeSelect.innerHTML = '<option value="">{% trans "Erreur de chargement" %}</option>';
+                gradeSelect.disabled = false;
+            });
+        }
+        
+        // Fonction pour mettre à jour l'aperçu du grade
+        function updateGradePreview() {
+            const selectedOption = gradeSelect.options[gradeSelect.selectedIndex];
+            
+            if (selectedOption && selectedOption.value) {
+                const color = selectedOption.dataset.color;
+                const name = selectedOption.textContent;
+                
+                previewColor.style.backgroundColor = color || '#f8f9fa';
+                previewName.textContent = name;
+                previewDiv.style.display = 'flex';
+                
+                console.log("Aperçu mis à jour:", { name, color: color || 'default' });
+            } else {
+                previewDiv.style.display = 'none';
+            }
+        }
+        
+        // SOLUTION : Avant la soumission du formulaire, vérifier et corriger les valeurs
+        function validateAndSubmitForm(event) {
+            console.log("Validation du formulaire avant soumission");
+            
+            // Vérifier les champs obligatoires
+            if (!disciplineSelect.value || !systemSelect.value || !gradeSelect.value) {
+                console.error("Champs obligatoires manquants");
+                alert("Veuillez remplir tous les champs obligatoires : Discipline, Système de grades et Grade");
+                event.preventDefault();
+                return false;
+            }
+            
+            // Log des valeurs avant soumission
+            console.log("Valeurs soumises:", {
+                discipline: disciplineSelect.value,
+                system: systemSelect.value,
+                grade: gradeSelect.value
+            });
+            
+            // Créer des champs cachés pour s'assurer que les valeurs sont transmises correctement
+            const addHiddenField = (name, value) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = value;
+                form.appendChild(input);
+            };
+            
+            // SOLUTION : Force les valeurs soumises à être correctes
+            addHiddenField('discipline', disciplineSelect.value);
+            addHiddenField('grade_system', systemSelect.value);
+            addHiddenField('grade', gradeSelect.value);
+            
+            return true;
+        }
+        
+        // Événements
+        disciplineSelect.addEventListener('change', function() {
+            console.log("Changement de discipline:", this.value);
+            loadGradeSystems(this.value);
+        });
+        
+        systemSelect.addEventListener('change', function() {
+            console.log("Changement de système:", this.value);
+            loadGrades(this.value);
+        });
+        
+        gradeSelect.addEventListener('change', function() {
+            console.log("Changement de grade:", this.value);
+            updateGradePreview();
+        });
+        
+        // Ajouter la validation au formulaire
+        form.addEventListener('submit', validateAndSubmitForm);
+        
+        // Initialisation - si une discipline est déjà sélectionnée
+        if (disciplineSelect.value) {
+            console.log("Initialisation avec discipline:", disciplineSelect.value);
+            // Déclencher l'événement change pour charger les systèmes
+            disciplineSelect.dispatchEvent(new Event('change'));
+        }
+        
+        // Ajouter la classe form-control aux éléments du formulaire
+        document.querySelectorAll('select, input[type="text"], input[type="date"], textarea').forEach(element => {
+            element.classList.add('form-control');
+        });
+        
+        document.querySelectorAll('input[type="checkbox"]').forEach(element => {
+            element.classList.add('form-check-input');
+        });
+    });
+</script>
+{% endblock %}

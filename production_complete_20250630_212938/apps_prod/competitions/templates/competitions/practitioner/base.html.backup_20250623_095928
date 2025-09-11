@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Espace Pratiquant" %} | MartialComp{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #007bff;
+        --primary-light: #e3f2fd;
+        --primary-dark: #0056b3;
+        --secondary: #6c757d;
+        --success: #28a745;
+        --info: #17a2b8;
+        --warning: #ffc107;
+        --danger: #dc3545;
+        --light: #f8f9fa;
+        --dark: #343a40;
+        --gray-100: #f8f9fa;
+        --gray-200: #e9ecef;
+        --gray-300: #dee2e6;
+        --gray-800: #343a40;
+        --sidebar-width: 280px;
+        --card-border-radius: 12px;
+        --btn-border-radius: 6px;
+        --transition-speed: 0.3s;
+    }
+
+    /* Structure principale */
+    body {
+        background-color: #f5f7fa;
+    }
+
+    .dashboard-container {
+        display: flex;
+        min-height: calc(100vh - 56px);
+    }
+
+    /* Barre latérale moderne */
+    .sidebar {
+        width: var(--sidebar-width);
+        background: linear-gradient(to bottom, var(--dark) 0%, #1e3a5f 100%);
+        color: white;
+        position: fixed;
+        top: 56px;
+        bottom: 0;
+        left: 0;
+        z-index: 100;
+        padding: 0;
+        overflow-y: auto;
+        transition: all var(--transition-speed);
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Indicateur de notifications */
+    .notification-badge {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background: var(--danger);
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: bold;
+    }
+
+    /* Profil pratiquant */
+    .practitioner-profile {
+        padding: 1.5rem 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+
+    .practitioner-avatar {
+        width: 80px;
+        height: 80px;
+        background-color: white;
+        border-radius: 50%;
+        margin: 0 auto 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+    }
+
+    .practitioner-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .practitioner-name {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .practitioner-club {
+        font-size: 0.875rem;
+        color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* Menu de navigation */
+    .nav-link {
+        padding: 0.8rem 1.5rem;
+        color: rgba(255, 255, 255, 0.8);
+        border-left: 3px solid transparent;
+        margin-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        transition: all var(--transition-speed);
+        text-decoration: none;
+        position: relative;
+    }
+
+    .nav-link:hover {
+        color: white;
+        background-color: rgba(255, 255, 255, 0.1);
+        border-left: 3px solid var(--primary);
+        transform: translateX(4px);
+    }
+
+    .nav-link.active {
+        color: white;
+        background-color: var(--primary);
+        border-left: 3px solid white;
+        font-weight: 500;
+        box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
+    }
+
+    .nav-link i {
+        margin-right: 12px;
+        width: 20px;
+        text-align: center;
+    }
+
+    .sidebar-heading {
+        padding: 1rem 1.5rem 0.5rem;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: rgba(255, 255, 255, 0.6);
+        font-weight: 500;
+    }
+
+    /* Contenu principal */
+    .main-content {
+        flex: 1;
+        padding: 2rem;
+        margin-left: var(--sidebar-width);
+        transition: all var(--transition-speed);
+        max-width: 100%;
+    }
+
+    /* Cards modernes */
+    .dashboard-card {
+        border-radius: var(--card-border-radius);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        margin-bottom: 1.5rem;
+        background-color: white;
+        border: none;
+        transition: all var(--transition-speed);
+        overflow: hidden;
+    }
+
+    .dashboard-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    /* En-tête de page */
+    .page-header {
+        margin-bottom: 2rem;
+    }
+
+    .page-title {
+        font-size: 1.875rem;
+        font-weight: 600;
+        color: var(--dark);
+        margin-bottom: 0.5rem;
+    }
+
+    .page-subtitle {
+        font-size: 1rem;
+        color: var(--secondary);
+    }
+
+    /* Cartes de statistiques */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stats-card {
+        padding: 1.5rem;
+        text-align: center;
+        border-radius: var(--card-border-radius);
+        background: white;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        transition: all var(--transition-speed);
+    }
+
+    .stats-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .stats-icon {
+        width: 60px;
+        height: 60px;
+        margin: 0 auto 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        font-size: 1.5rem;
+    }
+
+    .stats-value {
+        font-size: 2rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .stats-label {
+        font-size: 0.875rem;
+        color: var(--secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Couleurs des icônes de stats */
+    .stats-competitions {
+        background-color: rgba(0, 123, 255, 0.1);
+        color: #007bff;
+    }
+
+    .stats-upcoming {
+        background-color: rgba(40, 167, 69, 0.1);
+        color: #28a745;
+    }
+
+    .stats-podiums {
+        background-color: rgba(255, 193, 7, 0.1);
+        color: #ffc107;
+    }
+
+    .stats-memberships {
+        background-color: rgba(23, 162, 184, 0.1);
+        color: #17a2b8;
+    }
+
+    /* Alertes personnalisées */
+    .alert-custom {
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+        border: none;
+        display: flex;
+        align-items: center;
+    }
+
+    .alert-custom i {
+        margin-right: 0.75rem;
+        font-size: 1.25rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .sidebar {
+            transform: translateX(-100%);
+        }
+
+        .sidebar.active {
+            transform: translateX(0);
+        }
+
+        .main-content {
+            margin-left: 0;
+        }
+
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Toggle sidebar button */
+    .sidebar-toggle {
+        display: none;
+        position: fixed;
+        top: 70px;
+        left: 10px;
+        z-index: 101;
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 0.5rem;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    @media (max-width: 768px) {
+        .sidebar-toggle {
+            display: block;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<button class="sidebar-toggle" onclick="toggleSidebar()">
+    <i class="fas fa-bars"></i>
+</button>
+
+<div class="dashboard-container">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+        <div class="practitioner-profile">
+            <div class="practitioner-avatar">
+                {% if practitioner.photo %}
+                    <img src="{{ practitioner.photo.url }}" alt="{{ practitioner.full_name }}">
+                {% else %}
+                    <i class="fas fa-user"></i>
+                {% endif %}
+            </div>
+            <div class="practitioner-name">{{ practitioner.full_name }}</div>
+            {% if practitioner.organization %}
+                <div class="practitioner-club">{{ practitioner.organization.name }}</div>
+            {% endif %}
+        </div>
+
+        <div class="sidebar-heading">{% trans "Navigation" %}</div>
+        <nav class="nav flex-column">
+            <a href="{% url 'competitions:practitioner_dashboard' %}" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">
+                <i class="fas fa-tachometer-alt"></i> {% trans "Tableau de bord" %}
+            </a>
+            <a href="{% url 'competitions:practitioner_profile' %}" class="nav-link {% if active_page == 'profile' %}active{% endif %}">
+                <i class="fas fa-user"></i> {% trans "Mon Profil" %}
+            </a>
+            <a href="{% url 'competitions:practitioner_activities' %}" class="nav-link {% if active_page == 'activities' %}active{% endif %}">
+                <i class="fas fa-dumbbell"></i> {% trans "Mes Activités" %}
+            </a>
+            <a href="{% url 'competitions:practitioner_grades' %}" class="nav-link {% if active_page == 'grades' %}active{% endif %}">
+                <i class="fas fa-medal"></i> {% trans "Mes Grades" %}
+            </a>
+            <a href="{% url 'competitions:practitioner_competitions' %}" class="nav-link {% if active_page == 'competitions' %}active{% endif %}">
+                <i class="fas fa-trophy"></i> {% trans "Mes Compétitions" %}
+            </a>
+            <a href="{% url 'competitions:practitioner_memberships' %}" class="nav-link {% if active_page == 'memberships' %}active{% endif %}">
+                <i class="fas fa-credit-card"></i> {% trans "Cotisations" %}
+            </a>
+            <a href="{% url 'competitions:practitioner_statistics' %}" class="nav-link {% if active_page == 'statistics' %}active{% endif %}">
+                <i class="fas fa-chart-line"></i> {% trans "Statistiques" %}
+            </a>
+        </nav>
+        
+        <div class="sidebar-heading">{% trans "Boutique & Services" %}</div>
+        <nav class="nav flex-column">
+            <a href="{% url 'competitions:practitioner:order_list' %}" class="nav-link {% if active_page == 'orders' %}active{% endif %}">
+                <i class="fas fa-shopping-bag"></i> {% trans "Mes Commandes" %}
+            </a>
+            <a href="{% url 'competitions:practitioner:notifications' %}" class="nav-link {% if active_page == 'notifications' %}active{% endif %}">
+                <i class="fas fa-bell"></i> {% trans "Notifications" %}
+                {% if unread_notifications > 0 %}
+                    <span class="notification-badge">{{ unread_notifications }}</span>
+                {% endif %}
+            </a>
+            <a href="{% url 'competitions:practitioner:event_list' %}" class="nav-link {% if active_page == 'events' %}active{% endif %}">
+                <i class="fas fa-calendar-alt"></i> {% trans "Événements" %}
+            </a>
+            <a href="{% url 'competitions:practitioner:calendar' %}" class="nav-link {% if active_page == 'calendar' %}active{% endif %}">
+                <i class="fas fa-calendar"></i> {% trans "Calendrier" %}
+            </a>
+            <a href="{% url 'competitions:practitioner:support_tickets' %}" class="nav-link {% if active_page == 'support' %}active{% endif %}">
+                <i class="fas fa-life-ring"></i> {% trans "Support" %}
+            </a>
+        </nav>
+    </nav>
+
+    <!-- Contenu principal -->
+    <main class="main-content">
+        {% block practitioner_content %}
+        {% endblock %}
+    </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        sidebar.classList.toggle('active');
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,635 @@
+{% extends 'finances/base.html' %}
+{% load i18n %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+{% if invoice %}
+{% trans "Modifier la facture" %} - {{ invoice.invoice_number }}
+{% else %}
+{% trans "Nouvelle facture" %}
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .item-row {
+        margin-bottom: 15px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #e3e6f0;
+    }
+    
+    .remove-item {
+        cursor: pointer;
+    }
+    
+    .invoice-totals {
+        background-color: #f8f9fc;
+        padding: 20px;
+        border-radius: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block finances_content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            {% if invoice %}
+            {% trans "Modifier la facture" %} - {{ invoice.invoice_number }}
+            {% else %}
+            {% trans "Nouvelle facture" %}
+            {% endif %}
+        </h1>
+        <a href="{% if invoice %}{% url 'finances:invoice_detail' invoice.id %}{% else %}{% url 'finances:invoice_list' %}{% endif %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> {% trans "Annuler" %}
+        </a>
+    </div>
+
+    <form method="post" id="invoiceForm">
+        {% csrf_token %}
+        
+        <div class="row">
+            <!-- Informations de base -->
+            <div class="col-lg-8">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">{% trans "Informations de base" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.invoice_number|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.status|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.issue_date|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.due_date|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.financial_account|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.tax_rate|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12">
+                                {{ form.notes|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12">
+                                {{ form.payment_instructions|as_crispy_field }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Informations du client -->
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                        <h6 class="m-0 font-weight-bold text-primary">{% trans "Informations du client" %}</h6>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-info" id="clientSelector">
+                                <i class="fas fa-search"></i> {% trans "Sélectionner un client existant" %}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.client_name|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.client_email|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.client_address|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.client_phone|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.entity_content_type|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.entity_id|as_crispy_field }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Informations de l'expéditeur -->
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">{% trans "Informations de l'expéditeur" %}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.sender_name|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.sender_email|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.sender_address|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.sender_phone|as_crispy_field }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Articles de la facture -->
+            <div class="col-lg-4">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                        <h6 class="m-0 font-weight-bold text-primary">{% trans "Articles de la facture" %}</h6>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-primary" id="addInvoiceItem">
+                                <i class="fas fa-plus"></i> {% trans "Ajouter un article" %}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="invoiceItems">
+                            <!-- Les articles seront ajoutés ici dynamiquement -->
+                            {% for formset_form in formset.forms %}
+                            <div class="item-row">
+                                {{ formset_form.id }}
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        {{ formset_form.description|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-4 text-right">
+                                        <button type="button" class="btn btn-sm btn-danger remove-item">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        {{ formset_form.details|as_crispy_field }}
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        {{ formset_form.unit_price|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-4">
+                                        {{ formset_form.quantity|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label>{% trans "Total" %}</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control item-total" readonly>
+                                                <div class="input-group-append">
+                                                    <span class="input-group-text">€</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        {{ formset.management_form }}
+                        
+                        <div id="empty-form" class="d-none">
+                            <div class="item-row">
+                                {{ formset.empty_form.id }}
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        {{ formset.empty_form.description|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-4 text-right">
+                                        <button type="button" class="btn btn-sm btn-danger remove-item">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        {{ formset.empty_form.details|as_crispy_field }}
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        {{ formset.empty_form.unit_price|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-4">
+                                        {{ formset.empty_form.quantity|as_crispy_field }}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label>{% trans "Total" %}</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control item-total" readonly>
+                                                <div class="input-group-append">
+                                                    <span class="input-group-text">€</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Totaux -->
+                        <div class="invoice-totals mt-4">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p>{% trans "Sous-total" %}:</p>
+                                </div>
+                                <div class="col-md-6 text-right">
+                                    <p id="subtotal">0.00 €</p>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p>{% trans "TVA" %} (<span id="tax-rate">{{ form.initial.tax_rate|default:0 }}</span>%):</p>
+                                </div>
+                                <div class="col-md-6 text-right">
+                                    <p id="tax-amount">0.00 €</p>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>{% trans "Total" %}:</strong></p>
+                                </div>
+                                <div class="col-md-6 text-right">
+                                    <p><strong id="total-amount">0.00 €</strong></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Boutons de soumission -->
+                <div class="d-grid gap-2">
+                    <button type="submit" name="save_draft" class="btn btn-secondary mb-2">
+                        <i class="fas fa-save"></i> {% trans "Enregistrer comme brouillon" %}
+                    </button>
+                    <button type="submit" name="save_send" class="btn btn-primary mb-2">
+                        <i class="fas fa-paper-plane"></i> {% trans "Enregistrer et envoyer" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Modal pour sélectionner un client existant -->
+<div class="modal fade" id="clientModal" tabindex="-1" role="dialog" aria-labelledby="clientModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="clientModalLabel">{% trans "Sélectionner un client" %}</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="clientSearch" placeholder="{% trans 'Rechercher un client...' %}">
+                    <div class="input-group-append">
+                        <button class="btn btn-primary" type="button" id="searchClientBtn">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover" id="clientsTable">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Nom" %}</th>
+                                <th>{% trans "Email" %}</th>
+                                <th>{% trans "Type" %}</th>
+                                <th>{% trans "Action" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Les clients seront chargés ici dynamiquement -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">{% trans "Fermer" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Initialisation des datepickers
+        $('#id_issue_date, #id_due_date').datepicker({
+            format: 'dd/mm/yyyy',
+            language: 'fr',
+            autoclose: true
+        });
+        
+        // Initialisation select2
+        $('.select2').select2({
+            theme: 'bootstrap4',
+            width: '100%'
+        });
+        
+        // Gestion des articles de facture
+        var itemIndex = {{ formset.total_form_count }};
+        
+        // Calcul des totaux initiaux
+        calculateTotals();
+        
+        // Ajouter un nouvel article
+        $('#addInvoiceItem').click(function() {
+            var emptyForm = $('#empty-form').html().replace(/__prefix__/g, itemIndex);
+            $('#invoiceItems').append(emptyForm);
+            
+            // Mettre à jour le nombre total de formulaires
+            $('#id_items-TOTAL_FORMS').val(itemIndex + 1);
+            
+            // Incrémenter l'index
+            itemIndex++;
+            
+            // Mettre à jour les totaux
+            calculateTotals();
+            
+            // Ajouter des événements aux nouveaux champs
+            bindItemEvents();
+        });
+        
+        // Supprimer un article
+        $(document).on('click', '.remove-item', function() {
+            $(this).closest('.item-row').remove();
+            
+            // Mettre à jour le nombre total de formulaires
+            $('#id_items-TOTAL_FORMS').val($('.item-row').length);
+            
+            // Mettre à jour les totaux
+            calculateTotals();
+        });
+        
+        // Calculer le total d'un article quand le prix ou la quantité change
+        function bindItemEvents() {
+            $('.item-row').each(function() {
+                var row = $(this);
+                var priceInput = row.find('[id$="-unit_price"]');
+                var quantityInput = row.find('[id$="-quantity"]');
+                var totalDisplay = row.find('.item-total');
+                
+                function updateItemTotal() {
+                    var price = parseFloat(priceInput.val()) || 0;
+                    var quantity = parseFloat(quantityInput.val()) || 0;
+                    var total = (price * quantity).toFixed(2);
+                    totalDisplay.val(total);
+                    calculateTotals();
+                }
+                
+                priceInput.off('input').on('input', updateItemTotal);
+                quantityInput.off('input').on('input', updateItemTotal);
+                
+                // Calculer le total initial
+                updateItemTotal();
+            });
+        }
+        
+        // Appeler bindItemEvents pour les éléments existants
+        bindItemEvents();
+        
+        // Calcul des totaux de la facture
+        function calculateTotals() {
+            var subtotal = 0;
+            
+            // Calculer le sous-total en additionnant tous les totaux d'articles
+            $('.item-total').each(function() {
+                subtotal += parseFloat($(this).val()) || 0;
+            });
+            
+            // Calculer la TVA
+            var taxRate = parseFloat($('#id_tax_rate').val()) || 0;
+            var taxAmount = subtotal * (taxRate / 100);
+            
+            // Calculer le total
+            var total = subtotal + taxAmount;
+            
+            // Afficher les totaux
+            $('#subtotal').text(subtotal.toFixed(2) + ' €');
+            $('#tax-rate').text(taxRate.toFixed(2));
+            $('#tax-amount').text(taxAmount.toFixed(2) + ' €');
+            $('#total-amount').text(total.toFixed(2) + ' €');
+        }
+        
+        // Mettre à jour les totaux lorsque le taux de TVA change
+        $('#id_tax_rate').on('input', calculateTotals);
+        
+        // Modal de sélection de client
+        $('#clientSelector').click(function() {
+            // Charger les clients
+            $.ajax({
+                url: "{% url 'finances:api_get_clients' %}",
+                dataType: 'json',
+                success: function(data) {
+                    var tbody = $('#clientsTable tbody');
+                    tbody.empty();
+                    
+                    $.each(data.clients, function(index, client) {
+                        var row = $('<tr>');
+                        row.append($('<td>').text(client.name));
+                        row.append($('<td>').text(client.email || '-'));
+                        row.append($('<td>').text(client.type));
+                        row.append($('<td>').html(
+                            '<button type="button" class="btn btn-sm btn-primary select-client" ' +
+                            'data-id="' + client.id + '" ' +
+                            'data-type="' + client.type + '" ' +
+                            'data-name="' + client.name + '" ' +
+                            'data-email="' + (client.email || '') + '" ' +
+                            'data-phone="' + (client.phone || '') + '" ' +
+                            'data-address="' + (client.address || '') + '">' +
+                            '<i class="fas fa-check"></i></button>'
+                        ));
+                        tbody.append(row);
+                    });
+                    
+                    // Afficher le modal
+                    $('#clientModal').modal('show');
+                }
+            });
+        });
+        
+        // Recherche de client
+        $('#searchClientBtn').click(function() {
+            var query = $('#clientSearch').val();
+            
+            $.ajax({
+                url: "{% url 'finances:api_get_clients' %}",
+                data: { q: query },
+                dataType: 'json',
+                success: function(data) {
+                    var tbody = $('#clientsTable tbody');
+                    tbody.empty();
+                    
+                    $.each(data.clients, function(index, client) {
+                        var row = $('<tr>');
+                        row.append($('<td>').text(client.name));
+                        row.append($('<td>').text(client.email || '-'));
+                        row.append($('<td>').text(client.type));
+                        row.append($('<td>').html(
+                            '<button type="button" class="btn btn-sm btn-primary select-client" ' +
+                            'data-id="' + client.id + '" ' +
+                            'data-type="' + client.type + '" ' +
+                            'data-name="' + client.name + '" ' +
+                            'data-email="' + (client.email || '') + '" ' +
+                            'data-phone="' + (client.phone || '') + '" ' +
+                            'data-address="' + (client.address || '') + '">' +
+                            '<i class="fas fa-check"></i></button>'
+                        ));
+                        tbody.append(row);
+                    });
+                }
+            });
+        });
+        
+        // Sélection d'un client
+        $(document).on('click', '.select-client', function() {
+            var button = $(this);
+            var clientId = button.data('id');
+            var clientType = button.data('type');
+            var clientName = button.data('name');
+            var clientEmail = button.data('email');
+            var clientPhone = button.data('phone');
+            var clientAddress = button.data('address');
+            
+            // Remplir les champs du formulaire
+            $('#id_client_name').val(clientName);
+            $('#id_client_email').val(clientEmail);
+            $('#id_client_phone').val(clientPhone);
+            $('#id_client_address').val(clientAddress);
+            
+            // Sélectionner le type d'entité et l'ID de l'entité si disponible
+            if (clientType && clientId) {
+                $.ajax({
+                    url: "{% url 'finances:api_get_content_type' %}",
+                    data: { model: clientType },
+                    dataType: 'json',
+                    success: function(data) {
+                        if (data.content_type_id) {
+                            $('#id_entity_content_type').val(data.content_type_id).trigger('change');
+                            
+                            // Attendre que la liste des entités soit chargée
+                            setTimeout(function() {
+                                $('#id_entity_id').val(clientId).trigger('change');
+                            }, 500);
+                        }
+                    }
+                });
+            }
+            
+            // Fermer le modal
+            $('#clientModal').modal('hide');
+        });
+        
+        // Gestion de l'entité
+        $('#id_entity_content_type').on('change', function() {
+            var contentTypeId = $(this).val();
+            if (!contentTypeId) {
+                $('#id_entity_id').empty().prop('disabled', true);
+                return;
+            }
+            
+            // Activer le champ d'ID d'entité
+            $('#id_entity_id').prop('disabled', false);
+            
+            // Charger les entités liées au type de contenu sélectionné
+            $.ajax({
+                url: "{% url 'finances:api_get_entities' %}",
+                data: {
+                    content_type_id: contentTypeId
+                },
+                dataType: 'json',
+                success: function(data) {
+                    var entitySelect = $('#id_entity_id');
+                    entitySelect.empty();
+                    
+                    entitySelect.append(new Option('', '', true, true));
+                    $.each(data.entities, function(index, entity) {
+                        entitySelect.append(new Option(entity.name, entity.id));
+                    });
+                    
+                    entitySelect.trigger('change');
+                }
+            });
+        });
+        
+        // Désactiver le champ d'ID d'entité si aucun type de contenu n'est sélectionné
+        if (!$('#id_entity_content_type').val()) {
+            $('#id_entity_id').prop('disabled', true);
+        }
+        
+        // Valider le formulaire avant soumission
+        $('#invoiceForm').on('submit', function(e) {
+            // Vérifier qu'il y a au moins un article
+            if ($('.item-row').length === 0) {
+                e.preventDefault();
+                alert("{% trans 'Veuillez ajouter au moins un article à la facture.' %}");
+                return false;
+            }
+            
+            // Vérifier les champs obligatoires
+            var requiredFields = ['#id_invoice_number', '#id_issue_date', '#id_due_date', '#id_client_name'];
+            var missingFields = [];
+            
+            $.each(requiredFields, function(index, field) {
+                if (!$(field).val()) {
+                    missingFields.push($(field).closest('.form-group').find('label').text().trim());
+                }
+            });
+            
+            if (missingFields.length > 0) {
+                e.preventDefault();
+                alert("{% trans 'Veuillez remplir les champs obligatoires suivants : ' %}" + missingFields.join(', '));
+                return false;
+            }
+            
+            return true;
+        });
+    });
+</script>
+{% endblock %}

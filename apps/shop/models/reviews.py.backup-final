@@ -1,0 +1,119 @@
+﻿from django.db import models
+from django.utils.translation import gettext_lazy as _
+from django.conf import settings
+from django.core.validators import MinValueValidator, MaxValueValidator
+
+
+class ProductReview(models.Model):
+    """
+    Avis et évaluations des utilisateurs sur les produits.
+    """
+    product = models.ForeignKey(
+        'shop.Product',
+        on_delete=models.CASCADE,
+        related_name='reviews',
+        verbose_name=_("Produit")
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='product_reviews',
+        verbose_name=_("Utilisateur")
+    )
+    
+    # La note (sur 5 étoiles)
+    rating = models.PositiveSmallIntegerField(
+        _("Note"),
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    
+    # Contenu de l'avis
+    title = models.CharField(_("Titre"), max_length=100)
+    comment = models.TextField(_("Commentaire"))
+    
+    # Informations spécifiques au produit
+    purchased_item = models.BooleanField(
+        _("Produit acheté"),
+        default=True,
+        help_text=_("Indique si l'utilisateur a effectivement acheté ce produit")
+    )
+    
+    # Notes spécifiques sur différents aspects (optionnelles)
+    quality_rating = models.PositiveSmallIntegerField(
+        _("Note qualité"),
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        null=True,
+        blank=True
+    )
+    value_rating = models.PositiveSmallIntegerField(
+        _("Note rapport qualité-prix"),
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        null=True,
+        blank=True
+    )
+    durability_rating = models.PositiveSmallIntegerField(
+        _("Note durabilité"),
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        null=True,
+        blank=True
+    )
+    
+    # Photos jointes Ã  l'avis
+    has_images = models.BooleanField(_("Contient des images"), default=False)
+    
+    # Modération
+    is_approved = models.BooleanField(_("Approuvé"), default=False)
+    is_featured = models.BooleanField(_("Mis en avant"), default=False)
+    reported_count = models.PositiveIntegerField(_("Nombre de signalements"), default=0)
+    admin_response = models.TextField(_("Réponse de l'administrateur"), blank=True)
+    
+    # Métriques d'utilité
+    helpful_votes = models.PositiveIntegerField(_("Votes utiles"), default=0)
+    not_helpful_votes = models.PositiveIntegerField(_("Votes non utiles"), default=0)
+    
+    # Dates
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis Ã  jour le"), auto_now=True)
+    
+    class Meta:
+        verbose_name = _("Avis produit")
+        verbose_name_plural = _("Avis produits")
+        ordering = ['-created_at']
+        unique_together = ['product', 'user']  # Un utilisateur ne peut laisser qu'un seul avis par produit
+    
+    def __str__(self):
+        return f"Avis de {self.user.username} sur {self.product.name}"
+    
+    @property
+    def helpfulness_score(self):
+        """
+        Calcule un score d'utilité basé sur les votes positifs et négatifs.
+        """
+        total_votes = self.helpful_votes + self.not_helpful_votes
+        if total_votes == 0:
+            return 0
+        return int((self.helpful_votes / total_votes) * 100)
+
+
+class ReviewImage(models.Model):
+    """
+    Images jointes aux avis.
+    """
+    review = models.ForeignKey(
+        ProductReview,
+        on_delete=models.CASCADE,
+        related_name='images',
+        verbose_name=_("Avis")
+    )
+    image = models.ImageField(_("Image"), upload_to='shop/reviews/')
+    caption = models.CharField(_("Légende"), max_length=200, blank=True)
+    order = models.PositiveSmallIntegerField(_("Ordre"), default=0)
+    
+    class Meta:
+        verbose_name = _("Image d'avis")
+        verbose_name_plural = _("Images d'avis")
+        ordering = ['order']
+    
+    def __str__(self):
+        return f"Image pour l'avis #{self.review.id}"
+

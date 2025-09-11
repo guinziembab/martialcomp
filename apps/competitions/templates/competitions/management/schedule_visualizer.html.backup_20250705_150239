@@ -1,0 +1,563 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Visualisation du planning" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'vendor/timeline/timeline.css' %}">
+<style>
+    .gantt-container {
+        width: 100%;
+        overflow-x: auto;
+        margin-bottom: 30px;
+    }
+    
+    .timeline-container {
+        min-height: 600px;
+        margin-top: 20px;
+    }
+    
+    .visualizer-controls {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-right: 15px;
+        margin-bottom: 10px;
+    }
+    
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        margin-right: 5px;
+    }
+    
+    .timeline-item {
+        border-radius: 3px;
+        padding: 5px 8px;
+        font-size: 0.9rem;
+    }
+    
+    .timeline-item:hover {
+        opacity: 0.8;
+        z-index: 100;
+    }
+    
+    .filter-chip {
+        display: inline-block;
+        background-color: #e9ecef;
+        border-radius: 16px;
+        padding: 5px 10px;
+        margin-right: 5px;
+        margin-bottom: 5px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .filter-chip:hover {
+        background-color: #dee2e6;
+    }
+    
+    .filter-chip.active {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .zoom-controls {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    
+    .zoom-controls .btn {
+        padding: 3px 10px;
+    }
+    
+    .zoom-text {
+        margin: 0 10px;
+    }
+    
+    /* Tooltip custom style */
+    .timeline-tooltip {
+        position: absolute;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        max-width: 250px;
+        z-index: 1000;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'competitions:dashboard:manager' %}">{% trans "Tableau de bord" %}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:competitions:detail' competition.pk %}">{{ competition.title }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'competitions:schedule:index' competition.pk %}">{% trans "Planning" %}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% trans "Visualisation" %}</li>
+        </ol>
+    </nav>
+
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h4 mb-0">{% trans "Visualisation du planning" %}</h2>
+        </div>
+        <div class="card-body">
+            <!-- Contrôles de visualisation -->
+            <div class="visualizer-controls">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group mb-3">
+                            <label for="viewType" class="form-label">{% trans "Type de vue" %}</label>
+                            <select class="form-select form-select-sm" id="viewType">
+                                <option value="timeline" selected>{% trans "Chronologie" %}</option>
+                                <option value="gantt">{% trans "Diagramme de Gantt" %}</option>
+                                <option value="matrix">{% trans "Matrice" %}</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="groupBy" class="form-label">{% trans "Regrouper par" %}</label>
+                            <select class="form-select form-select-sm" id="groupBy">
+                                <option value="tatami" selected>{% trans "Tatami" %}</option>
+                                <option value="category">{% trans "Catégorie" %}</option>
+                                <option value="time">{% trans "Heure" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-8">
+                        <label class="form-label">{% trans "Filtres" %}</label>
+                        
+                        <div class="tatami-filters mb-2">
+                            <div class="filter-chip active" data-filter="all-tatami">{% trans "Tous les tatamis" %}</div>
+                            {% for tatami in tatamis %}
+                            <div class="filter-chip" data-filter="tatami-{{ tatami.id }}">{{ tatami.name }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="category-filters">
+                            <div class="filter-chip active" data-filter="all-category">{% trans "Toutes les catégories" %}</div>
+                            {% for category_type in category_types %}
+                            <div class="filter-chip" data-filter="category-{{ category_type.id }}">{{ category_type.name }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="zoom-controls">
+                        <button class="btn btn-sm btn-outline-secondary" id="zoomOut">
+                            <i class="fas fa-search-minus"></i>
+                        </button>
+                        <span class="zoom-text">{% trans "Zoom" %}: <span id="zoomLevel">100%</span></span>
+                        <button class="btn btn-sm btn-outline-secondary" id="zoomIn">
+                            <i class="fas fa-search-plus"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="time-range-controls">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="showConflicts" checked>
+                            <label class="form-check-label" for="showConflicts">
+                                {% trans "Mettre en évidence les conflits" %}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="showBreaks" checked>
+                            <label class="form-check-label" for="showBreaks">
+                                {% trans "Afficher les pauses" %}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Légende -->
+            <div class="legend mb-4">
+                <h3 class="h6 mb-2">{% trans "Légende" %}</h3>
+                <div class="d-flex flex-wrap">
+                    {% for status in status_types %}
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: {{ status.color }};"></div>
+                        <span>{{ status.label }}</span>
+                    </div>
+                    {% endfor %}
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ff7b7b;"></div>
+                        <span>{% trans "Conflit" %}</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #f0f0f0;"></div>
+                        <span>{% trans "Pause" %}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Visualisation -->
+            <div id="visualizationContainer" class="timeline-container">
+                <!-- Le contenu sera injecté ici par JavaScript -->
+            </div>
+            
+            <!-- Actions -->
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{% url 'competitions:schedule:index' competition.pk %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-1"></i> {% trans "Retour au planning" %}
+                </a>
+                
+                <div>
+                    <button type="button" class="btn btn-outline-primary" id="printButton">
+                        <i class="fas fa-print me-1"></i> {% trans "Imprimer" %}
+                    </button>
+                    <button type="button" class="btn btn-outline-success ms-2" id="exportImageButton">
+                        <i class="fas fa-image me-1"></i> {% trans "Exporter en image" %}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/timeline/timeline.min.js' %}"></script>
+<script src="{% static 'vendor/html2canvas/html2canvas.min.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Configuration initiale
+        let currentZoom = 100;
+        let currentView = 'timeline';
+        let currentGroupBy = 'tatami';
+        
+        // Données de planning (à remplacer par des données réelles)
+        const scheduleData = {{ schedule_data|safe }};
+        
+        // Initialiser la timeline
+        initializeVisualization();
+        
+        // Gestion des filtres
+        const filterChips = document.querySelectorAll('.filter-chip');
+        filterChips.forEach(chip => {
+            chip.addEventListener('click', function() {
+                const filterType = this.dataset.filter.split('-')[0];
+                
+                // Désactiver tous les filtres du même type
+                if (filterType === 'all') {
+                    document.querySelectorAll(`.filter-chip[data-filter^="${filterType.replace('all-', '')}"]`).forEach(c => {
+                        c.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                } else {
+                    document.querySelector(`.filter-chip[data-filter="all-${filterType}"]`).classList.remove('active');
+                    this.classList.toggle('active');
+                    
+                    // Si aucun filtre spécifique n'est actif, activer le filtre "Tous"
+                    const activeSpecificFilters = document.querySelectorAll(`.filter-chip[data-filter^="${filterType}-"].active`);
+                    if (activeSpecificFilters.length === 0) {
+                        document.querySelector(`.filter-chip[data-filter="all-${filterType}"]`).classList.add('active');
+                    }
+                }
+                
+                // Mettre à jour la visualisation
+                updateVisualization();
+            });
+        });
+        
+        // Gestion du zoom
+        const zoomInBtn = document.getElementById('zoomIn');
+        const zoomOutBtn = document.getElementById('zoomOut');
+        const zoomLevelText = document.getElementById('zoomLevel');
+        
+        zoomInBtn.addEventListener('click', function() {
+            currentZoom += 10;
+            if (currentZoom > 200) currentZoom = 200;
+            updateZoom();
+        });
+        
+        zoomOutBtn.addEventListener('click', function() {
+            currentZoom -= 10;
+            if (currentZoom < 50) currentZoom = 50;
+            updateZoom();
+        });
+        
+        function updateZoom() {
+            zoomLevelText.textContent = `${currentZoom}%`;
+            
+            // Appliquer le zoom au conteneur de visualisation
+            const visualizationContainer = document.getElementById('visualizationContainer');
+            visualizationContainer.style.transform = `scale(${currentZoom / 100})`;
+            visualizationContainer.style.transformOrigin = 'top left';
+            
+            // Ajuster la hauteur du conteneur
+            visualizationContainer.style.height = `${600 * (currentZoom / 100)}px`;
+        }
+        
+        // Gestion du changement de vue
+        const viewTypeSelect = document.getElementById('viewType');
+        viewTypeSelect.addEventListener('change', function() {
+            currentView = this.value;
+            initializeVisualization();
+        });
+        
+        // Gestion du changement de regroupement
+        const groupBySelect = document.getElementById('groupBy');
+        groupBySelect.addEventListener('change', function() {
+            currentGroupBy = this.value;
+            updateVisualization();
+        });
+        
+        // Gestion des options d'affichage
+        const showConflictsCheckbox = document.getElementById('showConflicts');
+        const showBreaksCheckbox = document.getElementById('showBreaks');
+        
+        showConflictsCheckbox.addEventListener('change', updateVisualization);
+        showBreaksCheckbox.addEventListener('change', updateVisualization);
+        
+        // Fonctions de visualisation
+        function initializeVisualization() {
+            const container = document.getElementById('visualizationContainer');
+            container.innerHTML = '';
+            
+            switch (currentView) {
+                case 'timeline':
+                    initializeTimeline(container);
+                    break;
+                case 'gantt':
+                    initializeGantt(container);
+                    break;
+                case 'matrix':
+                    initializeMatrix(container);
+                    break;
+            }
+        }
+        
+        function initializeTimeline(container) {
+            // Exemple d'initialisation d'une timeline
+            // Dans une implémentation réelle, utilisez une bibliothèque comme vis-timeline
+            container.innerHTML = `
+                <div class="timeline-visualization">
+                    <!-- Données de timeline générées dynamiquement -->
+                </div>
+            `;
+            
+            updateVisualization();
+        }
+        
+        function initializeGantt(container) {
+            // Exemple d'initialisation d'un diagramme de Gantt
+            container.innerHTML = `
+                <div class="gantt-container">
+                    <div class="gantt-visualization">
+                        <!-- Données de Gantt générées dynamiquement -->
+                    </div>
+                </div>
+            `;
+            
+            updateVisualization();
+        }
+        
+        function initializeMatrix(container) {
+            // Exemple d'initialisation d'une vue matrice
+            container.innerHTML = `
+                <div class="matrix-visualization">
+                    <table class="table table-bordered">
+                        <!-- Données de matrice générées dynamiquement -->
+                    </table>
+                </div>
+            `;
+            
+            updateVisualization();
+        }
+        
+        function updateVisualization() {
+            // Filtrer les données en fonction des filtres actifs
+            const activeTatamiFilters = Array.from(document.querySelectorAll('.tatami-filters .filter-chip.active'))
+                .map(chip => chip.dataset.filter);
+            
+            const activeCategoryFilters = Array.from(document.querySelectorAll('.category-filters .filter-chip.active'))
+                .map(chip => chip.dataset.filter);
+            
+            const showConflicts = showConflictsCheckbox.checked;
+            const showBreaks = showBreaksCheckbox.checked;
+            
+            // Filtrer les données et mettre à jour la visualisation
+            // Dans une implémentation réelle, utilisez les données filtrées
+            // pour mettre à jour la bibliothèque de visualisation
+            
+            // Exemples de mise à jour pour chaque type de vue
+            switch (currentView) {
+                case 'timeline':
+                    updateTimelineView(activeTatamiFilters, activeCategoryFilters, showConflicts, showBreaks);
+                    break;
+                case 'gantt':
+                    updateGanttView(activeTatamiFilters, activeCategoryFilters, showConflicts, showBreaks);
+                    break;
+                case 'matrix':
+                    updateMatrixView(activeTatamiFilters, activeCategoryFilters, showConflicts, showBreaks);
+                    break;
+            }
+        }
+        
+        function updateTimelineView(tatamis, categories, showConflicts, showBreaks) {
+            // Exemple de mise à jour de la timeline avec des données simulées
+            const container = document.querySelector('.timeline-visualization');
+            
+            let timelineHTML = `
+                <div class="d-flex">
+                    <div class="timeline-labels" style="width: 150px; margin-right: 10px;">
+                        <div style="height: 30px;"></div>
+                        <div style="height: 60px;">{% trans "Tatami 1" %}</div>
+                        <div style="height: 60px;">{% trans "Tatami 2" %}</div>
+                        <div style="height: 60px;">{% trans "Tatami 3" %}</div>
+                    </div>
+                    <div class="timeline-content position-relative">
+                        <div class="timeline-hours d-flex" style="height: 30px;">
+                            <div style="width: 120px; text-align: center;">09:00</div>
+                            <div style="width: 120px; text-align: center;">10:00</div>
+                            <div style="width: 120px; text-align: center;">11:00</div>
+                            <div style="width: 120px; text-align: center;">12:00</div>
+                            <div style="width: 120px; text-align: center;">13:00</div>
+                            <div style="width: 120px; text-align: center;">14:00</div>
+                            <div style="width: 120px; text-align: center;">15:00</div>
+                            <div style="width: 120px; text-align: center;">16:00</div>
+                        </div>
+                        <div class="timeline-lanes">
+                            <div class="timeline-lane position-relative" style="height: 60px; border-bottom: 1px solid #eee;">
+                                <div class="timeline-item position-absolute" style="left: 0; top: 5px; width: 180px; height: 50px; background-color: #a1d2eb;">{% trans "Catégorie A (9:00-10:30)" %}</div>
+                                <div class="timeline-item position-absolute" style="left: 200px; top: 5px; width: 120px; height: 50px; background-color: #a1d2eb;">{% trans "Catégorie C (11:00-12:00)" %}</div>
+                                <div class="timeline-item position-absolute" style="left: 360px; top: 5px; width: 180px; height: 50px; background-color: #a1d2eb;">{% trans "Catégorie E (13:00-14:30)" %}</div>
+                            </div>
+                            <div class="timeline-lane position-relative" style="height: 60px; border-bottom: 1px solid #eee;">
+                                <div class="timeline-item position-absolute" style="left: 0; top: 5px; width: 120px; height: 50px; background-color: #ffcc80;">{% trans "Catégorie B (9:00-10:00)" %}</div>
+                                <div class="timeline-item position-absolute" style="left: 200px; top: 5px; width: 120px; height: 50px; background-color: #ffcc80;">{% trans "Catégorie D (11:00-12:00)" %}</div>
+                                <div class="timeline-item position-absolute" style="left: 360px; top: 5px; width: 240px; height: 50px; background-color: #ffcc80;">{% trans "Catégorie F (13:00-15:00)" %}</div>
+                            </div>
+                            <div class="timeline-lane position-relative" style="height: 60px;">
+                                <div class="timeline-item position-absolute" style="left: 140px; top: 5px; width: 180px; height: 50px; background-color: #c8e6c9;">{% trans "Catégorie G (10:10-11:40)" %}</div>
+                                <div class="timeline-item position-absolute" style="left: 360px; top: 5px; width: 180px; height: 50px; background-color: #c8e6c9;">{% trans "Catégorie H (13:00-14:30)" %}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = timelineHTML;
+            
+            // Ajouter des gestionnaires d'événements pour les éléments de la timeline
+            const timelineItems = document.querySelectorAll('.timeline-item');
+            timelineItems.forEach(item => {
+                item.addEventListener('mouseover', function(e) {
+                    // Afficher un tooltip
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'timeline-tooltip';
+                    tooltip.innerHTML = this.textContent + '<br>Détails supplémentaires';
+                    document.body.appendChild(tooltip);
+                    
+                    // Positionner le tooltip
+                    tooltip.style.left = (e.pageX + 10) + 'px';
+                    tooltip.style.top = (e.pageY + 10) + 'px';
+                    
+                    this.addEventListener('mousemove', function(e) {
+                        tooltip.style.left = (e.pageX + 10) + 'px';
+                        tooltip.style.top = (e.pageY + 10) + 'px';
+                    });
+                    
+                    this.addEventListener('mouseout', function() {
+                        document.body.removeChild(tooltip);
+                    });
+                });
+            });
+        }
+        
+        function updateGanttView(tatamis, categories, showConflicts, showBreaks) {
+            // Exemple de mise à jour du diagramme de Gantt
+            const container = document.querySelector('.gantt-visualization');
+            container.innerHTML = '<div class="alert alert-info">{% trans "Le diagramme de Gantt sera affiché ici avec les données filtrées." %}</div>';
+        }
+        
+        function updateMatrixView(tatamis, categories, showConflicts, showBreaks) {
+            // Exemple de mise à jour de la vue matrice
+            const container = document.querySelector('.matrix-visualization table');
+            
+            let matrixHTML = `
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>09:00</th>
+                        <th>10:00</th>
+                        <th>11:00</th>
+                        <th>12:00</th>
+                        <th>13:00</th>
+                        <th>14:00</th>
+                        <th>15:00</th>
+                        <th>16:00</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>{% trans "Tatami 1" %}</th>
+                        <td colspan="2" style="background-color: #a1d2eb;">Catégorie A</td>
+                        <td>{% trans "Catégorie C" %}</td>
+                        <td></td>
+                        <td colspan="2" style="background-color: #a1d2eb;">Catégorie E</td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <th>{% trans "Tatami 2" %}</th>
+                        <td style="background-color: #ffcc80;">Catégorie B</td>
+                        <td></td>
+                        <td style="background-color: #ffcc80;">Catégorie D</td>
+                        <td></td>
+                        <td colspan="3" style="background-color: #ffcc80;">{% trans "Catégorie F" %}</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <th>{% trans "Tatami 3" %}</th>
+                        <td></td>
+                        <td colspan="2" style="background-color: #c8e6c9;">{% trans "Catégorie G" %}</td>
+                        <td></td>
+                        <td colspan="2" style="background-color: #c8e6c9;">Catégorie H</td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            `;
+            
+            container.innerHTML = matrixHTML;
+        }
+        
+        // Gestion des boutons d'export et d'impression
+        const printButton = document.getElementById('printButton');
+        const exportImageButton = document.getElementById('exportImageButton');
+        
+        printButton.addEventListener('click', function() {
+            window.print();
+        });
+        
+        exportImageButton.addEventListener('click', function() {
+            html2canvas(document.getElementById('visualizationContainer')).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'competition-schedule.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        });
+    });
+</script>
+{% endblock %}

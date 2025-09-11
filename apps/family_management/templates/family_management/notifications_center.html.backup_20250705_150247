@@ -1,0 +1,770 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Centre de Notifications" %} - {{ family.family_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .notifications-container {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    .notifications-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 25px;
+        text-align: center;
+    }
+    
+    .notification-type-card {
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 15px 0;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .notification-type-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        border-color: #4ECDC4;
+    }
+    
+    .notification-type-card.active {
+        border-color: #4ECDC4;
+        background: #f8ffff;
+    }
+    
+    .notification-icon {
+        font-size: 32px;
+        margin-bottom: 15px;
+        display: block;
+    }
+    
+    .send-form {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 25px;
+        margin-top: 20px;
+    }
+    
+    .channel-selector {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        margin: 15px 0;
+    }
+    
+    .channel-option {
+        flex: 1;
+        min-width: 120px;
+        padding: 15px;
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 10px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .channel-option.selected {
+        border-color: #4ECDC4;
+        background: #f8ffff;
+    }
+    
+    .channel-option i {
+        font-size: 24px;
+        display: block;
+        margin-bottom: 8px;
+        color: #666;
+    }
+    
+    .channel-option.selected i {
+        color: #4ECDC4;
+    }
+    
+    .recipients-selector {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 15px 0;
+        border: 1px solid #e9ecef;
+    }
+    
+    .member-checkbox {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        margin: 5px 0;
+        background: #f8f9fa;
+        border-radius: 8px;
+        transition: background 0.2s ease;
+    }
+    
+    .member-checkbox:hover {
+        background: #e9ecef;
+    }
+    
+    .member-checkbox input[type="checkbox"] {
+        margin-right: 12px;
+        transform: scale(1.2);
+    }
+    
+    .member-info {
+        flex-grow: 1;
+    }
+    
+    .member-status {
+        font-size: 12px;
+        color: #666;
+        margin-top: 3px;
+    }
+    
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+        margin: 20px 0;
+    }
+    
+    .quick-action-btn {
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        color: inherit;
+    }
+    
+    .quick-action-btn:hover {
+        border-color: #4ECDC4;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        color: inherit;
+    }
+    
+    .quick-action-btn i {
+        font-size: 28px;
+        margin-bottom: 10px;
+        display: block;
+        color: #4ECDC4;
+    }
+    
+    .notification-history {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-top: 25px;
+    }
+    
+    .history-item {
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        margin: 10px 0;
+        background: #f8f9fa;
+        border-radius: 10px;
+        border-left: 4px solid #4ECDC4;
+    }
+    
+    .history-icon {
+        font-size: 20px;
+        margin-right: 15px;
+        width: 40px;
+        text-align: center;
+        color: #4ECDC4;
+    }
+    
+    .history-details {
+        flex-grow: 1;
+    }
+    
+    .history-title {
+        font-weight: 600;
+        margin: 0;
+        color: #333;
+    }
+    
+    .history-meta {
+        font-size: 12px;
+        color: #666;
+        margin-top: 3px;
+    }
+    
+    .progress-bar {
+        width: 100%;
+        height: 6px;
+        background: #e9ecef;
+        border-radius: 3px;
+        overflow: hidden;
+        margin: 15px 0;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #4ECDC4, #44A08D);
+        transition: width 0.5s ease;
+        width: 0%;
+    }
+    
+    @media (max-width: 768px) {
+        .channel-selector {
+            flex-direction: column;
+        }
+        
+        .quick-actions {
+            grid-template-columns: 1fr;
+        }
+        
+        .notifications-header {
+            padding: 20px 15px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="notifications-container">
+                <!-- En-tête -->
+                <div class="notifications-header">
+                    <h1><i class="fas fa-bell"></i> {% trans "Centre de Notifications" %}</h1>
+                    <h3>{{ family.family_name }}</h3>
+                    <p class="mb-0">{% trans "Gérez les communications de votre famille" %}</p>
+                </div>
+                
+                <!-- Actions rapides -->
+                <div class="p-4">
+                    <h4><i class="fas fa-bolt"></i> {% trans "Actions rapides" %}</h4>
+                    <div class="quick-actions">
+                        <a href="#" class="quick-action-btn" onclick="sendWeeklySummary()">
+                            <i class="fas fa-chart-line"></i>
+                            <strong>{% trans "Résumé hebdomadaire" %}</strong>
+                            <small class="d-block text-muted">{% trans "Envoyer le résumé de la semaine" %}</small>
+                        </a>
+                        
+                        <a href="#" class="quick-action-btn" onclick="showCustomMessage()">
+                            <i class="fas fa-envelope"></i>
+                            <strong>{% trans "Message personnalisé" %}</strong>
+                            <small class="d-block text-muted">{% trans "Envoyer un message à la famille" %}</small>
+                        </a>
+                        
+                        <a href="#" class="quick-action-btn" onclick="checkAvailability()">
+                            <i class="fas fa-calendar-check"></i>
+                            <strong>{% trans "Vérifier disponibilités" %}</strong>
+                            <small class="d-block text-muted">{% trans "Voir qui est libre" %}</small>
+                        </a>
+                        
+                        <a href="#" class="quick-action-btn" onclick="showPaymentReminder()">
+                            <i class="fas fa-credit-card"></i>
+                            <strong>{% trans "Rappel de paiement" %}</strong>
+                            <small class="d-block text-muted">{% trans "Notifier les paiements en attente" %}</small>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Formulaire d'envoi de notification -->
+    <div class="row mt-4">
+        <div class="col-lg-8">
+            <div class="send-form">
+                <h4><i class="fas fa-paper-plane"></i> {% trans "Envoyer une notification" %}</h4>
+                
+                <form id="notificationForm">
+                    {% csrf_token %}
+                    
+                    <!-- Type de notification -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">{% trans "Type de notification" %}</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="notification-type-card" data-type="event_reminder">
+                                    <span class="notification-icon">📅</span>
+                                    <strong>{% trans "Rappel d'événement" %}</strong>
+                                    <p class="mb-0 text-muted small">{% trans "Rappeler un événement à venir" %}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="notification-type-card" data-type="family_invite">
+                                    <span class="notification-icon">💌</span>
+                                    <strong>{% trans "Message familial" %}</strong>
+                                    <p class="mb-0 text-muted small">{% trans "Envoyer un message général" %}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Message -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">{% trans "Message" %}</label>
+                        <textarea class="form-control" name="message" rows="4" 
+                                placeholder="{% trans 'Tapez votre message ici...' %}" required></textarea>
+                    </div>
+                    
+                    <!-- Canaux de communication -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">{% trans "Canaux de communication" %}</label>
+                        <div class="channel-selector">
+                            <div class="channel-option selected" data-channel="email">
+                                <i class="fas fa-envelope"></i>
+                                <strong>Email</strong>
+                                <small class="d-block text-muted">{% trans "Recommandé" %}</small>
+                            </div>
+                            <div class="channel-option" data-channel="sms">
+                                <i class="fas fa-sms"></i>
+                                <strong>SMS</strong>
+                                <small class="d-block text-muted">{% trans "Urgent uniquement" %}</small>
+                            </div>
+                            <div class="channel-option selected" data-channel="in_app">
+                                <i class="fas fa-bell"></i>
+                                <strong>{% trans "In-App" %}</strong>
+                                <small class="d-block text-muted">{% trans "Notification app" %}</small>
+                            </div>
+                            <div class="channel-option" data-channel="push">
+                                <i class="fas fa-mobile-alt"></i>
+                                <strong>Push</strong>
+                                <small class="d-block text-muted">{% trans "Mobile" %}</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Destinataires -->
+                    <div class="recipients-selector">
+                        <label class="form-label fw-bold">{% trans "Destinataires" %}</label>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="selectAll" checked>
+                            <label class="form-check-label fw-bold" for="selectAll">
+                                {% trans "Sélectionner tous les membres" %}
+                            </label>
+                        </div>
+                        
+                        {% for member in family.get_active_members %}
+                        <div class="member-checkbox">
+                            <input type="checkbox" name="recipients" value="{{ member.id }}" 
+                                   id="member_{{ member.id }}" checked>
+                            <label for="member_{{ member.id }}" class="member-info">
+                                <div class="fw-bold">{{ member.user.get_full_name }}</div>
+                                <div class="member-status">
+                                    <i class="fas fa-envelope"></i> {{ member.user.email }}
+                                    {% if member.role == 'parent' %}
+                                    <span class="badge bg-primary ms-2">{% trans "Parent" %}</span>
+                                    {% elif member.role == 'child' %}
+                                    <span class="badge bg-info ms-2">{% trans "Enfant" %}</span>
+                                    {% endif %}
+                                </div>
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Barre de progression -->
+                    <div id="progressContainer" style="display: none;">
+                        <label class="form-label">{% trans "Envoi en cours..." %}</label>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressBar"></div>
+                        </div>
+                        <small id="progressText" class="text-muted">{% trans "Préparation..." %}</small>
+                    </div>
+                    
+                    <!-- Boutons d'action -->
+                    <div class="d-flex justify-content-between align-items-center mt-4">
+                        <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
+                            <i class="fas fa-undo"></i> {% trans "Réinitialiser" %}
+                        </button>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-paper-plane"></i> {% trans "Envoyer la notification" %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Panneau latéral -->
+        <div class="col-lg-4">
+            <!-- Statistiques -->
+            <div class="notification-history">
+                <h5><i class="fas fa-chart-bar"></i> {% trans "Statistiques" %}</h5>
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="stat-card p-3">
+                            <div class="h4 text-primary mb-1">{{ family.get_active_members.count }}</div>
+                            <small class="text-muted">{% trans "Membres actifs" %}</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-card p-3">
+                            <div class="h4 text-success mb-1" id="notificationsSent">-</div>
+                            <small class="text-muted">{% trans "Notifications envoyées" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Historique récent -->
+            <div class="notification-history">
+                <h5><i class="fas fa-history"></i> {% trans "Notifications récentes" %}</h5>
+                <div id="recentNotifications">
+                    <!-- Chargé dynamiquement -->
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        {% trans "Chargement..." %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation -->
+<div class="modal fade" id="confirmationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Confirmer l'envoi" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmationText"></p>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    {% trans "Cette action ne peut pas être annulée." %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-primary" onclick="confirmSend()">{% trans "Confirmer l'envoi" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedNotificationType = null;
+let selectedChannels = ['email', 'in_app'];
+
+document.addEventListener('DOMContentLoaded', function() {
+    setupNotificationTypes();
+    setupChannelSelector();
+    setupSelectAll();
+    setupForm();
+    loadRecentNotifications();
+});
+
+function setupNotificationTypes() {
+    document.querySelectorAll('.notification-type-card').forEach(card => {
+        card.addEventListener('click', function() {
+            document.querySelectorAll('.notification-type-card').forEach(c => c.classList.remove('active'));
+            this.classList.add('active');
+            selectedNotificationType = this.dataset.type;
+        });
+    });
+}
+
+function setupChannelSelector() {
+    document.querySelectorAll('.channel-option').forEach(option => {
+        option.addEventListener('click', function() {
+            this.classList.toggle('selected');
+            const channel = this.dataset.channel;
+            
+            if (this.classList.contains('selected')) {
+                if (!selectedChannels.includes(channel)) {
+                    selectedChannels.push(channel);
+                }
+            } else {
+                selectedChannels = selectedChannels.filter(c => c !== channel);
+            }
+        });
+    });
+}
+
+function setupSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const memberCheckboxes = document.querySelectorAll('input[name="recipients"]');
+    
+    selectAllCheckbox.addEventListener('change', function() {
+        memberCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+    });
+    
+    memberCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const allChecked = Array.from(memberCheckboxes).every(cb => cb.checked);
+            const noneChecked = Array.from(memberCheckboxes).every(cb => !cb.checked);
+            
+            selectAllCheckbox.checked = allChecked;
+            selectAllCheckbox.indeterminate = !allChecked && !noneChecked;
+        });
+    });
+}
+
+function setupForm() {
+    document.getElementById('notificationForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!validateForm()) {
+            return;
+        }
+        
+        showConfirmationModal();
+    });
+}
+
+function validateForm() {
+    const message = document.querySelector('textarea[name="message"]').value.trim();
+    const selectedRecipients = document.querySelectorAll('input[name="recipients"]:checked');
+    
+    if (!selectedNotificationType) {
+        showNotification('Veuillez sélectionner un type de notification', 'warning');
+        return false;
+    }
+    
+    if (!message) {
+        showNotification('Veuillez saisir un message', 'warning');
+        return false;
+    }
+    
+    if (selectedChannels.length === 0) {
+        showNotification('Veuillez sélectionner au moins un canal de communication', 'warning');
+        return false;
+    }
+    
+    if (selectedRecipients.length === 0) {
+        showNotification('Veuillez sélectionner au moins un destinataire', 'warning');
+        return false;
+    }
+    
+    return true;
+}
+
+function showConfirmationModal() {
+    const selectedRecipients = document.querySelectorAll('input[name="recipients"]:checked');
+    const channelNames = {
+        'email': 'Email',
+        'sms': 'SMS',
+        'in_app': 'Notification app',
+        'push': 'Push mobile'
+    };
+    
+    const selectedChannelNames = selectedChannels.map(c => channelNames[c]).join(', ');
+    
+    const confirmText = `Vous allez envoyer une notification à ${selectedRecipients.length} membre(s) via : ${selectedChannelNames}`;
+    document.getElementById('confirmationText').textContent = confirmText;
+    
+    const modal = new bootstrap.Modal(document.getElementById('confirmationModal'));
+    modal.show();
+}
+
+function confirmSend() {
+    bootstrap.Modal.getInstance(document.getElementById('confirmationModal')).hide();
+    sendNotification();
+}
+
+function sendNotification() {
+    const formData = new FormData();
+    const message = document.querySelector('textarea[name="message"]').value;
+    const selectedRecipients = Array.from(document.querySelectorAll('input[name="recipients"]:checked')).map(cb => cb.value);
+    
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    formData.append('type', selectedNotificationType);
+    formData.append('message', message);
+    
+    selectedChannels.forEach(channel => {
+        formData.append('channels', channel);
+    });
+    
+    selectedRecipients.forEach(recipient => {
+        formData.append('recipients', recipient);
+    });
+    
+    // Afficher la barre de progression
+    showProgress();
+    
+    fetch(`{% url 'family_management:send_family_notification' family.id %}`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideProgress();
+        
+        if (data.success) {
+            showNotification('Notification envoyée avec succès !', 'success');
+            resetForm();
+            loadRecentNotifications();
+            updateStats();
+        } else {
+            showNotification('Erreur lors de l\'envoi : ' + (data.error || 'Erreur inconnue'), 'error');
+        }
+    })
+    .catch(error => {
+        hideProgress();
+        console.error('Erreur envoi notification:', error);
+        showNotification('Erreur de connexion', 'error');
+    });
+}
+
+function showProgress() {
+    document.getElementById('progressContainer').style.display = 'block';
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    
+    let progress = 0;
+    const interval = setInterval(() => {
+        progress += Math.random() * 20;
+        if (progress > 90) progress = 90;
+        
+        progressBar.style.width = progress + '%';
+        
+        if (progress < 30) {
+            progressText.textContent = 'Préparation de la notification...';
+        } else if (progress < 60) {
+            progressText.textContent = 'Envoi en cours...';
+        } else {
+            progressText.textContent = 'Finalisation...';
+        }
+        
+        if (progress >= 90) {
+            clearInterval(interval);
+        }
+    }, 200);
+    
+    // Stocker l'interval pour pouvoir l'arrêter
+    window.progressInterval = interval;
+}
+
+function hideProgress() {
+    if (window.progressInterval) {
+        clearInterval(window.progressInterval);
+    }
+    
+    const progressBar = document.getElementById('progressBar');
+    progressBar.style.width = '100%';
+    
+    setTimeout(() => {
+        document.getElementById('progressContainer').style.display = 'none';
+        progressBar.style.width = '0%';
+    }, 1000);
+}
+
+function resetForm() {
+    document.getElementById('notificationForm').reset();
+    document.querySelectorAll('.notification-type-card').forEach(card => card.classList.remove('active'));
+    document.querySelectorAll('.channel-option').forEach(option => {
+        option.classList.remove('selected');
+        if (option.dataset.channel === 'email' || option.dataset.channel === 'in_app') {
+            option.classList.add('selected');
+        }
+    });
+    
+    selectedNotificationType = null;
+    selectedChannels = ['email', 'in_app'];
+    document.getElementById('selectAll').checked = true;
+}
+
+function loadRecentNotifications() {
+    // Simulation de chargement de l'historique
+    const container = document.getElementById('recentNotifications');
+    
+    setTimeout(() => {
+        container.innerHTML = `
+            <div class="history-item">
+                <div class="history-icon">
+                    <i class="fas fa-envelope"></i>
+                </div>
+                <div class="history-details">
+                    <div class="history-title">Résumé hebdomadaire</div>
+                    <div class="history-meta">Envoyé il y a 2 jours • 4 destinataires</div>
+                </div>
+            </div>
+            <div class="history-item">
+                <div class="history-icon">
+                    <i class="fas fa-calendar"></i>
+                </div>
+                <div class="history-details">
+                    <div class="history-title">Rappel compétition</div>
+                    <div class="history-meta">Envoyé il y a 5 jours • 2 destinataires</div>
+                </div>
+            </div>
+        `;
+    }, 1000);
+}
+
+function updateStats() {
+    const current = parseInt(document.getElementById('notificationsSent').textContent) || 0;
+    document.getElementById('notificationsSent').textContent = current + 1;
+}
+
+// Actions rapides
+function sendWeeklySummary() {
+    if (confirm('Envoyer le résumé hebdomadaire à tous les membres de la famille ?')) {
+        fetch(`{% url 'family_management:family_weekly_summary' family.id %}`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Résumé hebdomadaire envoyé !', 'success');
+            } else {
+                showNotification('Erreur lors de l\'envoi', 'error');
+            }
+        });
+    }
+}
+
+function showCustomMessage() {
+    document.querySelector('.notification-type-card[data-type="family_invite"]').click();
+    document.querySelector('textarea[name="message"]').focus();
+}
+
+function checkAvailability() {
+    const today = new Date().toISOString().split('T')[0];
+    window.open(`{% url 'family_management:family_availability_check' family.id %}?date=${today}`, '_blank');
+}
+
+function showPaymentReminder() {
+    document.querySelector('.notification-type-card[data-type="payment_due"]').click();
+    document.querySelector('textarea[name="message"]').value = 'Rappel : vous avez des paiements en attente. Merci de regulariser votre situation.';
+}
+
+function showNotification(message, type = 'info') {
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'error' ? 'alert-danger' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

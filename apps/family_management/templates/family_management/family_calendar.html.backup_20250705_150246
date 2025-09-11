@@ -1,0 +1,831 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Calendrier Familial" %} - {{ family.family_name }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.0/index.global.min.css" rel="stylesheet">
+<style>
+    .calendar-container {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    .calendar-header {
+        background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%);
+        color: white;
+        padding: 25px;
+        text-align: center;
+    }
+    
+    .member-filters {
+        background: #f8f9fa;
+        padding: 20px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .member-filter-chip {
+        display: inline-block;
+        background: #e9ecef;
+        color: #495057;
+        padding: 8px 16px;
+        margin: 5px;
+        border-radius: 25px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+    }
+    
+    .member-filter-chip.active {
+        background: #4ECDC4;
+        color: white;
+        border-color: #44A08D;
+    }
+    
+    .member-filter-chip:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    }
+    
+    .calendar-views {
+        padding: 15px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .view-btn {
+        background: white;
+        border: 1px solid #dee2e6;
+        color: #495057;
+        padding: 8px 16px;
+        margin: 0 5px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .view-btn.active, .view-btn:hover {
+        background: #4ECDC4;
+        color: white;
+        border-color: #44A08D;
+    }
+    
+    .fc-event {
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 2px 6px !important;
+        font-size: 12px !important;
+    }
+    
+    .fc-event-family {
+        background: #FF6B6B !important;
+        color: white !important;
+    }
+    
+    .fc-event-competition {
+        background: #4ECDC4 !important;
+        color: white !important;
+    }
+    
+    .fc-event-org {
+        background: #95E1D3 !important;
+        color: #333 !important;
+    }
+    
+    .fc-event-training {
+        background: #FFE66D !important;
+        color: #333 !important;
+    }
+    
+    .event-legend {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+        flex-wrap: wrap;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .legend-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+    }
+    
+    .quick-actions {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        z-index: 1000;
+    }
+    
+    .quick-action-btn {
+        display: block;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: #FF6B6B;
+        color: white;
+        border: none;
+        font-size: 24px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    
+    .quick-action-btn:hover {
+        transform: scale(1.1);
+        background: #FF5252;
+    }
+    
+    .event-modal .modal-content {
+        border-radius: 15px;
+        overflow: hidden;
+    }
+    
+    .event-modal .modal-header {
+        background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%);
+        color: white;
+        border: none;
+    }
+    
+    .upcoming-events {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin: 20px 0;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .upcoming-event-item {
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        margin: 10px 0;
+        background: #f8f9fa;
+        border-radius: 10px;
+        border-left: 4px solid #4ECDC4;
+        transition: all 0.2s ease;
+    }
+    
+    .upcoming-event-item:hover {
+        background: #e9ecef;
+        transform: translateX(5px);
+    }
+    
+    .event-icon {
+        font-size: 24px;
+        margin-right: 15px;
+        width: 40px;
+        text-align: center;
+    }
+    
+    .event-details h6 {
+        margin: 0;
+        color: #333;
+        font-weight: 600;
+    }
+    
+    .event-details small {
+        color: #666;
+    }
+    
+    @media (max-width: 768px) {
+        .member-filters {
+            padding: 15px;
+        }
+        
+        .member-filter-chip {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        
+        .quick-actions {
+            bottom: 20px;
+            right: 20px;
+        }
+        
+        .quick-action-btn {
+            width: 50px;
+            height: 50px;
+            font-size: 20px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="calendar-container">
+                <!-- En-tête du calendrier -->
+                <div class="calendar-header">
+                    <h1><i class="fas fa-calendar-alt"></i> {% trans "Calendrier Familial" %}</h1>
+                    <h3>{{ family.family_name }}</h3>
+                    <p class="mb-0">{% trans "Vue consolidée de tous les événements familiaux" %}</p>
+                </div>
+                
+                <!-- Filtres par membre -->
+                <div class="member-filters">
+                    <h6><i class="fas fa-filter"></i> {% trans "Filtrer par membre" %}</h6>
+                    <div class="filter-chips">
+                        <span class="member-filter-chip active" data-member="all">
+                            <i class="fas fa-users"></i> {% trans "Tous les membres" %}
+                        </span>
+                        {% for member in family.get_active_members %}
+                        <span class="member-filter-chip" data-member="{{ member.id }}">
+                            <i class="fas fa-user"></i> {{ member.user.get_full_name }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Boutons de vue -->
+                <div class="calendar-views">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                        <div>
+                            <button class="view-btn active" data-view="dayGridMonth">
+                                <i class="fas fa-calendar"></i> {% trans "Mois" %}
+                            </button>
+                            <button class="view-btn" data-view="timeGridWeek">
+                                <i class="fas fa-calendar-week"></i> {% trans "Semaine" %}
+                            </button>
+                            <button class="view-btn" data-view="timeGridDay">
+                                <i class="fas fa-calendar-day"></i> {% trans "Jour" %}
+                            </button>
+                            <button class="view-btn" data-view="listWeek">
+                                <i class="fas fa-list"></i> {% trans "Liste" %}
+                            </button>
+                        </div>
+                        
+                        <div>
+                            <button class="btn btn-outline-primary btn-sm" onclick="refreshCalendar()">
+                                <i class="fas fa-sync-alt"></i> {% trans "Actualiser" %}
+                            </button>
+                            <button class="btn btn-primary btn-sm" onclick="showCreateEventModal()">
+                                <i class="fas fa-plus"></i> {% trans "Nouvel événement" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Calendrier principal -->
+                <div id="family-calendar" style="padding: 20px;"></div>
+                
+                <!-- Légende -->
+                <div class="event-legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FF6B6B;"></div>
+                        <span><i class="fas fa-home"></i> {% trans "Événements familiaux" %}</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #4ECDC4;"></div>
+                        <span><i class="fas fa-trophy"></i> {% trans "Compétitions" %}</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #95E1D3;"></div>
+                        <span><i class="fas fa-building"></i> {% trans "Événements d'organisation" %}</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FFE66D;"></div>
+                        <span><i class="fas fa-dumbbell"></i> {% trans "Entraînements" %}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Événements à venir -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="upcoming-events">
+                <h5><i class="fas fa-clock"></i> {% trans "Événements à venir" %} (7 jours)</h5>
+                <div id="upcoming-events-list">
+                    <!-- Chargé dynamiquement -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="upcoming-events">
+                <h5><i class="fas fa-chart-line"></i> {% trans "Statistiques" %}</h5>
+                <div class="row text-center">
+                    <div class="col-3">
+                        <div class="stat-card">
+                            <div class="stat-number text-primary" id="total-events">-</div>
+                            <small>{% trans "Total" %}</small>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="stat-card">
+                            <div class="stat-number text-success" id="family-events">-</div>
+                            <small>{% trans "Familiaux" %}</small>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="stat-card">
+                            <div class="stat-number text-info" id="competitions">-</div>
+                            <small>{% trans "Compétitions" %}</small>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="stat-card">
+                            <div class="stat-number text-warning" id="trainings">-</div>
+                            <small>{% trans "Entraînements" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Actions rapides -->
+<div class="quick-actions">
+    <button class="quick-action-btn" onclick="showCreateEventModal()" title="{% trans 'Créer un événement' %}">
+        <i class="fas fa-plus"></i>
+    </button>
+    <button class="quick-action-btn" onclick="goToToday()" title="{% trans 'Aller à aujourd\'hui' %}" style="background: #4ECDC4;">
+        <i class="fas fa-calendar-day"></i>
+    </button>
+</div>
+
+<!-- Modal de création d'événement -->
+<div class="modal fade event-modal" id="createEventModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus"></i> {% trans "Créer un événement familial" %}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createEventForm">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label class="form-label">{% trans "Titre de l'événement" %}</label>
+                                <input type="text" class="form-control" name="title" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">{% trans "Privé" %}</label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="is_private" checked>
+                                    <label class="form-check-label">{% trans "Événement privé" %}</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Description" %}</label>
+                        <textarea class="form-control" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">{% trans "Date de début" %}</label>
+                                <input type="datetime-local" class="form-control" name="start_date" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">{% trans "Date de fin" %} ({% trans "optionnel" %})</label>
+                                <input type="datetime-local" class="form-control" name="end_date">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Lieu" %}</label>
+                        <input type="text" class="form-control" name="location">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">{% trans "Membres concernés" %}</label>
+                        <div class="row">
+                            {% for member in family.get_active_members %}
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="concerned_members" value="{{ member.id }}" checked>
+                                    <label class="form-check-label">{{ member.user.get_full_name }}</label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-primary" onclick="createEvent()">
+                    <i class="fas fa-save"></i> {% trans "Créer l'événement" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de détails d'événement -->
+<div class="modal fade event-modal" id="eventDetailsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventDetailsTitle"></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="eventDetailsBody">
+                <!-- Contenu chargé dynamiquement -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Fermer" %}</button>
+                <button type="button" class="btn btn-danger" id="deleteEventBtn" style="display: none;">
+                    <i class="fas fa-trash"></i> {% trans "Supprimer" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.0/index.global.min.js"></script>
+<script>
+let calendar;
+let currentMemberFilter = 'all';
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCalendar();
+    setupFilterChips();
+    setupViewButtons();
+    loadUpcomingEvents();
+});
+
+function initializeCalendar() {
+    const calendarEl = document.getElementById('family-calendar');
+    
+    calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'fr',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: ''
+        },
+        height: 'auto',
+        events: function(fetchInfo, successCallback, failureCallback) {
+            loadCalendarEvents(fetchInfo.startStr, fetchInfo.endStr, successCallback, failureCallback);
+        },
+        eventClick: function(info) {
+            showEventDetails(info.event);
+        },
+        selectable: true,
+        selectMirror: true,
+        select: function(info) {
+            showCreateEventModal(info.startStr);
+        },
+        eventClassNames: function(arg) {
+            return 'fc-event-' + arg.event.extendedProps.type.replace('_', '-');
+        }
+    });
+    
+    calendar.render();
+}
+
+function loadCalendarEvents(start, end, successCallback, failureCallback) {
+    const url = `{% url 'family_management:family_calendar_api' family.id %}`;
+    const params = new URLSearchParams({
+        start: start,
+        end: end,
+        members: currentMemberFilter
+    });
+    
+    fetch(`${url}?${params}`)
+        .then(response => response.json())
+        .then(data => {
+            const events = data.events.map(event => ({
+                id: event.id,
+                title: event.title,
+                start: event.start_date + (event.start_time ? 'T' + event.start_time : ''),
+                end: event.end_date ? (event.end_date + (event.end_time ? 'T' + event.end_time : '')) : null,
+                allDay: !event.start_time,
+                extendedProps: {
+                    description: event.description,
+                    location: event.location,
+                    type: event.type,
+                    can_edit: event.can_edit,
+                    concerned_members: event.concerned_members || [],
+                    participating_members: event.participating_members || []
+                }
+            }));
+            
+            updateStatistics(data.events);
+            successCallback(events);
+        })
+        .catch(error => {
+            console.error('Erreur chargement calendrier:', error);
+            failureCallback(error);
+        });
+}
+
+function setupFilterChips() {
+    document.querySelectorAll('.member-filter-chip').forEach(chip => {
+        chip.addEventListener('click', function() {
+            // Retirer la classe active de tous les chips
+            document.querySelectorAll('.member-filter-chip').forEach(c => c.classList.remove('active'));
+            
+            // Ajouter la classe active au chip cliqué
+            this.classList.add('active');
+            
+            // Mettre à jour le filtre
+            currentMemberFilter = this.dataset.member;
+            
+            // Recharger le calendrier
+            calendar.refetchEvents();
+            loadUpcomingEvents();
+        });
+    });
+}
+
+function setupViewButtons() {
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            calendar.changeView(this.dataset.view);
+        });
+    });
+}
+
+function loadUpcomingEvents() {
+    const url = `{% url 'family_management:family_calendar_api' family.id %}`;
+    const today = new Date().toISOString().split('T')[0];
+    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const params = new URLSearchParams({
+        start: today,
+        end: nextWeek,
+        members: currentMemberFilter
+    });
+    
+    fetch(`${url}?${params}`)
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('upcoming-events-list');
+            container.innerHTML = '';
+            
+            if (data.events.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center">{% trans "Aucun événement prévu dans les 7 prochains jours" %}</p>';
+                return;
+            }
+            
+            data.events.forEach(event => {
+                const eventDate = new Date(event.start_date);
+                const daysUntil = Math.ceil((eventDate - new Date()) / (1000 * 60 * 60 * 24));
+                
+                const eventEl = document.createElement('div');
+                eventEl.className = 'upcoming-event-item';
+                eventEl.innerHTML = `
+                    <div class="event-icon">
+                        ${getEventIcon(event.type)}
+                    </div>
+                    <div class="event-details flex-grow-1">
+                        <h6>${event.title}</h6>
+                        <small>
+                            ${formatEventDate(event.start_date, event.start_time)}
+                            ${event.location ? '• ' + event.location : ''}
+                            ${daysUntil === 0 ? '• <strong>Aujourd\'hui !</strong>' : 
+                              daysUntil === 1 ? '• Demain' : 
+                              '• Dans ' + daysUntil + ' jours'}
+                        </small>
+                    </div>
+                `;
+                
+                eventEl.addEventListener('click', () => showEventDetails(event));
+                container.appendChild(eventEl);
+            });
+        })
+        .catch(error => {
+            console.error('Erreur chargement événements:', error);
+        });
+}
+
+function updateStatistics(events) {
+    const stats = {
+        total: events.length,
+        family: events.filter(e => e.type === 'family_event').length,
+        competitions: events.filter(e => e.type === 'competition').length,
+        trainings: events.filter(e => e.type.includes('training')).length
+    };
+    
+    document.getElementById('total-events').textContent = stats.total;
+    document.getElementById('family-events').textContent = stats.family;
+    document.getElementById('competitions').textContent = stats.competitions;
+    document.getElementById('trainings').textContent = stats.trainings;
+}
+
+function getEventIcon(type) {
+    const icons = {
+        'family_event': '<i class="fas fa-home text-danger"></i>',
+        'competition': '<i class="fas fa-trophy text-info"></i>',
+        'org_training': '<i class="fas fa-dumbbell text-warning"></i>',
+        'org_meeting': '<i class="fas fa-users text-secondary"></i>',
+        'default': '<i class="fas fa-calendar text-primary"></i>'
+    };
+    
+    return icons[type] || icons.default;
+}
+
+function formatEventDate(date, time) {
+    const eventDate = new Date(date);
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    let formatted = eventDate.toLocaleDateString('fr-FR', options);
+    
+    if (time) {
+        formatted += ' à ' + time;
+    }
+    
+    return formatted;
+}
+
+function showCreateEventModal(selectedDate = null) {
+    const modal = new bootstrap.Modal(document.getElementById('createEventModal'));
+    
+    if (selectedDate) {
+        const dateInput = document.querySelector('input[name="start_date"]');
+        dateInput.value = selectedDate;
+    }
+    
+    modal.show();
+}
+
+function createEvent() {
+    const form = document.getElementById('createEventForm');
+    const formData = new FormData(form);
+    
+    // Ajouter l'ID de la famille
+    formData.append('family_id', '{{ family.id }}');
+    
+    fetch(`{% url 'family_management:create_family_event' family.id %}`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('createEventModal')).hide();
+            form.reset();
+            calendar.refetchEvents();
+            loadUpcomingEvents();
+            
+            // Notification de succès
+            showNotification('Événement créé avec succès !', 'success');
+        } else {
+            showNotification('Erreur lors de la création : ' + (data.error || 'Erreur inconnue'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Erreur création événement:', error);
+        showNotification('Erreur de connexion', 'error');
+    });
+}
+
+function showEventDetails(event) {
+    const modal = new bootstrap.Modal(document.getElementById('eventDetailsModal'));
+    const titleEl = document.getElementById('eventDetailsTitle');
+    const bodyEl = document.getElementById('eventDetailsBody');
+    const deleteBtn = document.getElementById('deleteEventBtn');
+    
+    titleEl.innerHTML = `${getEventIcon(event.extendedProps.type)} ${event.title}`;
+    
+    let detailsHtml = `
+        <div class="event-detail-item">
+            <strong><i class="fas fa-calendar"></i> Date :</strong>
+            ${formatEventDate(event.startStr.split('T')[0], event.startStr.split('T')[1])}
+        </div>
+    `;
+    
+    if (event.extendedProps.description) {
+        detailsHtml += `
+            <div class="event-detail-item">
+                <strong><i class="fas fa-info-circle"></i> Description :</strong>
+                <p>${event.extendedProps.description}</p>
+            </div>
+        `;
+    }
+    
+    if (event.extendedProps.location) {
+        detailsHtml += `
+            <div class="event-detail-item">
+                <strong><i class="fas fa-map-marker-alt"></i> Lieu :</strong>
+                ${event.extendedProps.location}
+            </div>
+        `;
+    }
+    
+    if (event.extendedProps.concerned_members && event.extendedProps.concerned_members.length > 0) {
+        detailsHtml += `
+            <div class="event-detail-item">
+                <strong><i class="fas fa-users"></i> Membres concernés :</strong>
+                <ul class="mb-0">
+                    ${event.extendedProps.concerned_members.map(member => `<li>${member}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    
+    bodyEl.innerHTML = detailsHtml;
+    
+    // Afficher le bouton supprimer si éditable
+    if (event.extendedProps.can_edit) {
+        deleteBtn.style.display = 'inline-block';
+        deleteBtn.onclick = () => deleteEvent(event.id);
+    } else {
+        deleteBtn.style.display = 'none';
+    }
+    
+    modal.show();
+}
+
+function deleteEvent(eventId) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet événement ?')) {
+        return;
+    }
+    
+    fetch(`{% url 'family_management:create_family_event' family.id %}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ event_id: eventId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('eventDetailsModal')).hide();
+            calendar.refetchEvents();
+            loadUpcomingEvents();
+            showNotification('Événement supprimé', 'success');
+        } else {
+            showNotification('Erreur lors de la suppression', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Erreur suppression événement:', error);
+        showNotification('Erreur de connexion', 'error');
+    });
+}
+
+function refreshCalendar() {
+    calendar.refetchEvents();
+    loadUpcomingEvents();
+    showNotification('Calendrier actualisé', 'info');
+}
+
+function goToToday() {
+    calendar.today();
+}
+
+function showNotification(message, type = 'info') {
+    // Implémentation simple de notification
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'error' ? 'alert-danger' : 'alert-info';
+    
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Supprimer après 5 secondes
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

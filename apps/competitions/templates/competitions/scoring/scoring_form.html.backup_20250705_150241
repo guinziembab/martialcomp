@@ -1,0 +1,777 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Notation" %} - {{ performance.practitioner.full_name }} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .scoring-form {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+  }
+  
+  .criterion-card {
+    border-left: 4px solid #dc3545;
+    margin-bottom: 15px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+  }
+  
+  .criterion-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .criterion-name {
+    font-weight: bold;
+    color: #212529;
+    font-size: 1.1rem;
+  }
+  
+  .criterion-description {
+    color: #6c757d;
+    margin-bottom: 10px;
+  }
+  
+  .score-slider {
+    margin-top: 10px;
+  }
+  
+  .score-feedback {
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+    height: 30px;
+    margin-top: 5px;
+  }
+  
+  .score-range {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #6c757d;
+  }
+  
+  .score-input-group {
+    display: flex;
+    align-items: center;
+  }
+  
+  .score-input {
+    width: 80px;
+    text-align: center;
+    margin-left: 10px;
+    cursor: pointer;
+  }
+  
+  .timer-container {
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    padding: 10px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  
+  .timer {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #dc3545;
+  }
+  
+  .timer-controls {
+    margin-top: 10px;
+  }
+  
+  .performance-info {
+    background-color: #e9ecef;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 20px;
+  }
+  
+  .score-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  
+  .score-button {
+    width: 50px;
+    margin: 0 5px 5px 0;
+  }
+  
+  .submit-section {
+    margin-top: 30px;
+    border-top: 1px solid #dee2e6;
+    padding-top: 20px;
+  }
+  
+  /* Pavé numérique */
+  .numeric-keypad {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: #fff;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1050;
+    border-radius: 12px 12px 0 0;
+    padding: 15px;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .numeric-keypad.active {
+    transform: translateY(0);
+  }
+  
+  .keypad-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1040;
+    display: none;
+  }
+  
+  .keypad-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 10px;
+  }
+  
+  .keypad-title {
+    font-weight: 600;
+    margin: 0;
+  }
+  
+  .keypad-display {
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    padding: 10px;
+    text-align: center;
+    margin-bottom: 15px;
+    font-size: 1.5rem;
+    font-weight: bold;
+  }
+  
+  .keypad-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  
+  .keypad-button {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 15px 0;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .keypad-button:hover, .keypad-button:active {
+    background-color: #e9ecef;
+  }
+  
+  .keypad-button.value-5 {
+    background-color: #e9ecef;
+  }
+  
+  .keypad-button.value-0 {
+    background-color: #e9ecef;
+  }
+  
+  .keypad-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  
+  .keypad-action {
+    padding: 12px 0;
+    font-size: 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  .criterion-active {
+    border-left-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.05);
+  }
+
+  /* Ajustements pour mobile */
+  @media (max-width: 768px) {
+    .criterion-card {
+      padding: 10px;
+    }
+    
+    .score-input {
+      width: 60px;
+    }
+    
+    .timer {
+      font-size: 1.8rem;
+    }
+    
+    .score-buttons {
+      display: none; /* Cacher les boutons sur mobile car on utilise le pavé numérique */
+    }
+    
+    .keypad-button {
+      padding: 20px 0; /* Boutons plus grands sur mobile */
+    }
+  }
+  
+  /* Animation de pulsation pour le feedback lors de la mise à jour */
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+  
+  .pulse {
+    animation: pulse 0.3s ease-in-out;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row">
+    <div class="col-md-8 offset-md-2">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">{% trans "Notation technique" %}</h1>
+        <a href="{% url 'competitions:management:judge_scoring_interface' competition_id=competition.id category_id=category.id judge_id=judge.id %}" class="btn btn-outline-secondary">
+          <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+        </a>
+      </div>
+      
+      <!-- Performance Info -->
+      <div class="performance-info mb-4">
+        <div class="row">
+          <div class="col-md-6">
+            <h5>{% trans "Participant" %}</h5>
+            <p class="mb-1"><strong>{{ performance.practitioner.full_name }}</strong></p>
+            <p class="mb-1">{{ performance.practitioner.club.name|default:"-" }}</p>
+            <p class="mb-0">{{ performance.practitioner.grade|default:"-" }}</p>
+          </div>
+          <div class="col-md-6">
+            <h5>{% trans "Catégorie" %}</h5>
+            <p class="mb-1"><strong>{{ category.name }}</strong></p>
+            <p class="mb-0">{% trans "Ordre de passage" %}: {{ performance.performance_order }}</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Timer -->
+      <div class="timer-container">
+        <div class="timer" id="timer">00:00</div>
+        <div class="timer-controls">
+          <button id="startTimer" class="btn btn-sm btn-success me-2">
+            <i class="fas fa-play me-1"></i>{% trans "Démarrer" %}
+          </button>
+          <button id="stopTimer" class="btn btn-sm btn-danger me-2" disabled>
+            <i class="fas fa-stop me-1"></i>{% trans "Arrêter" %}
+          </button>
+          <button id="resetTimer" class="btn btn-sm btn-secondary">
+            <i class="fas fa-redo me-1"></i>{% trans "Réinitialiser" %}
+          </button>
+        </div>
+      </div>
+      
+      <!-- Scoring Form -->
+      <div class="scoring-form">
+        <form method="post" action="{% url 'competitions:management:save_judge_scores' competition_id=competition.id category_id=category.id judge_id=judge.id performance_id=performance.id %}" id="scoringForm">
+          {% csrf_token %}
+          
+          {% for criterion in criteria %}
+          <div class="criterion-card" data-criterion-id="{{ criterion.id }}">
+            <div class="criterion-header d-flex justify-content-between align-items-center">
+              <div>
+                <div class="criterion-name">{{ criterion.name }}</div>
+                <div class="criterion-description">{{ criterion.description }}</div>
+              </div>
+              <div class="badge bg-primary">{% trans "Poids" %}: {{ criterion.weight }}</div>
+            </div>
+            
+            <div class="score-input-group">
+              <div class="score-slider flex-grow-1">
+                <input 
+                  type="range" 
+                  class="form-range" 
+                  min="{{ criterion.min_score }}" 
+                  max="{{ criterion.max_score }}" 
+                  step="{{ criterion.step }}" 
+                  id="slider_{{ criterion.id }}" 
+                  data-criterion-id="{{ criterion.id }}"
+                  {% if scores and criterion.id in scores %}value="{{ scores|get_item:criterion.id }}"{% endif %}
+                >
+                <div class="score-range">
+                  <span>{{ criterion.min_score }}</span>
+                  <span>{{ criterion.max_score }}</span>
+                </div>
+              </div>
+              <input 
+                type="number" 
+                class="form-control score-input" 
+                id="score_{{ criterion.id }}" 
+                name="score_{{ criterion.id }}" 
+                min="{{ criterion.min_score }}" 
+                max="{{ criterion.max_score }}" 
+                step="{{ criterion.step }}" 
+                {% if scores and criterion.id in scores %}value="{{ scores|get_item:criterion.id }}"{% endif %}
+                required 
+                readonly
+              >
+            </div>
+            
+            <div class="score-feedback" id="feedback_{{ criterion.id }}">
+              {% if scores and criterion.id in scores %}{{ scores|get_item:criterion.id }}{% endif %}
+            </div>
+            
+            <div class="score-buttons">
+              {% with min_score=criterion.min_score|floatformat:"0"|add:"0" %}
+              {% with max_score=criterion.max_score|floatformat:"0"|add:"0" %}
+              {% with step=criterion.step %}
+              {% with range=max_score|add:1|subtract:min_score %}
+              {% with num_buttons=range|divide:step|floatformat:"0" %}
+              {% for i in num_buttons|get_range %}
+                {% with score_value=min_score|add:i|multiply:step %}
+                <button type="button" class="btn btn-outline-secondary score-button" data-criterion-id="{{ criterion.id }}" data-score="{{ score_value }}">
+                  {{ score_value }}
+                </button>
+                {% endwith %}
+              {% endfor %}
+              {% endwith %}
+              {% endwith %}
+              {% endwith %}
+              {% endwith %}
+              {% endwith %}
+            </div>
+          </div>
+          {% endfor %}
+          
+          <div class="submit-section">
+            <div class="d-flex justify-content-between">
+              <button type="button" class="btn btn-outline-secondary" id="resetForm">
+                <i class="fas fa-undo me-2"></i>{% trans "Réinitialiser" %}
+              </button>
+              <button type="submit" class="btn btn-danger" id="submitScores">
+                <i class="fas fa-save me-2"></i>{% trans "Enregistrer les notes" %}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Pavé numérique pour mobile -->
+<div class="keypad-overlay" id="keypadOverlay"></div>
+<div class="numeric-keypad" id="numericKeypad">
+  <div class="keypad-header">
+    <h5 class="keypad-title" id="keypadTitle">{% trans "Notation" %}</h5>
+    <button type="button" class="btn-close" id="closeKeypad" aria-label="Close"></button>
+  </div>
+  
+  <div class="keypad-display" id="keypadDisplay">0.00</div>
+  
+  <div class="keypad-controls">
+    <div class="d-flex justify-content-between mb-3">
+      <button type="button" class="btn btn-outline-secondary keypad-action-button" id="decrementScore">
+        <i class="fas fa-minus"></i>
+      </button>
+      <span class="align-self-center">{% trans "Pas: 0.25" %}</span>
+      <button type="button" class="btn btn-outline-secondary keypad-action-button" id="incrementScore">
+        <i class="fas fa-plus"></i>
+      </button>
+    </div>
+  </div>
+  
+  <div class="keypad-grid">
+    <button type="button" class="keypad-button" data-value="1">1</button>
+    <button type="button" class="keypad-button" data-value="2">2</button>
+    <button type="button" class="keypad-button" data-value="3">3</button>
+    <button type="button" class="keypad-button" data-value="4">4</button>
+    <button type="button" class="keypad-button" data-value="5">5</button>
+    <button type="button" class="keypad-button" data-value="6">6</button>
+    <button type="button" class="keypad-button" data-value="7">7</button>
+    <button type="button" class="keypad-button" data-value="8">8</button>
+    <button type="button" class="keypad-button" data-value="9">9</button>
+    <button type="button" class="keypad-button value-0" data-value="0">0</button>
+    <button type="button" class="keypad-button value-5" data-value="5">5</button>
+    <button type="button" class="keypad-button" data-value="reset">
+      <i class="fas fa-redo"></i>
+    </button>
+  </div>
+  
+  <div class="keypad-actions">
+    <button type="button" class="btn btn-secondary keypad-action" id="cancelKeypad">
+      {% trans "Annuler" %}
+    </button>
+    <button type="button" class="btn btn-success keypad-action" id="confirmKeypad">
+      {% trans "Valider" %}
+    </button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Variables globales
+    let activeInputId = null;
+    let activeCriterionId = null;
+    let originalValue = null;
+    let criterionLimits = {};
+    
+    // Récupérer les limites et pas pour chaque critère
+    {% for criterion in criteria %}
+    criterionLimits[{{ criterion.id }}] = {
+      min: {{ criterion.min_score }},
+      max: {{ criterion.max_score }},
+      step: {{ criterion.step }}
+    };
+    {% endfor %}
+    
+    // Timer functionality
+    let timerInterval;
+    let seconds = 0;
+    const timerElement = document.getElementById('timer');
+    const startButton = document.getElementById('startTimer');
+    const stopButton = document.getElementById('stopTimer');
+    const resetButton = document.getElementById('resetTimer');
+    
+    function updateTimer() {
+      seconds++;
+      const minutes = Math.floor(seconds / 60);
+      const remainderSeconds = seconds % 60;
+      timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${remainderSeconds.toString().padStart(2, '0')}`;
+    }
+    
+    startButton.addEventListener('click', function() {
+      timerInterval = setInterval(updateTimer, 1000);
+      startButton.disabled = true;
+      stopButton.disabled = false;
+      
+      // Also start the performance via AJAX if applicable
+      const performanceId = '{{ performance.id }}';
+      if (performanceId) {
+        fetch('{% url "competitions:management:start_performance" competition_id=competition.id performance_id=performance.id %}', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
+      }
+    });
+    
+    stopButton.addEventListener('click', function() {
+      clearInterval(timerInterval);
+      startButton.disabled = false;
+      stopButton.disabled = true;
+      
+      // Also end the performance via AJAX if applicable
+      const performanceId = '{{ performance.id }}';
+      if (performanceId) {
+        fetch('{% url "competitions:management:end_performance" competition_id=competition.id performance_id=performance.id %}', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
+      }
+    });
+    
+    resetButton.addEventListener('click', function() {
+      clearInterval(timerInterval);
+      seconds = 0;
+      timerElement.textContent = '00:00';
+      startButton.disabled = false;
+      stopButton.disabled = true;
+    });
+    
+    // Pavé numérique
+    const numericKeypad = document.getElementById('numericKeypad');
+    const keypadOverlay = document.getElementById('keypadOverlay');
+    const keypadDisplay = document.getElementById('keypadDisplay');
+    const keypadTitle = document.getElementById('keypadTitle');
+    const keypadButtons = document.querySelectorAll('.keypad-button');
+    const decrementScoreButton = document.getElementById('decrementScore');
+    const incrementScoreButton = document.getElementById('incrementScore');
+    const cancelKeypadButton = document.getElementById('cancelKeypad');
+    const confirmKeypadButton = document.getElementById('confirmKeypad');
+    const closeKeypadButton = document.getElementById('closeKeypad');
+    
+    // Gérer l'ouverture du pavé numérique
+    function openNumericKeypad(inputId, criterionId, criterionName) {
+      activeInputId = inputId;
+      activeCriterionId = criterionId;
+      
+      const input = document.getElementById(inputId);
+      originalValue = input.value || "0";
+      keypadDisplay.textContent = originalValue;
+      keypadTitle.textContent = criterionName;
+      
+      // Marquer le critère comme actif
+      document.querySelectorAll('.criterion-card').forEach(card => {
+        card.classList.remove('criterion-active');
+      });
+      
+      const criterionCard = document.querySelector(`.criterion-card[data-criterion-id="${criterionId}"]`);
+      if (criterionCard) {
+        criterionCard.classList.add('criterion-active');
+      }
+      
+      // Afficher le pavé numérique
+      numericKeypad.classList.add('active');
+      keypadOverlay.style.display = 'block';
+    }
+    
+    // Gérer la fermeture du pavé numérique
+    function closeNumericKeypad(save = false) {
+      if (save && activeInputId && activeCriterionId) {
+        // Mettre à jour la valeur du champ
+        const value = keypadDisplay.textContent;
+        updateInputValue(activeInputId, activeCriterionId, value);
+      }
+      
+      numericKeypad.classList.remove('active');
+      keypadOverlay.style.display = 'none';
+      activeInputId = null;
+      activeCriterionId = null;
+      
+      // Retirer les marqueurs de critère actif
+      document.querySelectorAll('.criterion-card').forEach(card => {
+        card.classList.remove('criterion-active');
+      });
+    }
+    
+    // Mettre à jour la valeur du champ
+    function updateInputValue(inputId, criterionId, value) {
+      const input = document.getElementById(inputId);
+      const slider = document.getElementById(`slider_${criterionId}`);
+      const feedback = document.getElementById(`feedback_${criterionId}`);
+      
+      // S'assurer que la valeur est valide pour ce critère
+      const limits = criterionLimits[criterionId];
+      
+      // Convertir en nombre
+      let numValue = parseFloat(value);
+      
+      // Vérifier les limites
+      if (numValue < limits.min) numValue = limits.min;
+      if (numValue > limits.max) numValue = limits.max;
+      
+      // Arrondir au pas le plus proche
+      const step = limits.step;
+      const stepDecimalPlaces = (step.toString().split('.')[1] || '').length;
+      numValue = Math.round(numValue / step) * step;
+      
+      // Formater correctement
+      const formattedValue = numValue.toFixed(stepDecimalPlaces);
+      
+      // Mettre à jour les éléments
+      input.value = formattedValue;
+      slider.value = formattedValue;
+      feedback.textContent = formattedValue;
+      
+      // Ajouter animation de pulsation pour le feedback
+      feedback.classList.add('pulse');
+      setTimeout(() => {
+        feedback.classList.remove('pulse');
+      }, 300);
+    }
+    
+    // Gérer les clics sur les boutons du pavé numérique
+    keypadButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        const value = this.dataset.value;
+        
+        if (!activeCriterionId) return;
+        
+        const limits = criterionLimits[activeCriterionId];
+        let currentValue = keypadDisplay.textContent;
+        
+        if (value === 'reset') {
+          // Réinitialiser
+          keypadDisplay.textContent = '0';
+          return;
+        }
+        
+        // Gestion spéciale pour l'initialisation ou les valeurs entières
+        if (currentValue === '0' || !currentValue.includes('.')) {
+          if (currentValue === '0' && value !== '0') {
+            keypadDisplay.textContent = value + '.00';
+          } else if (currentValue !== '0') {
+            keypadDisplay.textContent = currentValue + '.00';
+          }
+        } 
+        // Si on a déjà un 0 après le point (ex: 7.0)
+        else if (currentValue.endsWith('.0')) {
+          if (value === '0') {
+            keypadDisplay.textContent = currentValue + '0'; // Ex: 7.00
+          } else if (value === '5') {
+            keypadDisplay.textContent = currentValue + '5'; // Ex: 7.05
+          }
+        }
+        // Si on a déjà un 5 après le point (ex: 7.5)
+        else if (currentValue.endsWith('.5')) {
+          if (value === '0') {
+            keypadDisplay.textContent = currentValue + '0'; // Ex: 7.50
+          } else if (value === '5') {
+            keypadDisplay.textContent = currentValue.substring(0, currentValue.length - 1) + '75'; // Ex: 7.75
+          }
+        }
+        // Si on a déjà un 2 après le point (ex: 7.2)
+        else if (currentValue.endsWith('.2')) {
+          if (value === '5') {
+            keypadDisplay.textContent = currentValue + '5'; // Ex: 7.25
+          }
+        }
+        // Si on a déjà un 7 après le point (ex: 7.7)
+        else if (currentValue.endsWith('.7')) {
+          if (value === '5') {
+            keypadDisplay.textContent = currentValue + '5'; // Ex: 7.75
+          }
+        }
+      });
+    });
+    
+    // Gérer l'incrémentation/décrémentation des scores
+    decrementScoreButton.addEventListener('click', function() {
+      if (!activeCriterionId) return;
+      
+      const limits = criterionLimits[activeCriterionId];
+      let currentValue = parseFloat(keypadDisplay.textContent);
+      let newValue = currentValue - limits.step;
+      
+      // S'assurer que la nouvelle valeur est dans les limites
+      if (newValue < limits.min) newValue = limits.min;
+      
+      // Formater correctement
+      const stepDecimalPlaces = (limits.step.toString().split('.')[1] || '').length;
+      keypadDisplay.textContent = newValue.toFixed(stepDecimalPlaces);
+    });
+    
+    incrementScoreButton.addEventListener('click', function() {
+      if (!activeCriterionId) return;
+      
+      const limits = criterionLimits[activeCriterionId];
+      let currentValue = parseFloat(keypadDisplay.textContent);
+      let newValue = currentValue + limits.step;
+      
+      // S'assurer que la nouvelle valeur est dans les limites
+      if (newValue > limits.max) newValue = limits.max;
+      
+      // Formater correctement
+      const stepDecimalPlaces = (limits.step.toString().split('.')[1] || '').length;
+      keypadDisplay.textContent = newValue.toFixed(stepDecimalPlaces);
+    });
+    
+    // Gérer les boutons d'action du pavé numérique
+    cancelKeypadButton.addEventListener('click', function() {
+      closeNumericKeypad(false);
+    });
+    
+    confirmKeypadButton.addEventListener('click', function() {
+      closeNumericKeypad(true);
+    });
+    
+    closeKeypadButton.addEventListener('click', function() {
+      closeNumericKeypad(false);
+    });
+    
+    keypadOverlay.addEventListener('click', function() {
+      closeNumericKeypad(false);
+    });
+    
+    // Attacher les événements aux champs de saisie
+    const scoreInputs = document.querySelectorAll('.score-input');
+    
+    scoreInputs.forEach(input => {
+      input.addEventListener('click', function() {
+        const criterionId = this.id.split('_')[1];
+        const criterionName = document.querySelector(`.criterion-card[data-criterion-id="${criterionId}"] .criterion-name`).textContent;
+        openNumericKeypad(this.id, criterionId, criterionName);
+      });
+    });
+    
+    // Sync sliders with input fields - updated to work with the keypad
+    const sliders = document.querySelectorAll('.form-range');
+    sliders.forEach(slider => {
+      slider.addEventListener('input', function() {
+        const criterionId = this.dataset.criterionId;
+        const input = document.getElementById(`score_${criterionId}`);
+        const feedback = document.getElementById(`feedback_${criterionId}`);
+        
+        input.value = this.value;
+        feedback.textContent = this.value;
+        feedback.classList.add('pulse');
+        setTimeout(() => {
+          feedback.classList.remove('pulse');
+        }, 300);
+      });
+    });
+    
+    // Quick score buttons (desktop only)
+    const scoreButtons = document.querySelectorAll('.score-button');
+    scoreButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        const criterionId = this.dataset.criterionId;
+        const score = this.dataset.score;
+        const input = document.getElementById(`score_${criterionId}`);
+        const slider = document.getElementById(`slider_${criterionId}`);
+        const feedback = document.getElementById(`feedback_${criterionId}`);
+        
+        input.value = score;
+        slider.value = score;
+        feedback.textContent = score;
+        feedback.classList.add('pulse');
+        setTimeout(() => {
+          feedback.classList.remove('pulse');
+        }, 300);
+      });
+    });
+    
+    // Reset form
+    const resetFormButton = document.getElementById('resetForm');
+    resetFormButton.addEventListener('click', function() {
+      if (confirm('{% trans "Êtes-vous sûr de vouloir réinitialiser toutes les notes ?" %}')) {
+        sliders.forEach(slider => {
+          slider.value = '';
+          const criterionId = slider.dataset.criterionId;
+          document.getElementById(`score_${criterionId}`).value = '';
+          document.getElementById(`feedback_${criterionId}`).textContent = '';
+        });
+      }
+    });
+    
+    // Form submission validation
+    const scoringForm = document.getElementById('scoringForm');
+    scoringForm.addEventListener('submit', function(event) {
+      const allScoresEntered = Array.from(scoreInputs).every(input => input.value.trim() !== '');
+      
+      if (!allScoresEntered) {
+        event.preventDefault();
+        alert('{% trans "Veuillez attribuer une note à tous les critères avant de soumettre." %}');
+      }
+    });
+  });
+</script>
+{% endblock %}

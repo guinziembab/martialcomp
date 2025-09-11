@@ -1,6 +1,8 @@
+from django.core.exceptions import PermissionDenied
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from .models import RefreshToken, AccessTokenLog, DeviceRegistration, PKCESession
+from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
 
 
 @admin.register(RefreshToken)

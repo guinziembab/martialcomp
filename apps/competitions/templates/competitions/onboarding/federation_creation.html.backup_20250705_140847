@@ -1,0 +1,1340 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load competition_tags %} 
+
+{% block title %}{% trans "Création de fédération" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary: #dc3545;
+        --secondary: #212529;
+        --accent: #ffc107;
+        --light-gray: #f8f9fa;
+        --medium-gray: #e9ecef;
+        --dark-gray: #6c757d;
+    }
+    
+    .onboarding-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+    
+    .onboarding-header {
+        text-align: center;
+        margin-bottom: 2.5rem;
+    }
+    
+    .onboarding-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    
+    .onboarding-subtitle {
+        font-size: 1.1rem;
+        max-width: 600px;
+        margin: 0 auto;
+        color: var(--dark-gray);
+    }
+    
+    .progress-container {
+        margin-bottom: 2rem;
+    }
+    
+    .progress-wrapper {
+        background-color: var(--medium-gray);
+        height: 8px;
+        border-radius: 4px;
+        margin: 0.5rem 0 1rem;
+        overflow: hidden;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        background-color: var(--primary);
+        border-radius: 4px;
+        transition: width 0.5s ease-in-out;
+    }
+    
+    .progress-steps {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+    
+    .step {
+        font-size: 0.9rem;
+        color: var(--dark-gray);
+        position: relative;
+    }
+    
+    .step.active {
+        color: var(--primary);
+        font-weight: 600;
+    }
+    
+    .step.completed {
+        color: #28a745;
+    }
+    
+    .onboarding-card {
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        transition: all 0.3s ease;
+        animation: fadeIn 0.5s ease-out forwards;
+    }
+    
+    .form-section {
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid var(--medium-gray);
+    }
+    
+    .form-section:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+    
+    .section-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 1.2rem;
+        display: flex;
+        align-items: center;
+        color: var(--primary);
+    }
+    
+    .section-title i {
+        margin-right: 0.5rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+    
+    .required::after {
+        content: " *";
+        color: var(--primary);
+    }
+    
+    .form-control {
+        display: block;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        transition: all 0.2s ease;
+    }
+    
+    .form-control:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+        outline: none;
+    }
+    
+    .preview-container {
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    
+    .logo-preview {
+        max-width: 150px;
+        max-height: 150px;
+        border-radius: 0.25rem;
+        background-color: white;
+        padding: 0.5rem;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        display: none;
+    }
+    
+    .custom-file-input:lang(fr) ~ .custom-file-label::after {
+        content: "Parcourir";
+    }
+    
+    .actions-container {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 2rem;
+    }
+    
+    .disciplines-container {
+        background-color: var(--light-gray);
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1.5rem;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .discipline-item {
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        padding: 0.5rem;
+        transition: background-color 0.2s;
+        border-radius: 0.25rem;
+    }
+    
+    .discipline-item:hover {
+        background-color: rgba(220, 53, 69, 0.1);
+    }
+    
+    .discipline-item input[type="checkbox"] {
+        margin-right: 0.75rem;
+    }
+    
+    .discipline-icon {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--primary);
+        color: white;
+        border-radius: 50%;
+        margin-right: 0.75rem;
+        font-size: 1.2rem;
+    }
+    
+    .discipline-details {
+        flex: 1;
+    }
+    
+    .discipline-name {
+        font-weight: 500;
+        margin-bottom: 0.2rem;
+    }
+    
+    .discipline-origin {
+        font-size: 0.8rem;
+        color: var(--dark-gray);
+    }
+    
+    .add-discipline-btn {
+        margin-top: 1rem;
+        display: inline-flex;
+        align-items: center;
+        background-color: #f8f9fa;
+        border: 1px dashed #ced4da;
+        padding: 0.75rem 1rem;
+        border-radius: 0.25rem;
+        color: var(--dark-gray);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .add-discipline-btn:hover {
+        background-color: #e9ecef;
+        color: var(--primary);
+    }
+    
+    .add-discipline-btn i {
+        margin-right: 0.5rem;
+    }
+    
+    #newDisciplineForm {
+        display: none;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        margin-top: 1rem;
+        border: 1px solid #ced4da;
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Country Search Dropdown */
+    .country-select-container {
+        position: relative;
+    }
+    
+    .country-search-input {
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="%236c757d" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>');
+        background-repeat: no-repeat;
+        background-position: 12px center;
+        padding-left: 40px;
+    }
+    
+    .country-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ced4da;
+        border-top: none;
+        border-radius: 0 0 0.375rem 0.375rem;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .country-dropdown.show {
+        display: block;
+    }
+    
+    .country-option {
+        padding: 10px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #f1f1f1;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: background-color 0.2s;
+    }
+    
+    .country-option:hover,
+    .country-option.highlighted {
+        background-color: #f8f9fa;
+    }
+    
+    .country-option.selected {
+        background-color: var(--primary);
+        color: white;
+    }
+    
+    .country-flag {
+        font-size: 1.2em;
+        width: 20px;
+        text-align: center;
+    }
+    
+    .country-name {
+        flex: 1;
+    }
+    
+    .no-results {
+        padding: 12px;
+        text-align: center;
+        color: #6c757d;
+        font-style: italic;
+    }
+    
+    /* Subdomain Preview */
+    .subdomain-preview {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid var(--primary);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-top: 1rem;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+    
+    .subdomain-preview.active {
+        background: linear-gradient(135deg, rgba(220, 53, 69, 0.1) 0%, rgba(220, 53, 69, 0.05) 100%);
+        border-color: var(--primary);
+        box-shadow: 0 4px 15px rgba(220, 53, 69, 0.1);
+    }
+    
+    .subdomain-url {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--primary);
+        margin-bottom: 0.5rem;
+        word-break: break-all;
+    }
+    
+    .subdomain-description {
+        font-size: 0.9rem;
+        color: var(--dark-gray);
+        margin-bottom: 1rem;
+    }
+    
+    .subdomain-features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+    
+    .subdomain-feature {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+        color: var(--dark-gray);
+    }
+    
+    .subdomain-feature i {
+        color: #28a745;
+    }
+    
+    @media (max-width: 768px) {
+        .onboarding-container {
+            padding: 1rem;
+        }
+        
+        .onboarding-card {
+            padding: 1.5rem;
+        }
+        
+        .actions-container {
+            flex-direction: column-reverse;
+            gap: 1rem;
+        }
+        
+        .actions-container .btn {
+            width: 100%;
+        }
+        
+        .subdomain-features {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="onboarding-container">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="onboarding-header">
+        <h1 class="onboarding-title">{% trans "Création de votre fédération" %}</h1>
+        <p class="onboarding-subtitle">
+            {% trans "En tant qu'administrateur de fédération, vous pourrez gérer les clubs affiliés, organiser des compétitions et établir les règles de votre discipline." %}
+        </p>
+    </div>
+
+    <!-- Progress Tracker -->
+    <div class="progress-container">
+        <div class="progress-steps">
+            <div class="step completed">
+                {% trans "Rôle" %}
+            </div>
+            <div class="step active">
+                {% trans "Fédération" %}
+            </div>
+            <div class="step">
+                {% trans "Finalisation" %}
+            </div>
+        </div>
+        <div class="progress-wrapper">
+            <div class="progress-bar" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <div class="onboarding-card">
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <!-- Informations générales -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <i class="fas fa-info-circle"></i>
+                    {% trans "Informations générales" %}
+                </h2>
+                
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="form-group">
+                            <label for="{{ form.name.id_for_label }}" class="form-label required">
+                                {{ form.name.label }}
+                            </label>
+                            {{ form.name }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.name.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="{{ form.logo.id_for_label }}" class="form-label">
+                                {{ form.logo.label }}
+                            </label>
+                            
+                            <div class="preview-container">
+                                <img src="#" alt="{% trans 'Aperçu du logo' %}" class="logo-preview" id="logoPreview">
+                            </div>
+                            
+                            <div class="custom-file">
+                                {{ form.logo }}
+                                <label class="custom-file-label" for="{{ form.logo.id_for_label }}">
+                                    {% trans "Choisir un fichier..." %}
+                                </label>
+                            </div>
+                            {% if form.logo.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.logo.errors }}
+                                </div>
+                            {% endif %}
+                            {% if form.logo.help_text %}
+                                <small class="form-text text-muted">{{ form.logo.help_text }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.description.id_for_label }}" class="form-label">
+                        {{ form.description.label }}
+                    </label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.description.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Disciplines -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <i class="fas fa-karate"></i>
+                    {% trans "Disciplines" %}
+                </h2>
+                
+                <p class="text-muted mb-3">{% trans "Sélectionnez les disciplines gérées par votre fédération." %}</p>
+                
+                <div class="disciplines-container">
+                    {% if disciplines %}
+                        {% for discipline in disciplines %}
+                            <div class="discipline-item">
+                                <input type="checkbox" 
+                                    class="form-check-input" 
+                                    name="disciplines" 
+                                    id="discipline-{{ discipline.id }}" 
+                                    value="{{ discipline.id }}">
+                                <div class="discipline-icon">
+                                    <i class="fas fa-fist-raised"></i>
+                                </div>
+                                <div class="discipline-details">
+                                    <label class="discipline-name" for="discipline-{{ discipline.id }}">
+                                        {{ discipline.name }}
+                                    </label>
+                                    {% if discipline.country_origin %}
+                                        <div class="discipline-origin">{{ discipline.country_origin }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {% trans "Aucune discipline n'est disponible pour le moment." %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Bouton d'ajout de discipline -->
+                <button type="button" class="add-discipline-btn" id="addDisciplineBtn">
+                    <i class="fas fa-plus-circle"></i>
+                    {% trans "Ajouter une nouvelle discipline" %}
+                </button>
+                
+                <!-- Formulaire d'ajout de discipline -->
+                <div id="newDisciplineForm">
+                    <h3 class="h5 mb-3">{% trans "Nouvelle discipline" %}</h3>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="new_discipline_name" class="form-label required">{% trans "Nom" %}</label>
+                                <input type="text" id="new_discipline_name" name="new_discipline_name" class="form-control" placeholder="{% trans 'Ex: Karaté' %}">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="new_discipline_origin" class="form-label">{% trans "Pays d'origine" %}</label>
+                                <input type="text" id="new_discipline_origin" name="new_discipline_origin" class="form-control" placeholder="{% trans 'Ex: Japon' %}">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="new_discipline_description" class="form-label">{% trans "Description" %}</label>
+                        <textarea id="new_discipline_description" name="new_discipline_description" class="form-control" rows="3" placeholder="{% trans 'Description de la discipline...' %}"></textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end mt-3">
+                        <button type="button" class="btn btn-outline-secondary me-2" id="cancelDisciplineBtn">
+                            {% trans "Annuler" %}
+                        </button>
+                        <button type="button" class="btn btn-primary" id="saveDisciplineBtn">
+                            <i class="fas fa-check me-2"></i>
+                            {% trans "Ajouter" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Localisation et contact -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <i class="fas fa-map-marker-alt"></i>
+                    {% trans "Localisation et Contact" %}
+                </h2>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="country-search" class="form-label">
+                                {% trans "Pays" %}
+                            </label>
+                            <div class="country-select-container">
+                                <input type="text" 
+                                       id="country-search" 
+                                       class="form-control country-search-input" 
+                                       placeholder="{% trans 'Rechercher un pays...' %}"
+                                       autocomplete="off">
+                                <div class="country-dropdown" id="country-dropdown">
+                                    <!-- Les options seront ajoutées via JavaScript -->
+                                </div>
+                                <input type="hidden" name="country" id="selected-country" value="">
+                            </div>
+                            {% if form.country.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.country.errors }}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                {% trans "Commencez à taper pour rechercher votre pays" %}
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.city.id_for_label }}" class="form-label">
+                                {{ form.city.label }}
+                            </label>
+                            {{ form.city }}
+                            {% if form.city.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.city.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.address.id_for_label }}" class="form-label">
+                        {{ form.address.label }}
+                    </label>
+                    {{ form.address }}
+                    {% if form.address.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.address.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="{{ form.postal_code.id_for_label }}" class="form-label">
+                                {{ form.postal_code.label }}
+                            </label>
+                            {{ form.postal_code }}
+                            {% if form.postal_code.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.postal_code.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="{{ form.contact_email.id_for_label }}" class="form-label">
+                                {{ form.contact_email.label }}
+                            </label>
+                            {{ form.contact_email }}
+                            {% if form.contact_email.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.contact_email.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="{{ form.contact_phone.id_for_label }}" class="form-label">
+                                {{ form.contact_phone.label }}
+                            </label>
+                            {{ form.contact_phone }}
+                            {% if form.contact_phone.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.contact_phone.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.website.id_for_label }}" class="form-label">
+                                {{ form.website.label }}
+                            </label>
+                            {{ form.website }}
+                            {% if form.website.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.website.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.founding_date.id_for_label }}" class="form-label">
+                                {{ form.founding_date.label }}
+                            </label>
+                            {{ form.founding_date }}
+                            {% if form.founding_date.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.founding_date.errors }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Site Web et Sous-domaine Automatique -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <i class="fas fa-globe"></i>
+                    {% trans "Votre site web fédéral" %}
+                </h2>
+                
+                <p class="text-muted mb-3">
+                    {% trans "Nous créons automatiquement un site web professionnel pour votre fédération avec un sous-domaine personnalisé." %}
+                </p>
+                
+                <!-- Prévisualisation du sous-domaine -->
+                <div class="subdomain-preview" id="subdomainPreview">
+                    <div class="subdomain-url" id="subdomainUrl">
+                        <i class="fas fa-link me-2"></i>
+                        <span id="generatedSubdomain">votre-federation</span>.martialcomp.com
+                    </div>
+                    <div class="subdomain-description">
+                        {% trans "Votre site web sera automatiquement accessible à cette adresse" %}
+                    </div>
+                    
+                    <div class="subdomain-features">
+                        <div class="subdomain-feature">
+                            <i class="fas fa-check"></i>
+                            {% trans "Design responsive" %}
+                        </div>
+                        <div class="subdomain-feature">
+                            <i class="fas fa-check"></i>
+                            {% trans "SSL automatique" %}
+                        </div>
+                        <div class="subdomain-feature">
+                            <i class="fas fa-check"></i>
+                            {% trans "Multilingue" %}
+                        </div>
+                        <div class="subdomain-feature">
+                            <i class="fas fa-check"></i>
+                            {% trans "Gestion des clubs" %}
+                        </div>
+                        <div class="subdomain-feature">
+                            <i class="fas fa-check"></i>
+                            {% trans "Compétitions" %}
+                        </div>
+                        <div class="subdomain-feature">
+                            <i class="fas fa-check"></i>
+                            {% trans "Tableau de bord" %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Option de personnalisation -->
+                <div class="mt-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="customSubdomain" name="enable_custom_subdomain">
+                        <label class="form-check-label" for="customSubdomain">
+                            {% trans "Je veux personnaliser mon sous-domaine" %}
+                        </label>
+                    </div>
+                    
+                    <div id="customSubdomainInput" style="display: none;" class="mt-2">
+                        <div class="input-group">
+                            <input type="text" 
+                                   id="customSubdomainField" 
+                                   name="custom_subdomain" 
+                                   class="form-control" 
+                                   placeholder="{% trans 'mon-federation' %}"
+                                   pattern="^[a-z0-9-]+$">
+                            <span class="input-group-text">.martialcomp.com</span>
+                        </div>
+                        <small class="form-text text-muted">
+                            {% trans "Seules les lettres minuscules, chiffres et tirets sont autorisés" %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="actions-container">
+                <a href="{% url 'competitions:onboarding:role_selection' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                </a>
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>{% trans "Créer ma fédération" %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Affichage de l'aperçu du logo
+        const logoInput = document.getElementById('{{ form.logo.id_for_label }}');
+        const logoPreview = document.getElementById('logoPreview');
+        const logoLabel = document.querySelector('label[for="{{ form.logo.id_for_label }}"]').nextElementSibling;
+        
+        if (logoInput && logoPreview) {
+            logoInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    logoPreview.src = URL.createObjectURL(file);
+                    logoPreview.style.display = 'block';
+                    
+                    // Mettre à jour le libellé du bouton
+                    if (logoLabel) {
+                        logoLabel.textContent = file.name;
+                    }
+                } else {
+                    logoPreview.style.display = 'none';
+                }
+            });
+        }
+        
+        // Animation de la barre de progression
+        const progressBar = document.querySelector('.progress-bar');
+        progressBar.style.width = '0%';
+        
+        setTimeout(() => {
+            progressBar.style.width = '50%';
+        }, 300);
+        
+        // Sélection des disciplines
+        const disciplineItems = document.querySelectorAll('.discipline-item');
+        
+        disciplineItems.forEach(function(item) {
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            
+            // État initial
+            if (checkbox && checkbox.checked) {
+                item.classList.add('selected');
+                const icon = item.querySelector('.discipline-icon');
+                if (icon) icon.style.backgroundColor = '#28a745';
+            }
+            
+            // Ajouter un écouteur d'événement pour la sélection
+            item.addEventListener('click', function(e) {
+                if (e.target !== checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    
+                    // Mise à jour visuelle
+                    if (checkbox.checked) {
+                        item.classList.add('selected');
+                        const icon = item.querySelector('.discipline-icon');
+                        if (icon) icon.style.backgroundColor = '#28a745';
+                    } else {
+                        item.classList.remove('selected');
+                        const icon = item.querySelector('.discipline-icon');
+                        if (icon) icon.style.backgroundColor = '';
+                    }
+                }
+            });
+        });
+        
+        // Gestion de l'ajout de discipline
+        const addDisciplineBtn = document.getElementById('addDisciplineBtn');
+        const newDisciplineForm = document.getElementById('newDisciplineForm');
+        const cancelDisciplineBtn = document.getElementById('cancelDisciplineBtn');
+        const saveDisciplineBtn = document.getElementById('saveDisciplineBtn');
+        
+        if (addDisciplineBtn && newDisciplineForm) {
+            addDisciplineBtn.addEventListener('click', function() {
+                newDisciplineForm.style.display = 'block';
+                addDisciplineBtn.style.display = 'none';
+            });
+        }
+        
+        if (cancelDisciplineBtn) {
+            cancelDisciplineBtn.addEventListener('click', function() {
+                newDisciplineForm.style.display = 'none';
+                addDisciplineBtn.style.display = 'inline-flex';
+                
+                // Réinitialiser les champs du formulaire
+                document.getElementById('new_discipline_name').value = '';
+                document.getElementById('new_discipline_origin').value = '';
+                document.getElementById('new_discipline_description').value = '';
+            });
+        }
+        
+        if (saveDisciplineBtn) {
+            saveDisciplineBtn.addEventListener('click', function() {
+                const name = document.getElementById('new_discipline_name').value.trim();
+                const origin = document.getElementById('new_discipline_origin').value.trim();
+                const description = document.getElementById('new_discipline_description').value.trim();
+                
+                if (!name) {
+                    alert("{% trans 'Veuillez saisir un nom pour la discipline.' %}");
+                    return;
+                }
+                
+                // Créer un champ caché pour indiquer qu'une nouvelle discipline est créée
+                const newDisciplineField = document.createElement('input');
+                newDisciplineField.type = 'hidden';
+                newDisciplineField.name = 'new_discipline';
+                newDisciplineField.value = 'true';
+                document.querySelector('form').appendChild(newDisciplineField);
+                
+                // Soumettre le formulaire
+                document.querySelector('form').submit();
+            });
+        }
+        
+        // =========================
+        // COUNTRY SEARCH FUNCTIONALITY
+        // =========================
+        
+        // Liste complète des pays avec leurs drapeaux emoji
+        const countries = [
+            {code: 'AF', name: 'Afghanistan', flag: '🇦🇫'},
+            {code: 'ZA', name: 'Afrique du Sud', flag: '🇿🇦'},
+            {code: 'AL', name: 'Albanie', flag: '🇦🇱'},
+            {code: 'DZ', name: 'Algérie', flag: '🇩🇿'},
+            {code: 'DE', name: 'Allemagne', flag: '🇩🇪'},
+            {code: 'AD', name: 'Andorre', flag: '🇦🇩'},
+            {code: 'AO', name: 'Angola', flag: '🇦🇴'},
+            {code: 'AG', name: 'Antigua-et-Barbuda', flag: '🇦🇬'},
+            {code: 'SA', name: 'Arabie Saoudite', flag: '🇸🇦'},
+            {code: 'AR', name: 'Argentine', flag: '🇦🇷'},
+            {code: 'AM', name: 'Arménie', flag: '🇦🇲'},
+            {code: 'AU', name: 'Australie', flag: '🇦🇺'},
+            {code: 'AT', name: 'Autriche', flag: '🇦🇹'},
+            {code: 'AZ', name: 'Azerbaïdjan', flag: '🇦🇿'},
+            {code: 'BS', name: 'Bahamas', flag: '🇧🇸'},
+            {code: 'BH', name: 'Bahreïn', flag: '🇧🇭'},
+            {code: 'BD', name: 'Bangladesh', flag: '🇧🇩'},
+            {code: 'BB', name: 'Barbade', flag: '🇧🇧'},
+            {code: 'BE', name: 'Belgique', flag: '🇧🇪'},
+            {code: 'BZ', name: 'Belize', flag: '🇧🇿'},
+            {code: 'BJ', name: 'Bénin', flag: '🇧🇯'},
+            {code: 'BT', name: 'Bhoutan', flag: '🇧🇹'},
+            {code: 'BY', name: 'Biélorussie', flag: '🇧🇾'},
+            {code: 'BO', name: 'Bolivie', flag: '🇧🇴'},
+            {code: 'BA', name: 'Bosnie-Herzégovine', flag: '🇧🇦'},
+            {code: 'BW', name: 'Botswana', flag: '🇧🇼'},
+            {code: 'BR', name: 'Brésil', flag: '🇧🇷'},
+            {code: 'BN', name: 'Brunei', flag: '🇧🇳'},
+            {code: 'BG', name: 'Bulgarie', flag: '🇧🇬'},
+            {code: 'BF', name: 'Burkina Faso', flag: '🇧🇫'},
+            {code: 'BI', name: 'Burundi', flag: '🇧🇮'},
+            {code: 'KH', name: 'Cambodge', flag: '🇰🇭'},
+            {code: 'CM', name: 'Cameroun', flag: '🇨🇲'},
+            {code: 'CA', name: 'Canada', flag: '🇨🇦'},
+            {code: 'CV', name: 'Cap-Vert', flag: '🇨🇻'},
+            {code: 'CL', name: 'Chili', flag: '🇨🇱'},
+            {code: 'CN', name: 'Chine', flag: '🇨🇳'},
+            {code: 'CY', name: 'Chypre', flag: '🇨🇾'},
+            {code: 'CO', name: 'Colombie', flag: '🇨🇴'},
+            {code: 'KM', name: 'Comores', flag: '🇰🇲'},
+            {code: 'CG', name: 'Congo', flag: '🇨🇬'},
+            {code: 'CD', name: 'Congo (RDC)', flag: '🇨🇩'},
+            {code: 'KR', name: 'Corée du Sud', flag: '🇰🇷'},
+            {code: 'KP', name: 'Corée du Nord', flag: '🇰🇵'},
+            {code: 'CR', name: 'Costa Rica', flag: '🇨🇷'},
+            {code: 'CI', name: 'Côte d\'Ivoire', flag: '🇨🇮'},
+            {code: 'HR', name: 'Croatie', flag: '🇭🇷'},
+            {code: 'CU', name: 'Cuba', flag: '🇨🇺'},
+            {code: 'DK', name: 'Danemark', flag: '🇩🇰'},
+            {code: 'DJ', name: 'Djibouti', flag: '🇩🇯'},
+            {code: 'DM', name: 'Dominique', flag: '🇩🇲'},
+            {code: 'EG', name: 'Égypte', flag: '🇪🇬'},
+            {code: 'AE', name: 'Émirats Arabes Unis', flag: '🇦🇪'},
+            {code: 'EC', name: 'Équateur', flag: '🇪🇨'},
+            {code: 'ER', name: 'Érythrée', flag: '🇪🇷'},
+            {code: 'ES', name: 'Espagne', flag: '🇪🇸'},
+            {code: 'EE', name: 'Estonie', flag: '🇪🇪'},
+            {code: 'US', name: 'États-Unis', flag: '🇺🇸'},
+            {code: 'ET', name: 'Éthiopie', flag: '🇪🇹'},
+            {code: 'FJ', name: 'Fidji', flag: '🇫🇯'},
+            {code: 'FI', name: 'Finlande', flag: '🇫🇮'},
+            {code: 'FR', name: 'France', flag: '🇫🇷'},
+            {code: 'GA', name: 'Gabon', flag: '🇬🇦'},
+            {code: 'GM', name: 'Gambie', flag: '🇬🇲'},
+            {code: 'GE', name: 'Géorgie', flag: '🇬🇪'},
+            {code: 'GH', name: 'Ghana', flag: '🇬🇭'},
+            {code: 'GR', name: 'Grèce', flag: '🇬🇷'},
+            {code: 'GD', name: 'Grenade', flag: '🇬🇩'},
+            {code: 'GT', name: 'Guatemala', flag: '🇬🇹'},
+            {code: 'GN', name: 'Guinée', flag: '🇬🇳'},
+            {code: 'GW', name: 'Guinée-Bissau', flag: '🇬🇼'},
+            {code: 'GQ', name: 'Guinée équatoriale', flag: '🇬🇶'},
+            {code: 'GY', name: 'Guyana', flag: '🇬🇾'},
+            {code: 'HT', name: 'Haïti', flag: '🇭🇹'},
+            {code: 'HN', name: 'Honduras', flag: '🇭🇳'},
+            {code: 'HU', name: 'Hongrie', flag: '🇭🇺'},
+            {code: 'IN', name: 'Inde', flag: '🇮🇳'},
+            {code: 'ID', name: 'Indonésie', flag: '🇮🇩'},
+            {code: 'IQ', name: 'Irak', flag: '🇮🇶'},
+            {code: 'IR', name: 'Iran', flag: '🇮🇷'},
+            {code: 'IE', name: 'Irlande', flag: '🇮🇪'},
+            {code: 'IS', name: 'Islande', flag: '🇮🇸'},
+            {code: 'IL', name: 'Israël', flag: '🇮🇱'},
+            {code: 'IT', name: 'Italie', flag: '🇮🇹'},
+            {code: 'JM', name: 'Jamaïque', flag: '🇯🇲'},
+            {code: 'JP', name: 'Japon', flag: '🇯🇵'},
+            {code: 'JO', name: 'Jordanie', flag: '🇯🇴'},
+            {code: 'KZ', name: 'Kazakhstan', flag: '🇰🇿'},
+            {code: 'KE', name: 'Kenya', flag: '🇰🇪'},
+            {code: 'KG', name: 'Kirghizistan', flag: '🇰🇬'},
+            {code: 'KI', name: 'Kiribati', flag: '🇰🇮'},
+            {code: 'KW', name: 'Koweït', flag: '🇰🇼'},
+            {code: 'LA', name: 'Laos', flag: '🇱🇦'},
+            {code: 'LS', name: 'Lesotho', flag: '🇱🇸'},
+            {code: 'LV', name: 'Lettonie', flag: '🇱🇻'},
+            {code: 'LB', name: 'Liban', flag: '🇱🇧'},
+            {code: 'LR', name: 'Libéria', flag: '🇱🇷'},
+            {code: 'LY', name: 'Libye', flag: '🇱🇾'},
+            {code: 'LI', name: 'Liechtenstein', flag: '🇱🇮'},
+            {code: 'LT', name: 'Lituanie', flag: '🇱🇹'},
+            {code: 'LU', name: 'Luxembourg', flag: '🇱🇺'},
+            {code: 'MK', name: 'Macédoine du Nord', flag: '🇲🇰'},
+            {code: 'MG', name: 'Madagascar', flag: '🇲🇬'},
+            {code: 'MY', name: 'Malaisie', flag: '🇲🇾'},
+            {code: 'MW', name: 'Malawi', flag: '🇲🇼'},
+            {code: 'MV', name: 'Maldives', flag: '🇲🇻'},
+            {code: 'ML', name: 'Mali', flag: '🇲🇱'},
+            {code: 'MT', name: 'Malte', flag: '🇲🇹'},
+            {code: 'MA', name: 'Maroc', flag: '🇲🇦'},
+            {code: 'MH', name: 'Îles Marshall', flag: '🇲🇭'},
+            {code: 'MU', name: 'Maurice', flag: '🇲🇺'},
+            {code: 'MR', name: 'Mauritanie', flag: '🇲🇷'},
+            {code: 'MX', name: 'Mexique', flag: '🇲🇽'},
+            {code: 'FM', name: 'Micronésie', flag: '🇫🇲'},
+            {code: 'MD', name: 'Moldavie', flag: '🇲🇩'},
+            {code: 'MC', name: 'Monaco', flag: '🇲🇨'},
+            {code: 'MN', name: 'Mongolie', flag: '🇲🇳'},
+            {code: 'ME', name: 'Monténégro', flag: '🇲🇪'},
+            {code: 'MZ', name: 'Mozambique', flag: '🇲🇿'},
+            {code: 'MM', name: 'Myanmar', flag: '🇲🇲'},
+            {code: 'NA', name: 'Namibie', flag: '🇳🇦'},
+            {code: 'NR', name: 'Nauru', flag: '🇳🇷'},
+            {code: 'NP', name: 'Népal', flag: '🇳🇵'},
+            {code: 'NI', name: 'Nicaragua', flag: '🇳🇮'},
+            {code: 'NE', name: 'Niger', flag: '🇳🇪'},
+            {code: 'NG', name: 'Nigéria', flag: '🇳🇬'},
+            {code: 'NU', name: 'Niue', flag: '🇳🇺'},
+            {code: 'NO', name: 'Norvège', flag: '🇳🇴'},
+            {code: 'NZ', name: 'Nouvelle-Zélande', flag: '🇳🇿'},
+            {code: 'OM', name: 'Oman', flag: '🇴🇲'},
+            {code: 'UG', name: 'Ouganda', flag: '🇺🇬'},
+            {code: 'UZ', name: 'Ouzbékistan', flag: '🇺🇿'},
+            {code: 'PK', name: 'Pakistan', flag: '🇵🇰'},
+            {code: 'PW', name: 'Palaos', flag: '🇵🇼'},
+            {code: 'PA', name: 'Panama', flag: '🇵🇦'},
+            {code: 'PG', name: 'Papouasie-Nouvelle-Guinée', flag: '🇵🇬'},
+            {code: 'PY', name: 'Paraguay', flag: '🇵🇾'},
+            {code: 'NL', name: 'Pays-Bas', flag: '🇳🇱'},
+            {code: 'PE', name: 'Pérou', flag: '🇵🇪'},
+            {code: 'PH', name: 'Philippines', flag: '🇵🇭'},
+            {code: 'PL', name: 'Pologne', flag: '🇵🇱'},
+            {code: 'PT', name: 'Portugal', flag: '🇵🇹'},
+            {code: 'QA', name: 'Qatar', flag: '🇶🇦'},
+            {code: 'DO', name: 'République Dominicaine', flag: '🇩🇴'},
+            {code: 'CZ', name: 'République Tchèque', flag: '🇨🇿'},
+            {code: 'RO', name: 'Roumanie', flag: '🇷🇴'},
+            {code: 'GB', name: 'Royaume-Uni', flag: '🇬🇧'},
+            {code: 'RU', name: 'Russie', flag: '🇷🇺'},
+            {code: 'RW', name: 'Rwanda', flag: '🇷🇼'},
+            {code: 'KN', name: 'Saint-Christophe-et-Niévès', flag: '🇰🇳'},
+            {code: 'SM', name: 'Saint-Marin', flag: '🇸🇲'},
+            {code: 'VC', name: 'Saint-Vincent-et-les-Grenadines', flag: '🇻🇨'},
+            {code: 'LC', name: 'Sainte-Lucie', flag: '🇱🇨'},
+            {code: 'SB', name: 'Îles Salomon', flag: '🇸🇧'},
+            {code: 'WS', name: 'Samoa', flag: '🇼🇸'},
+            {code: 'ST', name: 'Sao Tomé-et-Principe', flag: '🇸🇹'},
+            {code: 'SN', name: 'Sénégal', flag: '🇸🇳'},
+            {code: 'RS', name: 'Serbie', flag: '🇷🇸'},
+            {code: 'SC', name: 'Seychelles', flag: '🇸🇨'},
+            {code: 'SL', name: 'Sierra Leone', flag: '🇸🇱'},
+            {code: 'SG', name: 'Singapour', flag: '🇸🇬'},
+            {code: 'SK', name: 'Slovaquie', flag: '🇸🇰'},
+            {code: 'SI', name: 'Slovénie', flag: '🇸🇮'},
+            {code: 'SO', name: 'Somalie', flag: '🇸🇴'},
+            {code: 'SD', name: 'Soudan', flag: '🇸🇩'},
+            {code: 'SS', name: 'Soudan du Sud', flag: '🇸🇸'},
+            {code: 'LK', name: 'Sri Lanka', flag: '🇱🇰'},
+            {code: 'SE', name: 'Suède', flag: '🇸🇪'},
+            {code: 'CH', name: 'Suisse', flag: '🇨🇭'},
+            {code: 'SR', name: 'Suriname', flag: '🇸🇷'},
+            {code: 'SZ', name: 'Eswatini', flag: '🇸🇿'},
+            {code: 'SY', name: 'Syrie', flag: '🇸🇾'},
+            {code: 'TJ', name: 'Tadjikistan', flag: '🇹🇯'},
+            {code: 'TZ', name: 'Tanzanie', flag: '🇹🇿'},
+            {code: 'TD', name: 'Tchad', flag: '🇹🇩'},
+            {code: 'TH', name: 'Thaïlande', flag: '🇹🇭'},
+            {code: 'TL', name: 'Timor oriental', flag: '🇹🇱'},
+            {code: 'TG', name: 'Togo', flag: '🇹🇬'},
+            {code: 'TO', name: 'Tonga', flag: '🇹🇴'},
+            {code: 'TT', name: 'Trinité-et-Tobago', flag: '🇹🇹'},
+            {code: 'TN', name: 'Tunisie', flag: '🇹🇳'},
+            {code: 'TM', name: 'Turkménistan', flag: '🇹🇲'},
+            {code: 'TR', name: 'Turquie', flag: '🇹🇷'},
+            {code: 'TV', name: 'Tuvalu', flag: '🇹🇻'},
+            {code: 'UA', name: 'Ukraine', flag: '🇺🇦'},
+            {code: 'UY', name: 'Uruguay', flag: '🇺🇾'},
+            {code: 'VU', name: 'Vanuatu', flag: '🇻🇺'},
+            {code: 'VA', name: 'Vatican', flag: '🇻🇦'},
+            {code: 'VE', name: 'Venezuela', flag: '🇻🇪'},
+            {code: 'VN', name: 'Vietnam', flag: '🇻🇳'},
+            {code: 'YE', name: 'Yémen', flag: '🇾🇪'},
+            {code: 'ZM', name: 'Zambie', flag: '🇿🇲'},
+            {code: 'ZW', name: 'Zimbabwe', flag: '🇿🇼'}
+        ];
+        
+        // Éléments DOM pour la sélection de pays
+        const countrySearchInput = document.getElementById('country-search');
+        const countryDropdown = document.getElementById('country-dropdown');
+        const selectedCountryInput = document.getElementById('selected-country');
+        
+        let highlightedIndex = -1;
+        let filteredCountries = [];
+        
+        // Fonction pour afficher les pays filtrés
+        function displayCountries(countriesToShow) {
+            filteredCountries = countriesToShow;
+            
+            if (filteredCountries.length === 0) {
+                countryDropdown.innerHTML = '<div class="no-results">{% trans "Aucun pays trouvé" %}</div>';
+            } else {
+                countryDropdown.innerHTML = filteredCountries.map((country, index) => 
+                    `<div class="country-option" data-index="${index}" data-code="${country.code}" data-name="${country.name}">
+                        <span class="country-flag">${country.flag}</span>
+                        <span class="country-name">${country.name}</span>
+                    </div>`
+                ).join('');
+                
+                // Ajouter les événements de clic
+                countryDropdown.querySelectorAll('.country-option').forEach((option, index) => {
+                    option.addEventListener('click', () => selectCountry(index));
+                });
+            }
+            
+            countryDropdown.classList.add('show');
+            highlightedIndex = -1;
+        }
+        
+        // Fonction pour sélectionner un pays
+        function selectCountry(index) {
+            if (index >= 0 && index < filteredCountries.length) {
+                const selectedCountry = filteredCountries[index];
+                countrySearchInput.value = `${selectedCountry.flag} ${selectedCountry.name}`;
+                selectedCountryInput.value = selectedCountry.name;
+                countryDropdown.classList.remove('show');
+                highlightedIndex = -1;
+            }
+        }
+        
+        // Fonction pour mettre en surbrillance une option
+        function highlightOption(index) {
+            const options = countryDropdown.querySelectorAll('.country-option');
+            
+            // Retirer la surbrillance précédente
+            options.forEach(option => option.classList.remove('highlighted'));
+            
+            // Ajouter la nouvelle surbrillance
+            if (index >= 0 && index < options.length) {
+                options[index].classList.add('highlighted');
+                options[index].scrollIntoView({block: 'nearest'});
+            }
+        }
+        
+        // Événements pour la sélection de pays
+        if (countrySearchInput && countryDropdown) {
+            // Événement de saisie
+            countrySearchInput.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase();
+                
+                if (searchTerm.length === 0) {
+                    displayCountries(countries);
+                } else {
+                    const filtered = countries.filter(country => 
+                        country.name.toLowerCase().includes(searchTerm) ||
+                        country.code.toLowerCase().includes(searchTerm)
+                    );
+                    displayCountries(filtered);
+                }
+            });
+            
+            // Événement de focus
+            countrySearchInput.addEventListener('focus', function() {
+                if (filteredCountries.length === 0) {
+                    displayCountries(countries);
+                } else {
+                    countryDropdown.classList.add('show');
+                }
+            });
+            
+            // Événements clavier
+            countrySearchInput.addEventListener('keydown', function(e) {
+                switch(e.key) {
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        highlightedIndex = Math.min(highlightedIndex + 1, filteredCountries.length - 1);
+                        highlightOption(highlightedIndex);
+                        break;
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        highlightedIndex = Math.max(highlightedIndex - 1, -1);
+                        highlightOption(highlightedIndex);
+                        break;
+                    case 'Enter':
+                        e.preventDefault();
+                        if (highlightedIndex >= 0) {
+                            selectCountry(highlightedIndex);
+                        }
+                        break;
+                    case 'Escape':
+                        countryDropdown.classList.remove('show');
+                        countrySearchInput.blur();
+                        break;
+                }
+            });
+            
+            // Fermer le dropdown en cliquant ailleurs
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.country-select-container')) {
+                    countryDropdown.classList.remove('show');
+                }
+            });
+        }
+        
+        // =========================
+        // SUBDOMAIN GENERATION
+        // =========================
+        
+        const nameInput = document.getElementById('{{ form.name.id_for_label }}');
+        const generatedSubdomainSpan = document.getElementById('generatedSubdomain');
+        const subdomainPreview = document.getElementById('subdomainPreview');
+        const customSubdomainCheckbox = document.getElementById('customSubdomain');
+        const customSubdomainInput = document.getElementById('customSubdomainInput');
+        const customSubdomainField = document.getElementById('customSubdomainField');
+        
+        // Fonction pour générer un slug depuis le nom
+        function generateSlug(text) {
+            return text
+                .toLowerCase()
+                .trim()
+                .replace(/[\u00e0\u00e1\u00e2\u00e3\u00e4\u00e5]/g, 'a')
+                .replace(/[\u00e8\u00e9\u00ea\u00eb]/g, 'e')
+                .replace(/[\u00ec\u00ed\u00ee\u00ef]/g, 'i')
+                .replace(/[\u00f2\u00f3\u00f4\u00f5\u00f6]/g, 'o')
+                .replace(/[\u00f9\u00fa\u00fb\u00fc]/g, 'u')
+                .replace(/[\u00e7]/g, 'c')
+                .replace(/[\u00f1]/g, 'n')
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-|-$/g, '');
+        }
+        
+        // Fonction pour mettre à jour l'aperçu du sous-domaine
+        function updateSubdomainPreview() {
+            if (nameInput && generatedSubdomainSpan) {
+                let subdomain;
+                
+                // Si un sous-domaine personnalisé est saisi
+                if (customSubdomainCheckbox.checked && customSubdomainField.value.trim()) {
+                    subdomain = customSubdomainField.value.trim().toLowerCase();
+                } else if (nameInput.value.trim()) {
+                    // Générer automatiquement depuis le nom
+                    subdomain = 'fed-' + generateSlug(nameInput.value.trim());
+                } else {
+                    subdomain = 'votre-federation';
+                }
+                
+                // Valeur par défaut si vide
+                if (!subdomain || subdomain === 'fed-') {
+                    subdomain = 'votre-federation';
+                }
+                
+                generatedSubdomainSpan.textContent = subdomain;
+                
+                // Activer l'animation si le nom est renseigné
+                if (nameInput.value.trim()) {
+                    subdomainPreview.classList.add('active');
+                } else {
+                    subdomainPreview.classList.remove('active');
+                }
+            }
+        }
+        
+        // Événements pour la génération de sous-domaine
+        if (nameInput) {
+            nameInput.addEventListener('input', updateSubdomainPreview);
+        }
+        
+        if (customSubdomainCheckbox) {
+            customSubdomainCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    customSubdomainInput.style.display = 'block';
+                    customSubdomainField.focus();
+                } else {
+                    customSubdomainInput.style.display = 'none';
+                    customSubdomainField.value = '';
+                }
+                updateSubdomainPreview();
+            });
+        }
+        
+        if (customSubdomainField) {
+            customSubdomainField.addEventListener('input', updateSubdomainPreview);
+        }
+        
+        // Initialiser l'aperçu
+        updateSubdomainPreview();
+    });
+</script>
+{% endblock %}

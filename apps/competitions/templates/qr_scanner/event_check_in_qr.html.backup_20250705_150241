@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .qr-container {
+        text-align: center;
+        background-color: #f8f9fa;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+    
+    .qr-image {
+        max-width: 100%;
+        height: auto;
+        margin: 1rem auto;
+        padding: 1rem;
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    
+    .event-details {
+        margin-bottom: 2rem;
+    }
+    
+    .event-info {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        margin: 1rem 0;
+        padding: 1rem;
+        background-color: #e9ecef;
+        border-radius: 8px;
+    }
+    
+    .event-info-item {
+        flex: 1;
+        min-width: 200px;
+        margin: 0.5rem;
+        padding: 1rem;
+        background-color: white;
+        border-radius: 5px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .event-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .instructions {
+        margin-top: 2rem;
+        padding: 1.5rem;
+        background-color: #e2f3ff;
+        border-radius: 8px;
+    }
+    
+    .help-steps {
+        list-style-type: none;
+        padding: 0;
+    }
+    
+    .help-steps li {
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        align-items: center;
+    }
+    
+    .help-steps li:last-child {
+        border-bottom: none;
+    }
+    
+    .help-steps i {
+        margin-right: 1rem;
+        font-size: 1.25rem;
+        width: 25px;
+        text-align: center;
+        color: #0d6efd;
+    }
+    
+    @media print {
+        .no-print {
+            display: none;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 100%;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        
+        .qr-container {
+            box-shadow: none;
+            padding: 0;
+        }
+        
+        .event-info {
+            background-color: transparent;
+            padding: 0;
+        }
+        
+        .event-info-item {
+            box-shadow: none;
+            border: 1px solid #dee2e6;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="event-header">
+                <h1>{% trans "QR Code Check-in" %}</h1>
+                <div class="no-print">
+                    <button class="btn btn-outline-primary" onclick="window.print()">
+                        <i class="fas fa-print me-2"></i>{% trans "Imprimer" %}
+                    </button>
+                </div>
+            </div>
+            <p class="text-muted">
+                {% trans "Utilisez ce QR code pour faciliter le check-in des participants à votre événement." %}
+            </p>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card event-details">
+                <div class="card-body">
+                    <h3 class="card-title">{{ event.name }}</h3>
+                    
+                    <div class="event-info">
+                        <div class="event-info-item">
+                            <h5><i class="far fa-calendar-alt me-2"></i>{% trans "Date" %}</h5>
+                            <p>{{ event.start_date|date:"d/m/Y" }}
+                            {% if event.end_date and event.end_date != event.start_date %}
+                                - {{ event.end_date|date:"d/m/Y" }}
+                            {% endif %}
+                            </p>
+                        </div>
+                        
+                        <div class="event-info-item">
+                            <h5><i class="far fa-clock me-2"></i>{% trans "Horaires" %}</h5>
+                            <p>
+                                {% if event.start_time %}
+                                    {{ event.start_time|time:"H:i" }}
+                                {% endif %}
+                                {% if event.end_time %}
+                                    - {{ event.end_time|time:"H:i" }}
+                                {% endif %}
+                            </p>
+                        </div>
+                        
+                        <div class="event-info-item">
+                            <h5><i class="fas fa-map-marker-alt me-2"></i>{% trans "Lieu" %}</h5>
+                            <p>{{ event.location|default:"Non spécifié" }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="qr-container">
+                <h3>{% trans "QR Code pour le check-in" %}</h3>
+                
+                {% if qr_code_base64 %}
+                    <img src="data:image/png;base64,{{ qr_code_base64 }}" alt="QR Code" class="qr-image">
+                {% elif qr_code_error %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>{{ qr_code_error }}
+                    </div>
+                {% endif %}
+                
+                <div class="text-center mt-3">
+                    <div class="d-inline-block text-start">
+                        <p><strong>{% trans "URL de check-in:" %}</strong></p>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" value="{{ check_in_url }}" id="checkInUrl" readonly>
+                            <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard()">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="instructions no-print">
+                <h4><i class="fas fa-info-circle me-2"></i>{% trans "Comment utiliser ce QR code" %}</h4>
+                
+                <ul class="help-steps">
+                    <li>
+                        <i class="fas fa-print"></i>
+                        <span>{% trans "Imprimez ce QR code et affichez-le à l'entrée de votre événement" %}</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-mobile-alt"></i>
+                        <span>{% trans "Les participants peuvent scanner le QR code avec leur téléphone" %}</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-user-check"></i>
+                        <span>{% trans "Le scan les enregistrera automatiquement comme présents à l'événement" %}</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-list-alt"></i>
+                        <span>{% trans "Consultez la liste des participants enregistrés dans l'espace administration" %}</span>
+                    </li>
+                </ul>
+                
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    {% trans "Astuce: Vous pouvez également envoyer l'URL par e-mail ou message à vos participants." %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function copyToClipboard() {
+        const copyText = document.getElementById("checkInUrl");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999); // Pour les appareils mobiles
+        
+        navigator.clipboard.writeText(copyText.value).then(function() {
+            alert("{% trans 'URL copiée dans le presse-papiers' %}");
+        }).catch(function(err) {
+            console.error('Erreur lors de la copie: ', err);
+            alert("{% trans 'Erreur lors de la copie' %}");
+        });
+    }
+</script>
+{% endblock %}

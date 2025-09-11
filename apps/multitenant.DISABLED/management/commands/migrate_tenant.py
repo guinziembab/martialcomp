@@ -1,0 +1,92 @@
+from django.core.management.base import BaseCommand, CommandError
+from django.core.management import call_command
+from django.db import connection
+
+from apps.multitenant.models import Tenant
+from apps.multitenant.middleware import TenantContext
+
+
+class Command(BaseCommand):
+    help = 'Applique les migrations pour un ou tous les tenants'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--tenant',
+            type=str,
+            help='Slug du tenant spécifique Ã  migrer'
+        )
+        parser.add_argument(
+            '--all',
+            action='store_true',
+            help='Migrer tous les tenants'
+        )
+        parser.add_argument(
+            '--app',
+            type=str,
+            help='Application spécifique Ã  migrer'
+        )
+        parser.add_argument(
+            '--fake',
+            action='store_true',
+            help='Marquer les migrations comme appliquées sans les exécuter'
+        )
+
+    def handle(self, *args, **options):
+        tenant_slug = options.get('tenant')
+        migrate_all = options.get('all')
+        app_label = options.get('app')
+        fake = options.get('fake')
+        
+        if not tenant_slug and not migrate_all:
+            raise CommandError('Vous devez spécifier --tenant ou --all')
+        
+        if tenant_slug and migrate_all:
+            raise CommandError('Vous ne pouvez pas spécifier Ã  la fois --tenant et --all')
+        
+        # Obtenir les tenants Ã  migrer
+        if tenant_slug:
+            try:
+                tenants = [Tenant.objects.get(slug=tenant_slug)]
+            except Tenant.DoesNotExist:
+                raise CommandError(f'Tenant "{tenant_slug}" non trouvé')
+        else:
+            tenants = Tenant.objects.filter(is_active=True)
+        
+        # Migrer chaque tenant
+        for tenant in tenants:
+            self.stdout.write(f'Migration du tenant: {tenant.name} ({tenant.schema_name})')
+            
+            try:
+                # Utiliser le context manager pour définir le tenant
+                with TenantContext(tenant):
+                    # Les migrations s'appliqueront automatiquement au bon schéma
+                    migrate_args = []
+                    if app_label:
+                        migrate_args.append(app_label)
+                    
+                    migrate_kwargs = {
+                        'verbosity': options.get('verbosity', 1),
+                        'interactive': False,
+                    }
+                    
+                    if fake:
+                        migrate_kwargs['fake'] = True
+                    
+                    call_command('migrate', *migrate_args, **migrate_kwargs)
+                    
+                self.stdout.write(
+                    self.style.SUCCESS(f'  âœ“ Migration terminée pour {tenant.name}')
+                )
+                
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(f'  âœ— Erreur pour {tenant.name}: {str(e)}')
+                )
+                
+                if not migrate_all:
+                    raise
+        
+        self.stdout.write(
+            self.style.SUCCESS(f'\nMigration terminée pour {len(tenants)} tenant(s)')
+        )
+

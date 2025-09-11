@@ -1,3 +1,4 @@
+from django.core.exceptions import PermissionDenied
 import re
 import json
 from django.utils import timezone
@@ -10,6 +11,7 @@ from jwt import PyJWTError
 
 from multitenant.models import Tenant
 from .models import AccessTokenLog
+from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
 
 class JWTTenantMiddleware(MiddlewareMixin):
     """

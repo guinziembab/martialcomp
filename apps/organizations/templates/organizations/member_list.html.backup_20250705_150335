@@ -1,0 +1,307 @@
+{% extends "organizations/base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Membres" %} - {{ organization.name }} | {% trans "Organisations" %}{% endblock %}
+
+{% block content_title %}{% trans "Membres de" %} {{ organization.name }}{% endblock %}
+{% block content_subtitle %}{% trans "Gérer les membres et leurs rôles dans l'organisation" %}{% endblock %}
+
+{% block main_content %}
+    <!-- En-tête avec actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <a href="{% url 'organizations:detail' pk=organization.id %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i> {% trans "Retour à l'organisation" %}
+            </a>
+        </div>
+        
+        {% if can_manage_members %}
+            <div>
+                <a href="{% url 'organizations:add_member' organization_id=organization.id %}" class="btn btn-success">
+                    <i class="fas fa-user-plus me-1"></i> {% trans "Ajouter un membre" %}
+                </a>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Filtres et recherche -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" action="{% url 'organizations:members' organization_id=organization.id %}" class="row g-3">
+                <div class="col-md-4">
+                    <label for="q" class="form-label">{% trans "Rechercher" %}</label>
+                    <input type="text" class="form-control" id="q" name="q" placeholder="{% trans 'Nom, titre...' %}" value="{{ search_query }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="role" class="form-label">{% trans "Rôle" %}</label>
+                    <select class="form-select" id="role" name="role">
+                        <option value="">{% trans "Tous les rôles" %}</option>
+                        {% for value, label in roles.items %}
+                            <option value="{{ value }}" {% if selected_role == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="status" class="form-label">{% trans "Statut" %}</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">{% trans "Tous les statuts" %}</option>
+                        <option value="active" {% if selected_status == 'active' %}selected{% endif %}>{% trans "Actif" %}</option>
+                        <option value="inactive" {% if selected_status == 'inactive' %}selected{% endif %}>{% trans "Inactif" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-1"></i> {% trans "Filtrer" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Liste des membres -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{% trans "Membres" %}</h4>
+                <span class="badge bg-primary">{{ members|length }} {% trans "membres" %}</span>
+            </div>
+        </div>
+        
+        {% if members %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">{% trans "Nom" %}</th>
+                            <th scope="col">{% trans "Rôle" %}</th>
+                            <th scope="col">{% trans "Titre" %}</th>
+                            <th scope="col">{% trans "Depuis" %}</th>
+                            <th scope="col">{% trans "Permissions" %}</th>
+                            <th scope="col">{% trans "Statut" %}</th>
+                            {% if can_manage_members %}
+                                <th scope="col">{% trans "Actions" %}</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for member in members %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar avatar-sm me-2 bg-light rounded-circle">
+                                            <div class="avatar-content">
+                                                {% if member.user.get_full_name %}
+                                                    {{ member.user.first_name|first }}{{ member.user.last_name|first }}
+                                                {% else %}
+                                                    {{ member.user.username|first|upper }}
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span class="fw-bold">{{ member.user.get_full_name|default:member.user.username }}</span>
+                                            <div class="small text-muted">{{ member.user.email }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge 
+                                        {% if member.role == 'owner' %}bg-danger
+                                        {% elif member.role == 'admin' %}bg-warning text-dark
+                                        {% elif member.role == 'manager' %}bg-info text-dark
+                                        {% else %}bg-secondary
+                                        {% endif %}">
+                                        {{ member.get_role_display }}
+                                    </span>
+                                </td>
+                                <td>{{ member.title|default:"—" }}</td>
+                                <td>{{ member.join_date|date:"d/m/Y" }}</td>
+                                <td>
+                                    <div class="d-flex flex-column gap-1">
+                                        {% if member.can_manage_members %}
+                                            <span class="badge bg-success">{% trans "Gestion des membres" %}</span>
+                                        {% endif %}
+                                        {% if member.can_edit_organization %}
+                                            <span class="badge bg-primary">{% trans "Édition de l'organisation" %}</span>
+                                        {% endif %}
+                                        {% if member.can_manage_competitions %}
+                                            <span class="badge bg-info text-dark">{% trans "Gestion des compétitions" %}</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge {% if member.is_active %}bg-success{% else %}bg-danger{% endif %}">
+                                        {% if member.is_active %}{% trans "Actif" %}{% else %}{% trans "Inactif" %}{% endif %}
+                                    </span>
+                                </td>
+                                {% if can_manage_members %}
+                                    <td>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="actionMenu{{ member.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionMenu{{ member.id }}">
+                                                <li>
+                                                    <a class="dropdown-item" href="{% url 'organizations:update_member' pk=member.id %}">
+                                                        <i class="fas fa-edit me-1"></i> {% trans "Modifier" %}
+                                                    </a>
+                                                </li>
+                                                
+                                                {% if member.role != 'owner' %}
+                                                    <li>
+                                                        <form method="post" action="{% url 'organizations:transfer_owner' pk=member.id %}" onsubmit="return confirm('{% trans "Êtes-vous sûr de vouloir transférer la propriété à ce membre ?" %}');">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="dropdown-item">
+                                                                <i class="fas fa-crown me-1"></i> {% trans "Transférer propriété" %}
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                {% endif %}
+                                                
+                                                {% if member.is_active %}
+                                                    <li>
+                                                        <a class="dropdown-item text-warning" href="#" 
+                                                           onclick="updateMemberStatus({{ member.id }}, false, '{% trans "Êtes-vous sûr de vouloir désactiver ce membre ?" %}')">
+                                                            <i class="fas fa-user-slash me-1"></i> {% trans "Désactiver" %}
+                                                        </a>
+                                                    </li>
+                                                {% else %}
+                                                    <li>
+                                                        <a class="dropdown-item text-success" href="#" 
+                                                           onclick="updateMemberStatus({{ member.id }}, true, '{% trans "Voulez-vous réactiver ce membre ?" %}')">
+                                                            <i class="fas fa-user-check me-1"></i> {% trans "Réactiver" %}
+                                                        </a>
+                                                    </li>
+                                                {% endif %}
+                                                
+                                                <li><hr class="dropdown-divider"></li>
+                                                
+                                                <li>
+                                                    <form method="post" action="{% url 'organizations:delete_member' pk=member.id %}" onsubmit="return confirm('{% trans "Êtes-vous sûr de vouloir supprimer définitivement ce membre ?" %}');">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="dropdown-item text-danger">
+                                                            <i class="fas fa-trash-alt me-1"></i> {% trans "Supprimer" %}
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="card-body text-center py-5">
+                <div class="text-muted mb-3">
+                    <i class="fas fa-users fa-4x"></i>
+                </div>
+                <h4>{% trans "Aucun membre trouvé" %}</h4>
+                <p class="text-muted">
+                    {% if search_query or selected_role or selected_status %}
+                        {% trans "Aucun membre ne correspond à vos critères de recherche." %}
+                        <a href="{% url 'organizations:members' organization_id=organization.id %}">{% trans "Effacer les filtres" %}</a>
+                    {% else %}
+                        {% trans "Cette organisation n'a pas encore de membres." %}
+                    {% endif %}
+                </p>
+            </div>
+        {% endif %}
+        
+        {% if is_paginated %}
+            <div class="card-footer">
+                <nav aria-label="{% trans 'Navigation des pages' %}">
+                    <ul class="pagination justify-content-center mb-0">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_role %}&role={{ selected_role }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" aria-label="{% trans 'Première' %}">
+                                    <span aria-hidden="true">&laquo;&laquo;</span>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_role %}&role={{ selected_role }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" aria-label="{% trans 'Précédente' %}">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">&laquo;&laquo;</span>
+                            </li>
+                            <li class="page-item disabled">
+                                <span class="page-link">&laquo;</span>
+                            </li>
+                        {% endif %}
+                        
+                        {% for i in paginator.page_range %}
+                            {% if page_obj.number == i %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ i }} <span class="sr-only">(current)</span></span>
+                                </li>
+                            {% elif i > page_obj.number|add:'-3' and i < page_obj.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ i }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_role %}&role={{ selected_role }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">{{ i }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_role %}&role={{ selected_role }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" aria-label="{% trans 'Suivante' %}">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ paginator.num_pages }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_role %}&role={{ selected_role }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" aria-label="{% trans 'Dernière' %}">
+                                    <span aria-hidden="true">&raquo;&raquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">&raquo;</span>
+                            </li>
+                            <li class="page-item disabled">
+                                <span class="page-link">&raquo;&raquo;</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Formulaire caché pour la mise à jour du statut des membres -->
+    <form id="updateMemberStatusForm" method="post" action="" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="is_active" id="memberStatusField" value="">
+    </form>
+{% endblock %}
+
+{% block organization_js %}
+<script>
+    // Stylisation des avatars
+    document.addEventListener('DOMContentLoaded', function() {
+        var avatars = document.querySelectorAll('.avatar-content');
+        avatars.forEach(function(avatar) {
+            // Stylisation
+            avatar.style.display = 'flex';
+            avatar.style.alignItems = 'center';
+            avatar.style.justifyContent = 'center';
+            avatar.style.width = '32px';
+            avatar.style.height = '32px';
+            avatar.style.fontWeight = 'bold';
+        });
+    });
+    
+    // Fonction pour mettre à jour le statut d'un membre
+    function updateMemberStatus(memberId, isActive, confirmMessage) {
+        if (confirm(confirmMessage)) {
+            var form = document.getElementById('updateMemberStatusForm');
+            form.action = '/organizations/member/' + memberId + '/update-status/';
+            document.getElementById('memberStatusField').value = isActive;
+            form.submit();
+        }
+    }
+</script>
+{% endblock %}

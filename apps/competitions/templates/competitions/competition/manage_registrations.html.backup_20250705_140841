@@ -1,0 +1,572 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Gestion des inscriptions" %} - {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-card {
+        transition: all 0.3s ease;
+    }
+    .stats-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .status-badge {
+        font-size: 0.85rem;
+        padding: 0.25rem 0.5rem;
+    }
+    .status-pending {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    .status-approved {
+        background-color: #28a745;
+        color: white;
+    }
+    .status-rejected {
+        background-color: #dc3545;
+        color: white;
+    }
+    .table-responsive {
+        overflow-x: auto;
+    }
+    .batch-actions {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.25rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">{% trans "Gestion des inscriptions" %} - {{ competition.title }}</h1>
+        <div>
+            <a href="{% url 'competitions:competitions:detail' competition.pk %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i> {% trans "Retour à la compétition" %}
+            </a>
+            <a href="{% url 'competitions:competitions:export_registrations' competition.id %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-success ms-2">
+                <i class="fas fa-file-export me-2"></i> {% trans "Exporter (CSV)" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistiques -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card stats-card h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">{% trans "Total des inscriptions" %}</h5>
+                    <p class="display-4">{{ stats.total }}</p>
+                    <div class="d-flex justify-content-around mt-3">
+                        <span class="badge status-badge status-pending">{{ stats.pending }} {% trans "En attente" %}</span>
+                        <span class="badge status-badge status-approved">{{ stats.approved }} {% trans "Approuvées" %}</span>
+                        <span class="badge status-badge status-rejected">{{ stats.rejected }} {% trans "Rejetées" %}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stats-card h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">{% trans "Compétiteurs" %}</h5>
+                    <p class="display-4">{{ stats.competitors }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stats-card h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">{% trans "Juges & Arbitres" %}</h5>
+                    <p class="display-4">{{ stats.technical_judges|add:stats.combat_referees }}</p>
+                    <div class="d-flex justify-content-around mt-3">
+                        <span class="badge bg-info text-white">{{ stats.technical_judges }} {% trans "Juges" %}</span>
+                        <span class="badge bg-danger text-white">{{ stats.combat_referees }} {% trans "Arbitres" %}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card stats-card h-100">
+                <div class="card-body text-center">
+                    <h5 class="card-title">{% trans "Bénévoles" %}</h5>
+                    <p class="display-4">{{ stats.volunteers }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="mb-4">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">{% trans "Liste des inscriptions" %}</h5>
+        </div>
+        <div class="card-body">
+            <!-- Filtres -->
+            <form method="get" class="mb-4">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <div class="form-group">
+                            <label for="status">{% trans "Statut" %}</label>
+                            <select name="status" id="status" class="form-select">
+                                <option value="">{% trans "Tous" %}</option>
+                                <option value="pending" {% if status_filter == "pending" %}selected{% endif %}>{% trans "En attente" %}</option>
+                                <option value="approved" {% if status_filter == "approved" %}selected{% endif %}>{% trans "Approuvées" %}</option>
+                                <option value="rejected" {% if status_filter == "rejected" %}selected{% endif %}>{% trans "Rejetées" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="form-group">
+                            <label for="role">{% trans "Rôle" %}</label>
+                            <select name="role" id="role" class="form-select">
+                                <option value="">{% trans "Tous" %}</option>
+                                <option value="competitor" {% if role_filter == "competitor" %}selected{% endif %}>{% trans "Compétiteurs" %}</option>
+                                <option value="technical_judge" {% if role_filter == "technical_judge" %}selected{% endif %}>{% trans "Juges Techniques" %}</option>
+                                <option value="combat_referee" {% if role_filter == "combat_referee" %}selected{% endif %}>{% trans "Arbitres Combat" %}</option>
+                                <option value="volunteer" {% if role_filter == "volunteer" %}selected{% endif %}>{% trans "Bénévoles" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="form-group">
+                            <label for="club">{% trans "Club" %}</label>
+                            <select name="club" id="club" class="form-select">
+                                <option value="">{% trans "Tous" %}</option>
+                                {% for club in clubs %}
+                                    <option value="{{ club.id }}" {% if club_filter|stringformat:"s" == club.id|stringformat:"s" %}selected{% endif %}>{{ club.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="form-group">
+                            <label for="search">{% trans "Recherche" %}</label>
+                            <input type="text" name="search" id="search" class="form-control" value="{{ search_query }}" placeholder="{% trans 'Nom, prénom, email...' %}">
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-filter me-2"></i> {% trans "Filtrer" %}
+                </button>
+                <a href="{% url 'competitions:competitions:manage_registrations' competition.id %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-times me-2"></i> {% trans "Réinitialiser" %}
+                </a>
+            </form>
+
+            <!-- Actions de masse -->
+            {% if registrations and status_filter == 'pending' %}
+            <div class="batch-actions mb-4">
+                <h6 class="mb-3">{% trans "Actions groupées" %}</h6>
+                <form id="batchActionsForm" method="post" action="{% url 'competitions:competitions:manage_registrations' competition.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="batch_action" id="batchAction" value="">
+                    <input type="hidden" name="selected_ids" id="selectedIds" value="">
+                    
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-success" id="batchApproveBtn">
+                            <i class="fas fa-check me-2"></i> {% trans "Approuver sélection" %}
+                        </button>
+                        <button type="button" class="btn btn-danger" id="batchRejectBtn">
+                            <i class="fas fa-times me-2"></i> {% trans "Rejeter sélection" %}
+                        </button>
+                    </div>
+                    <span class="ms-3" id="selectedCount">0 {% trans "sélectionné(s)" %}</span>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- Tableau des inscriptions -->
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="registrations-table">
+                    <thead>
+                        <tr>
+                            {% if status_filter == 'pending' %}
+                            <th>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="selectAll">
+                                </div>
+                            </th>
+                            {% endif %}
+                            <th>{% trans "ID" %}</th>
+                            <th>{% trans "Nom" %}</th>
+                            <th>{% trans "Club" %}</th>
+                            <th>{% trans "Rôles" %}</th>
+                            <th>{% trans "Date d'inscription" %}</th>
+                            <th>{% trans "Statut" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for registration in registrations %}
+                        <tr>
+                            {% if status_filter == 'pending' %}
+                            <td>
+                                <div class="form-check">
+                                    <input class="form-check-input registration-checkbox" type="checkbox" value="{{ registration.id }}">
+                                </div>
+                            </td>
+                            {% endif %}
+                            <td>{{ registration.id }}</td>
+                            <td>
+                                <strong>{{ registration.practitioner.full_name }}</strong><br>
+                                <small class="text-muted">{{ registration.practitioner.age }} ans - {{ registration.practitioner.grade }}</small>
+                            </td>
+                            <td>
+                                {% if registration.practitioner.club %}
+                                    {{ registration.practitioner.club.name }}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if registration.is_competitor %}
+                                    <span class="badge bg-primary text-white me-1">{% trans "Compétiteur" %}</span>
+                                {% endif %}
+                                {% if registration.is_technical_judge %}
+                                    <span class="badge bg-info text-white me-1">{% trans "Juge" %}</span>
+                                {% endif %}
+                                {% if registration.is_combat_referee %}
+                                    <span class="badge bg-danger text-white me-1">{% trans "Arbitre" %}</span>
+                                {% endif %}
+                                {% if registration.is_volunteer %}
+                                    <span class="badge bg-secondary text-white">{% trans "Bénévole" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ registration.registration_date|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                {% if registration.status == 'pending' %}
+                                    <span class="badge status-badge status-pending">{% trans "En attente" %}</span>
+                                {% elif registration.status == 'approved' %}
+                                    <span class="badge status-badge status-approved">{% trans "Approuvée" %}</span>
+                                {% elif registration.status == 'rejected' %}
+                                    <span class="badge status-badge status-rejected">{% trans "Rejetée" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group">
+                                    <a href="{% url 'competitions:competitions:registration_detail' registration.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if registration.status == 'pending' %}
+                                        <button type="button" class="btn btn-sm btn-success approve-btn" data-id="{{ registration.id }}">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-danger reject-btn" data-id="{{ registration.id }}">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{% if status_filter == 'pending' %}8{% else %}7{% endif %}" class="text-center py-4">
+                                <div class="alert alert-info mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    {% trans "Aucune inscription trouvée." %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if registrations.has_other_pages %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if registrations.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if request.GET.urlencode and '&page=' not in request.GET.urlencode and 'page=' not in request.GET.urlencode %}&{{ request.GET.urlencode }}{% elif request.GET.urlencode %}&{{ request.GET.urlencode|cut:'page='|cut:registrations.number }}{% endif %}" aria-label="First">
+                            <span aria-hidden="true">&laquo;&laquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ registrations.previous_page_number }}{% if request.GET.urlencode and '&page=' not in request.GET.urlencode and 'page=' not in request.GET.urlencode %}&{{ request.GET.urlencode }}{% elif request.GET.urlencode %}&{{ request.GET.urlencode|cut:'page='|cut:registrations.number }}{% endif %}" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                            <span aria-hidden="true">&laquo;&laquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for i in registrations.paginator.page_range %}
+                        {% if registrations.number == i %}
+                            <li class="page-item active"><a class="page-link" href="#">{{ i }}</a></li>
+                        {% elif i > registrations.number|add:'-3' and i < registrations.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ i }}{% if request.GET.urlencode and '&page=' not in request.GET.urlencode and 'page=' not in request.GET.urlencode %}&{{ request.GET.urlencode }}{% elif request.GET.urlencode %}&{{ request.GET.urlencode|cut:'page='|cut:registrations.number }}{% endif %}">{{ i }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if registrations.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ registrations.next_page_number }}{% if request.GET.urlencode and '&page=' not in request.GET.urlencode and 'page=' not in request.GET.urlencode %}&{{ request.GET.urlencode }}{% elif request.GET.urlencode %}&{{ request.GET.urlencode|cut:'page='|cut:registrations.number }}{% endif %}" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ registrations.paginator.num_pages }}{% if request.GET.urlencode and '&page=' not in request.GET.urlencode and 'page=' not in request.GET.urlencode %}&{{ request.GET.urlencode }}{% elif request.GET.urlencode %}&{{ request.GET.urlencode|cut:'page='|cut:registrations.number }}{% endif %}" aria-label="Last">
+                            <span aria-hidden="true">&raquo;&raquo;</span>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                            <span aria-hidden="true">&raquo;&raquo;</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation d'approbation -->
+<div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="approveModalLabel">{% trans "Confirmer l'approbation" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Êtes-vous sûr de vouloir approuver cette inscription ?" %}</p>
+                <p class="text-muted">{% trans "Un email de confirmation sera envoyé au participant." %}</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <form id="approveForm" method="post" action="">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="approve">
+                    <button type="submit" class="btn btn-success">{% trans "Approuver" %}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation de rejet -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="rejectModalLabel">{% trans "Confirmer le rejet" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>{% trans "Êtes-vous sûr de vouloir rejeter cette inscription ?" %}</p>
+                <form id="rejectForm" method="post" action="">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reject">
+                    <div class="form-group">
+                        <label for="rejection_reason">{% trans "Motif du rejet" %} ({% trans "facultatif" %})</label>
+                        <textarea class="form-control" id="rejection_reason" name="rejection_reason" rows="3" placeholder="{% trans 'Indiquez le motif du rejet qui sera inclus dans l\'email envoyé au participant' %}"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-danger" id="confirmReject">{% trans "Rejeter" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation des actions de masse -->
+<div class="modal fade" id="batchActionModal" tabindex="-1" aria-labelledby="batchActionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batchActionModalLabel">{% trans "Confirmer l'action" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="batchActionMessage"></p>
+                <div id="batchRejectReasonContainer" style="display: none;">
+                    <div class="form-group">
+                        <label for="batchRejectionReason">{% trans "Motif du rejet" %} ({% trans "facultatif" %})</label>
+                        <textarea class="form-control" id="batchRejectionReason" name="rejection_reason" rows="3" placeholder="{% trans 'Indiquez le motif du rejet qui sera inclus dans les emails envoyés aux participants' %}"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                <button type="button" class="btn btn-primary" id="confirmBatchAction">{% trans "Confirmer" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Gestion des boutons d'approbation individuelle
+        const approveBtns = document.querySelectorAll('.approve-btn');
+        approveBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const registrationId = this.getAttribute('data-id');
+                const approveForm = document.getElementById('approveForm');
+                approveForm.action = "{% url 'competitions:competitions:update_registration_status' 0 %}".replace('0', registrationId);
+                
+                const approveModal = new bootstrap.Modal(document.getElementById('approveModal'));
+                approveModal.show();
+            });
+        });
+
+        // Gestion des boutons de rejet individuel
+        const rejectBtns = document.querySelectorAll('.reject-btn');
+        rejectBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const registrationId = this.getAttribute('data-id');
+                const rejectForm = document.getElementById('rejectForm');
+                rejectForm.action = "{% url 'competitions:competitions:update_registration_status' 0 %}".replace('0', registrationId);
+                
+                const rejectModal = new bootstrap.Modal(document.getElementById('rejectModal'));
+                rejectModal.show();
+            });
+        });
+
+        // Soumission du formulaire de rejet
+        const confirmRejectBtn = document.getElementById('confirmReject');
+        if (confirmRejectBtn) {
+            confirmRejectBtn.addEventListener('click', function() {
+                document.getElementById('rejectForm').submit();
+            });
+        }
+
+        // Gestion des actions de masse
+        const selectAllCheckbox = document.getElementById('selectAll');
+        const registrationCheckboxes = document.querySelectorAll('.registration-checkbox');
+        const selectedCountElement = document.getElementById('selectedCount');
+        const batchApproveBtn = document.getElementById('batchApproveBtn');
+        const batchRejectBtn = document.getElementById('batchRejectBtn');
+        const batchActionForm = document.getElementById('batchActionsForm');
+        const batchActionInput = document.getElementById('batchAction');
+        const selectedIdsInput = document.getElementById('selectedIds');
+        
+        // Si on a des éléments pour les actions de masse
+        if (selectAllCheckbox && registrationCheckboxes.length > 0) {
+            // Sélectionner/désélectionner tout
+            selectAllCheckbox.addEventListener('change', function() {
+                const isChecked = this.checked;
+                registrationCheckboxes.forEach(checkbox => {
+                    checkbox.checked = isChecked;
+                });
+                updateSelectedCount();
+            });
+            
+            // Mise à jour du compteur de sélection
+            registrationCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', updateSelectedCount);
+            });
+            
+            // Fonction pour mettre à jour le compteur
+            function updateSelectedCount() {
+                const selectedCount = document.querySelectorAll('.registration-checkbox:checked').length;
+                selectedCountElement.textContent = selectedCount + ' {% trans "sélectionné(s)" %}';
+                
+                // Activer/désactiver les boutons d'action de masse
+                batchApproveBtn.disabled = selectedCount === 0;
+                batchRejectBtn.disabled = selectedCount === 0;
+            }
+            
+            // Initialiser le compteur
+            updateSelectedCount();
+            
+            // Gestion des actions de masse
+            batchApproveBtn.addEventListener('click', function() {
+                const selectedIds = getSelectedIds();
+                if (selectedIds.length === 0) return;
+                
+                batchActionInput.value = 'approve';
+                selectedIdsInput.value = selectedIds.join(',');
+                
+                // Afficher la modal de confirmation
+                document.getElementById('batchActionMessage').textContent = 
+                    `{% trans "Êtes-vous sûr de vouloir approuver les" %} ${selectedIds.length} {% trans "inscriptions sélectionnées?" %}`;
+                document.getElementById('batchRejectReasonContainer').style.display = 'none';
+                
+                const batchActionModal = new bootstrap.Modal(document.getElementById('batchActionModal'));
+                batchActionModal.show();
+            });
+            
+            batchRejectBtn.addEventListener('click', function() {
+                const selectedIds = getSelectedIds();
+                if (selectedIds.length === 0) return;
+                
+                batchActionInput.value = 'reject';
+                selectedIdsInput.value = selectedIds.join(',');
+                
+                // Afficher la modal de confirmation avec champ de motif
+                document.getElementById('batchActionMessage').textContent = 
+                    `{% trans "Êtes-vous sûr de vouloir rejeter les" %} ${selectedIds.length} {% trans "inscriptions sélectionnées?" %}`;
+                document.getElementById('batchRejectReasonContainer').style.display = 'block';
+                
+                const batchActionModal = new bootstrap.Modal(document.getElementById('batchActionModal'));
+                batchActionModal.show();
+            });
+            
+            // Confirmer l'action de masse
+            document.getElementById('confirmBatchAction').addEventListener('click', function() {
+                if (batchActionInput.value === 'reject') {
+                    // Ajouter le motif de rejet au formulaire
+                    const rejectionReason = document.getElementById('batchRejectionReason').value;
+                    const rejectionInput = document.createElement('input');
+                    rejectionInput.type = 'hidden';
+                    rejectionInput.name = 'rejection_reason';
+                    rejectionInput.value = rejectionReason;
+                    batchActionForm.appendChild(rejectionInput);
+                }
+                
+                batchActionForm.submit();
+            });
+            
+            // Fonction utilitaire pour récupérer les IDs des inscriptions sélectionnées
+            function getSelectedIds() {
+                const selectedIds = [];
+                registrationCheckboxes.forEach(checkbox => {
+                    if (checkbox.checked) {
+                        selectedIds.push(checkbox.value);
+                    }
+                });
+                return selectedIds;
+            }
+        }
+    });
+</script>
+{% endblock %}

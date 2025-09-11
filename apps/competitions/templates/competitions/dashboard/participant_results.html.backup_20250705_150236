@@ -1,0 +1,445 @@
+{% extends "competitions/dashboard/base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Mes résultats" %} - MartialComp{% endblock %}
+
+{% block user_role %}{% trans "Participant" %}{% endblock %}
+
+{% block page_title %}{% trans "Mes résultats" %}{% endblock %}
+
+{% block sidebar_menu %}
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        {% trans "Tableau de bord" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant_competitions' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+        {% trans "Mes compétitions" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:competitions:list' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+        {% trans "Toutes les compétitions" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant_results' %}" class="nav-link active">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        {% trans "Mes résultats" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:dashboard:participant_profile' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        {% trans "Mon profil" %}
+    </a>
+</li>
+<li class="nav-item">
+    <a href="{% url 'competitions:logout' %}" class="nav-link">
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        {% trans "Déconnexion" %}
+    </a>
+</li>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="results-header">
+    <div class="results-filters mb-4">
+        <div class="row g-3">
+            <div class="col-md-8">
+                <form method="get" class="search-form">
+                    <div class="input-group">
+                        <input type="text" name="q" class="form-control" placeholder="{% trans 'Rechercher par nom de compétition ou catégorie...' %}" value="{{ search_query|default:'' }}">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i> {% trans "Rechercher" %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% if practitioners|length > 1 %}
+                <div class="col-md-4">
+                    <form method="get" class="filter-form">
+                        <div class="input-group">
+                            <label class="input-group-text" for="practitioner-select">{% trans "Filtrer par" %}</label>
+                            <select class="form-select" id="practitioner-select" name="id" onchange="this.form.submit()">
+                                <option value="">{% trans "Tous mes profils" %}</option>
+                                {% for p in practitioners %}
+                                    <option value="{{ p.id }}" {% if selected_practitioner.id == p.id %}selected{% endif %}>
+                                        {{ p.full_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-12 col-md-6 col-xl-3 mb-3">
+            <div class="medal-card medal-gold">
+                <div class="medal-icon">🥇</div>
+                <div class="medal-content">
+                    <div class="medal-count">
+                        {{ results.filter.rank.1|default:"0" }}
+                    </div>
+                    <div class="medal-label">{% trans "Médailles d'or" %}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3 mb-3">
+            <div class="medal-card medal-silver">
+                <div class="medal-icon">🥈</div>
+                <div class="medal-content">
+                    <div class="medal-count">
+                        {{ results.filter.rank.2|default:"0" }}
+                    </div>
+                    <div class="medal-label">{% trans "Médailles d'argent" %}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3 mb-3">
+            <div class="medal-card medal-bronze">
+                <div class="medal-icon">🥉</div>
+                <div class="medal-content">
+                    <div class="medal-count">
+                        {{ results.filter.rank.3|default:"0" }}
+                    </div>
+                    <div class="medal-label">{% trans "Médailles de bronze" %}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3 mb-3">
+            <div class="medal-card medal-total">
+                <div class="medal-icon">🏆</div>
+                <div class="medal-content">
+                    <div class="medal-count">
+                        {{ results.paginator.count|default:"0" }}
+                    </div>
+                    <div class="medal-label">{% trans "Participations totales" %}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">
+            {% if selected_practitioner %}
+                {% trans "Résultats de" %} {{ selected_practitioner.full_name }}
+            {% else %}
+                {% trans "Tous mes résultats" %}
+            {% endif %}
+        </h5>
+        
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-download me-1"></i> {% trans "Exporter" %}
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="visually-hidden">{% trans "Toggle Dropdown" %}</span>
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="#">{% trans "PDF" %}</a></li>
+                <li><a class="dropdown-item" href="#">{% trans "Excel" %}</a></li>
+                <li><a class="dropdown-item" href="#">{% trans "CSV" %}</a></li>
+            </ul>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if results %}
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Date" %}</th>
+                            <th>{% trans "Compétition" %}</th>
+                            <th>{% trans "Catégorie" %}</th>
+                            {% if not selected_practitioner %}
+                                <th>{% trans "Participant" %}</th>
+                            {% endif %}
+                            <th>{% trans "Score" %}</th>
+                            <th>{% trans "Position" %}</th>
+                            <th class="text-end">{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for result in results %}
+                            <tr>
+                                <td>{{ result.date|date:"d/m/Y" }}</td>
+                                <td>
+                                    <div class="d-flex flex-column">
+                                        <span class="fw-medium">{{ result.competition.title }}</span>
+                                        <small class="text-muted">{{ result.competition.city|default:"-" }}</small>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if result.category %}
+                                        <span class="badge bg-secondary">{{ result.category.name }}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                {% if not selected_practitioner %}
+                                    <td>{{ result.practitioner.full_name }}</td>
+                                {% endif %}
+                                <td>
+                                    {% if result.score %}
+                                        <strong>{{ result.score }}</strong> {% trans "points" %}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if result.rank == 1 %}
+                                        <span class="position-badge position-first">
+                                            <i class="fas fa-medal me-1"></i> {% trans "1er" %}
+                                        </span>
+                                    {% elif result.rank == 2 %}
+                                        <span class="position-badge position-second">
+                                            <i class="fas fa-medal me-1"></i> {% trans "2nd" %}
+                                        </span>
+                                    {% elif result.rank == 3 %}
+                                        <span class="position-badge position-third">
+                                            <i class="fas fa-medal me-1"></i> {% trans "3ème" %}
+                                        </span>
+                                    {% elif result.rank %}
+                                        <span class="position-badge">{{ result.rank }}{% trans "ème" %}</span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <a href="{% url 'competitions:competitions:detail' result.competition.id %}" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-eye"></i> {% trans "Détails" %}
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if results.has_other_pages %}
+                <div class="p-3 border-top">
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center mb-0">
+                            {% if results.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_practitioner %}&id={{ selected_practitioner.id }}{% endif %}" aria-label="First">
+                                        <span aria-hidden="true">{% trans "&laquo;&laquo;" %}</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ results.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_practitioner %}&id={{ selected_practitioner.id }}{% endif %}" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" aria-label="First">
+                                        <span aria-hidden="true">{% trans "&laquo;&laquo;" %}</span>
+                                    </a>
+                                </li>
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            {% endif %}
+                            
+                            {% for i in results.paginator.page_range %}
+                                {% if results.number == i %}
+                                    <li class="page-item active"><a class="page-link" href="#">{{ i }}</a></li>
+                                {% elif i > results.number|add:'-3' and i < results.number|add:'3' %}
+                                    <li class="page-item"><a class="page-link" href="?page={{ i }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_practitioner %}&id={{ selected_practitioner.id }}{% endif %}">{{ i }}</a></li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if results.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ results.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_practitioner %}&id={{ selected_practitioner.id }}{% endif %}" aria-label="Next">
+                                        <span aria-hidden="true">{% trans "&raquo;" %}</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ results.paginator.num_pages }}{% if search_query %}&q={{ search_query }}{% endif %}{% if selected_practitioner %}&id={{ selected_practitioner.id }}{% endif %}" aria-label="Last">
+                                        <span aria-hidden="true">{% trans "&raquo;&raquo;" %}</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" aria-label="Next">
+                                        <span aria-hidden="true">{% trans "&raquo;" %}</span>
+                                    </a>
+                                </li>
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" aria-label="Last">
+                                        <span aria-hidden="true">{% trans "&raquo;&raquo;" %}</span>
+                                    </a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="p-4 text-center">
+                {% if search_query %}
+                    <div class="no-results-container">
+                        <img src="https://cdn-icons-png.flaticon.com/512/4076/4076432.png" alt="{% trans "No results" %}" class="no-results-image">
+                        <h5>{% trans "Aucun résultat trouvé" %}</h5>
+                        <p class="text-muted">{% trans "Votre recherche" %} "{{ search_query }}" {% trans "n'a retourné aucun résultat." %}</p>
+                        <a href="{% url 'competitions:dashboard:participant_results' %}" class="btn btn-outline-primary">
+                            <i class="fas fa-arrow-left me-2"></i> {% trans "Effacer la recherche" %}
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="no-results-container">
+                        <img src="https://cdn-icons-png.flaticon.com/512/4076/4076445.png" alt="{% trans "No results" %}" class="no-results-image">
+                        <h5>{% trans "Aucun résultat disponible" %}</h5>
+                        <p class="text-muted">
+                            {% if selected_practitioner %}
+                                {% trans "Vous n'avez pas encore de résultats enregistrés pour" %} {{ selected_practitioner.full_name }}.
+                            {% else %}
+                                {% trans "Vous n'avez pas encore de résultats enregistrés." %}
+                            {% endif %}
+                        </p>
+                        <a href="{% url 'competitions:dashboard:participant_competitions' %}" class="btn btn-primary">
+                            <i class="fas fa-trophy me-2"></i> {% trans "Voir mes compétitions" %}
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    /* Medal cards */
+    .medal-card {
+        display: flex;
+        align-items: center;
+        padding: 1.25rem;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    
+    .medal-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .medal-gold {
+        background: linear-gradient(135deg, #f6e681, #e8bc3d);
+        color: #744500;
+    }
+    
+    .medal-silver {
+        background: linear-gradient(135deg, #e3e3e3, #b0b0b0);
+        color: #555;
+    }
+    
+    .medal-bronze {
+        background: linear-gradient(135deg, #e6a972, #b17551);
+        color: #5d3c2a;
+    }
+    
+    .medal-total {
+        background: linear-gradient(135deg, #a8c0ff, #3f5efb);
+        color: #fff;
+    }
+    
+    .medal-icon {
+        font-size: 2.5rem;
+        margin-right: 1rem;
+    }
+    
+    .medal-content {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .medal-count {
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+    
+    .medal-label {
+        font-size: 0.9rem;
+        opacity: 0.8;
+    }
+    
+    /* Position badges */
+    .position-badge {
+        display: inline-block;
+        padding: 0.35rem 0.65rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        background-color: #f0f0f0;
+        color: #333;
+    }
+    
+    .position-first {
+        background-color: rgba(255, 215, 0, 0.15);
+        color: #b8860b;
+        border: 1px solid rgba(255, 215, 0, 0.3);
+    }
+    
+    .position-second {
+        background-color: rgba(192, 192, 192, 0.15);
+        color: #808080;
+        border: 1px solid rgba(192, 192, 192, 0.3);
+    }
+    
+    .position-third {
+        background-color: rgba(205, 127, 50, 0.15);
+        color: #a0522d;
+        border: 1px solid rgba(205, 127, 50, 0.3);
+    }
+    
+    /* No results styling */
+    .no-results-container {
+        padding: 2rem 0;
+    }
+    
+    .no-results-image {
+        width: 120px;
+        height: 120px;
+        opacity: 0.7;
+        margin-bottom: 1.5rem;
+    }
+</style>
+{% endblock %}

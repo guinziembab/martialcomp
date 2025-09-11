@@ -1,0 +1,141 @@
+from django.core.exceptions import PermissionDenied
+import logging
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.utils.translation import gettext_lazy as _
+from django.urls import reverse, NoReverseMatch
+
+from ...models import UserProfile
+from ...forms.onboarding import RoleSelectionForm
+from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
+
+logger = logging.getLogger(__name__)
+
+
+@login_required
+def handle_role_selection(request):
+    """Gestion de la sélection du rôle dans le processus d'onboarding."""
+    try:
+        # Récupérer ou créer le profil utilisateur
+        try:
+            profile = UserProfile.objects.get(user=request.user)
+            if getattr(profile, 'onboarding_completed', False):
+                messages.info(request, _("Votre compte est déjà configuré."))
+                role = getattr(profile, 'role', 'spectator')
+
+                # Redirection en fonction du rôle
+                if role == 'club_manager':
+                    return redirect('/dashboard/club/')
+                elif role == 'judge':
+                    return redirect('/dashboard/referee/')
+                elif role == 'participant':
+                    return redirect('/dashboard/participant/')
+                else:
+                    return redirect('/dashboard/')
+        except UserProfile.DoesNotExist:
+            profile = UserProfile.objects.create(
+                user=request.user,
+                role='spectator',
+                onboarding_step='role_selection'
+            )
+            logger.info(f"Profil créé pour utilisateur {request.user.username}")
+
+        # Traitement du formulaire POST
+        if request.method == 'POST':
+            form = RoleSelectionForm(request.POST)
+            if form.is_valid():
+                role = form.cleaned_data['role']
+                profile.role = role
+
+                # Étapes d'onboarding selon le rôle
+                steps = {
+                    'federation_admin': 'federation',
+                    'club_manager': 'club_creation',
+                    'judge': 'judge_profile',
+                    'coach': 'coach_profile_simplified',
+                    'participant': 'participant_profile',
+                    'external_organizer': 'external_organizer_profile',
+                    'spectator': 'final_setup'
+                }
+
+                next_step = steps.get(role, 'final_setup')
+                profile.onboarding_step = next_step
+                profile.save()
+                request.session['onboarding_step'] = next_step
+
+                route_name = f"competitions:onboarding:{next_step}"
+                fallback_url = f"/competitions/onboarding/{next_step.replace('_', '/')}/"
+
+                try:
+                    return redirect(route_name)
+                except NoReverseMatch:
+                    return redirect(fallback_url)
+
+                messages.success(request, _("Rôle sélectionné avec succès."))
+                logger.info(f"Utilisateur {request.user.username} a sélectionné le rôle : {role}")
+            else:
+                messages.error(request, _("Rôle invalide sélectionné."))
+        else:
+            form = RoleSelectionForm()
+
+        context = {
+            'form': form,
+            'step': 'role_selection',
+            'current_step': 'role_selection',
+            'profile': profile,
+            'available_roles': [
+                {
+                    'key': 'participant',
+                    'name': _('Participant'),
+                    'description': _('Je participe aux compétitions'),
+                    'icon': 'fas fa-user-ninja'
+                },
+                {
+                    'key': 'club_manager',
+                    'name': _('Gestionnaire de club'),
+                    'description': _('Je gère un club'),
+                    'icon': 'fas fa-users-cog'
+                },
+                {
+                    'key': 'judge',
+                    'name': _('Juge/Arbitre'),
+                    'description': _('Je juge les compétitions'),
+                    'icon': 'fas fa-gavel'
+                },
+                {
+                    'key': 'coach',
+                    'name': _('Entraîneur'),
+                    'description': _('J’entraîne des pratiquants'),
+                    'icon': 'fas fa-chalkboard-teacher'
+                },
+                {
+                    'key': 'federation_admin',
+                    'name': _('Administrateur fédération'),
+                    'description': _('Je gère une fédération'),
+                    'icon': 'fas fa-building'
+                },
+                {
+                    'key': 'external_organizer',
+                    'name': _('Organisateur externe'),
+                    'description': _('J’organise des événements'),
+                    'icon': 'fas fa-calendar-alt'
+                },
+                {
+                    'key': 'spectator',
+                    'name': _('Spectateur'),
+                    'description': _('Je regarde les compétitions'),
+                    'icon': 'fas fa-eye'
+                },
+            ]
+        }
+
+        return render(request, 'competitions/onboarding/role_selection.html', context)
+
+    except Exception as e:
+        logger.error(f"Erreur dans handle_role_selection: {e}")
+        messages.error(request, _("Une erreur est survenue lors de la sélection du rôle."))
+        try:
+            return redirect('/dashboard/')
+        except:
+            return redirect('/')

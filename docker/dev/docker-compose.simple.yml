@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:13-alpine
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=martialcomp_dev
+      - POSTGRES_USER=martialcomp
+      - POSTGRES_PASSWORD=devpassword
+    ports:
+      - "5432:5432"
+
+  web:
+    build:
+      context: ../..
+      dockerfile: docker/dev/Dockerfile.simple
+    command: bash -c "cd /app && pip install -r requirements-simple.txt && python scripts/manage.py runserver 0.0.0.0:8000 --settings=config.settings"
+    volumes:
+      - ../..:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DEBUG=1
+      - SECRET_KEY=devsecretkey
+      - DATABASE_URL=postgres://martialcomp:devpassword@db:5432/martialcomp_dev
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - ALLOWED_HOSTS=localhost,127.0.0.1
+      - PYTHONPATH=/app
+    stdin_open: true
+    tty: true
+
+volumes:
+  postgres_data_dev:

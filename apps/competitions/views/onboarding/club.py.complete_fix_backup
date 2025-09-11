@@ -1,0 +1,204 @@
+from django.core.exceptions import PermissionDenied
+ import logging
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.utils.translation import gettext_lazy as _
+from django.db import transaction
+
+from ...models import Club, Discipline
+from ...forms.onboarding import ClubCreationForm
+from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
+
+logger = logging.getLogger(__name__)
+
+@login_required
+def handle_club_creation(request):
+    """Gestion de la création d'un club."""
+    # Vérifier si l'utilisateur a un profil
+    if not hasattr(request.user, 'profile') or request.user.profile.role != 'club_manager':
+        messages.error(request, _("Accès non autorisé. Vous devez Ãªtre responsable de club."))
+        return redirect('competitions:onboarding:role_selection')
+    
+    # Vérifier si l'utilisateur a déjÃ  un club
+    existing_club = Club.objects.filter(owner=request.user).first()
+    if existing_club:
+        messages.info(request, _("Vous avez déjÃ  créé un club. Configuration terminée."))
+        # Marquer l'onboarding comme terminé
+        request.user.profile.onboarding_step = 'completed'
+        request.user.profile.onboarding_completed = True
+        request.user.profile.save()
+        if 'onboarding_step' in request.session:
+            del request.session['onboarding_step']
+        return redirect('competitions:dashboard:club')
+    
+    if request.method == 'POST':
+        form = ClubCreationForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    # Création du club avec l'utilisateur comme propriétaire
+                    club = form.save(commit=False)
+                    club.owner = request.user
+                    
+                    # Gestion de l'upload du logo si présent
+                    if 'logo' in request.FILES:
+                        from ...utils.upload import handle_club_logo_upload
+                        club.logo = handle_club_logo_upload(request.FILES['logo'], club.name)
+                    
+                    # Sauvegarder le club
+                    club.save()
+                    
+                    # Gestion de la discipline
+                    discipline = form.cleaned_data.get('discipline')
+                    if discipline:
+                        # Définir la discipline principale
+                        club.main_discipline = discipline
+                        club.save()
+                        
+                        # Ajouter aux disciplines du club (relation M2M)
+                        club.disciplines.add(discipline)
+                    
+                    # Mise Ã  jour du profil utilisateur avec ce club et COMPLETION de l'onboarding
+                    try:
+                        request.user.profile.club = club
+                        request.user.profile.onboarding_step = 'completed'
+                        request.user.profile.onboarding_completed = True  # IMPORTANT: Marquer comme complété
+                        request.user.profile.save()
+                    except Exception as e:
+                        logger.warning(f"Impossible de mettre Ã  jour le profil: {str(e)}")
+                    
+                    # Supprimer l'étape d'onboarding de la session
+                    if 'onboarding_step' in request.session:
+                        del request.session['onboarding_step']
+                    
+                    messages.success(request, _("Votre club a été créé avec succès! Configuration terminée."))
+                    
+                    # Redirection directe vers le dashboard club
+                    return redirect('competitions:dashboard:club')
+            except Exception as e:
+                logger.error(f"Erreur lors de la création du club: {str(e)}")
+                messages.error(request, _("Une erreur est survenue lors de la création du club."))
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
+    else:
+        form = ClubCreationForm()
+    
+    return render(request, 'competitions/onboarding/club_creation.html', {
+        'form': form,
+        'step': 'club_creation',
+        'current_step': 'club_creation'
+    })
+
+@login_required
+def handle_club_details(request):
+    """Gestion des détails additionnels du club."""
+    # Vérifier si l'utilisateur a un profil
+    if not hasattr(request.user, 'profile') or request.user.profile.role != 'club_manager':
+        messages.error(request, _("Accès non autorisé. Vous devez Ãªtre responsable de club."))
+        return redirect('competitions:onboarding:role_selection')
+    
+    # Récupération du club de l'utilisateur
+    club = get_object_or_404(Club, owner=request.user)
+    
+    if request.method == 'POST':
+        form = ClubCreationForm(request.POST, request.FILES, instance=club)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    # Sauvegarde du club avec les nouveaux détails
+                    club = form.save(commit=False)
+                    
+                    # Traitement des disciplines additionnelles si possible
+                    try:
+                        if 'additional_disciplines' in request.POST and hasattr(club, 'disciplines'):
+                            additional_discipline_ids = request.POST.getlist('additional_disciplines')
+                            for discipline_id in additional_discipline_ids:
+                                try:
+                                    discipline = Discipline.objects.get(id=discipline_id)
+                                    club.disciplines.add(discipline)
+                                except Discipline.DoesNotExist:
+                                    continue
+                    except Exception as e:
+                        logger.warning(f"Impossible d'ajouter les disciplines: {str(e)}")
+                    
+                    # Traitement des équipements avec vérification des attributs
+                    if hasattr(club, 'has_equipment'):
+                        club.has_equipment = 'has_equipment' in request.POST
+                    if hasattr(club, 'has_changing_rooms'):
+                        club.has_changing_rooms = 'has_changing_rooms' in request.POST
+                    if hasattr(club, 'has_showers'):
+                        club.has_showers = 'has_showers' in request.POST
+                    if hasattr(club, 'has_parking'):
+                        club.has_parking = 'has_parking' in request.POST
+                    
+                    # Sauvegarde des heures d'entrainement avec vérification des attributs
+                    if 'training_hours' in request.POST and hasattr(club, 'training_hours'):
+                        club.training_hours = request.POST.get('training_hours')
+                    
+                    club.save()
+                    
+                    messages.success(request, _("Détails du club mis Ã  jour avec succès!"))
+                    
+                    # Passage Ã  l'étape suivante (catégories)
+                    request.user.profile.onboarding_step = 'categories_setup'
+                    request.user.profile.save()
+                    request.session['onboarding_step'] = 'categories_setup'
+                    return redirect('competitions:onboarding:categories_setup')
+            except Exception as e:
+                logger.error(f"Erreur lors de la mise Ã  jour des détails du club: {str(e)}")
+                messages.error(request, _("Une erreur est survenue lors de la mise Ã  jour."))
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field}: {error}")
+    else:
+        form = ClubCreationForm(instance=club)
+    
+    # Sécurisation des disciplines - avec gestion d'erreurs
+    try:
+        if hasattr(club, 'disciplines'):
+            # Si club a l'attribut disciplines, on exclut celles déjÃ  associées
+            disciplines = Discipline.objects.filter(is_active=True).exclude(id__in=club.disciplines.all())
+        else:
+            # Sinon, on prend toutes les disciplines actives
+            disciplines = Discipline.objects.filter(is_active=True)
+    except Exception as e:
+        logger.warning(f"Erreur lors de la récupération des disciplines: {str(e)}")
+        disciplines = []  # Liste vide en cas d'erreur
+    
+    context = {
+        'club': club,
+        'form': form,
+        'step': 'club_details',
+        'current_step': 'club_details',
+        'disciplines': disciplines,
+    }
+    
+    return render(request, 'competitions/onboarding/club_details.html', context)
+
+# Ajoutez cette fonction Ã  votre fichier club.py
+
+@login_required
+def club_practitioners(request):
+    """Liste des pratiquants du club de l'utilisateur connecté."""
+    # Récupérer le club de l'utilisateur avec gestion des différentes structures possibles
+    club = None
+    if hasattr(request.user, 'club') and request.user.club:
+        club = request.user.club
+    else:
+        # Essayer de récupérer le club dont l'utilisateur est propriétaire
+        club = Club.objects.filter(owner=request.user).first()
+    
+    if not club:
+        messages.error(request, _("Vous devez Ãªtre responsable de club pour accéder Ã  cette page."))
+        return redirect('competitions:dashboard')
+    
+    practitioners = Practitioner.objects.filter(club=club)
+    
+    return render(request, 'competitions/club/practitioners.html', {
+        'club': club,
+        'practitioners': practitioners,
+    })

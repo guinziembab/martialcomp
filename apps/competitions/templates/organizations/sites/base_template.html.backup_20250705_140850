@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="{{ request.LANGUAGE_CODE|default:'fr' }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{{ organization.name }}{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom CSS for organization -->
+    <style>
+        :root {
+            --primary-color: {{ organization.primary_color|default:'#007bff' }};
+            --secondary-color: {{ organization.secondary_color|default:'#6c757d' }};
+            --accent-color: {{ organization.accent_color|default:'#28a745' }};
+        }
+        
+        .navbar-brand img {
+            max-height: 40px;
+            width: auto;
+        }
+        
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 4rem 0;
+        }
+        
+        .qr-code-section {
+            background-color: #f8f9fa;
+            padding: 3rem 0;
+        }
+        
+        .qr-code-card {
+            transition: transform 0.2s;
+            border: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .qr-code-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        
+        footer {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: var(--primary-color);">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                {% if organization.logo %}
+                    <img src="{{ organization.logo.url }}" alt="{{ organization.name }}" class="me-2">
+                {% else %}
+                    <i class="fas fa-fist-raised me-2"></i>
+                {% endif %}
+                <span>{{ organization.name }}</span>
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#about">À propos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#qr-codes">QR Codes</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#contact">Contact</a>
+                    </li>
+                    {% block extra_nav %}{% endblock %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+        {% block content %}
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <div class="container">
+                <div class="row align-items-center">
+                    <div class="col-lg-8">
+                        <h1 class="display-4 fw-bold mb-4">{{ organization.name }}</h1>
+                        <p class="lead mb-4">{{ organization.description|default:"Bienvenue dans notre organisation d'arts martiaux" }}</p>
+                        {% block hero_actions %}
+                        <div class="d-flex gap-3">
+                            <a href="#qr-codes" class="btn btn-light btn-lg">
+                                <i class="fas fa-qrcode me-2"></i>Codes QR
+                            </a>
+                            <a href="#contact" class="btn btn-outline-light btn-lg">
+                                <i class="fas fa-envelope me-2"></i>Contact
+                            </a>
+                        </div>
+                        {% endblock %}
+                    </div>
+                    <div class="col-lg-4 text-center">
+                        {% if organization.logo %}
+                            <img src="{{ organization.logo.url }}" alt="{{ organization.name }}" class="img-fluid" style="max-height: 200px;">
+                        {% else %}
+                            <i class="fas fa-fist-raised" style="font-size: 8rem; opacity: 0.7;"></i>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </section>
+        {% endblock %}
+
+        {% block main_content %}
+        <!-- QR Codes Section -->
+        <section id="qr-codes" class="qr-code-section">
+            <div class="container">
+                <div class="row">
+                    <div class="col-12 text-center mb-5">
+                        <h2 class="display-5 fw-bold">Codes QR de l'Organisation</h2>
+                        <p class="lead text-muted">Scannez les codes QR pour accéder rapidement à nos services</p>
+                    </div>
+                </div>
+                
+                <div class="row g-4">
+                    {% for qr_type, qr_data in qr_codes.items %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card qr-code-card h-100">
+                            <div class="card-body text-center">
+                                <div class="mb-3">
+                                    {% if qr_type == 'register' %}
+                                        <i class="fas fa-user-plus fa-2x text-primary"></i>
+                                        <h5 class="card-title mt-2">Inscription</h5>
+                                    {% elif qr_type == 'payment' %}
+                                        <i class="fas fa-credit-card fa-2x text-success"></i>
+                                        <h5 class="card-title mt-2">Paiement</h5>
+                                    {% elif qr_type == 'referral' %}
+                                        <i class="fas fa-users fa-2x text-info"></i>
+                                        <h5 class="card-title mt-2">Parrainage</h5>
+                                    {% elif qr_type == 'checkin' %}
+                                        <i class="fas fa-check-circle fa-2x text-warning"></i>
+                                        <h5 class="card-title mt-2">Check-in</h5>
+                                    {% else %}
+                                        <i class="fas fa-qrcode fa-2x text-secondary"></i>
+                                        <h5 class="card-title mt-2">{{ qr_type|title }}</h5>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if qr_data.1 %}
+                                    <img src="{{ qr_data.1 }}" alt="QR {{ qr_type }}" class="img-fluid mb-3" style="max-width: 150px;">
+                                {% else %}
+                                    <div class="bg-light p-4 mb-3 rounded">
+                                        <i class="fas fa-qrcode fa-3x text-muted"></i>
+                                    </div>
+                                {% endif %}
+                                
+                                <p class="card-text small text-muted">
+                                    {% if qr_type == 'register' %}
+                                        Inscription rapide à l'organisation
+                                    {% elif qr_type == 'payment' %}
+                                        Paiement des cotisations et frais
+                                    {% elif qr_type == 'referral' %}
+                                        Parrainage de nouveaux membres
+                                    {% elif qr_type == 'checkin' %}
+                                        Pointage aux cours et événements
+                                    {% else %}
+                                        Service {{ qr_type }}
+                                    {% endif %}
+                                </p>
+                                
+                                {% if qr_data.0 %}
+                                    <a href="{{ qr_data.0 }}" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-external-link-alt me-1"></i>Accéder
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12 text-center">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Les codes QR sont en cours de génération...
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section id="about" class="py-5">
+            <div class="container">
+                <div class="row">
+                    <div class="col-lg-8 mx-auto text-center">
+                        <h2 class="display-5 fw-bold mb-4">À Propos</h2>
+                        {% if organization.description %}
+                            <p class="lead">{{ organization.description }}</p>
+                        {% else %}
+                            <p class="lead">
+                                Nous sommes une organisation dédiée à la pratique et à l'enseignement des arts martiaux.
+                                Rejoignez-nous pour développer vos compétences, votre discipline et votre esprit.
+                            </p>
+                        {% endif %}
+                        
+                        {% block organization_details %}
+                        <div class="row mt-5">
+                            {% if organization.country %}
+                            <div class="col-md-4">
+                                <i class="fas fa-globe fa-2x text-primary mb-3"></i>
+                                <h5>Localisation</h5>
+                                <p>{{ organization.get_country_display|default:organization.country }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="col-md-4">
+                                <i class="fas fa-medal fa-2x text-primary mb-3"></i>
+                                <h5>Type</h5>
+                                <p>{{ organization.get_organization_type_display }}</p>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <i class="fas fa-calendar fa-2x text-primary mb-3"></i>
+                                <h5>Membre depuis</h5>
+                                <p>{{ organization.created_at|date:"Y" }}</p>
+                            </div>
+                        </div>
+                        {% endblock %}
+                    </div>
+                </div>
+            </div>
+        </section>
+        {% endblock %}
+
+        {% block extra_sections %}{% endblock %}
+
+        <!-- Contact Section -->
+        <section id="contact" class="py-5 bg-light">
+            <div class="container">
+                <div class="row">
+                    <div class="col-lg-8 mx-auto text-center">
+                        <h2 class="display-5 fw-bold mb-4">Contact</h2>
+                        
+                        {% block contact_info %}
+                        <div class="row">
+                            {% if organization.email %}
+                            <div class="col-md-6 mb-4">
+                                <i class="fas fa-envelope fa-2x text-primary mb-3"></i>
+                                <h5>Email</h5>
+                                <p><a href="mailto:{{ organization.email }}" class="text-decoration-none">{{ organization.email }}</a></p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if organization.phone %}
+                            <div class="col-md-6 mb-4">
+                                <i class="fas fa-phone fa-2x text-primary mb-3"></i>
+                                <h5>Téléphone</h5>
+                                <p><a href="tel:{{ organization.phone }}" class="text-decoration-none">{{ organization.phone }}</a></p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if organization.website %}
+                            <div class="col-md-6 mb-4">
+                                <i class="fas fa-globe fa-2x text-primary mb-3"></i>
+                                <h5>Site Web</h5>
+                                <p><a href="{{ organization.website }}" target="_blank" class="text-decoration-none">{{ organization.website }}</a></p>
+                            </div>
+                            {% endif %}
+                            
+                            {% if organization.address %}
+                            <div class="col-md-6 mb-4">
+                                <i class="fas fa-map-marker-alt fa-2x text-primary mb-3"></i>
+                                <h5>Adresse</h5>
+                                <p>{{ organization.address }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endblock %}
+                        
+                        {% block contact_actions %}
+                        <div class="mt-4">
+                            <a href="#qr-codes" class="btn btn-primary btn-lg me-3">
+                                <i class="fas fa-qrcode me-2"></i>Nos Codes QR
+                            </a>
+                            {% if organization.email %}
+                            <a href="mailto:{{ organization.email }}" class="btn btn-outline-primary btn-lg">
+                                <i class="fas fa-envelope me-2"></i>Nous Contacter
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% endblock %}
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-4">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <p class="mb-0">&copy; {{ "now"|date:"Y" }} {{ organization.name }}. Tous droits réservés.</p>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <small class="text-light">Propulsé par MartialComp</small>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,8 +1,34 @@
+from django.core.exceptions import PermissionDenied
 import uuid
 from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
+
+# Optional multitenant support: use FK to Tenant if available, otherwise fallback to CharField
+def _tenant_field(verbose_name: str = "Tenant", help_text: str = ""):
+    try:
+        # Import dynamically to avoid hard dependency when multitenant app is disabled
+        from apps.multitenant.models import Tenant  # type: ignore
+
+        return models.ForeignKey(
+            Tenant,
+            on_delete=models.CASCADE,
+            null=True,
+            blank=True,
+            verbose_name=_(verbose_name),
+            help_text=_(help_text) if help_text else "",
+        )
+    except Exception:
+        # Fallback plain field to keep models operational without multitenant
+        return models.CharField(
+            _(verbose_name),
+            max_length=100,
+            null=True,
+            blank=True,
+            help_text=_(help_text) if help_text else "",
+        )
 
 
 class RefreshToken(models.Model):
@@ -17,7 +43,7 @@ class RefreshToken(models.Model):
         related_name='refresh_tokens',
         verbose_name=_("Utilisateur")
     )
-    token = models.CharField(_("Token"), max_length=255, unique=True)
+    token = models.CharField(_("Token"), max_length=1024, unique=True)
     expires_at = models.DateTimeField(_("Date d'expiration"))
     issued_at = models.DateTimeField(_("Date d'émission"), auto_now_add=True)
     revoked = models.BooleanField(_("Révoqué"), default=False)
@@ -26,13 +52,9 @@ class RefreshToken(models.Model):
     ip_address = models.GenericIPAddressField(_("Adresse IP"), blank=True, null=True)
     
     # Multi-tenant information
-    tenant = models.ForeignKey(
-        "multitenant.Tenant", 
-        on_delete=models.CASCADE, 
-        null=True, 
-        blank=True,
-        verbose_name=_("Tenant"),
-        help_text=_("Le tenant auquel ce token est associé")
+    tenant = _tenant_field(
+        verbose_name="Tenant",
+        help_text="Le tenant auquel ce token est associé",
     )
     
     # Champs PKCE (Proof Key for Code Exchange)
@@ -72,6 +94,7 @@ class AccessTokenLog(models.Model):
     issued_at = models.DateTimeField(_("Date d'émission"), auto_now_add=True)
     expires_at = models.DateTimeField(_("Date d'expiration"))
     jti = models.CharField(_("JWT ID"), max_length=255, unique=True)
+    # user_agent déjà TextField, OK
     device_id = models.CharField(_("ID de l'appareil"), max_length=255, blank=True, null=True)
     user_agent = models.TextField(_("User Agent"), blank=True, null=True)
     ip_address = models.GenericIPAddressField(_("Adresse IP"), blank=True, null=True)
@@ -79,13 +102,9 @@ class AccessTokenLog(models.Model):
     revoked_at = models.DateTimeField(_("Date de révocation"), null=True, blank=True)
     
     # Multi-tenant information
-    tenant = models.ForeignKey(
-        "multitenant.Tenant", 
-        on_delete=models.CASCADE, 
-        null=True, 
-        blank=True,
-        verbose_name=_("Tenant"),
-        help_text=_("Le tenant auquel ce token est associé")
+    tenant = _tenant_field(
+        verbose_name="Tenant",
+        help_text="Le tenant auquel ce token est associé",
     )
     
     class Meta:
@@ -131,13 +150,9 @@ class DeviceRegistration(models.Model):
     last_used_at = models.DateTimeField(_("Dernière utilisation"), auto_now=True)
     
     # Multi-tenant information
-    tenant = models.ForeignKey(
-        "multitenant.Tenant", 
-        on_delete=models.CASCADE, 
-        null=True, 
-        blank=True,
-        verbose_name=_("Tenant"),
-        help_text=_("Le tenant auquel cet appareil est associé")
+    tenant = _tenant_field(
+        verbose_name="Tenant",
+        help_text="Le tenant auquel cet appareil est associé",
     )
     
     class Meta:
@@ -176,13 +191,9 @@ class PKCESession(models.Model):
     used = models.BooleanField(_("Utilisé"), default=False)
     
     # Multi-tenant information
-    tenant = models.ForeignKey(
-        "multitenant.Tenant", 
-        on_delete=models.CASCADE, 
-        null=True, 
-        blank=True,
-        verbose_name=_("Tenant"),
-        help_text=_("Le tenant auquel cette session est associée")
+    tenant = _tenant_field(
+        verbose_name="Tenant",
+        help_text="Le tenant auquel cette session est associée",
     )
     
     class Meta:

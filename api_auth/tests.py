@@ -1,3 +1,4 @@
+from django.core.exceptions import PermissionDenied
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -11,6 +12,7 @@ import hashlib
 import os
 
 from .models import RefreshToken, AccessTokenLog, DeviceRegistration, PKCESession
+from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
 
 User = get_user_model()
 
