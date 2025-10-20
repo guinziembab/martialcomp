@@ -1,0 +1,150 @@
+BBBBBBB BBBBBBBBBBBBBBBBBBBBBB
+BBBB BBBB
+
+BBBBB BBBBB gettext(u'Batch Translation') BBBBBBBB
+
+BBBBB BBBBBBB
+XXXX gettext(u'Batch Translation with DeepL') XXXXX
+
+BB BBB BBBBBBBBBBBBBBB
+XXXX XXXXXXXXXXXXXXXXXXXX
+    XXXX XXXXXXXXXXXXXX
+         gettext(u'DeepL service is not available. Please check your API key configuration.') 
+    XXXXXX
+XXXXXX
+BBBBB
+
+XXXX XXXXXXXXXXXXXXX
+    XXXX gettext(u'Translation Settings') XXXXX
+    
+    XXXXX XXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXX
+        BBBBBBBBBB
+        XXXXXXX
+            XXXX
+                XXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXX gettext(u'Target Language') XXXXXXXXXXXXX
+                XXXX
+                    XXXXXXX XXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXX XXXXXXXXX
+                        XXXXXXX XXXXXXXXX gettext(u'Select language...') XXXXXXXXX
+                        BBB BBBBBBBBB BB BBBBBBBBBBBBBBBBBBB
+                            BB BBBBBBBBB BB BBBB
+                                XXXXXXX XXXXXXXXXFFFFFXXXXXXXXX
+                            BBBBB
+                        BBBBBB
+                    XXXXXXXXX
+                XXXXX
+            XXXXX
+            XXXX
+                XXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXX gettext(u'Source Language') XXXXXXXXXXXXX
+                XXXX
+                    XXXXXXX XXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXX
+                        XXXXXXX XXXXXXXXXXX gettext(u'English') XXXXXXXXX
+                        XXXXXXX XXXXXXXXXXXXX gettext(u'Auto-detect') XXXXXXXXX
+                    XXXXXXXXX
+                XXXXX
+            XXXXX
+            XXXX
+                XXXXXXXXXX XXXXXXXXXXXXXXX gettext(u'Application') XXXXXXXXXXXXX
+                XXXX
+                    XXXXXXX XXXXXXXXXXXXXXX XXXXXXXXXXXXXX
+                        XXXXXXX XXXXXXXXX gettext(u'All applications') XXXXXXXXX
+                        XXXXXXX XXXXXXXXXXXXXXXXXXXXX gettext(u'Competitions') XXXXXXXXX
+                        XXXXXXX XXXXXXXXXXXXXXX gettext(u'Grades') XXXXXXXXX
+                        XXXXXXX XXXXXXXXXXXXXXXXXXXXXX gettext(u'Organizations') XXXXXXXXX
+                        XXXXXXX XXXXXXXXXXXXXXXXX gettext(u'Finances') XXXXXXXXX
+                        XXXXXXX XXXXXXXXXXXXX gettext(u'Shop') XXXXXXXXX
+                        XXXXXXX XXXXXXXXXXXXXXXXXX gettext(u'Documents') XXXXXXXXX
+                        XXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXX gettext(u'Family Management') XXXXXXXXX
+                    XXXXXXXXX
+                XXXXX
+            XXXXX
+            XXXX
+                XXXXXXXXXX XXXXXXXXXXXXXX gettext(u'Dry Run') XXXXXXXXXXXXX
+                XXXX
+                    XXXXXX XXXXXXXXXXXXXXX XXXXXXXXXXXXXX XXXXXXXXXXXX XXXXXXXX
+                    XXXXXX XXXXXXXXXXXXXX gettext(u'Preview changes without saving') XXXXXXXX
+                XXXXX
+            XXXXX
+            XXXX
+                XXXXXXXXXX XXXXXXXXXXXX gettext(u'Force Retranslation') XXXXXXXXXXXXX
+                XXXX
+                    XXXXXX XXXXXXXXXXXXXXX XXXXXXXXXXXX XXXXXXXXXXX
+                    XXXXXX XXXXXXXXXXXX gettext(u'Retranslate existing translations') XXXXXXXX
+                XXXXX
+            XXXXX
+        XXXXXXXX
+        
+        XXXX XXXXXXXXXXXXXXXXXX XXXXXXX
+            XXXXXXX XXXXXXXXXXXXX XXXXXXXXXXXXXX BB BBB BBBBBBBBBBBBBBBXXXXXXXXBBBBBX
+                 gettext(u'Start Translation') 
+            XXXXXXXXX
+        XXXXXX
+    XXXXXXX
+XXXXXX
+
+BB BBBBBBBBBB
+XXXX XXXXXXXXXXXXXXX
+    XXXX gettext(u'Current API Usage') XXXXX
+    XXX
+        XXXXXXXX gettext(u'Characters used:') XXXXXXXXX FFFFFFFFFFFFF X FFFFFFFFFFFFF
+        XFFFFFFFFFFFFFXX
+    XXXX
+    XXXX XXXXXXXXXXXXXXXXXX XXXXXXXX XXXXXXX XXX XXXXX XXXXX XXXXXX XXXXXX XXXXXXX XXXXX XXXXXXXXX XXXXXXXXXXX
+        XXXX XXXXXXXXXXXXXXXXXX BB BBBBBBBBBBBBBBBBBBBBBBBBBBB B BBXXXXXXXBBBB BBBBBBBBBBBBBBBBBBBBBBBBBBB B BBXXXXXXXBBBBXXXXXXXBBBBBX XXXXXXX XXXXX XXXXXX XXXXXXXXXX
+        XXXXX XXXXXXXXXXXXXXXX XXXXXXXXX XXXX XXXX XXXXX XXXXX XXXXXXXXXX XXXXXXXFFFFFFFFFFFFFXXXXXXXX
+    XXXXXX
+XXXXXX
+BBBBB
+
+XXXX XXXXXXXXXXXXXXX
+    XXXX gettext(u'Command Line Usage') XXXXX
+    XXX gettext(u'You can also use the Django management command:') XXXX
+    XXXXXXXXXXXXXXXXX XXXXXXXXX XXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXX XX XXXXXXXXXXXXXXXXXXXXXX
+    XXX gettext(u'Available options:') XXXX
+    XXXX
+        XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  gettext(u'Target language code (required)') XXXXX
+        XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  gettext(u'Source language code (default: en)') XXXXX
+        XXXXXXXXXXXXXXXXXXXXXXX  gettext(u'Specific app to translate') XXXXX
+        XXXXXXXXXXXXXXXXXXXXXXXXXXX  gettext(u'Preview without making changes') XXXXX
+        XXXXXXXXXXXXXXXXXXXXXXXXX  gettext(u'Retranslate existing translations') XXXXX
+    XXXXX
+XXXXXX
+
+XXXXXXXX
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXX X
+    XXXXXXXXXXXXXXXXXXX
+    
+    XXXXX XXXXXXXX X XXX XXXXXXXXXXXXXXX
+    XXXXX XXXXXXXXXX X XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    XXXXX XXXXXXXXXX X XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    XXXXX XXXXXXX X XXXXXXXXXXXXXXXXXXXXXXXXX
+    XXXXX XXXXXX X XXXXXXXXXXXXXXXXXXXXXXX X XXXXXXXXXXX X XXX
+    XXXXX XXXXX X XXXXXXXXXXXXXXXXXXXXX X XXXXXXXXX X XXX
+    
+    XX XXXXXXXXXXXXX X
+        XXXXXXX gettext(u'Please select a target language') XXX
+        XXXXXXX
+    X
+    
+    XX XXXXX XXXXXXX
+    XXX XXXXXXX X XXXXXXX XXXXXXXXX XXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXX
+    XX XXXXXXXXXXX XXX XXXXXXX X
+        XXXXXXX XX X XXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXX
+    X
+    XX XXXXXXXXX X
+        XXXXXXX XX X XXXXX XXXXXXXXXXXX
+    X
+    XX XXXXXXXX X
+        XXXXXXX XX X XXXXXXXXXXX
+    X
+    XX XXXXXXX X
+        XXXXXXX XX X XXXXXXXXXX
+    X
+    
+    XX XXXX XXXXXXX XX XXXX
+    XXXXX XXXXXX X XXXXXXXXX gettext(u'Execute this command?') XXXXXXXXXXXXXXXXX
+    XX XXXXXXXX X
+        XXXXXXX gettext(u'Please run this command in your terminal. Web-based execution is not available for security reasons.') XXX
+    X
+XXX
+XXXXXXXXX
+BBBBBBBB

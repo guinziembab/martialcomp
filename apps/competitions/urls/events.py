@@ -42,6 +42,6 @@ urlpatterns = [
     path('<int:event_id>/unarchive/', unarchive_event, name='unarchive_event'),
     
     # Sous-namespace pour la planification (compatibilité)
-    path('planning/', include('competitions.urls.event_planning', namespace='planning')),
+    path('planning/', include('apps.competitions.urls.event_planning', namespace='planning')),
 ]
 

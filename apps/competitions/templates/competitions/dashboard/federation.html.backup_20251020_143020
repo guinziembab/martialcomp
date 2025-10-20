@@ -1,0 +1,3794 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load custom_filters %}
+{% load family_badges %}
+
+{% block title %}{% trans "Tableau de bord Fédération" %} | {{ federation.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Variables de couleur et configuration de base - FÉDÉRATION */
+  :root {
+    --primary: #dc3545;
+    --primary-light: #fde9eb;
+    --primary-dark: #c82333;
+    --secondary: #6c757d;
+    --success: #28a745;
+    --info: #17a2b8;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --light: #f8f9fa;
+    --dark: #343a40;
+    --gray-100: #f8f9fa;
+    --gray-200: #e9ecef;
+    --gray-300: #dee2e6;
+    --gray-800: #343a40;
+    --sidebar-width: 280px;
+    --sidebar-width-collapsed: 80px;
+    --card-border-radius: 12px;
+    --btn-border-radius: 6px;
+    --transition-speed: 0.3s;
+  }
+  
+  /* Structure principale */
+  body {
+    background-color: #f5f7fa;
+    overflow-x: hidden;
+  }
+
+  /* STRUCTURE AVEC ONGLETS - Même que le club */
+  .dashboard-container {
+    display: flex;
+    min-height: calc(100vh - 56px);
+    flex-direction: column;
+  }
+
+  /* En-tête avec onglets */
+  .dashboard-header {
+    background: white;
+    border-bottom: 2px solid #dee2e6;
+    padding: 1rem 2rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+
+  /* Navigation par onglets moderne et responsive */
+  .nav-tabs {
+    border-bottom: none;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 0 1rem;
+  }
+
+  .nav-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-tabs .nav-link {
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #6c757d;
+    font-weight: 500;
+    padding: 8px 12px;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    position: relative;
+    background: transparent;
+    font-size: 0.9rem;
+    min-width: auto;
+  }
+
+  /* Styles responsive pour mobiles */
+  @media (max-width: 768px) {
+    .nav-tabs {
+      padding: 0 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    .nav-tabs .nav-link {
+      padding: 6px 8px;
+      font-size: 0.8rem;
+    }
+    
+    .nav-tabs .nav-link i {
+      display: none;
+    }
+    
+    .dashboard-header {
+      padding: 0.5rem 1rem;
+    }
+  }
+
+  .nav-tabs .nav-link:hover {
+    border-color: transparent transparent var(--primary);
+    color: var(--primary);
+    background-color: rgba(220, 53, 69, 0.05);
+  }
+
+  .nav-tabs .nav-link.active {
+    color: var(--primary);
+    background-color: rgba(220, 53, 69, 0.1);
+    border-color: transparent transparent var(--primary);
+    font-weight: 600;
+  }
+
+  .tab-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+    background-color: #f5f7fa;
+  }
+
+  .tab-pane {
+    padding: 1.5rem;
+    min-height: calc(100vh - 200px);
+  }
+
+  /* Container global */
+  .federation-container {
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* En-tête de fédération */
+  .federation-header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    padding: 1.5rem;
+    margin: -1.5rem -1.5rem 2rem -1.5rem;
+    border-radius: 0 0 15px 15px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .federation-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('/static/img/pattern.png') repeat;
+    opacity: 0.1;
+    pointer-events: none;
+  }
+
+  .federation-info {
+    position: relative;
+    z-index: 1;
+  }
+
+  .federation-name {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .federation-meta {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    opacity: 0.9;
+  }
+
+  /* Statistiques en grille */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: white;
+    border-radius: var(--card-border-radius);
+    padding: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    border: 1px solid rgba(220, 53, 69, 0.1);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+  }
+
+  .stat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: white;
+  }
+
+  .stat-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 0.25rem;
+  }
+
+  .stat-label {
+    color: #6c757d;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .stat-trend {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+
+  .trend-up {
+    background: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+
+  .trend-down {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+  }
+
+  /* Icônes des statistiques */
+  .stat-clubs { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+  .stat-competitions { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+  .stat-participants { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+  .stat-judges { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+  .stat-events { background: linear-gradient(135deg, #8b5cf6 0%, #7c2d12 100%); }
+  .stat-documents { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); }
+
+  /* Contenu des onglets */
+  .content-section {
+    background: white;
+    border-radius: var(--card-border-radius);
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    border: 1px solid #e9ecef;
+  }
+
+  .section-header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #f8f9fa;
+  }
+
+  .section-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--dark);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .section-subtitle {
+    color: #6c757d;
+    margin-top: 0.5rem;
+    font-size: 0.95rem;
+  }
+
+  /* Tableaux modernes */
+  .modern-table {
+    width: 100%;
+    background: white;
+    border-radius: var(--card-border-radius);
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  }
+
+  .modern-table thead {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+  }
+
+  .modern-table th,
+  .modern-table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #f8f9fa;
+    vertical-align: middle;
+  }
+
+  .modern-table tbody tr:hover {
+    background-color: #f8f9fa;
+  }
+
+  .modern-table .btn {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  /* Cartes de liste */
+  .list-card {
+    background: white;
+    border-radius: var(--card-border-radius);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #e9ecef;
+    transition: all 0.3s ease;
+  }
+
+  .list-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border-color: var(--primary);
+  }
+
+  .list-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .list-card-title {
+    font-weight: 600;
+    color: var(--dark);
+    margin: 0;
+    font-size: 1.1rem;
+  }
+
+  .list-card-meta {
+    display: flex;
+    gap: 1rem;
+    color: #6c757d;
+    font-size: 0.9rem;
+  }
+
+  /* Boutons modernes */
+  .btn {
+    border-radius: var(--btn-border-radius);
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border: none;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(13, 110, 253, 0.3);
+    color: white;
+  }
+
+  .btn-outline-danger {
+    border: 2px solid var(--primary);
+    color: var(--primary);
+    background: transparent;
+  }
+
+  .btn-outline-danger:hover {
+    background: var(--primary);
+    color: white;
+    transform: translateY(-1px);
+  }
+
+  /* Actions rapides */
+  .quick-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .action-card {
+    background: white;
+    border-radius: var(--card-border-radius);
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    border: 1px solid #e9ecef;
+    transition: all 0.3s ease;
+  }
+
+  .action-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+  }
+
+  .action-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+    font-size: 2rem;
+    color: white;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  }
+
+  .action-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--dark);
+    margin-bottom: 0.75rem;
+  }
+
+  .action-description {
+    color: #6c757d;
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Styles de gestion documentaire */
+  .categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .category-card {
+    background: white;
+    border-radius: var(--card-border-radius);
+    padding: 1.5rem;
+    border: 1px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.3s ease;
+  }
+
+  .category-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  }
+
+  .category-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: white;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    flex-shrink: 0;
+  }
+
+  .category-info {
+    flex: 1;
+  }
+
+  .category-count {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--dark);
+    line-height: 1;
+  }
+
+  .category-label {
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+  }
+
+  .folders-section {
+    background: white;
+    border-radius: var(--card-border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border: 1px solid #e9ecef;
+  }
+
+  .folder-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .empty-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+
+  /* Responsive design */
+  @media (max-width: 768px) {
+    .stats-grid {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+    
+    .federation-name {
+      font-size: 1.8rem;
+    }
+    
+    .federation-meta {
+      flex-direction: column;
+      gap: 1rem;
+    }
+    
+    .tab-pane {
+      padding: 1rem;
+    }
+    
+    .modern-table {
+      font-size: 0.9rem;
+    }
+    
+    .modern-table th,
+    .modern-table td {
+      padding: 0.75rem 0.5rem;
+    }
+    
+    /* Masquer colonnes sur mobile */
+    .modern-table th.d-none.d-md-table-cell,
+    .modern-table td.d-none.d-md-table-cell {
+      display: none !important;
+    }
+    
+    .quick-actions {
+      grid-template-columns: 1fr;
+    }
+    
+    .action-card {
+      padding: 1.5rem;
+    }
+    
+    .categories-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .folder-actions {
+      flex-direction: column;
+    }
+    
+    .category-card {
+      padding: 1rem;
+    }
+  }
+
+  @media (max-width: 576px) {
+    .dashboard-header {
+      padding: 0.75rem 1rem;
+    }
+    
+    .federation-header {
+      padding: 1rem;
+      margin: -1rem -1rem 1.5rem -1rem;
+    }
+    
+    .federation-name {
+      font-size: 1.5rem;
+    }
+    
+    /* Masquer encore plus de colonnes sur très petit écran */
+    .modern-table th.d-none.d-lg-table-cell,
+    .modern-table td.d-none.d-lg-table-cell {
+      display: none !important;
+    }
+  }
+
+  /* Alertes et notifications */
+  .alert {
+    border-radius: var(--card-border-radius);
+    border: none;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .alert-info {
+    background: rgba(23, 162, 184, 0.1);
+    color: #0c5460;
+  }
+
+  .alert-warning {
+    background: rgba(255, 193, 7, 0.1);
+    color: #856404;
+  }
+
+  .alert-success {
+    background: rgba(40, 167, 69, 0.1);
+    color: #155724;
+  }
+
+  /* États des éléments */
+  .status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  .status-active {
+    background: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+  }
+
+  .status-pending {
+    background: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+  }
+
+  .status-inactive {
+    background: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+  }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .tab-pane.active {
+    animation: fadeIn 0.3s ease;
+  }
+
+  /* Amélioration des cartes */
+  .card-hover {
+    transition: all 0.3s ease;
+  }
+
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  }
+
+  /* Indicateurs de progression */
+  .progress {
+    height: 8px;
+    border-radius: 10px;
+    background-color: #e9ecef;
+  }
+
+  .progress-bar {
+    border-radius: 10px;
+    background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%);
+  }
+
+  /* Empty states */
+  .empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #6c757d;
+  }
+
+  .empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+  }
+
+  .empty-state h3 {
+    color: var(--dark);
+    margin-bottom: 0.5rem;
+  }
+
+  .empty-state p {
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+  <div class="dashboard-header">
+    <div class="federation-container">
+      <!-- En-tête de la fédération -->
+      <div class="federation-header">
+        <div class="federation-info">
+          <h1 class="federation-name">{{ federation.name }}</h1>
+          <div class="federation-meta">
+            <div class="meta-item">
+              <i class="fas fa-map-marker-alt"></i>
+              <span>{{ federation.country|default:"France" }}</span>
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-calendar"></i>
+              <span>{% trans "Créé le" %} {{ federation.created_at|date:"d/m/Y"|default:"—" }}</span>
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-users"></i>
+              <span>{{ stats.clubs_count }} {% trans "clubs affiliés" %}</span>
+            </div>
+            {% if federation.disciplines.exists %}
+            <div class="meta-item">
+              <i class="fas fa-fist-raised"></i>
+              <span>{{ federation.disciplines.count }} {% trans "disciplines" %}</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation par onglets -->
+      <ul class="nav nav-tabs" id="federationTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+            <i class="fas fa-tachometer-alt"></i> {% trans "Vue d'ensemble" %}
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="clubs-tab" data-bs-toggle="tab" data-bs-target="#clubs" type="button" role="tab">
+            <i class="fas fa-dojo"></i> {% trans "Clubs" %}
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="competitions-tab" data-bs-toggle="tab" data-bs-target="#competitions" type="button" role="tab">
+            <i class="fas fa-trophy"></i> {% trans "Compétitions" %}
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="participants-tab" data-bs-toggle="tab" data-bs-target="#participants" type="button" role="tab">
+            <i class="fas fa-users"></i> {% trans "Pratiquants" %}
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="judges-tab" data-bs-toggle="tab" data-bs-target="#judges" type="button" role="tab">
+            <i class="fas fa-gavel"></i> {% trans "Juges" %}
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="finances-tab" data-bs-toggle="tab" data-bs-target="#finances" type="button" role="tab">
+            <i class="fas fa-euro-sign"></i> {% trans "Finances" %}
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">
+            <i class="fas fa-file-alt"></i> {% trans "Documents" %}
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="shop-tab" data-bs-toggle="tab" data-bs-target="#shop" type="button" role="tab">
+            <i class="fas fa-shopping-cart"></i> {% trans "Boutique" %}
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="membership-tab" data-bs-toggle="tab" data-bs-target="#membership" type="button" role="tab">
+            <i class="fas fa-id-badge"></i> {% trans "Adhésions" %}
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="combats-tab" data-bs-toggle="tab" data-bs-target="#combats" type="button" role="tab">
+            <i class="fas fa-fist-raised"></i> {% trans "Combats" %}
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="sites-tab" data-bs-toggle="tab" data-bs-target="#sites" type="button" role="tab">
+            <i class="fas fa-globe"></i> {% trans "Sites" %}
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="roles-tab" data-bs-toggle="tab" data-bs-target="#roles" type="button" role="tab">
+            <i class="fas fa-user-shield"></i> {% trans "Rôles" %}
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="management-tab" data-bs-toggle="tab" data-bs-target="#management" type="button" role="tab">
+            <i class="fas fa-cogs"></i> {% trans "Gestion" %}
+          </button>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Contenu des onglets -->
+  <div class="tab-content" id="federationTabsContent">
+    <!-- 1. VUE D'ENSEMBLE -->
+    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+      <!-- Statistiques principales -->
+      <div class="stats-grid">
+        <div class="stat-card card-hover">
+          <div class="stat-header">
+            <div>
+              <div class="stat-value">{{ stats.clubs_count|default:"0" }}</div>
+              <div class="stat-label">{% trans "Clubs affiliés" %}</div>
+            </div>
+            <div class="stat-icon stat-clubs">
+              <i class="fas fa-dojo"></i>
+            </div>
+          </div>
+          {% if stats.clubs_count > 0 %}
+          <div class="stat-trend trend-up">
+            <i class="fas fa-arrow-up"></i> +{{ stats.clubs_count }} {% trans "affiliés" %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="stat-card card-hover">
+          <div class="stat-header">
+            <div>
+              <div class="stat-value">{{ stats.competitions_count|default:"0" }}</div>
+              <div class="stat-label">{% trans "Compétitions" %}</div>
+            </div>
+            <div class="stat-icon stat-competitions">
+              <i class="fas fa-trophy"></i>
+            </div>
+          </div>
+          {% if stats.upcoming_events > 0 %}
+          <div class="stat-trend trend-up">
+            <i class="fas fa-calendar"></i> {{ stats.upcoming_events }} {% trans "à venir" %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="stat-card card-hover">
+          <div class="stat-header">
+            <div>
+              <div class="stat-value">{{ stats.participants_count|default:"0" }}</div>
+              <div class="stat-label">{% trans "Participants" %}</div>
+            </div>
+            <div class="stat-icon stat-participants">
+              <i class="fas fa-users"></i>
+            </div>
+          </div>
+          {% if stats.participants_count > 0 %}
+          <div class="stat-trend trend-up">
+            <i class="fas fa-arrow-up"></i> {% trans "Actifs" %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="stat-card card-hover">
+          <div class="stat-header">
+            <div>
+              <div class="stat-value">{{ stats.judge_count|default:"0" }}</div>
+              <div class="stat-label">{% trans "Juges certifiés" %}</div>
+            </div>
+            <div class="stat-icon stat-judges">
+              <i class="fas fa-gavel"></i>
+            </div>
+          </div>
+          {% if stats.judge_count > 0 %}
+          <div class="stat-trend trend-up">
+            <i class="fas fa-certificate"></i> {% trans "Certifiés" %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="stat-card card-hover">
+          <div class="stat-header">
+            <div>
+              <div class="stat-value">{{ document_stats.my_documents|default:"0" }}</div>
+              <div class="stat-label">{% trans "Documents" %}</div>
+            </div>
+            <div class="stat-icon stat-documents">
+              <i class="fas fa-file-alt"></i>
+            </div>
+          </div>
+          {% if document_stats.recent_uploads > 0 %}
+          <div class="stat-trend trend-up">
+            <i class="fas fa-upload"></i> +{{ document_stats.recent_uploads }} {% trans "cette semaine" %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="stat-card card-hover">
+          <div class="stat-header">
+            <div>
+              <div class="stat-value">{{ stats.upcoming_events|default:"0" }}</div>
+              <div class="stat-label">{% trans "Événements à venir" %}</div>
+            </div>
+            <div class="stat-icon stat-events">
+              <i class="fas fa-calendar-alt"></i>
+            </div>
+          </div>
+          {% if stats.upcoming_events > 0 %}
+          <div class="stat-trend trend-up">
+            <i class="fas fa-clock"></i> {% trans "Planifiés" %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Actions rapides -->
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-bolt"></i> {% trans "Actions rapides" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Accès rapide aux fonctions principales de gestion" %}</p>
+        </div>
+
+        <div class="quick-actions">
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-trophy"></i>
+            </div>
+            <h3 class="action-title">{% trans "Nouvelle compétition" %}</h3>
+            <p class="action-description">{% trans "Créer et configurer une nouvelle compétition pour vos clubs affiliés" %}</p>
+            <a href="{% url 'competitions:dashboard:federation_manage_competitions' federation.id %}" class="btn btn-primary">
+              <i class="fas fa-plus"></i> {% trans "Créer" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-dojo"></i>
+            </div>
+            <h3 class="action-title">{% trans "Gérer les clubs" %}</h3>
+            <p class="action-description">{% trans "Approuver les demandes d'affiliation et gérer les clubs existants" %}</p>
+            <a href="{% url 'competitions:dashboard:federation_manage_clubs' federation.id %}" class="btn btn-primary">
+              <i class="fas fa-users-cog"></i> {% trans "Gérer" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-certificate"></i>
+            </div>
+            <h3 class="action-title">{% trans "Certifications" %}</h3>
+            <p class="action-description">{% trans "Gérer les certifications de juges et les qualifications" %}</p>
+            <a href="{% url 'competitions:dashboard:federation_manage_certifications' federation.id %}" class="btn btn-primary">
+              <i class="fas fa-medal"></i> {% trans "Certifier" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-chart-bar"></i>
+            </div>
+            <h3 class="action-title">{% trans "Rapports & Export" %}</h3>
+            <p class="action-description">{% trans "Consultez les statistiques et exportez les données de votre fédération" %}</p>
+            <a href="{% url 'competitions:dashboard:federation_manage_settings' federation.id %}" class="btn btn-primary">
+              <i class="fas fa-file-export"></i> {% trans "Exporter" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-users"></i>
+            </div>
+            <h3 class="action-title">{% trans "Juges & Arbitres" %}</h3>
+            <p class="action-description">{% trans "Gérer les juges et leurs qualifications pour vos compétitions" %}</p>
+            <a href="{% url 'competitions:dashboard:federation_manage_judges' federation.id %}" class="btn btn-primary">
+              <i class="fas fa-gavel"></i> {% trans "Gérer" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-graduation-cap"></i>
+            </div>
+            <h3 class="action-title">{% trans "Examens & Grades" %}</h3>
+            <p class="action-description">{% trans "Organiser des examens de grades et gérer les progressions" %}</p>
+            <a href="{% url 'competitions:dashboard:federation_manage_certifications' federation.id %}" class="btn btn-primary">
+              <i class="fas fa-medal"></i> {% trans "Organiser" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-cog"></i>
+            </div>
+            <h3 class="action-title">{% trans "Paramètres" %}</h3>
+            <p class="action-description">{% trans "Configurer les paramètres et préférences de votre fédération" %}</p>
+            <a href="{% url 'competitions:dashboard:federation_manage_settings' federation.id %}" class="btn btn-primary">
+              <i class="fas fa-wrench"></i> {% trans "Configurer" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-calendar-alt"></i>
+            </div>
+            <h3 class="action-title">{% trans "Calendrier" %}</h3>
+            <p class="action-description">{% trans "Consultez le calendrier des compétitions et événements" %}</p>
+            <a href="{% url 'competitions:dashboard:federation_manage_competitions' federation.id %}" class="btn btn-primary">
+              <i class="fas fa-calendar"></i> {% trans "Voir" %}
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activité récente -->
+      {% if recent_activity %}
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-clock"></i> {% trans "Activité récente" %}
+          </h2>
+        </div>
+
+        {% for activity in recent_activity %}
+        <div class="list-card card-hover">
+          <div class="list-card-header">
+            <div>
+              <h4 class="list-card-title">{{ activity.message }}</h4>
+              <div class="list-card-meta">
+                <span><i class="fas fa-calendar"></i> {{ activity.date|date:"d/m/Y H:i" }}</span>
+                <span><i class="fas fa-tag"></i> {{ activity.type|capfirst }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- 2. CLUBS -->
+    <div class="tab-pane fade" id="clubs" role="tabpanel">
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-dojo"></i> {% trans "Clubs affiliés" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Gestion des clubs affiliés à votre fédération" %}</p>
+        </div>
+
+        {% if affiliated_clubs %}
+        <div class="table-responsive">
+          <table class="modern-table">
+            <thead>
+              <tr>
+                <th>{% trans "Club" %}</th>
+                <th class="d-none d-md-table-cell">{% trans "Ville" %}</th>
+                <th class="d-none d-lg-table-cell">{% trans "Pratiquants" %}</th>
+                <th class="d-none d-lg-table-cell">{% trans "Inscriptions" %}</th>
+                <th>{% trans "Statut" %}</th>
+                <th>{% trans "Actions" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for club in affiliated_clubs %}
+              <tr>
+                <td>
+                  <div class="d-flex align-items-center">
+                    {% if club.logo %}
+                    <img src="{{ club.logo.url }}" alt="" class="me-2" style="width: 32px; height: 32px; border-radius: 50%;">
+                    {% else %}
+                    <div class="me-2 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: white; font-size: 0.8rem;">
+                      {{ club.name|slice:":2"|upper }}
+                    </div>
+                    {% endif %}
+                    <div>
+                      <div class="fw-bold">{{ club.name }}</div>
+                      <small class="text-muted">{{ club.created_at|date:"d/m/Y"|default:"—" }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td class="d-none d-md-table-cell">{{ club.city|default:"—" }}</td>
+                <td class="d-none d-lg-table-cell">{{ club.practitioners.count|default:"0" }}</td>
+                <td class="d-none d-lg-table-cell">{{ club_registrations|get_item:club.id|default:"0" }}</td>
+                <td>
+                  <span class="status-badge status-active">
+                    <i class="fas fa-check"></i> {% trans "Actif" %}
+                  </span>
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    {% if club.name and 'Démo' not in club.name and club.pk > 100 %}
+                      {# Club réel - lien vers le dashboard #}
+                      <a href="{% url 'competitions:club:dashboard' %}" class="btn btn-sm btn-outline-danger">
+                        <i class="fas fa-eye"></i>
+                      </a>
+                    {% else %}
+                      {# Club de démonstration - bouton désactivé avec tooltip #}
+                      <button class="btn btn-sm btn-outline-secondary" disabled title="{% trans 'Club de démonstration - Lien non disponible' %}">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                    {% endif %}
+                    <button class="btn btn-sm btn-outline-secondary" disabled title="{% trans 'Fonction en développement' %}">
+                      <i class="fas fa-edit"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <i class="fas fa-dojo"></i>
+          <h3>{% trans "Aucun club affilié" %}</h3>
+          <p>{% trans "Votre fédération n'a pas encore de clubs affiliés." %}</p>
+          <a href="{% url 'competitions:dashboard:federation_manage_clubs' federation.id %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> {% trans "Inviter des clubs" %}
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 3. COMPÉTITIONS -->
+    <div class="tab-pane fade" id="competitions" role="tabpanel">
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-trophy"></i> {% trans "Compétitions" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Gestion des compétitions de votre fédération" %}</p>
+        </div>
+
+        {% if upcoming_competitions %}
+        <h4 class="mb-3">{% trans "Compétitions à venir" %}</h4>
+        {% for competition in upcoming_competitions %}
+        <div class="list-card card-hover">
+          <div class="list-card-header">
+            <div>
+              <h4 class="list-card-title">{{ competition.title }}</h4>
+              <div class="list-card-meta">
+                <span><i class="fas fa-calendar"></i> {{ competition.start_date|date:"d/m/Y" }}</span>
+                <span><i class="fas fa-map-marker-alt"></i> {{ competition.location|default:"À définir" }}</span>
+                <span><i class="fas fa-users"></i> {{ competition.registrations.count }} {% trans "inscrits" %}</span>
+              </div>
+            </div>
+            <div>
+              <a href="{% url 'competitions:competitions:detail' pk=competition.id %}" class="btn btn-primary">
+                <i class="fas fa-cogs"></i> {% trans "Gérer" %}
+              </a>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state">
+          <i class="fas fa-trophy"></i>
+          <h3>{% trans "Aucune compétition" %}</h3>
+          <p>{% trans "Aucune compétition programmée pour le moment." %}</p>
+          <a href="{% url 'competitions:dashboard:federation_manage_competitions' federation.id %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> {% trans "Créer une compétition" %}
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 4. PRATIQUANTS -->
+    <div class="tab-pane fade" id="participants" role="tabpanel">
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-users"></i> {% trans "Pratiquants" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Liste complète des pratiquants de vos clubs affiliés" %}</p>
+        </div>
+
+        {% if affiliated_practitioners %}
+        <div class="mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4>{% trans "Pratiquants par club" %}</h4>
+            <div class="text-muted">
+              <i class="fas fa-users me-1"></i>
+              {{ practitioner_count }} {% trans "pratiquants au total" %}
+            </div>
+          </div>
+          
+          <!-- Filtres et recherche -->
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <input type="text" class="form-control" id="searchPractitioner" placeholder="{% trans 'Rechercher un pratiquant...' %}">
+            </div>
+            <div class="col-md-3">
+              <select class="form-select" id="filterClub">
+                <option value="">{% trans "Tous les clubs" %}</option>
+                {% for club in affiliated_clubs %}
+                <option value="{{ club.id }}">{{ club.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <select class="form-select" id="filterGrade">
+                <option value="">{% trans "Tous les grades" %}</option>
+                <option value="blanche">{% trans "Ceinture blanche" %}</option>
+                <option value="jaune">{% trans "Ceinture jaune" %}</option>
+                <option value="orange">{% trans "Ceinture orange" %}</option>
+                <option value="verte">{% trans "Ceinture verte" %}</option>
+                <option value="bleue">{% trans "Ceinture bleue" %}</option>
+                <option value="marron">{% trans "Ceinture marron" %}</option>
+                <option value="noire">{% trans "Ceinture noire" %}</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="table-responsive">
+            <table class="modern-table" id="practitionersTable">
+              <thead>
+                <tr>
+                  <th>{% trans "Nom" %}</th>
+                  <th>{% trans "Club" %}</th>
+                  <th>{% trans "Grade" %}</th>
+                  <th class="d-none d-md-table-cell">{% trans "Discipline" %}</th>
+                  <th class="d-none d-lg-table-cell">{% trans "Licence" %}</th>
+                  <th>{% trans "Statut" %}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for practitioner in affiliated_practitioners %}
+                <tr data-club="{{ practitioner.organization.id }}" data-grade="{{ practitioner.grade_text|lower }}">
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <div class="practitioner-avatar me-2">
+                        {{ practitioner.first_name|first }}{{ practitioner.last_name|first }}
+                      </div>
+                      <div>
+                        <div class="fw-semibold">{{ practitioner.first_name }} {{ practitioner.last_name }}</div>
+                        <small class="text-muted">{{ practitioner.birth_date|date:"d/m/Y" }}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{{ practitioner.organization.name }}</td>
+                  <td>
+                    <span class="badge bg-secondary">{{ practitioner.grade_text|default:"Non défini" }}</span>
+                  </td>
+                  <td class="d-none d-md-table-cell">
+                    {% if practitioner.primary_discipline %}
+                      {{ practitioner.primary_discipline.name }}
+                    {% else %}
+                      {% trans "Non définie" %}
+                    {% endif %}
+                  </td>
+                  <td class="d-none d-lg-table-cell">{{ practitioner.license_number|default:"—" }}</td>
+                  <td>
+                    {% if practitioner.is_active %}
+                      <span class="status-badge status-active">
+                        <i class="fas fa-check-circle"></i> {% trans "Actif" %}
+                      </span>
+                    {% else %}
+                      <span class="status-badge status-inactive">
+                        <i class="fas fa-times-circle"></i> {% trans "Inactif" %}
+                      </span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section inscriptions récentes aux compétitions -->
+        {% if recent_registrations %}
+        <div class="mt-5">
+          <h4 class="mb-3">{% trans "Inscriptions récentes aux compétitions" %}</h4>
+          <div class="table-responsive">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th>{% trans "Pratiquant" %}</th>
+                  <th class="d-none d-md-table-cell">{% trans "Club" %}</th>
+                  <th>{% trans "Compétition" %}</th>
+                  <th class="d-none d-lg-table-cell">{% trans "Date" %}</th>
+                  <th>{% trans "Statut" %}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for registration in recent_registrations %}
+                <tr>
+                  <td>{{ registration.practitioner.full_name }}</td>
+                  <td class="d-none d-md-table-cell">{{ registration.practitioner.club.name|default:"—" }}</td>
+                  <td>{{ registration.competition.title }}</td>
+                  <td class="d-none d-lg-table-cell">{{ registration.registration_date|date:"d/m/Y" }}</td>
+                  <td>
+                    <span class="status-badge status-active">
+                      <i class="fas fa-check"></i> {% trans "Confirmé" %}
+                    </span>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+        
+        {% else %}
+        <div class="empty-state">
+          <i class="fas fa-users"></i>
+          <h3>{% trans "Aucun pratiquant trouvé" %}</h3>
+          <p>{% trans "Les clubs affiliés n'ont pas encore de pratiquants enregistrés." %}</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+<!-- JavaScript pour les filtres des pratiquants -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchPractitioner = document.getElementById('searchPractitioner');
+    const filterClub = document.getElementById('filterClub');
+    const filterGrade = document.getElementById('filterGrade');
+    const practitionersTable = document.getElementById('practitionersTable');
+    
+    if (searchPractitioner && practitionersTable) {
+        function filterPractitioners() {
+            const searchTerm = searchPractitioner.value.toLowerCase();
+            const selectedClub = filterClub ? filterClub.value : '';
+            const selectedGrade = filterGrade ? filterGrade.value : '';
+            const rows = practitionersTable.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+            
+            let visibleCount = 0;
+            
+            for (let row of rows) {
+                const name = row.querySelector('td:first-child .fw-semibold').textContent.toLowerCase();
+                const club = row.dataset.club;
+                const grade = row.dataset.grade;
+                
+                const matchesSearch = name.includes(searchTerm);
+                const matchesClub = !selectedClub || club === selectedClub;
+                const matchesGrade = !selectedGrade || grade.includes(selectedGrade);
+                
+                if (matchesSearch && matchesClub && matchesGrade) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+            
+            // Mettre à jour le compteur
+            const counter = document.querySelector('.text-muted');
+            if (counter) {
+                counter.innerHTML = `<i class="fas fa-users me-1"></i>${visibleCount} pratiquant(s) affiché(s)`;
+            }
+        }
+        
+        searchPractitioner.addEventListener('input', filterPractitioners);
+        if (filterClub) filterClub.addEventListener('change', filterPractitioners);
+        if (filterGrade) filterGrade.addEventListener('change', filterPractitioners);
+    }
+});
+</script>
+
+<style>
+.practitioner-avatar {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+</style>
+
+    <!-- 5. JUGES -->
+    <div class="tab-pane fade" id="judges" role="tabpanel">
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-gavel"></i> {% trans "Juges et arbitres" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Gestion des certifications et qualifications" %}</p>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card card-hover">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value">{{ stats.judge_count|default:"0" }}</div>
+                <div class="stat-label">{% trans "Juges certifiés" %}</div>
+              </div>
+              <div class="stat-icon stat-judges">
+                <i class="fas fa-certificate"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-state">
+          <i class="fas fa-gavel"></i>
+          <h3>{% trans "Gestion des juges" %}</h3>
+          <p>{% trans "Gérez les juges et arbitres de votre fédération" %}</p>
+          <a href="{% url 'competitions:dashboard:federation_manage_judges' federation.id %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> {% trans "Gérer les juges" %}
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. FINANCES -->
+    <div class="tab-pane fade" id="finances" role="tabpanel">
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-euro-sign"></i> {% trans "Finances" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Suivi financier de votre fédération" %}</p>
+        </div>
+
+        <!-- Statistiques financières -->
+        <div class="stats-grid">
+          <div class="stat-card card-hover">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value">{{ financial_stats.balance|floatformat:"0" }}€</div>
+                <div class="stat-label">{% trans "Solde actuel" %}</div>
+              </div>
+              <div class="stat-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                <i class="fas fa-wallet"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value">{{ financial_stats.income|floatformat:"0" }}€</div>
+                <div class="stat-label">{% trans "Revenus" %}</div>
+              </div>
+              <div class="stat-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                <i class="fas fa-arrow-up"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value">{{ financial_stats.expense|floatformat:"0" }}€</div>
+                <div class="stat-label">{% trans "Dépenses" %}</div>
+              </div>
+              <div class="stat-icon" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                <i class="fas fa-arrow-down"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value">{{ financial_stats.pending_invoices|default:"0" }}</div>
+                <div class="stat-label">{% trans "Factures en attente" %}</div>
+              </div>
+              <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                <i class="fas fa-file-invoice"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions rapides financières -->
+        <div class="section-header mt-4">
+          <h3 class="section-title">
+            <i class="fas fa-bolt"></i> {% trans "Actions rapides" %}
+          </h3>
+        </div>
+
+        <div class="quick-actions">
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-plus"></i>
+            </div>
+            <h3 class="action-title">{% trans "Nouvelle transaction" %}</h3>
+            <p class="action-description">{% trans "Enregistrer une recette ou une dépense" %}</p>
+            <a href="{% url 'finances:transaction_create' %}" class="btn btn-primary">
+              <i class="fas fa-plus"></i> {% trans "Créer" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-file-invoice-dollar"></i>
+            </div>
+            <h3 class="action-title">{% trans "Nouvelle facture" %}</h3>
+            <p class="action-description">{% trans "Créer et envoyer une facture" %}</p>
+            <a href="{% url 'finances:invoices:invoice_create' %}" class="btn btn-primary">
+              <i class="fas fa-file-invoice"></i> {% trans "Créer" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-chart-bar"></i>
+            </div>
+            <h3 class="action-title">{% trans "Rapports financiers" %}</h3>
+            <p class="action-description">{% trans "Consulter les analyses financières" %}</p>
+            <a href="{% url 'finances:reports' %}" class="btn btn-primary">
+              <i class="fas fa-chart-line"></i> {% trans "Voir" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-cogs"></i>
+            </div>
+            <h3 class="action-title">{% trans "Configuration" %}</h3>
+            <p class="action-description">{% trans "Gérer comptes et catégories" %}</p>
+            <a href="{% url 'finances:accounting_category_list' %}" class="btn btn-primary">
+              <i class="fas fa-wrench"></i> {% trans "Configurer" %}
+            </a>
+          </div>
+        </div>
+
+        <!-- Transactions récentes -->
+        <div class="section-header mt-4">
+          <h3 class="section-title">
+            <i class="fas fa-exchange-alt"></i> {% trans "Transactions récentes" %}
+          </h3>
+          <a href="{% url 'finances:transaction_list' %}" class="btn btn-sm btn-outline-danger">
+            {% trans "Voir toutes" %}
+          </a>
+        </div>
+
+        {% if recent_transactions %}
+        <div class="table-responsive">
+          <table class="modern-table">
+            <thead>
+              <tr>
+                <th>{% trans "Date" %}</th>
+                <th>{% trans "Description" %}</th>
+                <th class="d-none d-md-table-cell">{% trans "Catégorie" %}</th>
+                <th class="text-end">{% trans "Montant" %}</th>
+                <th>{% trans "Statut" %}</th>
+                <th>{% trans "Actions" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for transaction in recent_transactions %}
+              <tr>
+                <td>{{ transaction.date|date:"d/m/Y" }}</td>
+                <td>
+                  <div class="fw-bold">{{ transaction.description }}</div>
+                  <small class="text-muted">{{ transaction.type|capfirst }}</small>
+                </td>
+                <td class="d-none d-md-table-cell">{{ transaction.category.name|default:"—" }}</td>
+                <td class="text-end">
+                  <span class="{% if transaction.type == 'income' %}text-success{% else %}text-danger{% endif %}">
+                    {% if transaction.type == 'income' %}+{% else %}-{% endif %}{{ transaction.amount }}€
+                  </span>
+                </td>
+                <td>
+                  <span class="status-badge {% if transaction.status == 'validated' %}status-success{% elif transaction.status == 'pending' %}status-warning{% else %}status-danger{% endif %}">
+                    {{ transaction.get_status_display }}
+                  </span>
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    <a href="{% url 'finances:transaction_detail' transaction.pk %}" class="btn btn-sm btn-outline-danger">
+                      <i class="fas fa-eye"></i>
+                    </a>
+                    <a href="{% url 'finances:transaction_update' transaction.pk %}" class="btn btn-sm btn-outline-warning">
+                      <i class="fas fa-edit"></i>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <i class="fas fa-exchange-alt"></i>
+          <h3>{% trans "Aucune transaction" %}</h3>
+          <p>{% trans "Aucune transaction enregistrée récemment." %}</p>
+          <a href="{% url 'finances:transaction_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> {% trans "Première transaction" %}
+          </a>
+        </div>
+        {% endif %}
+
+        <!-- Factures en attente -->
+        <div class="section-header mt-4">
+          <h3 class="section-title">
+            <i class="fas fa-file-invoice"></i> {% trans "Factures en attente" %}
+          </h3>
+          <a href="{% url 'finances:invoice_list' %}" class="btn btn-sm btn-outline-danger">
+            {% trans "Voir toutes" %}
+          </a>
+        </div>
+
+        {% if pending_invoices %}
+        <div class="table-responsive">
+          <table class="modern-table">
+            <thead>
+              <tr>
+                <th>{% trans "N° Facture" %}</th>
+                <th>{% trans "Client" %}</th>
+                <th class="d-none d-lg-table-cell">{% trans "Date" %}</th>
+                <th class="text-end">{% trans "Montant" %}</th>
+                <th>{% trans "Statut" %}</th>
+                <th>{% trans "Actions" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for invoice in pending_invoices %}
+              <tr>
+                <td>
+                  <div class="fw-bold">{{ invoice.invoice_number }}</div>
+                  <small class="text-muted">{{ invoice.created_at|date:"d/m/Y" }}</small>
+                </td>
+                <td>{{ invoice.client_name|default:"—" }}</td>
+                <td class="d-none d-lg-table-cell">{{ invoice.due_date|date:"d/m/Y" }}</td>
+                <td class="text-end">{{ invoice.total_amount }}€</td>
+                <td>
+                  <span class="status-badge status-warning">
+                    <i class="fas fa-clock"></i> {% trans "En attente" %}
+                  </span>
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    <a href="{% url 'finances:invoices:invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-danger">
+                      <i class="fas fa-eye"></i>
+                    </a>
+                    <a href="{% url 'finances:invoices:invoice_pdf' invoice.pk %}" class="btn btn-sm btn-outline-info" target="_blank">
+                      <i class="fas fa-file-pdf"></i>
+                    </a>
+                    <a href="{% url 'finances:invoices:invoice_pay' invoice.pk %}" class="btn btn-sm btn-success">
+                      <i class="fas fa-credit-card"></i>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <i class="fas fa-file-invoice"></i>
+          <h3>{% trans "Aucune facture en attente" %}</h3>
+          <p>{% trans "Toutes les factures ont été payées." %}</p>
+          <a href="{% url 'finances:invoices:invoice_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> {% trans "Nouvelle facture" %}
+          </a>
+        </div>
+        {% endif %}
+
+        <!-- Comptes financiers -->
+        <div class="section-header mt-4">
+          <h3 class="section-title">
+            <i class="fas fa-university"></i> {% trans "Comptes financiers" %}
+          </h3>
+          <a href="{% url 'finances:account_list' %}" class="btn btn-sm btn-outline-danger">
+            {% trans "Gérer" %}
+          </a>
+        </div>
+
+        {% if financial_accounts %}
+        <div class="row">
+          {% for account in financial_accounts %}
+          <div class="col-md-6 col-lg-4 mb-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="card-title">
+                  <i class="fas fa-{{ account.get_icon }}"></i>
+                  {{ account.name }}
+                </h5>
+                <p class="card-text text-muted small">{{ account.account_type|capfirst }}</p>
+                <div class="d-flex justify-content-between align-items-center">
+                  <div class="h4 mb-0 {% if account.current_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    {{ account.current_balance|floatformat:"0" }}€
+                  </div>
+                  <a href="{% url 'finances:accounts:financial_account_detail' account.pk %}" class="btn btn-sm btn-outline-danger">
+                    {% trans "Détails" %}
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <i class="fas fa-university"></i>
+          <h3>{% trans "Aucun compte configuré" %}</h3>
+          <p>{% trans "Configurez vos comptes bancaires et de caisse." %}</p>
+          <a href="{% url 'finances:accounts:financial_account_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> {% trans "Ajouter un compte" %}
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 7. DOCUMENTS -->
+    <div class="tab-pane fade" id="documents" role="tabpanel">
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-file-alt"></i> {% trans "Documents" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Gestion documentaire de votre fédération" %}</p>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card card-hover">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value">{{ document_stats.my_documents|default:"0" }}</div>
+                <div class="stat-label">{% trans "Mes documents" %}</div>
+              </div>
+              <div class="stat-icon stat-documents">
+                <i class="fas fa-file"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value">{{ document_stats.shared_with_me|default:"0" }}</div>
+                <div class="stat-label">{% trans "Partagés avec moi" %}</div>
+              </div>
+              <div class="stat-icon stat-documents">
+                <i class="fas fa-share-alt"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value">{{ document_stats.recent_uploads|default:"0" }}</div>
+                <div class="stat-label">{% trans "Nouveaux cette semaine" %}</div>
+              </div>
+              <div class="stat-icon stat-documents">
+                <i class="fas fa-upload"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions rapides documentaires -->
+        <div class="section-header mt-4">
+          <h3 class="section-title">
+            <i class="fas fa-bolt"></i> {% trans "Actions rapides" %}
+          </h3>
+        </div>
+
+        <div class="quick-actions">
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-upload"></i>
+            </div>
+            <h3 class="action-title">{% trans "Nouveau document" %}</h3>
+            <p class="action-description">{% trans "Télécharger un fichier" %}</p>
+            <a href="{% url 'documents:upload' %}" class="btn btn-primary">
+              <i class="fas fa-upload"></i> {% trans "Télécharger" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-folder-plus"></i>
+            </div>
+            <h3 class="action-title">{% trans "Nouveau dossier" %}</h3>
+            <p class="action-description">{% trans "Créer un dossier d'organisation" %}</p>
+            <a href="{% url 'documents:folder_root' %}" class="btn btn-primary">
+              <i class="fas fa-folder-plus"></i> {% trans "Créer" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-search"></i>
+            </div>
+            <h3 class="action-title">{% trans "Explorer les documents" %}</h3>
+            <p class="action-description">{% trans "Parcourir tous vos documents" %}</p>
+            <a href="{% url 'documents:dashboard' %}" class="btn btn-primary">
+              <i class="fas fa-search"></i> {% trans "Explorer" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-share-alt"></i>
+            </div>
+            <h3 class="action-title">{% trans "Documents partagés" %}</h3>
+            <p class="action-description">{% trans "Voir les partages actifs" %}</p>
+            <a href="{% url 'documents:shared_with_me' %}" class="btn btn-primary">
+              <i class="fas fa-share-alt"></i> {% trans "Voir" %}
+            </a>
+          </div>
+        </div>
+
+        <!-- Catégories de documents -->
+        <div class="section-header mt-4">
+          <h3 class="section-title">
+            <i class="fas fa-tags"></i> {% trans "Catégories de documents" %}
+          </h3>
+        </div>
+
+        <div class="categories-grid">
+          <div class="category-card card-hover">
+            <div class="category-icon">
+              <i class="fas fa-certificate"></i>
+            </div>
+            <div class="category-info">
+              <div class="category-count">{{ document_stats.certificates|default:"0" }}</div>
+              <div class="category-label">{% trans "Certificats" %}</div>
+            </div>
+            <a href="{% url 'documents:my_documents' %}?type=certificate" class="btn btn-sm btn-outline-danger">{% trans "Voir" %}</a>
+          </div>
+
+          <div class="category-card card-hover">
+            <div class="category-icon">
+              <i class="fas fa-file-medical"></i>
+            </div>
+            <div class="category-info">
+              <div class="category-count">{{ document_stats.medical|default:"0" }}</div>
+              <div class="category-label">{% trans "Médicaux" %}</div>
+            </div>
+            <a href="{% url 'documents:my_documents' %}?type=medical" class="btn btn-sm btn-outline-danger">{% trans "Voir" %}</a>
+          </div>
+
+          <div class="category-card card-hover">
+            <div class="category-icon">
+              <i class="fas fa-cogs"></i>
+            </div>
+            <div class="category-info">
+              <div class="category-count">{{ document_stats.technical|default:"0" }}</div>
+              <div class="category-label">{% trans "Techniques" %}</div>
+            </div>
+            <a href="{% url 'documents:my_documents' %}?type=technical" class="btn btn-sm btn-outline-danger">{% trans "Voir" %}</a>
+          </div>
+
+          <div class="category-card card-hover">
+            <div class="category-icon">
+              <i class="fas fa-file-alt"></i>
+            </div>
+            <div class="category-info">
+              <div class="category-count">{{ document_stats.administrative|default:"0" }}</div>
+              <div class="category-label">{% trans "Administratifs" %}</div>
+            </div>
+            <a href="{% url 'documents:my_documents' %}?type=administrative" class="btn btn-sm btn-outline-danger">{% trans "Voir" %}</a>
+          </div>
+        </div>
+
+        <!-- Gestion des dossiers -->
+        <div class="section-header mt-4">
+          <h3 class="section-title">
+            <i class="fas fa-folder-open"></i> {% trans "Gestion des dossiers" %}
+          </h3>
+        </div>
+
+        <div class="folders-section">
+          <div class="folder-actions">
+            <a href="{% url 'documents:folder_root' %}" class="btn btn-outline-danger">
+              <i class="fas fa-folder"></i> {% trans "Parcourir les dossiers" %}
+            </a>
+            <a href="{% url 'documents:my_documents' %}" class="btn btn-outline-info">
+              <i class="fas fa-file"></i> {% trans "Mes documents" %}
+            </a>
+            <a href="{% url 'documents:shared_with_me' %}" class="btn btn-outline-success">
+              <i class="fas fa-share"></i> {% trans "Partagés avec moi" %}
+            </a>
+          </div>
+        </div>
+
+        {% if recent_documents %}
+        <div class="section-header mt-4">
+          <h3 class="section-title">
+            <i class="fas fa-clock"></i> {% trans "Documents récents" %}
+          </h3>
+          <a href="{% url 'documents:my_documents' %}" class="btn btn-sm btn-outline-danger">{% trans "Voir tout" %}</a>
+        </div>
+        <div class="table-responsive">
+          <table class="modern-table">
+            <thead>
+              <tr>
+                <th>{% trans "Document" %}</th>
+                <th class="d-none d-md-table-cell">{% trans "Type" %}</th>
+                <th class="d-none d-lg-table-cell">{% trans "Taille" %}</th>
+                <th>{% trans "Date" %}</th>
+                <th>{% trans "Actions" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for doc in recent_documents %}
+              <tr>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <i class="fas fa-file-alt me-2 text-muted"></i>
+                    {{ doc.title|default:doc.filename }}
+                  </div>
+                </td>
+                <td class="d-none d-md-table-cell">{{ doc.document_type|capfirst|default:"—" }}</td>
+                <td class="d-none d-lg-table-cell">{{ doc.file_size|filesizeformat|default:"—" }}</td>
+                <td>{{ doc.created_at|date:"d/m/Y" }}</td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    {% if doc.id|length == 36 and '-' in doc.id %}
+                    <a href="{% url 'documents:detail' doc.id %}" class="btn btn-sm btn-outline-danger">
+                      <i class="fas fa-eye"></i>
+                    </a>
+                    <a href="{% url 'documents:download' doc.id %}" class="btn btn-sm btn-outline-info">
+                      <i class="fas fa-download"></i>
+                    </a>
+                    {% else %}
+                    <button class="btn btn-sm btn-outline-danger" disabled title="{% trans 'Document de démonstration' %}">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" disabled title="{% trans 'Document de démonstration' %}">
+                      <i class="fas fa-download"></i>
+                    </button>
+                    {% endif %}
+                    <a href="{{ doc.file.url }}" class="btn btn-sm btn-outline-success" target="_blank">
+                      <i class="fas fa-external-link-alt"></i>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <i class="fas fa-file-alt"></i>
+          <h3>{% trans "Aucun document" %}</h3>
+          <p>{% trans "Commencez par télécharger votre premier document." %}</p>
+          <div class="empty-actions">
+            <a href="{% url 'documents:upload' %}" class="btn btn-primary me-2">
+              <i class="fas fa-plus"></i> {% trans "Nouveau document" %}
+            </a>
+            <a href="{% url 'documents:dashboard' %}" class="btn btn-outline-danger">
+              <i class="fas fa-folder-open"></i> {% trans "Explorer" %}
+            </a>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 8. BOUTIQUE -->
+    <div class="tab-pane fade" id="shop" role="tabpanel">
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-shopping-cart"></i> {% trans "Boutique" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Gestion de la boutique de votre fédération" %}</p>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card card-hover">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value">{{ shop_stats.total_orders|default:"0" }}</div>
+                <div class="stat-label">{% trans "Commandes" %}</div>
+              </div>
+              <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c2d12 100%);">
+                <i class="fas fa-shopping-bag"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value">{{ shop_stats.total_revenue|floatformat:"0" }}€</div>
+                <div class="stat-label">{% trans "Chiffre d'affaires" %}</div>
+              </div>
+              <div class="stat-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                <i class="fas fa-euro-sign"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value">{{ shop_stats.active_products|default:"0" }}</div>
+                <div class="stat-label">{% trans "Produits actifs" %}</div>
+              </div>
+              <div class="stat-icon" style="background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);">
+                <i class="fas fa-box"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value">{{ shop_stats.pending_orders|default:"0" }}</div>
+                <div class="stat-label">{% trans "En attente" %}</div>
+              </div>
+              <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                <i class="fas fa-clock"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions rapides boutique -->
+        <div class="section-header mt-4">
+          <h3 class="section-title">
+            <i class="fas fa-bolt"></i> {% trans "Actions rapides" %}
+          </h3>
+        </div>
+
+        <div class="quick-actions">
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-plus"></i>
+            </div>
+            <h3 class="action-title">{% trans "Nouveau produit" %}</h3>
+            <p class="action-description">{% trans "Ajouter un produit au catalogue" %}</p>
+            <a href="{% url 'shop:dashboard:federation_product_create' %}?federation_id={{ federation.id }}" class="btn btn-primary">
+              <i class="fas fa-plus"></i> {% trans "Créer" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-boxes"></i>
+            </div>
+            <h3 class="action-title">{% trans "Gérer le catalogue" %}</h3>
+            <p class="action-description">{% trans "Voir et modifier les produits" %}</p>
+            <a href="{% url 'shop:dashboard:federation_catalog' %}?federation_id={{ federation.id }}" class="btn btn-primary">
+              <i class="fas fa-boxes"></i> {% trans "Catalogue" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-shopping-bag"></i>
+            </div>
+            <h3 class="action-title">{% trans "Gestion des commandes" %}</h3>
+            <p class="action-description">{% trans "Suivre les commandes" %}</p>
+            <a href="{% url 'shop:dashboard:federation_orders' %}?federation_id={{ federation.id }}" class="btn btn-primary">
+              <i class="fas fa-shopping-bag"></i> {% trans "Commandes" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-chart-line"></i>
+            </div>
+            <h3 class="action-title">{% trans "Rapports de ventes" %}</h3>
+            <p class="action-description">{% trans "Analyser les performances" %}</p>
+            <a href="{% url 'shop:dashboard:federation_sales_report' %}?federation_id={{ federation.id }}" class="btn btn-primary">
+              <i class="fas fa-chart-line"></i> {% trans "Rapports" %}
+            </a>
+          </div>
+        </div>
+
+        <!-- Catégories de produits -->
+        <div class="section-header mt-4">
+          <h3 class="section-title">
+            <i class="fas fa-tags"></i> {% trans "Catégories de produits" %}
+          </h3>
+        </div>
+
+        <div class="categories-grid">
+          <div class="category-card card-hover">
+            <div class="category-icon">
+              <i class="fas fa-tshirt"></i>
+            </div>
+            <div class="category-info">
+              <div class="category-count">{{ shop_stats.clothing_products|default:"0" }}</div>
+              <div class="category-label">{% trans "Vêtements" %}</div>
+            </div>
+            <a href="{% url 'shop:catalog:product_list' %}?category=clothing" class="btn btn-sm btn-outline-danger">{% trans "Voir" %}</a>
+          </div>
+
+          <div class="category-card card-hover">
+            <div class="category-icon">
+              <i class="fas fa-dumbbell"></i>
+            </div>
+            <div class="category-info">
+              <div class="category-count">{{ shop_stats.equipment_products|default:"0" }}</div>
+              <div class="category-label">{% trans "Équipements" %}</div>
+            </div>
+            <a href="{% url 'shop:catalog:product_list' %}?category=equipment" class="btn btn-sm btn-outline-danger">{% trans "Voir" %}</a>
+          </div>
+
+          <div class="category-card card-hover">
+            <div class="category-icon">
+              <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="category-info">
+              <div class="category-count">{{ shop_stats.protection_products|default:"0" }}</div>
+              <div class="category-label">{% trans "Protections" %}</div>
+            </div>
+            <a href="{% url 'shop:catalog:product_list' %}?category=protection" class="btn btn-sm btn-outline-danger">{% trans "Voir" %}</a>
+          </div>
+
+          <div class="category-card card-hover">
+            <div class="category-icon">
+              <i class="fas fa-award"></i>
+            </div>
+            <div class="category-info">
+              <div class="category-count">{{ shop_stats.accessories_products|default:"0" }}</div>
+              <div class="category-label">{% trans "Accessoires" %}</div>
+            </div>
+            <a href="{% url 'shop:catalog:product_list' %}?category=accessories" class="btn btn-sm btn-outline-danger">{% trans "Voir" %}</a>
+          </div>
+        </div>
+
+        <!-- Commandes récentes -->
+        {% if popular_products %}
+        <div class="section-header mt-4">
+          <h3 class="section-title">
+            <i class="fas fa-star"></i> {% trans "Produits populaires" %}
+          </h3>
+          <a href="{% url 'shop:dashboard:federation_catalog' %}?federation_id={{ federation.id }}" class="btn btn-sm btn-outline-danger">{% trans "Voir tout" %}</a>
+        </div>
+
+        <div class="table-responsive">
+          <table class="modern-table">
+            <thead>
+              <tr>
+                <th>{% trans "Produit" %}</th>
+                <th class="d-none d-md-table-cell">{% trans "Catégorie" %}</th>
+                <th class="d-none d-lg-table-cell">{% trans "Prix" %}</th>
+                <th>{% trans "Ventes" %}</th>
+                <th>{% trans "Actions" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for product in popular_products %}
+              <tr>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <i class="fas fa-box me-2 text-muted"></i>
+                    <div>
+                      <div class="fw-bold">{{ product.name }}</div>
+                      <small class="text-muted">{{ product.sku|default:"N/A" }}</small>
+                    </div>
+                  </div>
+                </td>
+                <td class="d-none d-md-table-cell">{{ product.category.name|default:"—" }}</td>
+                <td class="d-none d-lg-table-cell">{{ product.price }}€</td>
+                <td>
+                  <span class="badge bg-success">{{ product.total_sold|default:"0" }} ventes</span>
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    <a href="{% url 'shop:dashboard:federation_product_detail' product.id %}?federation_id={{ federation.id }}" class="btn btn-sm btn-outline-danger">
+                      <i class="fas fa-eye"></i>
+                    </a>
+                    <a href="{% url 'shop:catalog:product_detail' product.slug %}" class="btn btn-sm btn-outline-info" target="_blank">
+                      <i class="fas fa-external-link-alt"></i>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <i class="fas fa-shopping-cart"></i>
+          <h3>{% trans "Aucun produit" %}</h3>
+          <p>{% trans "Commencez par ajouter des produits à votre boutique." %}</p>
+          <div class="empty-actions">
+            <a href="{% url 'shop:dashboard:federation_product_create' %}?federation_id={{ federation.id }}" class="btn btn-primary me-2">
+              <i class="fas fa-plus"></i> {% trans "Nouveau produit" %}
+            </a>
+            <a href="{% url 'shop:dashboard:federation_catalog' %}?federation_id={{ federation.id }}" class="btn btn-outline-danger">
+              <i class="fas fa-boxes"></i> {% trans "Catalogue" %}
+            </a>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 9. ADHÉSIONS -->
+    <div class="tab-pane fade" id="membership" role="tabpanel">
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-id-badge"></i> {% trans "Gestion des Adhésions" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Système centralisé d'adhésions et abonnements pour la fédération" %}</p>
+        </div>
+
+        <!-- Statistiques des adhésions -->
+        <div class="stats-grid mb-4">
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #9c27b0 0%, #e91e63 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white">{{ membership_stats.total_active|default:"0" }}</div>
+                <div class="stat-label text-white">{% trans "Adhésions actives" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-id-card text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #673ab7 0%, #3f51b5 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white">{{ membership_stats.expiring_soon|default:"0" }}</div>
+                <div class="stat-label text-white">{% trans "Expirent bientôt" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-clock text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #009688 0%, #4caf50 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white">{{ membership_stats.revenue_this_month|default:"0" }}€</div>
+                <div class="stat-label text-white">{% trans "Recettes ce mois" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-euro-sign text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #ff5722 0%, #ff9800 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white">{{ membership_stats.new_this_month|default:"0" }}</div>
+                <div class="stat-label text-white">{% trans "Nouvelles ce mois" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-user-plus text-white"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions rapides -->
+        <div class="section-header">
+          <h3 class="section-title">
+            <i class="fas fa-bolt"></i> {% trans "Actions rapides" %}
+          </h3>
+        </div>
+
+        <div class="quick-actions">
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-plus"></i>
+            </div>
+            <h3 class="action-title">{% trans "Nouveau Package" %}</h3>
+            <p class="action-description">{% trans "Créer un package d'adhésion" %}</p>
+            <a href="{% url 'membership:package_create' %}?organization_id={{ federation.id }}" class="btn btn-primary">
+              <i class="fas fa-plus"></i> {% trans "Créer" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-user-plus"></i>
+            </div>
+            <h3 class="action-title">{% trans "Nouvelle Souscription" %}</h3>
+            <p class="action-description">{% trans "Créer une adhésion" %}</p>
+            <a href="{% url 'membership:subscription_create' %}?organization_id={{ federation.id }}" class="btn btn-primary">
+              <i class="fas fa-user-plus"></i> {% trans "Souscrire" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-tags"></i>
+            </div>
+            <h3 class="action-title">{% trans "Gérer les Packages" %}</h3>
+            <p class="action-description">{% trans "Voir et modifier les packages" %}</p>
+            <a href="{% url 'membership:package_list' %}?organization_id={{ federation.id }}" class="btn btn-primary">
+              <i class="fas fa-tags"></i> {% trans "Packages" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-cog"></i>
+            </div>
+            <h3 class="action-title">{% trans "Tableau de bord" %}</h3>
+            <p class="action-description">{% trans "Gestion complète" %}</p>
+            <a href="{% url 'membership:dashboard' %}?organization_id={{ federation.id }}" class="btn btn-primary">
+              <i class="fas fa-cog"></i> {% trans "Gérer" %}
+            </a>
+          </div>
+        </div>
+
+        <!-- Vue détaillée -->
+        <div class="row mt-4">
+          <div class="col-md-8">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-list"></i> {% trans "Souscriptions récentes" %}</h5>
+                <a href="{% url 'membership:subscription_list' %}?organization_id={{ federation.id }}" class="btn btn-sm btn-outline-primary">
+                  {% trans "Voir toutes" %}
+                </a>
+              </div>
+              <div class="card-body">
+                {% if recent_subscriptions %}
+                  <div class="table-responsive">
+                    <table class="table modern-table">
+                      <thead>
+                        <tr>
+                          <th>{% trans "Pratiquant" %}</th>
+                          <th>{% trans "Club" %}</th>
+                          <th>{% trans "Package" %}</th>
+                          <th>{% trans "Début" %}</th>
+                          <th>{% trans "Fin" %}</th>
+                          <th>{% trans "Statut" %}</th>
+                          <th>{% trans "Actions" %}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for subscription in recent_subscriptions %}
+                        <tr>
+                          <td>
+                            <strong>{{ subscription.practitioner.first_name }} {{ subscription.practitioner.last_name }}</strong>
+                          </td>
+                          <td>{{ subscription.practitioner.club.name|default:"-" }}</td>
+                          <td>{{ subscription.package.name }}</td>
+                          <td>{{ subscription.start_date|date:"d/m/Y" }}</td>
+                          <td>{{ subscription.end_date|date:"d/m/Y" }}</td>
+                          <td>
+                            {% if subscription.is_active %}
+                              <span class="badge bg-success">{% trans "Active" %}</span>
+                            {% elif subscription.is_expired %}
+                              <span class="badge bg-danger">{% trans "Expirée" %}</span>
+                            {% else %}
+                              <span class="badge bg-warning">{% trans "En attente" %}</span>
+                            {% endif %}
+                          </td>
+                          <td>
+                            <a href="{% url 'membership:subscription_detail' subscription.id %}" 
+                               class="btn btn-sm btn-outline-primary">
+                              <i class="fas fa-eye"></i>
+                            </a>
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <div class="text-center py-4">
+                    <i class="fas fa-id-card text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">{% trans "Aucune souscription récente" %}</h5>
+                    <p class="text-muted">{% trans "Les nouvelles adhésions apparaîtront ici" %}</p>
+                    <a href="{% url 'membership:subscription_create' %}?organization_id={{ federation.id }}" class="btn btn-success">
+                      <i class="fas fa-plus"></i> {% trans "Créer une adhésion" %}
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Packages d'adhésion -->
+            <div class="card mt-3">
+              <div class="card-header">
+                <h5><i class="fas fa-tags"></i> {% trans "Packages d'adhésion" %}</h5>
+                <a href="{% url 'membership:package_create' %}?organization_id={{ federation.id }}" class="btn btn-sm btn-success">
+                  <i class="fas fa-plus"></i> {% trans "Nouveau package" %}
+                </a>
+              </div>
+              <div class="card-body">
+                {% if membership_packages %}
+                  <div class="row">
+                    {% for package in membership_packages %}
+                    <div class="col-md-6 mb-3">
+                      <div class="card h-100">
+                        <div class="card-body">
+                          <h6 class="card-title">{{ package.name }}</h6>
+                          <p class="card-text">
+                            <strong>{{ package.base_price }}€</strong> - {{ package.get_package_type_display }}
+                          </p>
+                          <p class="small text-muted">{{ package.description|truncatewords:10 }}</p>
+                          <div class="d-flex justify-content-between">
+                            <span class="badge bg-info">{{ package.active_subscriptions_count|default:0 }} actifs</span>
+                            <a href="{% url 'membership:package_edit' package.id %}" class="btn btn-sm btn-outline-secondary">
+                              <i class="fas fa-edit"></i>
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="text-center py-4">
+                    <i class="fas fa-tags text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">{% trans "Aucun package" %}</h5>
+                    <p class="text-muted">{% trans "Créez vos packages d'adhésion" %}</p>
+                    <a href="{% url 'membership:package_create' %}?organization_id={{ federation.id }}" class="btn btn-success">
+                      <i class="fas fa-plus"></i> {% trans "Créer un package" %}
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <!-- Alertes et rappels -->
+            <div class="card mb-3">
+              <div class="card-header">
+                <h5><i class="fas fa-exclamation-triangle"></i> {% trans "Alertes" %}</h5>
+              </div>
+              <div class="card-body">
+                {% if membership_alerts %}
+                  {% for alert in membership_alerts %}
+                  <div class="alert alert-warning alert-sm mb-2">
+                    <strong>{{ alert.title }}</strong><br>
+                    <small>{{ alert.message }}</small>
+                  </div>
+                  {% endfor %}
+                {% else %}
+                  <div class="text-center py-3">
+                    <i class="fas fa-check-circle text-success" style="font-size: 2rem;"></i>
+                    <p class="text-muted mt-2">{% trans "Aucune alerte" %}</p>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Statistiques détaillées -->
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-chart-line"></i> {% trans "Statistiques" %}</h5>
+              </div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Total packages" %}</span>
+                    <strong>{{ membership_stats.total_packages|default:0 }}</strong>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Taux de rétention" %}</span>
+                    <strong>{{ membership_stats.retention_rate|floatformat:0|default:0 }}%</strong>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Valeur moyenne" %}</span>
+                    <strong>{{ membership_stats.average_value|floatformat:0|default:0 }}€</strong>
+                  </div>
+                </div>
+                
+                <!-- Graphique de répartition -->
+                <h6 class="mt-4">{% trans "Répartition par type" %}</h6>
+                <div class="mb-2">
+                  <div class="d-flex justify-content-between">
+                    <small>{% trans "Mensuel" %}</small>
+                    <small>{{ membership_stats.monthly_percentage|default:0 }}%</small>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar bg-primary" style="width: {{ membership_stats.monthly_percentage|default:0 }}%"></div>
+                  </div>
+                </div>
+                <div class="mb-2">
+                  <div class="d-flex justify-content-between">
+                    <small>{% trans "Trimestriel" %}</small>
+                    <small>{{ membership_stats.quarterly_percentage|default:0 }}%</small>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar bg-info" style="width: {{ membership_stats.quarterly_percentage|default:0 }}%"></div>
+                  </div>
+                </div>
+                <div class="mb-2">
+                  <div class="d-flex justify-content-between">
+                    <small>{% trans "Annuel" %}</small>
+                    <small>{{ membership_stats.annual_percentage|default:0 }}%</small>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar bg-success" style="width: {{ membership_stats.annual_percentage|default:0 }}%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 10. COMBATS -->
+    <div class="tab-pane fade" id="combats" role="tabpanel">
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-fist-raised"></i> {% trans "Gestion des Combats" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Organisation et suivi des combats pour la fédération" %}</p>
+        </div>
+
+        <!-- Actions rapides pour combats -->
+        <div class="card bg-danger text-white mb-4">
+          <div class="card-body">
+            <h5><i class="fas fa-fist-raised me-2"></i>{% trans "Actions rapides" %}</h5>
+            <div class="row mt-3">
+              <div class="col-md-3">
+                <a href="{% url 'competitions:combat:creer_equipe' %}?federation_id={{ federation.id }}" class="btn btn-light btn-sm w-100">
+                  <i class="fas fa-users me-1"></i>
+                  {% trans "Créer équipe" %}
+                </a>
+              </div>
+              <div class="col-md-3">
+                <a href="{% url 'competitions:combat:liste_configurations' %}?federation_id={{ federation.id }}" class="btn btn-light btn-sm w-100">
+                  <i class="fas fa-cog me-1"></i>
+                  {% trans "Configurations" %}
+                </a>
+              </div>
+              <div class="col-md-3">
+                <a href="{% url 'competitions:combat:liste_combats' %}?federation_id={{ federation.id }}" class="btn btn-light btn-sm w-100">
+                  <i class="fas fa-trophy me-1"></i>
+                  {% trans "Voir combats" %}
+                </a>
+              </div>
+              <div class="col-md-3">
+                <a href="{% url 'competitions:combat:liste_equipes' %}?federation_id={{ federation.id }}" class="btn btn-outline-light btn-sm w-100">
+                  <i class="fas fa-list me-1"></i>
+                  {% trans "Toutes équipes" %}
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Statistiques des combats -->
+        <div class="stats-grid mb-4">
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white">{{ combat_stats.total_combats|default:"0" }}</div>
+                <div class="stat-label text-white">{% trans "Combats totaux" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-fist-raised text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #fd7e14 0%, #e55353 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white">{{ combat_stats.combats_en_cours|default:"0" }}</div>
+                <div class="stat-label text-white">{% trans "En cours" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-play text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #198754 0%, #157347 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white">{{ combat_stats.combats_termines|default:"0" }}</div>
+                <div class="stat-label text-white">{% trans "Terminés" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-check text-white"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #6f42c1 0%, #5a379a 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white">{{ combat_stats.total_equipes|default:"0" }}</div>
+                <div class="stat-label text-white">{% trans "Équipes" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-users text-white"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-8">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-fist-raised"></i> {% trans "Combats récents" %}</h5>
+                <a href="{% url 'competitions:combat:creer_combat' %}?federation_id={{ federation.id }}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-plus"></i> {% trans "Nouveau combat" %}
+                </a>
+              </div>
+              <div class="card-body">
+                {% if recent_combats %}
+                  <div class="table-responsive">
+                    <table class="table modern-table">
+                      <thead>
+                        <tr>
+                          <th>{% trans "Combat" %}</th>
+                          <th>{% trans "Club" %}</th>
+                          <th>{% trans "Statut" %}</th>
+                          <th>{% trans "Score" %}</th>
+                          <th>{% trans "Date" %}</th>
+                          <th>{% trans "Actions" %}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for combat in recent_combats %}
+                        <tr>
+                          <td>
+                            <strong>{{ combat }}</strong><br>
+                            <small class="text-muted">{{ combat.competition.title|default:"Competition" }}</small>
+                          </td>
+                          <td>{{ combat.club.name|default:"-" }}</td>
+                          <td>
+                            {% if combat.status == 'termine' %}
+                              <span class="badge bg-success">{% trans "Terminé" %}</span>
+                            {% elif combat.status == 'en_cours' %}
+                              <span class="badge bg-warning">{% trans "En cours" %}</span>
+                            {% elif combat.status == 'planifie' %}
+                              <span class="badge bg-info">{% trans "Planifié" %}</span>
+                            {% else %}
+                              <span class="badge bg-danger">{% trans "Annulé" %}</span>
+                            {% endif %}
+                          </td>
+                          <td>
+                            <span class="text-danger">{{ combat.score_rouge|default:0 }}</span> - 
+                            <span class="text-primary">{{ combat.score_blanc|default:0 }}</span>
+                          </td>
+                          <td>{{ combat.date_planifiee|date:"d M Y H:i"|default:"-" }}</td>
+                          <td>
+                            <div class="btn-group btn-group-sm">
+                              <a href="{% url 'competitions:combat:detail_combat' combat.id %}" class="btn btn-outline-primary btn-sm" title="{% trans 'Voir' %}">
+                                <i class="fas fa-eye"></i>
+                              </a>
+                              {% if combat.status == 'planifie' %}
+                              <a href="{% url 'competitions:combat:demarrer_combat' combat.id %}" class="btn btn-outline-success btn-sm" title="{% trans 'Démarrer' %}">
+                                <i class="fas fa-play"></i>
+                              </a>
+                              {% elif combat.status == 'en_cours' %}
+                              <a href="{% url 'competitions:combat:interface_combat' combat.id %}" class="btn btn-outline-warning btn-sm" title="{% trans 'Interface' %}">
+                                <i class="fas fa-desktop"></i>
+                              </a>
+                              {% endif %}
+                            </div>
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <div class="text-center py-4">
+                    <i class="fas fa-fist-raised text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">{% trans "Aucun combat récent" %}</h5>
+                    <p class="text-muted">{% trans "Les nouveaux combats apparaîtront ici" %}</p>
+                    <a href="{% url 'competitions:combat:creer_combat' %}?federation_id={{ federation.id }}" class="btn btn-primary">
+                      <i class="fas fa-plus"></i> {% trans "Créer un combat" %}
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <!-- Statistiques détaillées -->
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> {% trans "Statistiques" %}</h5>
+              </div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Équipes actives" %}</span>
+                    <strong>{{ combat_stats.equipes_actives|default:0 }}</strong>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Combats ce mois" %}</span>
+                    <strong>{{ combat_stats.combats_ce_mois|default:0 }}</strong>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Taux de victoire" %}</span>
+                    <strong>{{ combat_stats.taux_victoire|default:0 }}%</strong>
+                  </div>
+                </div>
+                
+                <!-- Graphique de répartition par discipline -->
+                <h6 class="mt-4">{% trans "Répartition par discipline" %}</h6>
+                <div class="mb-2">
+                  <div class="d-flex justify-content-between">
+                    <small>{% trans "Karaté" %}</small>
+                    <small>40%</small>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar bg-danger" style="width: 40%"></div>
+                  </div>
+                </div>
+                <div class="mb-2">
+                  <div class="d-flex justify-content-between">
+                    <small>{% trans "Taekwondo" %}</small>
+                    <small>35%</small>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar bg-warning" style="width: 35%"></div>
+                  </div>
+                </div>
+                <div class="mb-2">
+                  <div class="d-flex justify-content-between">
+                    <small>{% trans "Judo" %}</small>
+                    <small>25%</small>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar bg-info" style="width: 25%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Prochains combats -->
+            <div class="card mt-3">
+              <div class="card-header">
+                <h5><i class="fas fa-calendar"></i> {% trans "Prochains combats" %}</h5>
+              </div>
+              <div class="card-body">
+                {% if upcoming_combats %}
+                  {% for combat in upcoming_combats %}
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                      <small class="fw-bold">{{ combat.name }}</small><br>
+                      <small class="text-muted">{{ combat.date_planifiee|date:"d M, H:i" }}</small>
+                    </div>
+                    <span class="badge bg-info">{{ combat.status_display }}</span>
+                  </div>
+                  {% endfor %}
+                {% else %}
+                  <div class="text-center py-3">
+                    <i class="fas fa-calendar-times text-muted" style="font-size: 2rem;"></i>
+                    <p class="text-muted mt-2">{% trans "Aucun combat planifié" %}</p>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 11. SITES -->
+    <div class="tab-pane fade" id="sites" role="tabpanel">
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-globe"></i> {% trans "Gestion des Sites" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Sites web et présence en ligne de la fédération" %}</p>
+        </div>
+
+        <!-- Statistiques sites -->
+        <div class="stats-grid mb-4">
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #4CAF50 0%, #8BC34A 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white">{{ site_stats.total_visits|default:"0" }}</div>
+                <div class="stat-label text-white">{% trans "Visites totales" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-globe text-white"></i>
+              </div>
+            </div>
+          </div>
+          
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #2196F3 0%, #03A9F4 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white">{{ site_stats.qr_scans|default:"0" }}</div>
+                <div class="stat-label text-white">{% trans "QR codes scannés" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-qrcode text-white"></i>
+              </div>
+            </div>
+          </div>
+          
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #FF9800 0%, #FFC107 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white">{{ site_stats.registrations_via_site|default:"0" }}</div>
+                <div class="stat-label text-white">{% trans "Inscriptions via site" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-user-plus text-white"></i>
+              </div>
+            </div>
+          </div>
+          
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #9C27B0 0%, #E91E63 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white">{{ site_stats.affiliated_sites|default:"0" }}</div>
+                <div class="stat-label text-white">{% trans "Sites affiliés" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-sitemap text-white"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-8">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between">
+                <h5><i class="fas fa-cogs"></i> {% trans "Gestion des sites" %}</h5>
+                <div>
+                  <a href="/org/{{ federation.slug|default:federation.id }}/" target="_blank" class="btn btn-success btn-sm me-2">
+                    <i class="fas fa-external-link-alt"></i> {% trans "Voir site fédération" %}
+                  </a>
+                  <a href="{% url 'public_org_admin' slug=federation.slug|default:federation.id %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-edit"></i> {% trans "Configurer" %}
+                  </a>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <!-- Site fédération -->
+                  <div class="col-md-6">
+                    <div class="card border-0 bg-light mb-3">
+                      <div class="card-body">
+                        <div class="d-flex align-items-center mb-2">
+                          <i class="fas fa-globe text-success fa-2x me-3"></i>
+                          <div>
+                            <h6 class="card-title mb-1">{% trans "Site Fédération" %}</h6>
+                            <small class="text-muted">{% trans "Site principal" %}</small>
+                          </div>
+                        </div>
+                        <p class="small text-muted mb-2">
+                          {% trans "Site web officiel pour présenter la fédération et ses clubs affiliés." %}
+                        </p>
+                        <div class="d-flex justify-content-between">
+                          <a href="/org/{{ federation.slug|default:federation.id }}/" target="_blank" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-eye"></i> {% trans "Voir" %}
+                          </a>
+                          <a href="{% url 'organization_sites:public_admin' slug=federation.slug|default:federation.id %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-cog"></i> {% trans "Gérer" %}
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Dashboard fédération -->
+                  <div class="col-md-6">
+                    <div class="card border-0 bg-light mb-3">
+                      <div class="card-body">
+                        <div class="d-flex align-items-center mb-2">
+                          <i class="fas fa-tachometer-alt text-primary fa-2x me-3"></i>
+                          <div>
+                            <h6 class="card-title mb-1">{% trans "Dashboard Fédération" %}</h6>
+                            <small class="text-muted">{% trans "Administration" %}</small>
+                          </div>
+                        </div>
+                        <p class="small text-muted mb-2">
+                          {% trans "Interface de gestion pour l'administration de la fédération." %}
+                        </p>
+                        <div class="d-flex justify-content-between">
+                          <span class="badge bg-success">{% trans "Actuel" %}</span>
+                          <a href="{% url 'competitions:dashboard:federations' %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-home"></i> {% trans "Dashboard" %}
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Actions rapides -->
+                <div class="row mt-3">
+                  <div class="col-12">
+                    <h6 class="text-muted mb-3">{% trans "Actions rapides" %}</h6>
+                    <div class="d-flex flex-wrap gap-2">
+                      <button class="btn btn-outline-primary btn-sm" onclick="updateFederationInfo()">
+                        <i class="fas fa-info-circle"></i> {% trans "Modifier infos" %}
+                      </button>
+                      <button class="btn btn-outline-success btn-sm" onclick="uploadPhotos()">
+                        <i class="fas fa-camera"></i> {% trans "Ajouter photos" %}
+                      </button>
+                      <button class="btn btn-outline-warning btn-sm" onclick="customizeTheme()">
+                        <i class="fas fa-palette"></i> {% trans "Personnaliser thème" %}
+                      </button>
+                      <button class="btn btn-outline-info btn-sm" onclick="manageContent()">
+                        <i class="fas fa-edit"></i> {% trans "Gérer contenu" %}
+                      </button>
+                      <button class="btn btn-outline-danger btn-sm" onclick="generateQRCodes()">
+                        <i class="fas fa-qrcode"></i> {% trans "Générer QR Codes" %}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- QR Codes et outils -->
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-header">
+                <h6><i class="fas fa-qrcode"></i> {% trans "QR Codes" %}</h6>
+              </div>
+              <div class="card-body">
+                <div class="text-center">
+                  <div class="mb-3">
+                    {% if federation.slug %}
+                    <img src="{% url 'public_org_qr_default' slug=federation.slug %}" 
+                         alt="QR Code Site" class="img-fluid" style="max-width: 150px;">
+                    {% else %}
+                    <img src="{% url 'public_org_qr_default' slug=federation.id %}" 
+                         alt="QR Code Site" class="img-fluid" style="max-width: 150px;">
+                    {% endif %}
+                  </div>
+                  <h6 class="small">{% trans "QR Code Site Fédération" %}</h6>
+                  <p class="small text-muted">{% trans "Scannez pour accéder au site" %}</p>
+                  <button class="btn btn-outline-primary btn-sm mb-2" onclick="downloadQR()">
+                    <i class="fas fa-download"></i> {% trans "Télécharger" %}
+                  </button>
+                  <button class="btn btn-outline-info btn-sm mb-2" onclick="generateCustomQR()">
+                    <i class="fas fa-magic"></i> {% trans "Personnaliser" %}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Analytics rapides -->
+            <div class="card mt-3">
+              <div class="card-header">
+                <h6><i class="fas fa-chart-line"></i> {% trans "Analytics" %}</h6>
+              </div>
+              <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="small">{% trans "Visiteurs aujourd'hui" %}</span>
+                  <strong>{{ site_stats.visits_today|default:0 }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="small">{% trans "Visiteurs cette semaine" %}</span>
+                  <strong>{{ site_stats.visits_this_week|default:0 }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="small">{% trans "Page la plus vue" %}</span>
+                  <strong class="small">{{ site_stats.top_page|default:"Accueil" }}</strong>
+                </div>
+                <a href="#" class="btn btn-outline-primary btn-sm w-100 mt-2">
+                  <i class="fas fa-chart-bar"></i> {% trans "Voir détails" %}
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 12. RÔLES -->
+    <div class="tab-pane fade" id="roles" role="tabpanel">
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-user-shield"></i> {% trans "Gestion des Rôles" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Administration des membres et de leurs permissions" %}</p>
+        </div>
+
+        <!-- Statistiques des rôles -->
+        <div class="stats-grid mb-4">
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #8e24aa 0%, #d81b60 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white" id="federation-admin-count">{{ role_stats.admins|default:0 }}</div>
+                <div class="stat-label text-white">{% trans "Administrateurs" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-crown text-white"></i>
+              </div>
+            </div>
+          </div>
+          
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #5e35b1 0%, #7b1fa2 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white" id="federation-manager-count">{{ role_stats.managers|default:0 }}</div>
+                <div class="stat-label text-white">{% trans "Gestionnaires" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-users-cog text-white"></i>
+              </div>
+            </div>
+          </div>
+          
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #1e88e5 0%, #3949ab 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white" id="federation-judge-count">{{ role_stats.judges|default:0 }}</div>
+                <div class="stat-label text-white">{% trans "Juges" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-gavel text-white"></i>
+              </div>
+            </div>
+          </div>
+          
+          <div class="stat-card card-hover" style="background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);">
+            <div class="stat-header">
+              <div>
+                <div class="stat-value text-white" id="federation-member-count">{{ role_stats.members|default:0 }}</div>
+                <div class="stat-label text-white">{% trans "Membres" %}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="fas fa-users text-white"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <!-- Liste des membres et leurs rôles -->
+          <div class="col-md-8">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-user-shield"></i> {% trans "Gestion des rôles" %}</h5>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-outline-primary btn-sm" onclick="refreshFederationRolesList()">
+                    <i class="fas fa-sync"></i> {% trans "Actualiser" %}
+                  </button>
+                  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addFederationMemberModal">
+                    <i class="fas fa-user-plus"></i> {% trans "Inviter membre" %}
+                  </button>
+                </div>
+              </div>
+              <div class="card-body">
+                
+                <!-- Filtres et recherche -->
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <div class="input-group">
+                      <span class="input-group-text"><i class="fas fa-search"></i></span>
+                      <input type="text" class="form-control" id="federation-member-search" placeholder="{% trans 'Rechercher un membre...' %}">
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <select class="form-select" id="federation-role-filter">
+                      <option value="">{% trans "Tous les rôles" %}</option>
+                      <option value="owner">{% trans "Propriétaire" %}</option>
+                      <option value="admin">{% trans "Administrateur" %}</option>
+                      <option value="manager">{% trans "Gestionnaire" %}</option>
+                      <option value="judge">{% trans "Juge" %}</option>
+                      <option value="member">{% trans "Membre" %}</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3">
+                    <select class="form-select" id="federation-status-filter">
+                      <option value="">{% trans "Tous les statuts" %}</option>
+                      <option value="active">{% trans "Actif" %}</option>
+                      <option value="inactive">{% trans "Inactif" %}</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Liste des membres -->
+                <div class="table-responsive">
+                  <table class="table table-hover" id="federation-members-roles-table">
+                    <thead>
+                      <tr>
+                        <th>{% trans "Membre" %}</th>
+                        <th>{% trans "Rôle actuel" %}</th>
+                        <th>{% trans "Permissions" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                        <th>{% trans "Depuis" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                      </tr>
+                    </thead>
+                    <tbody id="federation-members-list">
+                      {% if federation_members %}
+                        {% for member in federation_members %}
+                        <tr>
+                          <td>
+                            <div class="d-flex align-items-center">
+                              <div class="avatar-sm me-3">
+                                {% if member.user.profile_image %}
+                                  <img src="{{ member.user.profile_image.url }}" alt="Avatar" class="rounded-circle" width="32" height="32">
+                                {% else %}
+                                  <div class="avatar-placeholder rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; font-size: 14px;">
+                                    {{ member.user.first_name.0|default:member.user.username.0 }}{{ member.user.last_name.0 }}
+                                  </div>
+                                {% endif %}
+                              </div>
+                              <div>
+                                <strong>{{ member.user.first_name }} {{ member.user.last_name }}</strong><br>
+                                <small class="text-muted">{{ member.user.email }}</small>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span class="badge badge-primary">{{ member.role|default:"Membre" }}</span>
+                          </td>
+                          <td>
+                            <small class="text-muted">{{ member.permissions_summary|default:"Standard" }}</small>
+                          </td>
+                          <td>
+                            <span class="badge badge-success">{% trans "Actif" %}</span>
+                          </td>
+                          <td>{{ member.created_at|date:"d/m/Y"|default:"-" }}</td>
+                          <td>
+                            <div class="btn-group btn-group-sm">
+                              <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#editFederationRoleModal" onclick="editFederationRole({{ member.id }})">
+                                <i class="fas fa-edit"></i>
+                              </button>
+                              <button class="btn btn-outline-info btn-sm" onclick="viewFederationMember({{ member.id }})">
+                                <i class="fas fa-eye"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      {% else %}
+                        <tr>
+                          <td colspan="6" class="text-center text-muted py-4">
+                            <i class="fas fa-user-friends me-2"></i>
+                            {% trans "Aucun membre trouvé" %}
+                          </td>
+                        </tr>
+                      {% endif %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <!-- Permissions disponibles -->
+            <div class="card">
+              <div class="card-header">
+                <h6><i class="fas fa-shield-alt"></i> {% trans "Permissions disponibles" %}</h6>
+              </div>
+              <div class="card-body">
+                <div class="permission-group mb-3">
+                  <h6 class="small text-muted">{% trans "Administration" %}</h6>
+                  <div class="form-check form-check-sm">
+                    <input class="form-check-input" type="checkbox" id="perm-admin-federation" disabled checked>
+                    <label class="form-check-label small" for="perm-admin-federation">
+                      {% trans "Gestion fédération" %}
+                    </label>
+                  </div>
+                  <div class="form-check form-check-sm">
+                    <input class="form-check-input" type="checkbox" id="perm-manage-clubs" disabled checked>
+                    <label class="form-check-label small" for="perm-manage-clubs">
+                      {% trans "Gestion des clubs" %}
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="permission-group mb-3">
+                  <h6 class="small text-muted">{% trans "Compétitions" %}</h6>
+                  <div class="form-check form-check-sm">
+                    <input class="form-check-input" type="checkbox" id="perm-create-competitions" disabled checked>
+                    <label class="form-check-label small" for="perm-create-competitions">
+                      {% trans "Créer compétitions" %}
+                    </label>
+                  </div>
+                  <div class="form-check form-check-sm">
+                    <input class="form-check-input" type="checkbox" id="perm-judge" disabled>
+                    <label class="form-check-label small" for="perm-judge">
+                      {% trans "Arbitrer" %}
+                    </label>
+                  </div>
+                </div>
+
+                <div class="permission-group">
+                  <h6 class="small text-muted">{% trans "Finances" %}</h6>
+                  <div class="form-check form-check-sm">
+                    <input class="form-check-input" type="checkbox" id="perm-view-finances" disabled>
+                    <label class="form-check-label small" for="perm-view-finances">
+                      {% trans "Consulter finances" %}
+                    </label>
+                  </div>
+                  <div class="form-check form-check-sm">
+                    <input class="form-check-input" type="checkbox" id="perm-manage-finances" disabled>
+                    <label class="form-check-label small" for="perm-manage-finances">
+                      {% trans "Gérer finances" %}
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Activité récente -->
+            <div class="card mt-3">
+              <div class="card-header">
+                <h6><i class="fas fa-history"></i> {% trans "Activité récente" %}</h6>
+              </div>
+              <div class="card-body">
+                {% if recent_role_activities %}
+                  {% for activity in recent_role_activities %}
+                  <div class="d-flex mb-2">
+                    <div class="flex-shrink-0">
+                      <div class="avatar-xs bg-light rounded-circle d-flex align-items-center justify-content-center">
+                        <i class="fas fa-user-edit text-muted"></i>
+                      </div>
+                    </div>
+                    <div class="flex-grow-1 ms-2">
+                      <p class="small mb-0">{{ activity.description }}</p>
+                      <small class="text-muted">{{ activity.created_at|timesince }}</small>
+                    </div>
+                  </div>
+                  {% endfor %}
+                {% else %}
+                  <div class="text-center py-3">
+                    <i class="fas fa-history text-muted" style="font-size: 2rem;"></i>
+                    <p class="text-muted mt-2 small">{% trans "Aucune activité récente" %}</p>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 13. GESTION -->
+    <div class="tab-pane fade" id="management" role="tabpanel">
+      <div class="content-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-cogs"></i> {% trans "Administration" %}
+          </h2>
+          <p class="section-subtitle">{% trans "Paramètres et administration de votre fédération" %}</p>
+        </div>
+
+        <div class="quick-actions">
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-users-cog"></i>
+            </div>
+            <h3 class="action-title">{% trans "Permissions" %}</h3>
+            <p class="action-description">{% trans "Gérer les rôles et permissions des administrateurs" %}</p>
+            <a href="{% url 'competitions:dashboard:federation_manage_settings' federation.id %}" class="btn btn-primary">
+              <i class="fas fa-shield-alt"></i> {% trans "Configurer" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-palette"></i>
+            </div>
+            <h3 class="action-title">{% trans "Personnalisation" %}</h3>
+            <p class="action-description">{% trans "Personnaliser l'apparence et les paramètres de votre fédération" %}</p>
+            <a href="{% url 'competitions:dashboard:federation_manage_settings' federation.id %}" class="btn btn-primary">
+              <i class="fas fa-paint-brush"></i> {% trans "Personnaliser" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-file-export"></i>
+            </div>
+            <h3 class="action-title">{% trans "Exports" %}</h3>
+            <p class="action-description">{% trans "Exporter les données et générer des rapports" %}</p>
+            <a href="{% url 'competitions:dashboard:federation_manage_settings' federation.id %}" class="btn btn-primary">
+              <i class="fas fa-download"></i> {% trans "Exporter" %}
+            </a>
+          </div>
+
+          <div class="action-card card-hover">
+            <div class="action-icon">
+              <i class="fas fa-life-ring"></i>
+            </div>
+            <h3 class="action-title">{% trans "Support" %}</h3>
+            <p class="action-description">{% trans "Accéder au support technique et à l'aide" %}</p>
+            <button class="btn btn-primary" onclick="alert('{% trans 'Support technique : contact@martialcomp.com' %}')">
+              <i class="fas fa-question-circle"></i> {% trans "Contacter" %}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialisation des onglets Bootstrap
+  var triggerTabList = [].slice.call(document.querySelectorAll('#federationTabs button[data-bs-toggle="tab"]'));
+  triggerTabList.forEach(function (triggerEl) {
+    var tabTrigger = new bootstrap.Tab(triggerEl);
+    
+    triggerEl.addEventListener('click', function (event) {
+      event.preventDefault();
+      tabTrigger.show();
+    });
+  });
+
+  // Sauvegarde de l'onglet actif dans localStorage
+  var activeTab = localStorage.getItem('federationActiveTab');
+  if (activeTab) {
+    var tab = document.querySelector('#federationTabs button[data-bs-target="' + activeTab + '"]');
+    if (tab) {
+      var tabInstance = new bootstrap.Tab(tab);
+      tabInstance.show();
+    }
+  }
+
+  // Sauvegarde lors du changement d'onglet
+  document.addEventListener('shown.bs.tab', function(event) {
+    var activeTabId = event.target.getAttribute('data-bs-target');
+    localStorage.setItem('federationActiveTab', activeTabId);
+  });
+
+  // Gestion responsive des onglets
+  function handleResponsiveNavigation() {
+    var navTabs = document.querySelector('.nav-tabs');
+    var windowWidth = window.innerWidth;
+    
+    if (windowWidth <= 768) {
+      navTabs.classList.add('mobile-nav');
+    } else {
+      navTabs.classList.remove('mobile-nav');
+    }
+  }
+
+  // Écouter le redimensionnement
+  window.addEventListener('resize', handleResponsiveNavigation);
+  handleResponsiveNavigation(); // Appel initial
+
+  // Animation des cartes statistiques
+  function animateStatCards() {
+    var statCards = document.querySelectorAll('.stat-card');
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.style.animation = 'fadeIn 0.6s ease forwards';
+          observer.unobserve(entry.target);
+        }
+      });
+    });
+
+    statCards.forEach(function(card) {
+      observer.observe(card);
+    });
+  }
+
+  animateStatCards();
+
+  // Amélioration de l'UX des boutons
+  document.querySelectorAll('.btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      // Petit effet de feedback
+      this.style.transform = 'scale(0.98)';
+      setTimeout(() => {
+        this.style.transform = '';
+      }, 100);
+    });
+  });
+
+  // Gestion des tooltips (si Bootstrap est disponible)
+  if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+  }
+
+  // Gestion du formulaire d'invitation de membre
+  document.getElementById('addFederationMemberForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    var email = document.getElementById('memberEmail').value;
+    var role = document.getElementById('memberRole').value;
+    var message = document.getElementById('memberMessage').value;
+    
+    if (!email || !role) {
+      alert('{% trans "Veuillez remplir tous les champs obligatoires" %}');
+      return;
+    }
+    
+    // TODO: Implémenter l'envoi de l'invitation via AJAX
+    // Pour l'instant, afficher un message de confirmation
+    alert('{% trans "Invitation envoyée à" %} ' + email + ' {% trans "avec le rôle" %} ' + role);
+    
+    // Fermer le modal
+    var modal = bootstrap.Modal.getInstance(document.getElementById('addFederationMemberModal'));
+    modal.hide();
+    
+    // Réinitialiser le formulaire
+    this.reset();
+  });
+});
+</script>
+
+<!-- Modal Inviter Membre -->
+<div class="modal fade" id="addFederationMemberModal" tabindex="-1" aria-labelledby="addFederationMemberModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addFederationMemberModalLabel">
+          <i class="fas fa-user-plus"></i> {% trans "Inviter un membre" %}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="addFederationMemberForm" method="post">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="memberEmail" class="form-label">{% trans "Email du membre" %}</label>
+            <input type="email" class="form-control" id="memberEmail" name="email" required>
+            <div class="form-text">{% trans "L'invitation sera envoyée à cette adresse email" %}</div>
+          </div>
+          <div class="mb-3">
+            <label for="memberRole" class="form-label">{% trans "Rôle" %}</label>
+            <select class="form-select" id="memberRole" name="role" required>
+              <option value="">{% trans "Sélectionnez un rôle" %}</option>
+              <option value="admin">{% trans "Administrateur" %}</option>
+              <option value="manager">{% trans "Manager" %}</option>
+              <option value="coach">{% trans "Entraîneur" %}</option>
+              <option value="referee">{% trans "Arbitre" %}</option>
+              <option value="member">{% trans "Membre" %}</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="memberMessage" class="form-label">{% trans "Message personnalisé" %} ({% trans "optionnel" %})</label>
+            <textarea class="form-control" id="memberMessage" name="message" rows="3" placeholder="{% trans 'Message d\'invitation personnalisé...' %}"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> {% trans "Annuler" %}
+          </button>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-paper-plane"></i> {% trans "Envoyer l'invitation" %}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modals pour la gestion des sites -->
+{% include 'competitions/federations/modals/update_info.html' %}
+{% include 'competitions/federations/modals/upload_photos.html' %}
+{% include 'competitions/federations/modals/customize_theme.html' %}
+{% include 'competitions/federations/modals/manage_content.html' %}
+{% include 'competitions/federations/modals/generate_qr.html' %}
+
+<script>
+// Fonctions JavaScript pour les boutons de gestion des sites
+
+function updateFederationInfo() {
+    const modal = new bootstrap.Modal(document.getElementById('updateInfoModal'));
+    modal.show();
+}
+
+function uploadPhotos() {
+    const modal = new bootstrap.Modal(document.getElementById('uploadPhotosModal'));
+    modal.show();
+    
+    // Gestion du drag & drop
+    const uploadArea = document.getElementById('uploadArea');
+    const photoInput = document.getElementById('photoInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const photoPreview = document.getElementById('photoPreview');
+    
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('border-primary');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('border-primary');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('border-primary');
+        const files = e.dataTransfer.files;
+        handlePhotoFiles(files);
+    });
+    
+    photoInput.addEventListener('change', (e) => {
+        handlePhotoFiles(e.target.files);
+    });
+    
+    function handlePhotoFiles(files) {
+        if (files.length > 0) {
+            uploadBtn.disabled = false;
+            photoPreview.style.display = 'block';
+            const previewContent = photoPreview.querySelector('.row');
+            previewContent.innerHTML = '<div class="col-12"><h6>Photos sélectionnées:</h6></div>';
+            
+            Array.from(files).forEach((file, index) => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const col = document.createElement('div');
+                        col.className = 'col-md-4 col-sm-6 mb-2';
+                        col.innerHTML = `
+                            <div class="card">
+                                <img src="${e.target.result}" class="card-img-top" style="height: 100px; object-fit: cover;">
+                                <div class="card-body p-2">
+                                    <small class="text-muted">${file.name}</small>
+                                </div>
+                            </div>
+                        `;
+                        previewContent.appendChild(col);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+    }
+}
+
+function customizeTheme() {
+    const modal = new bootstrap.Modal(document.getElementById('customizeThemeModal'));
+    modal.show();
+    
+    // Gestion des changements de couleur en temps réel
+    const colorInputs = document.querySelectorAll('input[type="color"]');
+    colorInputs.forEach(input => {
+        input.addEventListener('change', (e) => {
+            const textInput = e.target.nextElementSibling;
+            textInput.value = e.target.value;
+        });
+    });
+}
+
+function manageContent() {
+    const modal = new bootstrap.Modal(document.getElementById('manageContentModal'));
+    modal.show();
+}
+
+function generateQRCodes() {
+    const modal = new bootstrap.Modal(document.getElementById('generateQrModal'));
+    modal.show();
+}
+
+// Fonctions pour sauvegarder les données
+function saveInfo() {
+    const form = document.getElementById('updateInfoForm');
+    const formData = new FormData(form);
+    
+    // DISABLED: Fonction update_site_info temporairement désactivée  
+    console.warn('update_site_info endpoint not available');
+    return;
+    
+    /* COMMENTED OUT - URL NOT AVAILABLE
+    fetch(`#`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+        }
+    }) */
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', 'Informations mises à jour avec succès!');
+            bootstrap.Modal.getInstance(document.getElementById('updateInfoModal')).hide();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('danger', data.error || 'Erreur lors de la mise à jour');
+        }
+    })
+    .catch(error => {
+        showAlert('danger', 'Erreur technique: ' + error.message);
+    });
+}
+
+function uploadPhotosToServer() {
+    const photoInput = document.getElementById('photoInput');
+    const category = document.getElementById('photoCategory').value;
+    const description = document.getElementById('photoDescription').value;
+    
+    if (!photoInput.files.length) {
+        showAlert('warning', 'Veuillez sélectionner au moins une photo');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    formData.append('category', category);
+    formData.append('description', description);
+    
+    for (let file of photoInput.files) {
+        formData.append('photos', file);
+    }
+    
+    fetch(`{% url 'competitions:dashboard:federation_manage_settings' federation_id=federation.id %}`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', 'Photos téléchargées avec succès!');
+            bootstrap.Modal.getInstance(document.getElementById('uploadPhotosModal')).hide();
+        } else {
+            showAlert('danger', data.error || 'Erreur lors du téléchargement');
+        }
+    })
+    .catch(error => {
+        showAlert('danger', 'Erreur technique: ' + error.message);
+    });
+}
+
+function saveTheme() {
+    const form = document.getElementById('themeForm');
+    const formData = new FormData(form);
+    
+    fetch(`{% url 'competitions:dashboard:federation_manage_settings' federation_id=federation.id %}`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', 'Thème personnalisé avec succès!');
+            bootstrap.Modal.getInstance(document.getElementById('customizeThemeModal')).hide();
+        } else {
+            showAlert('danger', data.error || 'Erreur lors de la personnalisation');
+        }
+    })
+    .catch(error => {
+        showAlert('danger', 'Erreur technique: ' + error.message);
+    });
+}
+
+function previewTheme() {
+    showAlert('info', 'Fonctionnalité d\'aperçu en cours de développement');
+}
+
+function saveContent() {
+    const form = document.getElementById('manageContentModal');
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    // Collecter tous les champs de contenu
+    const contentFields = form.querySelectorAll('input, textarea, select');
+    contentFields.forEach(field => {
+        if (field.name) {
+            formData.append(field.name, field.value);
+        }
+    });
+    
+    fetch(`{% url 'competitions:dashboard:federation_manage_settings' federation_id=federation.id %}`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', 'Contenu mis à jour avec succès!');
+            bootstrap.Modal.getInstance(document.getElementById('manageContentModal')).hide();
+        } else {
+            showAlert('danger', data.error || 'Erreur lors de la mise à jour du contenu');
+        }
+    })
+    .catch(error => {
+        showAlert('danger', 'Erreur technique: ' + error.message);
+    });
+}
+
+function previewContent() {
+    showAlert('info', 'Fonctionnalité d\'aperçu en cours de développement');
+}
+
+function generateQrCodes() {
+    const selectedTypes = [];
+    const checkboxes = document.querySelectorAll('input[name="qr_types"]:checked');
+    checkboxes.forEach(cb => selectedTypes.push(cb.value));
+    
+    if (selectedTypes.length === 0) {
+        showAlert('warning', 'Veuillez sélectionner au moins un type de QR code');
+        return;
+    }
+    
+    const size = document.getElementById('qr_size').value;
+    const format = document.getElementById('qr_format').value;
+    const includeLogo = document.getElementById('include_logo').checked;
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    formData.append('qr_types', JSON.stringify(selectedTypes));
+    formData.append('size', size);
+    formData.append('format', format);
+    formData.append('include_logo', includeLogo);
+    
+    fetch(`{% url 'competitions:dashboard:federation_manage_settings' federation_id=federation.id %}`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', 'QR codes générés avec succès!');
+            if (data.download_url) {
+                window.open(data.download_url, '_blank');
+            }
+            bootstrap.Modal.getInstance(document.getElementById('generateQrModal')).hide();
+        } else {
+            showAlert('danger', data.error || 'Erreur lors de la génération des QR codes');
+        }
+    })
+    .catch(error => {
+        showAlert('danger', 'Erreur technique: ' + error.message);
+    });
+}
+
+function previewQrCodes() {
+    showAlert('info', 'Fonctionnalité d\'aperçu en cours de développement');
+}
+
+// Fonctions utilitaires pour les actualités
+function addNewsArticle() {
+    const newsArticles = document.getElementById('newsArticles');
+    const newArticle = document.createElement('div');
+    newArticle.className = 'card mb-3';
+    newArticle.innerHTML = `
+        <div class="card-body">
+            <div class="mb-2">
+                <input type="text" class="form-control" placeholder="Titre de l'article" name="news_title[]">
+            </div>
+            <div class="mb-2">
+                <textarea class="form-control" rows="3" placeholder="Contenu de l'article" name="news_content[]"></textarea>
+            </div>
+            <div class="d-flex justify-content-between">
+                <input type="date" class="form-control w-auto" name="news_date[]">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeNewsArticle(this)">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    newsArticles.appendChild(newArticle);
+}
+
+function removeNewsArticle(button) {
+    button.closest('.card').remove();
+}
+
+// Fonction utilitaire pour afficher les alertes
+function showAlert(type, message) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show position-fixed" 
+             style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', alertHtml);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        const alert = document.querySelector('.alert:last-of-type');
+        if (alert) {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        }
+    }, 5000);
+}
+</script>
+
+{% endblock %}

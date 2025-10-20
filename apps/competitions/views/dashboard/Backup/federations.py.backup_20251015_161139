@@ -1,0 +1,247 @@
+from django.core.exceptions import PermissionDenied
+#  Dashboard Fédération
+# Imports de Django
+from django.db import models
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from ...utils.decorators import federation_admin_required
+from django.utils.translation import gettext_lazy as _
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.http import require_POST
+from django.utils import timezone
+from django.db.models import Q, Count
+
+# Imports de bibliothèques standards
+import csv
+import json
+import logging
+from io import StringIO
+
+# Imports de vos modèles (simplifiés et dédupliqués)
+from ...models import (
+    Federation,
+    Club,
+    Discipline,
+    Competition, 
+    Practitioner,
+    CompetitionRegistration,
+    Judge,
+    Notification
+)
+from apps.finances.models import PaymentAttempt, Invoice, Transaction
+from apps.shop.models import Order
+
+# Imports de vos formulaires
+from apps.competitions.forms.federations import FederationForm
+from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
+
+logger = logging.getLogger(__name__)
+
+# Task Management Integration
+try:
+    from apps.task_management.dashboard_utils import get_dashboard_task_data, get_federation_dashboard_task_data
+    TASK_MANAGEMENT_AVAILABLE = True
+except ImportError:
+    TASK_MANAGEMENT_AVAILABLE = False
+    logger.warning("Task Management module not available")
+
+@login_required
+@federation_admin_required
+def federation_dashboard(request, federation_id):
+    """
+    Vue principale pour le tableau de bord d'une fédération.
+    Affiche les statistiques et les actions disponibles pour une fédération.
+    """
+    # Si federation_id n'est pas fourni, essayer de trouver une fédération associée à l'utilisateur
+    if federation_id is None:
+        # Vérifier si l'utilisateur est administrateur d'une fédération
+        user_federations = None
+        
+        # Vérifier via le modèle FederationAdministrator
+        if hasattr(request.user, 'federation_admin_roles'):
+            user_federations = Federation.objects.filter(
+                administrators__user=request.user
+            )
+        
+        # Vérifier via l'ancienne relation owner
+        if not user_federations or not user_federations.exists():
+            user_federations = Federation.objects.filter(owner=request.user)
+            
+        # Si l'utilisateur est associé à au moins une fédération, rediriger vers cette fédération
+        if user_federations and user_federations.exists():
+            federation = user_federations.first()
+            return redirect('competitions:federations:federation_dashboard', federation_id=federation.id)
+        else:
+            # L'utilisateur n'est associé à aucune fédération, afficher un message
+            messages.warning(request, _("Vous n'êtes associé à aucune fédération pour le moment."))
+            # Rediriger vers la liste des fédérations ou la création
+            return redirect('competitions:federations:list')
+    
+    # Récupérer la fédération par son ID
+    federation = get_object_or_404(Federation, pk=federation_id)
+    
+    # Vérification que l'utilisateur a les droits sur cette fédération
+    has_access = False
+    
+    # Vérifier via le rôle de l'utilisateur et la relation owner
+    user_role = None
+    if hasattr(request.user, 'profile') and hasattr(request.user.profile, 'role'):
+        user_role = request.user.profile.role
+    
+    if user_role == 'federation_admin' or request.user == federation.owner:
+        has_access = True
+    
+    # Vérifier via FederationAdministrator
+    if hasattr(request.user, 'federation_admin_roles'):
+        is_admin = federation.administrators.filter(
+            user=request.user
+        ).exists()
+        if is_admin:
+            has_access = True
+    
+    if not has_access:
+        raise PermissionDenied("Vous n'avez pas les droits pour accéder à cette fédération.")
+    
+    # Récupérer les statistiques de la fédération
+    try:
+        # Statistiques des clubs
+        clubs_count = Club.objects.filter(organization=federation.organization).count()
+        
+        # Statistiques des compétitions
+        competitions_count = Competition.objects.filter(
+            organization=federation.organization
+        ).count()
+        
+        # Statistiques des pratiquants
+        practitioners_count = Practitioner.objects.filter(
+            organization=federation.organization
+        ).count()
+        
+        # Statistiques des juges
+        judges_count = Judge.objects.filter(
+            organization=federation.organization
+        ).count()
+        
+        # Compétitions récentes
+        recent_competitions = Competition.objects.filter(
+            organization=federation.organization
+        ).order_by('-created_at')[:5]
+        
+        # Clubs récents
+        recent_clubs = Club.objects.filter(
+            organization=federation.organization
+        ).order_by('-created_at')[:5]
+        
+        # Tâches du dashboard (si disponible)
+        federation_task_data = None
+        if TASK_MANAGEMENT_AVAILABLE:
+            try:
+                federation_organizations = [federation.organization]
+                federation_task_data = get_federation_dashboard_task_data(request.user, federation_organizations)
+            except Exception as e:
+                logger.warning(f"Erreur lors de la récupération des tâches: {e}")
+        
+        # Préparer le contexte
+        context = {
+            'federation': federation,
+            'clubs_count': clubs_count,
+            'competitions_count': competitions_count,
+            'practitioners_count': practitioners_count,
+            'judges_count': judges_count,
+            'recent_competitions': recent_competitions,
+            'recent_clubs': recent_clubs,
+            'federation_task_data': federation_task_data,
+            'title': _('Tableau de bord Fédération'),
+        }
+        
+        return render(request, 'competitions/dashboard/federation.html', context)
+        
+    except Exception as e:
+        logger.error(f"Erreur dans federation_dashboard: {e}")
+        messages.error(request, _("Une erreur est survenue lors du chargement du tableau de bord."))
+        return render(request, 'competitions/dashboard/federation.html', {
+            'federation': federation,
+            'error': str(e),
+            'title': _('Tableau de bord Fédération'),
+        })
+
+@login_required
+def federation_manage_clubs(request, federation_id):
+    """Gestion des clubs de la fédération"""
+    context = {
+        'title': _('Gestion des clubs'),
+        'federation_id': federation_id,
+        'message': _('Fonctionnalité temporairement indisponible')
+    }
+    return render(request, 'competitions/dashboard/federation_clubs.html', context)
+
+@login_required
+def federation_manage_judges(request, federation_id):
+    """Gestion des juges de la fédération"""
+    context = {
+        'title': _('Gestion des juges'),
+        'federation_id': federation_id,
+        'message': _('Fonctionnalité temporairement indisponible')
+    }
+    return render(request, 'competitions/dashboard/federation_judges.html', context)
+
+@login_required
+def federation_manage_competitions(request, federation_id):
+    """Gestion des compétitions de la fédération"""
+    context = {
+        'title': _('Gestion des compétitions'),
+        'federation_id': federation_id,
+        'message': _('Fonctionnalité temporairement indisponible')
+    }
+    return render(request, 'competitions/dashboard/federation_competitions.html', context)
+
+@login_required
+def federation_manage_practitioners(request, federation_id):
+    """Gestion des pratiquants de la fédération"""
+    context = {
+        'title': _('Gestion des pratiquants'),
+        'federation_id': federation_id,
+        'message': _('Fonctionnalité temporairement indisponible')
+    }
+    return render(request, 'competitions/dashboard/federation_practitioners.html', context)
+
+@login_required
+def federation_manage_licenses(request, federation_id):
+    """Gestion des licences de la fédération"""
+    context = {
+        'title': _('Gestion des licences'),
+        'federation_id': federation_id,
+        'message': _('Fonctionnalité temporairement indisponible')
+    }
+    return render(request, 'competitions/dashboard/federation_licenses.html', context)
+
+@login_required
+def federation_manage_certifications(request, federation_id):
+    """Gestion des certifications de la fédération"""
+    context = {
+        'title': _('Gestion des certifications'),
+        'federation_id': federation_id,
+        'message': _('Fonctionnalité temporairement indisponible')
+    }
+    return render(request, 'competitions/dashboard/federation_certifications.html', context)
+
+@login_required
+def federation_manage_reports(request, federation_id):
+    """Gestion des rapports de la fédération"""
+    context = {
+        'title': _('Gestion des rapports'),
+        'federation_id': federation_id,
+        'message': _('Fonctionnalité temporairement indisponible')
+    }
+    return render(request, 'competitions/dashboard/federation_reports.html', context)
+
+@login_required
+def federation_manage_settings(request, federation_id):
+    """Gestion des paramètres de la fédération"""
+    context = {
+        'title': _('Paramètres de la fédération'),
+        'federation_id': federation_id,
+        'message': _('Fonctionnalité temporairement indisponible')
+    }
+    return render(request, 'competitions/dashboard/federation_settings.html', context)

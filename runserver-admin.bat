@@ -1,0 +1,3 @@
+@echo off
+echo Requesting administrator privileges...
+powershell -Command "Start-Process cmd -ArgumentList '/k cd /d C:\martial_hub_django\martialcomp && python manage.py runserver 0.0.0.0:8000' -Verb RunAs"

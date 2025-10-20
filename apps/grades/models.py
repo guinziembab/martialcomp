@@ -50,7 +50,7 @@ class Grade(models.Model):
     color = models.CharField(_("Couleur"), max_length=50, blank=True)
     color_code = models.CharField(_("Code couleur"), max_length=7, blank=True, help_text=_("Code hexadécimal de la couleur (ex: #FFFFFF)"))
     level = models.PositiveSmallIntegerField(_("Niveau"), default=0, help_text=_("Ordre numérique du grade dans la hiérarchie"))
-    min_age = models.PositiveSmallIntegerField(_("Ã‚ge minimum"), default=0, help_text=_("Ã‚ge minimum requis pour ce grade"))
+    min_age = models.PositiveSmallIntegerField(_("Âge minimum"), default=0, help_text=_("Âge minimum requis pour ce grade"))
     min_time_in_previous_grade = models.PositiveSmallIntegerField(
         _("Temps minimum dans le grade précédent (mois)"), 
         default=0, 
@@ -162,7 +162,7 @@ class GradeRequirement(models.Model):
     name = models.CharField(_("Nom"), max_length=100)
     description = models.TextField(_("Description"), blank=True)
     is_mandatory = models.BooleanField(_("Obligatoire"), default=True)
-    min_age = models.PositiveSmallIntegerField(_("Ã‚ge minimum"), default=0)
+    min_age = models.PositiveSmallIntegerField(_("Âge minimum"), default=0)
     min_time_in_previous_grade = models.PositiveSmallIntegerField(
         _("Temps minimum dans le grade précédent (mois)"), 
         default=0

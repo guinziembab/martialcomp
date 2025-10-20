@@ -1,0 +1,286 @@
+BBBBBBB BBBBBBBBBBBBBBBBBBBBBB
+BBBB BBBB
+BBBB BBBBBBBBBBBBBBBBBBB
+
+BBBBB BBBBB gettext(u'Tableau de bord des traductions') BBBBBBBB
+
+BBBBB BBBBBBBBB
+XXXXXXX
+XXXXXXXXXXXXXXXXXXXXXX X
+    XXXXXXXX XXXXX
+X
+
+XXXXXXXXXXXXXXX X
+    XXXXXXXX XXXXX
+    XXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXX XXXXXX
+    XXXX XXXXX
+    XXXXXXXXXXXXXX XXXXX
+X
+
+XXXXXXXXXX X
+    XXXXXXXXXXX XXXXXXXX
+    XXXXXXX XXX XXXXX XXXXXXXX
+    XXXXXXXXXXXXXX XXXX
+    XXXXXXXX XXXXX
+    XXXXXXXXXXX XXXXXXX
+X
+
+XXXXXXXXXXXX X
+    XXXXXXXXXX XXXXX
+    XXXXXXXXXXXX XXXXX
+    XXXXXX XXXXXXXX
+    XXXXXXXXXXXXXX XXXXX
+X
+
+XXXXXXXXXXX X
+    XXXXXX XXXXX
+    XXXXXXXXXX XXXXXXX
+X
+
+XXXXXXXXXXXXXXXX X
+    XXXXXX XXXXX
+    XXXXXXXXXXXXXXXX XXXXXXXXX
+    XXXXXXXXXXXXXX XXXXX
+X
+
+XXXXXXXXXXXXXXXX XXX
+XXXXXXXXXXXXXXXX XX X
+    XXXXXXXX XXXXX
+    XXXXXXXXXXX XXXXX
+    XXXXXXXXXXXXXX XXX XXXXX XXXXXXXX
+X
+
+XXXXXXXXXXXXXXXX XX X
+    XXXXXXXXXXXXXXXXX XXXXXXXX
+    XXXXXXXXXXXX XXXXX
+X
+
+XXXXXXXXXXXXX X
+    XXXXXX XXXXX
+    XXXXXXX XXXXX
+    XXXXXXXXXXXXXXXXX XXXXXXXX
+    XXXXXXXXXXXXXX XXXXX
+    XXXXXXXXX XXXXXXX
+X
+
+XXXXXXXXXXXXXX X
+    XXXXXXX XXXXX
+    XXXXXXXXXXXXXXXXX XXXXXXXX
+    XXXXXXXXXXX XXXXX XXXX XXXXX
+    XXXXXXXX XXXXX
+    XXXXXXXXXXXX XXXXXXX
+    XXXXXXXXXXXXXXXX XXXXXXX
+    XXXXXX XXXXXX
+    XXXXXXXXXX XXXXXXX
+    XXXXXXXXXXXX XXXXX
+X
+
+XXXXXXXXXXXXXXXXXX X
+    XXXXXXXXXXXXXXXXX XXXXXXXX
+X
+
+XXXXXXXXXXXXXXXXXXXXX X
+    XXXXXXXXXXXXXXXXX XXXXXXXX
+    XXXXXX XXXXX
+X
+
+XXXXXXXXXXXXXXXXXXX X
+    XXXXXXXXXXXXXXXXX XXXXXXXX
+X
+
+XXXXXXXXXXXXXX X
+    XXXXXXXXXXX XXXXXXXX
+    XXXXXXX XXX XXXXX XXXXXXXX
+    XXXXXXXXXXXXXX XXXX
+    XXXXXXXX XXXXX
+X
+
+XXXXXXXXXXXXXX X
+    XXXXXXXX XXXXXXXXXXXXX
+    XXXXXXXX XXX XXXXX
+    XXXXXXX XXXX
+    XXXXXXXXXXXXXXXXX XXXXXXXX
+    XXXXXX XXXXXX
+    XXXXXXXXXXXXXXXX XXXXX
+    XXXXXXXXXXXXXX XXXX
+    XXXXXXX XXXXX
+    XXXXXXX XXXXXXXX
+    XXXXXXXXXXX XXXXXXXXXXXXXXXX XXXX XXXXX
+X
+
+XXXXXXXXXXXXXXXXXXXX X
+    XXXXXXXXXXXXXXXXX XXXXXXXX
+    XXXXXX XXXXXX
+    XXXXXXXXXXXXXXXX XXXXX
+X
+
+XXXXXXXXXXXXXXXXXXXXXXXX X
+    XXXXXXXXXXXXXXXXX XXXXXXXX
+X
+
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX X
+    XXXXXXXXXXXXXXXXX XXXXXXXX
+X
+
+XXXXXXXXXXXXX X
+    XXXXXXXXXX XXXXXXX
+    XXXXXX XXXXX
+    XXXXXXXXXXX XXXX
+X
+XXXXXXXX
+BBBBBBBB
+
+BBBBB BBBBBBB
+XXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    XXXX gettext(u'Tableau de bord des traductions') XXXXX
+    
+    XXXX XXXXXXXXXXXXXXXXXXXXXXX
+        XXXX XXXXXXXXXXXXXXXXXX
+            XXXX XXXXXXXXXXXXXXXXXXXXFFFFFFXXXXXX
+            XXXX XXXXXXXXXXXXXXXXXXX gettext(u'Langues supportées') XXXXXX
+        XXXXXX
+        XXXX XXXXXXXXXXXXXXXXXX
+            XXXX XXXXXXXXXXXXXXXXXXXXXXXXXX
+            XXXX XXXXXXXXXXXXXXXXXXX gettext(u'Chaînes totales') XXXXXX
+        XXXXXX
+        XXXX XXXXXXXXXXXXXXXXXX
+            XXXX XXXXXXXXXXXXXXXXXXXXXXXXXX
+            XXXX XXXXXXXXXXXXXXXXXXX gettext(u'Chaînes traduites') XXXXXX
+        XXXXXX
+        XXXX XXXXXXXXXXXXXXXXXX
+            XXXX XXXXXXXXXXXXXXXXXXXXXXXXXXX
+            XXXX XXXXXXXXXXXXXXXXXXX gettext(u'Couverture globale') XXXXXX
+        XXXXXX
+    XXXXXX
+
+    XXXX XXXXXXXXXXXXXXX
+        XXXX gettext(u'État des traductions par langue') XXXXX
+        XXX gettext(u'Langue source: %(source)s') SSSSSS SSSSSSS SSSSSSSSSSXXXX
+        
+        XXXXXX XXXXXXXXXXXXXXXXXXXXXXXX
+            XXXXXXX
+                XXXX
+                    XXXX gettext(u'Langue') XXXXX
+                    XXXX gettext(u'Progression') XXXXX
+                    XXXX gettext(u'Traduit') XXXXX
+                    XXXX gettext(u'Total') XXXXX
+                    XXXX gettext(u'Détails') XXXXX
+                    XXXX gettext(u'Actions') XXXXX
+                XXXXX
+            XXXXXXXX
+            XXXXXXX
+                BBB BBBB BB BBBBB
+                XXXX
+                    XXXX
+                        XXXXXXXXXXXXXXXXXXXXX
+                        XXXXXXXXXXXXXXXXX
+                    XXXXX
+                    XXXX
+                        XXXX XXXXXXXXXXXXXXXXXXXXX
+                            XXXX XXXXXXXXXXXXXXXXXXXX 
+                                BB BBBBBBBBBBBBBBB B BBXXX
+                                BBBB BBBBBBBBBBBBBBB B BBXXXXXX
+                                BBBBXXXXBBBBBX
+                                XXXXXXXXXXXXX XXX
+                                X
+                            XXXXXX
+                        XXXXXX
+                    XXXXX
+                    XXXXXXXXX
+                    XXXXXXXXX
+                    XXXX
+                        BBB BBBB BB BBBBBBBBBB
+                        XXXX XXXXXXXXXXXXXXXXXXXXX
+                            X X XXX
+                        XXXXXX
+                        BBBBBB
+                    XXXXX
+                    XXXX
+                        XX XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX 
+                           XXXXXXXXXXXXXXXXXXXXXX
+                             gettext(u'Éditer') 
+                        XXXX
+                    XXXXX
+                XXXXX
+                BBBBBB
+            XXXXXXXX
+        XXXXXXXX
+    XXXXXX
+
+    XXXX XXXXXXXXXXXXX XXXXXXXXXXXXXXX
+        XXXX gettext(u'Actions globales') XXXXX
+        XXX gettext(u"Outils pour gérer les traductions à l'échelle de l'application") XXXX
+        
+        XXXXX
+            XX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXX
+                 gettext(u'Interface Rosetta') 
+            XXXX
+            
+            XXXXXXX XXXXXXXXXXXXXXXXXXXX XXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+                 gettext(u'Extraire nouvelles chaînes') 
+            XXXXXXXXX
+            
+            XXXXXXX XXXXXXXXXXXXXXXXXXXX XXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+                 gettext(u'Compiler traductions') 
+            XXXXXXXXX
+            
+            XXXXXXX XXXXXXXXXXXXXXXXXXXX XXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+                 gettext(u"Guide d'aide") 
+            XXXXXXXXX
+        XXXXXX
+        
+        XXXX XXXXXXXXXXXXXXXXXX XXXXXXX
+            XXXX gettext(u'Traduction automatique') XXXXX
+            XXX gettext(u'Utilisez la commande Django pour traduire automatiquement avec DeepL:') XXXX
+            XXXXX XXXXXXXXXXXXXXXXXX XXXXXXXX XXXXXXXX XXXXX XXXXXXXX XXXXXX XXXXXXX XXXX XXXX gettext(u'python manage.py translate_messages --api-key YOUR_DEEPL_KEY --target en es it de --compile') XXXXXXX
+        XXXXXX
+    XXXXXX
+XXXXXX
+
+XXXXXXXX
+XXXXXXXX XXXXXXXXXXXXXXXXX X
+    XX XXXXXXXXXX gettext(u'Extraire les nouvelles chaînes à traduire ?') XXX X
+        XX XXXXX XXXXXXXX XXXXXXXX XXXXX XX XXXXX XXXX XXXX XXXXXXXX XXXXXXXXXXXX
+        XXXXXXX gettext(u'Fonctionnalité à implémenter côté serveur') XXX
+    X
+X
+
+XXXXXXXX XXXXXXXXXXXXXXXXX X
+    XX XXXXXXXXXX gettext(u'Compiler toutes les traductions ?') XXX X
+        XX XXXXX XXXXXXXX XXXXXXXX XXXXX XX XXXXX XXXX XXXX XXXXXXXX XXXXXXXXXXXXXXX
+        XXXXXXX gettext(u'Fonctionnalité à implémenter côté serveur') XXX
+    X
+X
+
+XXXXXXXX XXXXXXXXXXXXXXXXXXXXX X
+    XXXXX XXXXXXXXXXX X X
+ gettext(u'Guide rapide des traductions:') 
+
+XX  gettext(u'Marquer les chaînes dans les templates:') 
+   BBBBBBBBXX XXXX XXXX XX
+   XX XXXXX XXXXXX X XXXXXXXXX XXBBBBBBBBBBB
+
+XX  gettext(u'Marquer les chaînes dans Python:') 
+   XXXX XXXXXXXXXXXXXXXXXXXXXXXX XXXXXX XXXXXXXXXXXX XX X
+   XXXXXXX X XXXXXXXX X XXXXXXXXXX
+
+XX  gettext(u'Extraire les chaînes:') 
+   XXXXXX XXXXXXXXX XXXXXXXXXXXX XX
+
+XX  gettext(u'Traduire avec Rosetta ou manuellement') 
+
+XX  gettext(u'Compiler les traductions:') 
+   XXXXXX XXXXXXXXX XXXXXXXXXXXXXXX
+    XX
+    
+    XXXXXXXXXXXXXXXXXXX
+X
+
+XX XXXXXXXXXX XX XXXX XXXXXX XXX XX XXXXXXXX XXXX XXXX XXX XXXXX X XXXX
+XXXXXXXXXXXXXXXXXXXXXX X
+    XX XXXXXXXXXXXXXXXX XXX XXXXXX X
+        XXXXXXXXXXXXXXXXXX
+    X
+XX XXXXXXX
+XXXXXXXXX
+BBBBBBBB

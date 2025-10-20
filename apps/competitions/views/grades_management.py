@@ -34,8 +34,15 @@ except ImportError:
 # Création du logger
 logger = logging.getLogger(__name__)
 
+# Import des modèles de grades
+try:
+    from apps.grades.models import Grade, GradingSystem as GradeSystem, GradeCategory, PractitionerGrade as PractitionerGradeHistory
+    GRADES_AVAILABLE = True
+except ImportError:
+    GRADES_AVAILABLE = False
+    logger.warning("Could not import grades models")
+
 # Fonction pour récupérer le club de l'utilisateur
-    from apps.grades.models import Grade, GradeCategory as GradeSystem, PractitionerGrade as PractitionerGradeHistory
 def get_user_club(request):
     """
     Récupère le club associé Ã  l'utilisateur de manière uniforme.

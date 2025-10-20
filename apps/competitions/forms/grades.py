@@ -4,13 +4,21 @@ from django.utils.translation import gettext_lazy as _
 from django.forms import inlineformset_factory
 from django.core.validators import RegexValidator
 from django.db.models.query import QuerySet
-from ..models.grades import GradeSystem, GradeCategory, Grade, GradeHistory
+# Import corrigé : utiliser apps.grades.models au lieu de ..models.grades
+try:
+    from apps.grades.models import GradingSystem as GradeSystem, GradeCategory, Grade, PractitionerGrade as GradeHistory
+except ImportError:
+    # Fallback si l'app grades n'est pas disponible
+    GradeSystem = None
+    GradeCategory = None 
+    Grade = None
+    GradeHistory = None
 from ..models import Discipline, Practitioner
 
 # Importation sécurisée des modèles
 try:
     from ..models import Discipline, Practitioner, CategoryGrade
-    from ..models import Grade, GradeHistory, GradeSystem, GradeCategory
+    # Import déjà effectué au-dessus, pas besoin de réimporter
     MODELS_AVAILABLE = True
 except (ImportError, AttributeError):
     # Si les modèles ne sont pas accessibles, créons des classes vides pour éviter les erreurs
@@ -57,7 +65,7 @@ class GradeForm(forms.ModelForm):
     """Formulaire pour gérer les grades"""
     class Meta:
         model = Grade
-        fields = ['name', 'category', 'level', 'order', 'color', 'description', 'accessible_to_clubs']
+        fields = ['name', 'category', 'level', 'order', 'color']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Nom du grade')}),
             'category': forms.Select(attrs={'class': 'form-select'}),

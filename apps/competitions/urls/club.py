@@ -12,6 +12,11 @@ from apps.competitions.views.club.registrations import (
 from apps.competitions.views.club.competitions import club_competitions, competition_management_dashboard, api_move_practitioner_category, api_remove_registration
 from apps.competitions.views.club.competition_demo import competition_management_demo
 from apps.competitions.views.club.event_organizer import event_organizer_dashboard, competition_management_detail
+from apps.competitions.views.competition_management_v2 import competition_management_v2
+from apps.competitions.views.competition_management_pro import (
+    competition_management_pro, add_competition_type, assign_to_category,
+    remove_from_category, publish_competition, assign_judge, get_competition_stats
+)
 from apps.competitions.views.club.judges import judges_list, judge_add
 from apps.competitions.views.club.technical_scoring import technical_scoring, competition_scoring
 from apps.competitions.views.club.import_export import import_export_data
@@ -83,10 +88,20 @@ name='link_user_to_practitioner'),
   path('competitions/demo/', competition_management_demo, name='competition_demo'),
   path('competitions/organizer/', event_organizer_dashboard, name='event_organizer'),
   path('competitions/<int:competition_id>/manage/', competition_management_detail, name='competition_management_detail'),
+  path('competitions/<int:competition_id>/manage/v2/', competition_management_v2, name='competition_management_v2'),
+  path('competitions/<int:competition_id>/manage/pro/', competition_management_pro, name='competition_management_pro'),
   
   # APIs pour la gestion des compétitions
   path('api/move-practitioner/', api_move_practitioner_category, name='api_move_practitioner'),
   path('api/remove-registration/', api_remove_registration, name='api_remove_registration'),
+  
+  # APIs pour la version Pro
+  path('api/competitions/<int:competition_id>/types/', add_competition_type, name='api_add_competition_type'),
+  path('api/competitions/<int:competition_id>/assign-category/', assign_to_category, name='api_assign_to_category'),
+  path('api/competitions/<int:competition_id>/remove-category/', remove_from_category, name='api_remove_from_category'),
+  path('api/competitions/<int:competition_id>/publish/', publish_competition, name='api_publish_competition'),
+  path('api/competitions/<int:competition_id>/assign-judge/', assign_judge, name='api_assign_judge'),
+  path('api/competitions/<int:competition_id>/stats/', get_competition_stats, name='api_competition_stats'),
 
   # Dashboard
   path('dashboard/', club_dashboard, name='dashboard'),

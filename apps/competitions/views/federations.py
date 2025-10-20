@@ -218,19 +218,24 @@ def federation_create(request):
                         request.user.profile.role = 'federation_admin'
                         request.user.profile.save(update_fields=['role'])
                     
-                    messages.success(request, _("Votre fédération a été créée avec succès ! Redirection vers le tableau de bord."))
-                    
                     # Ajouter un message de log pour le débogage
                     import logging
                     logger = logging.getLogger('django')
                     logger.info(f"Fédération '{federation.name}' créée par l'utilisateur '{request.user.username}' (ID: {request.user.id})")
                     
+                    # Afficher le message de succès et rediriger immédiatement
+                    messages.success(request, _("Votre fédération a été créée avec succès ! Redirection vers le tableau de bord."))
                     return redirect('competitions:federations:federation_dashboard', federation_id=federation.id)
             except Exception as e:
                 # Log détaillé de l'erreur pour faciliter le débogage
                 import logging
                 logger = logging.getLogger('django')
                 logger.error(f"Erreur lors de la création de fédération: {str(e)}", exc_info=True)
+                
+                # Nettoyer les messages de succès s'il y en a eu
+                from django.contrib import messages
+                storage = messages.get_messages(request)
+                storage.used = True
                 
                 messages.error(request, _("Une erreur est survenue lors de la création de la fédération : {}").format(str(e)))
         else:

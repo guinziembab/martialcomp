@@ -198,3 +198,4 @@ if __name__ == "__main__":
     
     print(f"\n📊 Résumé : {results['summary']['total_views_without_isolation']} vues à sécuriser")
     print("🚀 Prêt pour la Phase 2 du plan d'action !")
+

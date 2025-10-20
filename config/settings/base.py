@@ -77,9 +77,10 @@ INSTALLED_APPS = [
     'crispy_forms',
     'crispy_bootstrap5',
     'import_export',
+    # 'channels',  # TEMPORAIREMENT DÉSACTIVÉ
     
     # Applications MartialComp (maintenant dans apps/)
-    'apps.competitions',
+    'apps.competitions.apps.CompetitionsConfig',
     'apps.organizations',
     # 'apps.multitenant',  # Désactivé (fichiers corrompus provoquant des null bytes)
     'apps.grades',

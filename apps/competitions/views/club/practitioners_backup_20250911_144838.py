@@ -52,7 +52,7 @@ try:
     from apps.competitions.views.club.utils import get_user_club
 except ImportError:
     # Définition locale de la fonction seulement si l'import échoue
-    from apps.grades.models import GradeCategory as GradeSystem, Grade, GradeCategory
+    from apps.grades.models import GradingSystem as GradeSystem, Grade, GradeCategory
     def get_user_club(request):
         """
         Récupère le club associé à l'utilisateur de manière uniforme.

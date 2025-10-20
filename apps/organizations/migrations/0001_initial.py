@@ -8,9 +8,8 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     initial = True
-
+    
     dependencies = [
-        ('competitions', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -36,9 +35,9 @@ class Migration(migrations.Migration):
                 ('old_club_id', models.PositiveIntegerField(blank=True, null=True, verbose_name="ID de l'ancien club")),
                 ('is_active', models.BooleanField(default=True, verbose_name='Actif')),
                 ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='Créé le')),
-                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='Mis Ã\xa0 jour le')),
+                ('updated_at', models.DateTimeField(auto_now=True, verbose_name='Modifié le')),
                 ('created_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='created_organizations', to=settings.AUTH_USER_MODEL, verbose_name='Créé par')),
-                ('disciplines', models.ManyToManyField(blank=True, related_name='organization_list', to='competitions.discipline', verbose_name='Disciplines')),
+                ('disciplines', models.ManyToManyField(blank=True, to='competitions.discipline', verbose_name='Disciplines')),
             ],
             options={
                 'verbose_name': 'Organisation',

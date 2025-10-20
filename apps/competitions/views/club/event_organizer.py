@@ -340,7 +340,7 @@ def get_recent_activity(organization, today):
         activities.append({
             'type': 'registration',
             'timestamp': reg.registration_date,
-            'title': f"Nouvelle inscription - {reg.competition.name}",
+            'title': f"Nouvelle inscription - {reg.competition.title}",
             'description': f"{reg.practitioner.full_name}",
             'icon': 'fas fa-user-plus'
         })
@@ -407,6 +407,12 @@ def competition_management_detail(request, competition_id):
         competition=competition
     ).select_related('practitioner').order_by('registration_date')
     
+    # Récupérer les clubs pour les filtres
+    clubs = set()
+    for reg in registrations:
+        if reg.practitioner.club:
+            clubs.add(reg.practitioner.club)
+    
     # Statistiques financières
     financial_overview = get_competition_financial_data(competition)
     
@@ -417,9 +423,10 @@ def competition_management_detail(request, competition_id):
         'competition': competition,
         'categories': categories,
         'registrations': registrations,
+        'clubs': list(clubs),
         'financial_overview': financial_overview,
         'schedule_data': schedule_data,
-        'page_title': f"Gestion - {competition.name}",
+        'page_title': f"Gestion - {competition.title}",
     }
     
     return render(request, 'competitions/club/competition_management_detail.html', context)

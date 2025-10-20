@@ -20,6 +20,10 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'your-secret-key-here-change-in
 # Configuration de sécurité
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# Configuration Cloudflare
+USE_TZ = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 # Configuration HTTPS
 SECURE_SSL_REDIRECT = True
 SECURE_HSTS_SECONDS = 31536000  # 1 an
@@ -32,16 +36,17 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
 # Configuration de la base de données de production
+# Utiliser les mêmes paramètres que le développement si les variables d'environnement ne sont pas définies
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'martialcomp_prod'),
-        'USER': os.environ.get('DB_USER', 'martialcomp_user'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'NAME': os.environ.get('DB_NAME', 'martialcomp'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
         'HOST': os.environ.get('DB_HOST', 'localhost'),
         'PORT': os.environ.get('DB_PORT', '5432'),
         'OPTIONS': {
-            'sslmode': 'require',
+            'sslmode': 'prefer',  # Plus permissif que 'require'
         },
     }
 }
@@ -125,15 +130,17 @@ LOGGING = {
     },
 }
 
-# Configuration des fichiers statiques
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# Configuration des fichiers statiques et média (Plesk + Cloudflare)
+STATIC_ROOT = '/var/www/vhosts/martialcomp.com/httpdocs/static/'
+STATIC_URL = '/static/'
 STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.ManifestStaticFilesStorage'
 
 # Configuration des fichiers média
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = '/var/www/vhosts/martialcomp.com/httpdocs/media/'
 MEDIA_URL = '/media/'
 
-# Configuration du cache des templates
+# Configuration du cache des templates pour la production
+TEMPLATES[0]['APP_DIRS'] = False  # Désactiver app_dirs
 TEMPLATES[0]['OPTIONS']['loaders'] = [
     ('django.template.loaders.cached.Loader', [
         'django.template.loaders.filesystem.Loader',
@@ -144,10 +151,13 @@ TEMPLATES[0]['OPTIONS']['loaders'] = [
 # Configuration des middlewares de sécurité
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'apps.core.middleware.block_practitioner.BlockPractitionerMiddleware',  # URGENT FIX: Bloque l'accès aux practitioners
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',  # AJOUTÉ : Middleware de localisation manquant
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',  # AJOUTÉ : Middleware Allauth manquant
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'apps.permissions_manager.middleware.PermissionCacheMiddleware',
@@ -208,7 +218,8 @@ if 'django_prometheus' in INSTALLED_APPS:
     MIDDLEWARE.append('django_prometheus.middleware.PrometheusAfterMiddleware')
 
 # Configuration des CORS (si nécessaire)
-CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',') if origin.strip()]
 CORS_ALLOW_CREDENTIALS = True
 
 # Configuration des domaines autorisés pour les emails
@@ -263,5 +274,11 @@ if os.environ.get('RUNNING_TESTS'):
     SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
+
+# URGENT FIX - Désactiver practitioner admin après chargement des apps
+try:
+    import apps.competitions.admin_override
+except Exception as e:
+    print(f"⚠️ Impossible de charger admin_override: {e}")
 
 print("✅ Configuration de production chargée")

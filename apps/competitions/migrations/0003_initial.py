@@ -8,10 +8,9 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     initial = True
-
+    
     dependencies = [
         ('finances', '0001_initial'),
-        ('organizations', '0001_initial'),
         ('competitions', '0002_initial'),
         ('family_management', '0001_initial'),
         ('grades', '0001_initial'),

@@ -76,10 +76,17 @@ class OnboardingRedirectMiddleware:
             if not (path_excluded or pattern_excluded):
                 try:
                     # Vérifier si l'utilisateur a un profil et n'a pas complété l'onboarding
-                    if hasattr(request.user, 'profile') and not request.user.profile.onboarding_completed:
-                        # Récupérer l'étape d'onboarding de l'utilisateur
-                        onboarding_step = request.user.profile.onboarding_step or 'role_selection'
-                        
+                    # Ajouter une gestion d'erreur robuste pour éviter les erreurs Discipline
+                    try:
+                        user_profile = request.user.profile
+                        onboarding_completed = user_profile.onboarding_completed
+                        onboarding_step = user_profile.onboarding_step or 'role_selection'
+                    except Exception as profile_error:
+                        logger.warning(f"Erreur accès profil utilisateur {request.user.username}: {profile_error}")
+                        # En cas d'erreur, considérer comme complété pour éviter les redirections
+                        return response
+                    
+                    if not onboarding_completed:
                         # Mapper l'étape vers l'URL correcte
                         step_url_mapping = {
                             'role_selection': 'role',

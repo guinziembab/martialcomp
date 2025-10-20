@@ -1,0 +1,815 @@
+from django.core.exceptions import PermissionDenied
+#  Dashboard Fédération
+# Imports de Django
+from django.db import models
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from ...utils.decorators import federation_admin_required
+from django.utils.translation import gettext_lazy as _
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.http import require_POST
+from django.utils import timezone
+from django.db.models import Q, Count
+
+# Imports de bibliothèques standards
+import csv
+import json
+import logging
+from io import StringIO
+
+# Imports de vos modèles (simplifiés et dédupliqués)
+from ...models import (
+    Federation,
+    Club,
+    Discipline,
+    Competition, 
+    Practitioner,
+    CompetitionRegistration,
+    Judge,
+    Notification
+)
+from apps.finances.models import PaymentAttempt, Invoice, Transaction
+from apps.shop.models import Order
+
+# Imports de vos formulaires
+from apps.competitions.forms.federations import FederationForm
+from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
+
+logger = logging.getLogger(__name__)
+
+# Task Management Integration
+try:
+    from apps.task_management.dashboard_utils import get_dashboard_task_data, get_federation_dashboard_task_data
+    TASK_MANAGEMENT_AVAILABLE = True
+except ImportError:
+    TASK_MANAGEMENT_AVAILABLE = False
+    logger.warning("Task Management module not available")
+
+@login_required
+@federation_admin_required
+def federation_dashboard(request, federation_id):
+    """
+    Vue principale pour le tableau de bord d'une fédération.
+    Affiche les statistiques et les actions disponibles pour une fédération.
+    """
+    # Si federation_id n'est pas fourni, essayer de trouver une fédération associée Ã  l'utilisateur
+    if federation_id is None:
+        # Vérifier si l'utilisateur est administrateur d'une fédération
+        user_federations = None
+        
+        # Vérifier via le modèle FederationAdministrator
+        if hasattr(request.user, 'federation_admin_roles'):
+            user_federations = Federation.objects.filter(
+                administrators__user=request.user
+            )
+        
+        # Vérifier via l'ancienne relation owner
+        if not user_federations or not user_federations.exists():
+            user_federations = Federation.objects.filter(owner=request.user)
+            
+        # Si l'utilisateur est associé Ã  au moins une fédération, rediriger vers cette fédération
+        if user_federations and user_federations.exists():
+            federation = user_federations.first()
+            return redirect('competitions:federations:federation_dashboard', federation_id=federation.id)
+        else:
+            # L'utilisateur n'est associé Ã  aucune fédération, afficher un message
+            messages.warning(request, _("Vous n'Ãªtes associé Ã  aucune fédération pour le moment."))
+            # Rediriger vers la liste des fédérations ou la création
+            return redirect('competitions:federations:list')
+    
+    # Récupérer la fédération par son ID
+    federation = get_object_or_404(Federation, pk=federation_id)
+    
+    # Vérification que l'utilisateur a les droits sur cette fédération
+    has_access = False
+    
+    # Vérifier via le rÃ´le de l'utilisateur et la relation owner
+    user_role = None
+    if hasattr(request.user, 'profile') and hasattr(request.user.profile, 'role'):
+        user_role = request.user.profile.role
+    
+    if user_role == 'federation_admin' or request.user == federation.owner:
+        has_access = True
+    
+    # Vérifier via FederationAdministrator
+    if hasattr(request.user, 'federation_admin_roles'):
+        is_admin = federation.administrators.filter(
+            user=request.user
+        ).exists()
+        if is_admin:
+            has_access = True
+    
+    if not has_access:
+        messages.error(request, _("Vous n'avez pas les droits d'accès Ã  cette fédération."))
+        return redirect('competitions:dashboard:index')
+    
+    # Récupérer les disciplines gérées par cette fédération
+    disciplines = federation.disciplines.all()
+    
+    # Récupérer les statistiques en utilisant les relations correctes
+    # Compter les clubs affiliés via les organisations
+    clubs_count = 0
+    if federation.organization:
+        from apps.organizations.models import Affiliation
+        affiliated_org_ids = Affiliation.objects.filter(
+            parent_organization=federation.organization,
+            is_active=True
+        ).values_list('child_organization_id', flat=True)
+        clubs_count = Club.objects.filter(organization_id__in=affiliated_org_ids).count()
+    
+    # Utiliser la relation via les disciplines pour accéder aux compétitions
+    competitions = Competition.objects.filter(discipline__in=disciplines)
+    competitions_count = competitions.count()
+    
+    # Récupérer les compétitions Ã  venir
+    now = timezone.now().date()
+    upcoming_events = Competition.objects.filter(
+        discipline__in=disciplines,
+        status__in=['published', 'open'],
+        start_date__gte=now
+    ).count()
+    
+    # Utiliser le nouveau modèle Organization Ã  la place de Club
+    from apps.organizations.models import Organization
+    
+    # Récupérer la représentation Organization de la fédération
+    federation_org = federation.as_organization
+    
+    if federation_org:
+        # Trouver les clubs affiliés en tant qu'Organizations
+        affiliated_orgs = Organization.objects.filter(
+            parent_affiliations__parent_organization=federation_org,
+            organization_type='club'
+        ).order_by('name')
+        
+        # Obtenir aussi les anciens clubs liés directement Ã  la fédération via organisation
+        if federation.organization:
+            from apps.organizations.models import Affiliation
+            affiliated_org_ids = Affiliation.objects.filter(
+                parent_organization=federation.organization,
+                is_active=True
+            ).values_list('child_organization_id', flat=True)
+            old_clubs = Club.objects.filter(organization_id__in=affiliated_org_ids)
+        else:
+            old_clubs = Club.objects.none()
+            old_club_orgs = []
+            # Convertir les Club en Organization
+            for club in old_clubs:
+                club_org = club.as_organization
+                if club_org:
+                    old_club_orgs.append(club_org.id)
+            
+            # Ajouter ces clubs aux organizations si ne sont pas déjÃ  inclus
+            if old_club_orgs:
+                additional_orgs = Organization.objects.filter(id__in=old_club_orgs)
+                # Combine les querysets d'organisations
+                affiliated_orgs = (affiliated_orgs | additional_orgs).distinct()
+        
+        participants_count = Practitioner.objects.filter(organization__in=affiliated_orgs).count()
+    else:
+        # Utiliser la méthode avec les organisations
+        if federation.organization:
+            from apps.organizations.models import Affiliation
+            affiliated_org_ids = Affiliation.objects.filter(
+                parent_organization=federation.organization,
+                is_active=True
+            ).values_list('child_organization_id', flat=True)
+            old_clubs = Club.objects.filter(organization_id__in=affiliated_org_ids).order_by('name')
+        else:
+            old_clubs = Club.objects.none()
+        
+        # Convertir les Club en Organization pour éviter l'erreur
+        affiliated_orgs = Organization.objects.filter(old_club_id__in=old_clubs.values_list('id', flat=True))
+        participants_count = Practitioner.objects.filter(organization__in=affiliated_orgs).count()
+    
+    # Pour la compatibilité avec le reste du code, conserver une variable nommée affiliated_clubs
+    affiliated_clubs = affiliated_orgs
+    
+    # NOUVELLE SECTION: Récupérer les compétitions que cette fédération peut gérer
+    competitions_to_manage = Competition.objects.none()
+    
+    try:
+        # Compétitions oÃ¹ la fédération est organisatrice ou oÃ¹ l'utilisateur a un rÃ´le de gestionnaire
+        from ...models import CompetitionRole
+        
+        # Récupérer la représentation Organization de la fédération
+        from apps.organizations.models import Organization
+        federation_org = federation.as_organization
+        
+        if federation_org:
+            # Compétitions organisées par l'organisation de la fédération
+            competitions_to_manage = Competition.objects.filter(
+                Q(organizing_organization=federation_org) |  # Compétitions organisées par la fédération
+                Q(roles__user=request.user, roles__role__in=['manager', 'owner', 'administrator'])  # Compétitions oÃ¹ l'utilisateur a un rÃ´le de gestionnaire
+            ).distinct().select_related('discipline').prefetch_related('registrations', 'categories')
+        else:
+            # Si pas d'organization correspondante, utiliser les rÃ´les utilisateur
+            competitions_to_manage = Competition.objects.filter(
+                Q(roles__user=request.user, roles__role__in=['manager', 'owner', 'administrator'])  # Compétitions oÃ¹ l'utilisateur a un rÃ´le de gestionnaire
+            ).distinct().select_related('discipline').prefetch_related('registrations', 'categories')
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des compétitions Ã  gérer: {str(e)}")
+        # Fallback simple - prendre uniquement les compétitions de la fédération
+        if hasattr(Competition, 'organizing_organization'):
+            federation_org = federation.as_organization
+            if federation_org:
+                competitions_to_manage = Competition.objects.filter(organizing_organization=federation_org)
+            else:
+                competitions_to_manage = Competition.objects.filter(discipline__in=disciplines)
+        else:
+            # Rechercher par disciplines si pas d'autre méthode
+            competitions_to_manage = Competition.objects.filter(discipline__in=disciplines)
+    
+    # Récupérer les inscriptions récentes aux compétitions
+    recent_registrations = CompetitionRegistration.objects.filter(
+        practitioner__organization__in=affiliated_clubs,
+        registration_date__gte=now - timezone.timedelta(days=30)
+    ).order_by('-registration_date')[:5]
+    
+    # Récupérer les prochaines compétitions Ã  superviser
+    upcoming_competitions = Competition.objects.filter(
+        discipline__in=disciplines,
+        status__in=['published', 'open'],
+        start_date__gte=now
+    ).order_by('start_date')[:5]
+    
+    # Récupérer les compétitions actives (en cours)
+    active_competitions = Competition.objects.filter(
+        discipline__in=disciplines,
+        status__in=['published', 'open'],
+        start_date__lte=now,
+        end_date__gte=now
+    ).order_by('end_date')
+    
+    # Récupérer les demandes en attente (si le modèle existe)
+    pending_requests = []
+    try:
+        from ...models import AffiliationRequest
+        from apps.organizations.models import Organization
+        
+        # Récupérer la représentation Organization de la fédération
+        federation_org = federation.as_organization
+        
+        if federation_org:
+            # Récupérer les demandes d'affiliation faites Ã  l'organisation correspondant Ã  cette fédération
+            pending_requests = AffiliationRequest.objects.filter(
+                target_organization=federation_org,
+                status='pending'
+            ).order_by('-created_at')[:5]
+        else:
+            # Si pas d'organisation correspondante, ne pas récupérer de demandes
+            pending_requests = []
+    except ImportError:
+        pass
+    
+    # Récupérer l'activité récente
+    recent_activity = []
+    
+    # Ajouter l'activité de création de fédération
+    if hasattr(federation, 'created_at') and federation.created_at:
+        recent_activity.append({
+            'type': 'federation_created',
+            'date': federation.created_at,
+            'message': _("Fédération créée"),
+            'entity': federation
+        })
+    
+    # Ajouter les dernières inscriptions aux compétitions
+    for registration in recent_registrations:
+        recent_activity.append({
+            'type': 'participant_registered',
+            'date': registration.registration_date,
+            'message': _("Inscription de {0} Ã  {1}").format(
+                registration.practitioner.full_name,
+                registration.competition.title
+            ),
+            'entity': registration
+        })
+    
+    # Ajouter les derniers clubs affiliés
+    try:
+        recent_clubs = affiliated_clubs.order_by('-created_at')[:3] if hasattr(Club, 'created_at') else []
+        for club in recent_clubs:
+            if hasattr(club, 'created_at') and club.created_at:  # Vérifier que le champ existe et n'est pas nul
+                recent_activity.append({
+                    'type': 'club_affiliated',
+                    'date': club.created_at,
+                    'message': _("Affiliation du club {0}").format(club.name),
+                    'entity': club
+                })
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des clubs récents: {str(e)}")
+    
+    # Trier l'activité par date (la plus récente en premier)
+    # Utiliser une fonction de tri sécurisée qui gère les dates nulles
+    def sort_key(activity):
+        date = activity.get('date')
+        return date if date else timezone.now()
+    
+    recent_activity.sort(key=sort_key, reverse=True)
+    recent_activity = recent_activity[:5]  # Limiter Ã  5 éléments
+    
+    # Obtenir les 5 premiers clubs pour l'affichage sur le dashboard
+    displayed_clubs = affiliated_clubs[:5]
+    
+    # Compter les inscriptions par club
+    club_registrations = {}
+    for org in affiliated_clubs:
+        count = CompetitionRegistration.objects.filter(
+            practitioner__organization=org
+        ).count()
+        club_registrations[org.id] = count
+    
+    # Compter les juges
+    judge_count = 0
+    try:
+        if hasattr(federation, 'judges'):
+            judge_count = federation.judges.count()
+        else:
+            # Compter les juges
+            judge_count = Judge.objects.filter(practitioner__organization__in=affiliated_clubs).count()
+    except Exception as e:
+        logger.error(f"Erreur lors du comptage des juges: {str(e)}")
+    
+    # NOUVELLES DONNÃ‰ES POUR LE SUIVI
+    
+    # Récupérer les commandes récentes de la boutique fédérale
+    recent_orders = []
+    try:
+        from apps.shop.models import Order
+        if hasattr(federation, 'shop_products'):
+            # Si la fédération a une boutique, récupérer les commandes
+            # Rechercher les commandes liées aux produits de la fédération
+            try:
+                recent_orders = Order.objects.filter(
+                    products__organization=federation.organization
+                ).distinct().order_by('-created_at')[:5]
+            except:
+                recent_orders = Order.objects.none()
+        else:
+            # Alternative : récupérer les commandes récentes générales
+            recent_orders = get_organization_queryset(Order, self.request.user).order_by('-created_at')[:5]
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des commandes: {str(e)}")
+    
+    # Récupérer les paiements récents
+    recent_payments = []
+    payment_stats = {'total': 0, 'paid': 0, 'pending': 0}
+    try:
+        # Utiliser PaymentAttempt
+        # Paiements récents généraux
+        recent_payments = get_organization_queryset(PaymentAttempt, self.request.user).order_by('-initiated_at')[:10]
+        
+        # Statistiques des paiements simplifiées
+        payment_stats['total'] = 0
+        payment_stats['paid'] = 0
+        payment_stats['pending'] = 0
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des paiements: {str(e)}")
+    
+    # Récupérer les demandes d'affiliation en attente et récentes
+    pending_affiliations = []
+    recent_affiliations = []
+    try:
+        from apps.organizations.models import Affiliation
+        federation_org = federation.as_organization
+        
+        if federation_org:
+            # Clubs récemment affiliés
+            recent_affiliations = Affiliation.objects.filter(
+                parent_organization=federation_org,
+                child_organization__organization_type='club',
+                is_active=True
+            ).order_by('-start_date')[:5]
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des affiliations: {str(e)}")
+    
+    # Récupérer les notifications
+    recent_notifications = []
+    unread_notifications = []
+    try:
+        from ...models import Notification
+        # Notifications pour l'administrateur de la fédération
+        all_notifications = Notification.objects.filter(
+            user=request.user
+        ).order_by('-created_at')
+        
+        recent_notifications = all_notifications[:10]
+        unread_notifications = all_notifications.filter(is_read=False)
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des notifications: {str(e)}")
+    
+    # Récupérer les tickets de support
+    support_tickets = []
+    support_stats = {'open': 0, 'in_progress': 0, 'resolved': 0, 'closed': 0}
+    try:
+        from ...models import SupportTicket
+        # Tickets liés Ã  l'utilisateur de la fédération
+        support_tickets = SupportTicket.objects.filter(
+            user=request.user
+        ).order_by('-created_at')[:10]
+        
+        # Statistiques des tickets
+        all_tickets = SupportTicket.objects.filter(
+            user=request.user
+        )
+        support_stats['open'] = all_tickets.filter(status='open').count()
+        support_stats['in_progress'] = all_tickets.filter(status='in_progress').count()
+        support_stats['resolved'] = all_tickets.filter(status='resolved').count()
+        support_stats['closed'] = all_tickets.filter(status='closed').count()
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des tickets de support: {str(e)}")
+    
+    # Statistiques financières (agrégées par comptes de l'organisation de la fédération)
+    financial_stats = {
+        'balance': 0,
+        'income': 0,
+        'expense': 0,
+        'pending_invoices': 0,
+        'currency': getattr(request, 'currency', 'EUR'),
+    }
+    try:
+        from django.contrib.contenttypes.models import ContentType
+        from django.db.models import Sum
+        from apps.finances.models.accounts import FinancialAccount
+        from apps.finances.models.transactions import Transaction
+        from apps.finances.models.invoices import Invoice
+        federation_org = getattr(federation, 'organization', None) or getattr(federation, 'as_organization', None)
+        if federation_org:
+            ct = ContentType.objects.get_for_model(federation_org.__class__)
+            owner_id = str(getattr(federation_org, 'id', ''))
+            org_accounts = FinancialAccount.objects.filter(owner_content_type=ct, owner_id=owner_id)
+            financial_stats['balance'] = float(org_accounts.aggregate(total=Sum('current_balance'))['total'] or 0)
+            tx = Transaction.objects.filter(financial_account__in=org_accounts, status__in=['validated', 'pending'])
+            financial_stats['income'] = float(tx.filter(type='income').aggregate(s=Sum('amount'))['s'] or 0)
+            financial_stats['expense'] = float(tx.filter(type='expense').aggregate(s=Sum('amount'))['s'] or 0)
+            inv = Invoice.objects.filter(issuer_content_type=ct, issuer_object_id=owner_id)
+            financial_stats['pending_invoices'] = inv.exclude(status='paid').count()
+    except Exception as e:
+        logger.error(f"Erreur lors du calcul des statistiques financières: {str(e)}")
+    
+    # Statistiques Combat
+    combat_stats = {}
+    try:
+        from ...models.combat import Combat, Equipe, Poule, ActionCombat
+        combat_stats = {
+            'total_combats': Combat.objects.count(),
+            'ongoing_combats': Combat.objects.filter(status='en_cours').count(),
+            'completed_combats': Combat.objects.filter(status='termine').count(),
+            'total_equipes': Equipe.objects.count(),
+            'total_poules': Poule.objects.count(),
+        }
+    except Exception as e:
+        logger.error(f"Erreur lors du calcul des statistiques combat: {str(e)}")
+        combat_stats = {'total_combats': 0}
+
+    # Récupérer les données de gestion de tâches
+    task_data = {}
+    if TASK_MANAGEMENT_AVAILABLE:
+        try:
+            # Données générales des tâches de l'utilisateur
+            task_data = get_dashboard_task_data(request.user, limit_tasks=5, limit_boards=3)
+            
+            # Données spécifiques à la fédération
+            federation_organizations = []
+            if federation.organization:
+                federation_organizations.append(federation.organization)
+            # Ajouter les organisations des clubs affiliés
+            federation_organizations.extend(list(affiliated_clubs.values_list('id', flat=True)))
+            
+            if federation_organizations:
+                federation_task_data = get_federation_dashboard_task_data(request.user, federation_organizations)
+                task_data.update(federation_task_data)
+                
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération des données de tâches: {str(e)}")
+            task_data = {'has_access': False}
+    
+    context = {
+        'federation': federation,
+        'disciplines': disciplines,
+        'stats': {
+            'clubs_count': clubs_count,
+            'competitions_count': competitions_count,
+            'upcoming_events': upcoming_events,
+            'participants_count': participants_count,
+            'judge_count': judge_count
+        },
+        'upcoming_competitions': upcoming_competitions,
+        'active_competitions': active_competitions,
+        'affiliated_clubs': displayed_clubs,
+        'recent_activity': recent_activity,
+        'club_registrations': club_registrations,
+        
+        # Variables pour le gestionnaire de compétition (NOUVEAU)
+        'competitions_to_manage': competitions_to_manage,
+        'pending_requests': pending_requests,
+        
+        # Nouvelles variables pour gérer l'inscription des participants
+        'can_register_participants': True,  # Permet l'affichage du bouton d'inscription
+        'total_clubs': affiliated_clubs.count(),  # Nombre total de clubs affiliés
+        'recent_registrations': recent_registrations,  # Inscriptions récentes
+        
+        # Compteurs pour le sidebar
+        'competition_count': competitions_count,
+        'club_count': clubs_count,
+        'practitioner_count': participants_count,
+        
+        # NOUVELLES DONNÃ‰ES POUR LE SUIVI
+        'recent_orders': recent_orders,
+        'recent_payments': recent_payments,
+        'payment_stats': payment_stats,
+        'pending_affiliations': pending_affiliations,
+        'recent_affiliations': recent_affiliations,
+        'recent_notifications': recent_notifications,
+        'unread_notifications': unread_notifications,
+        'support_tickets': support_tickets,
+        'support_stats': support_stats,
+        'financial_stats': financial_stats,
+        'combat_stats': combat_stats,
+    }
+    
+    # Ajouter les données de gestion de tâches au contexte si disponibles
+    if task_data:
+        context.update(task_data)
+    
+    return render(request, 'competitions/dashboard/federation.html', context)
+
+
+@login_required
+def federation_manage_clubs(request, federation_id):
+    """
+    Vue pour gérer les clubs affiliés Ã  une fédération.
+    """
+    federation = get_object_or_404(Federation, id=federation_id)
+    
+    # Vérifier les permissions
+    has_access = False
+    if hasattr(request.user, 'federation_admin_roles'):
+        is_admin = federation.administrators.filter(user=request.user).exists()
+        if is_admin:
+            has_access = True
+    
+    if request.user == federation.owner:
+        has_access = True
+        
+    if not has_access:
+        messages.error(request, _("Vous n'avez pas les droits d'accès Ã  cette fédération."))
+        return redirect('competitions:dashboard:index')
+    
+    # Récupérer l'organisation de la fédération
+    from apps.organizations.models import Organization, Affiliation
+    
+    federation_org = federation.organization
+    if not federation_org:
+        # Fallback: chercher par l'ancien ID de fédération
+        federation_org = Organization.objects.filter(old_federation_id=federation.id).first()
+    
+    if federation_org:
+        # Récupérer tous les clubs affiliés Ã  la fédération via les organisations
+        affiliated_org_ids = Affiliation.objects.filter(
+            parent_organization=federation_org,
+            is_active=True
+        ).values_list('child_organization_id', flat=True)
+        
+        affiliated_clubs = Club.objects.filter(
+            organization_id__in=affiliated_org_ids
+        ).order_by('name')
+        
+        # Récupérer les clubs qui peuvent Ãªtre affiliés (non affiliés Ã  cette fédération)
+        available_clubs = Club.objects.filter(
+            organization__isnull=False
+        ).exclude(
+            organization_id__in=affiliated_org_ids
+        ).order_by('name')
+    else:
+        # Si pas d'organisation trouvée, retourner des querysets vides
+        affiliated_clubs = Club.objects.none()
+        available_clubs = Club.objects.filter(organization__isnull=False).order_by('name')
+    
+    context = {
+        'federation': federation,
+        'affiliated_clubs': affiliated_clubs,
+        'available_clubs': available_clubs,
+        'title': _("Gestion des clubs affiliés")
+    }
+    
+    return render(request, 'competitions/federations/manage_clubs.html', context)
+
+
+@login_required
+def federation_competitions(request, federation_id):
+    """
+    Vue pour gérer les compétitions d'une fédération.
+    """
+    federation = get_object_or_404(Federation, id=federation_id)
+    
+    # Vérifier les permissions
+    has_access = False
+    if hasattr(request.user, 'federation_admin_roles'):
+        is_admin = federation.administrators.filter(user=request.user).exists()
+        if is_admin:
+            has_access = True
+    
+    if request.user == federation.owner:
+        has_access = True
+        
+    if not has_access:
+        messages.error(request, _("Vous n'avez pas les droits d'accès Ã  cette fédération."))
+        return redirect('competitions:dashboard:index')
+    
+    # Récupérer les compétitions de la fédération
+    # Récupérer les compétitions organisées par la fédération
+    if federation.organization:
+        competitions = Competition.objects.filter(organizing_organization=federation.organization).order_by('-start_date')
+    else:
+        competitions = Competition.objects.none()
+    
+    context = {
+        'federation': federation,
+        'competitions': competitions,
+        'title': _("Gestion des compétitions")
+    }
+    
+    return render(request, 'competitions/federations/competitions.html', context)
+
+
+@login_required
+def federation_judges(request, federation_id):
+    """
+    Vue pour gérer les juges certifiés d'une fédération.
+    """
+    federation = get_object_or_404(Federation, id=federation_id)
+    
+    # Vérifier les permissions
+    has_access = False
+    if hasattr(request.user, 'federation_admin_roles'):
+        is_admin = federation.administrators.filter(user=request.user).exists()
+        if is_admin:
+            has_access = True
+    
+    if request.user == federation.owner:
+        has_access = True
+        
+    if not has_access:
+        messages.error(request, _("Vous n'avez pas les droits d'accès Ã  cette fédération."))
+        return redirect('competitions:dashboard:index')
+    
+    # Récupérer les juges certifiés par la fédération
+    # Récupérer les juges affiliés Ã  la fédération
+    if federation.organization:
+        judges = Judge.objects.filter(organization=federation.organization).order_by('user__last_name')
+    else:
+        judges = Judge.objects.none()
+    
+    context = {
+        'federation': federation,
+        'judges': judges,
+        'title': _("Juges certifiés")
+    }
+    
+    return render(request, 'competitions/federations/judges.html', context)
+
+
+@login_required
+def federation_index(request):
+    """
+    Vue de la page d'index des fédérations pour un utilisateur.
+    Affiche la liste des fédérations administrées par l'utilisateur.
+    """
+    # Récupérer les fédérations dont l'utilisateur est administrateur
+    administered_federations = []
+    
+    try:
+        # Vérifier les fédérations administrées via la relation FederationAdministrator
+        administered_federations = Federation.objects.filter(
+            administrators__user=request.user
+        ).distinct()
+        
+        # Si l'utilisateur n'administre aucune fédération mais a le rÃ´le, afficher toutes les fédérations
+        if not administered_federations.exists() and hasattr(request.user, 'profile') and request.user.profile.role == 'federation_admin':
+            # Vérifier s'il y a des fédérations dont l'utilisateur est propriétaire
+            owned_federations = Federation.objects.filter(owner=request.user)
+            
+            if owned_federations.exists():
+                administered_federations = owned_federations
+            else:
+                messages.info(request, _("Vous n'Ãªtes associé Ã  aucune fédération. Créez-en une pour commencer."))
+                return redirect('competitions:federations:create')
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des fédérations administrées: {str(e)}")
+        messages.error(request, _("Une erreur est survenue lors de la récupération de vos fédérations."))
+    
+    # Si l'utilisateur n'administre qu'une seule fédération, rediriger automatiquement vers son dashboard
+    if administered_federations.count() == 1:
+        federation = administered_federations.first()
+        logger.info(f"Auto-redirecting user {request.user.username} to federation dashboard {federation.id}")
+        return redirect('competitions:federations:federation_dashboard', federation_id=federation.id)
+    
+    # Vérifier s'il y a une fédération récemment créée dans les messages
+    recently_created_federation = None
+    from django.contrib.messages.api import get_messages
+    storage = get_messages(request)
+    for message in storage:
+        if "créée avec succès" in str(message):
+            # Si on trouve un message de création, prendre la première fédération
+            if administered_federations.exists():
+                recently_created_federation = administered_federations.first()
+            break
+    
+    context = {
+        'federations': administered_federations,  # Utiliser 'federations' pour correspondre au template
+        'administered_federations': administered_federations,
+        'federation_count': administered_federations.count(),
+        'recently_created_federation': recently_created_federation,
+    }
+    
+    return render(request, 'competitions/dashboard/federation_index.html', context)
+
+
+
+# Vue pour afficher les competitions qu'une fédération peut gérer
+@login_required
+def federation_managed_competitions(request, federation_id):
+    """
+    Vue pour afficher toutes les compétitions qu'une fédération peut gérer.
+    """
+    federation = get_object_or_404(Federation, id=federation_id)
+    
+    # Vérifier les permissions
+    has_access = False
+    if hasattr(request.user, 'federation_admin_roles'):
+        is_admin = federation.administrators.filter(user=request.user).exists()
+        if is_admin:
+            has_access = True
+    
+    if request.user == federation.owner:
+        has_access = True
+        
+    if not has_access:
+        messages.error(request, _("Vous n'avez pas les droits d'accès Ã  cette fédération."))
+        return redirect('competitions:dashboard:index')
+    
+    # Récupérer les compétitions Ã  gérer
+    try:
+        from ...models import CompetitionRole
+        
+        competitions_to_manage = Competition.objects.filter(
+            Q(roles__user=request.user, roles__role__in=['manager', 'owner', 'administrator'])
+        ).distinct().order_by('-start_date')
+    except:
+        if federation.organization:
+            competitions_to_manage = Competition.objects.filter(organizing_organization=federation.organization).order_by('-start_date')
+        else:
+            competitions_to_manage = Competition.objects.none()
+    
+    context = {
+        'federation': federation,
+        'competitions_to_manage': competitions_to_manage,
+        'title': _("Compétitions gérées")
+    }
+    
+    return render(request, 'competitions/federations/managed_competitions.html', context)
+
+
+@login_required
+def federation_settings(request, federation_id):
+    """
+    Vue pour modifier les paramètres d'une fédération.
+    """
+    federation = get_object_or_404(Federation, id=federation_id)
+    
+    # Vérifier les permissions
+    has_access = False
+    if hasattr(request.user, 'federation_admin_roles'):
+        is_admin = federation.administrators.filter(user=request.user).exists()
+        if is_admin:
+            has_access = True
+    
+    if request.user == federation.owner:
+        has_access = True
+        
+    if not has_access:
+        messages.error(request, _("Vous n'avez pas les droits d'accès Ã  cette fédération."))
+        return redirect('competitions:dashboard:index')
+    
+    if request.method == 'POST':
+        form = FederationForm(request.POST, request.FILES, instance=federation)
+        if form.is_valid():
+            form.save()
+            messages.success(request, _("Les paramètres de la fédération ont été mis Ã  jour avec succès."))
+            return redirect('competitions:dashboard:federation', federation_id=federation.id)
+    else:
+        form = FederationForm(instance=federation)
+    
+    context = {
+        'form': form,
+        'federation': federation,
+        'title': _("Paramètres de la fédération")
+    }
+    
+    return render(request, 'competitions/federations/settings.html', context)
+
+
+
