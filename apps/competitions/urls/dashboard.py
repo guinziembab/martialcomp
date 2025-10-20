@@ -52,18 +52,6 @@ urlpatterns = [
     path('external-organizer/', external_organizer.dashboard_external_organizer, name='external_organizer'),
     
     # Dashboard fédérations
-    path('federations/', federations.federation_dashboard, name='federations'),
-    path('federations/<int:federation_id>/', federations.federation_dashboard, name='federation_detail'),
-    
-    # URLs de gestion federation
-    path('federations/<int:federation_id>/clubs/', federations.federation_manage_clubs, name='federation_manage_clubs'),
-    path('federations/<int:federation_id>/judges/', federations.federation_manage_judges, name='federation_manage_judges'),
-    path('federations/<int:federation_id>/competitions/', federations.federation_manage_competitions, name='federation_manage_competitions'),
-    path('federations/<int:federation_id>/practitioners/', federations.federation_manage_practitioners, name='federation_manage_practitioners'),
-    path('federations/<int:federation_id>/licenses/', federations.federation_manage_licenses, name='federation_manage_licenses'),
-    path('federations/<int:federation_id>/certifications/', federations.federation_manage_certifications, name='federation_manage_certifications'),
-    path('federations/<int:federation_id>/reports/', federations.federation_manage_reports, name='federation_manage_reports'),
-    path('federations/<int:federation_id>/settings/', federations.federation_manage_settings, name='federation_manage_settings'),
     
     # Dashboard finance
     path('finance/', finance.federation_finance_dashboard, name='finance'),

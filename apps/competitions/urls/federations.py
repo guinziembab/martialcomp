@@ -34,14 +34,14 @@ urlpatterns = [
     
     # Vues fonctionnelles (Actions rapides)
     path('<int:federation_id>/clubs/', federations.federation_manage_clubs, name='clubs'),
-    path('<int:federation_id>/competitions/', federations.federation_competitions, name='competitions'),
-    path('<int:federation_id>/judges/', federations.federation_judges, name='judges'),
-    path('<int:federation_id>/settings/', federations.federation_settings, name='settings'),
+    path('<int:federation_id>/competitions/', federations.federation_manage_competitions, name='competitions'),
+    path('<int:federation_id>/judges/', federations.federation_manage_judges, name='judges'),
+    path('<int:federation_id>/settings/', federations.federation_manage_settings, name='settings'),
     path('<int:federation_id>/managed-competitions/', federations.federation_managed_competitions, name='managed_competitions'),
     
     # Nouvelles vues fonctionnelles (créées aujourd'hui)
     path('<int:federation_id>/calendar/', federations.federation_calendar, name='calendar'),
-    path('<int:federation_id>/certifications/', federations.federation_certifications, name='certifications'),
+    path('<int:federation_id>/certifications/', federations.federation_manage_certifications, name='certifications'),
     path('<int:federation_id>/create-competition/', federations.federation_create_competition, name='create_competition'),
     path('<int:federation_id>/examens/', federations.federation_examens, name='examens'),
     path('<int:federation_id>/import-export/', federations.federation_import_export, name='import_export'),

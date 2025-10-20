@@ -29,8 +29,8 @@ urlpatterns = [
     # URLs Types de Compétition
     path('competition-types/', include('apps.competitions.urls.competition_types', namespace='competition_types')),
     
-    # URLs Fédérations (SOLUTION AU PROBLÈME 404) - Temporairement désactivé
-    # path('federations/', include('apps.competitions.urls.federations', namespace='federations')),
+    # URLs Fédérations
+    path('federations/', include('apps.competitions.urls.federations', namespace='federations')),
     
     # URLs Événements
     path('events/', include('apps.competitions.urls.events', namespace='events')),
