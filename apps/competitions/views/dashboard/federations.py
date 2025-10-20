@@ -58,53 +58,134 @@ def get_federation_dashboard_task_data(*args, **kwargs):
     return {}
 
 @login_required
-def federation_dashboard(request, federation_id=None):
+def federation_dashboard(request, federation_id):
     """
-    Vue principale pour le tableau de bord d'une fédération.
-    Affiche les statistiques et les actions disponibles pour une fédération.
+    Tableau de bord pour les responsables de fédération.
+    Affiche les statistiques et les informations relatives à la fédération.
     """
-    # Si federation_id n'est pas fourni, essayer de trouver une fédération associée à l'utilisateur
-    if federation_id is None:
-        # Vérifier si l'utilisateur est administrateur d'une fédération
-        user_federations = None
-        
-        # Vérifier via l'attribut owner (plus courant)
-        user_federations = Federation.objects.filter(owner=request.user)
-        
-        # Si aucune fédération trouvée, vérifier via le modèle FederationAdministrator
-        if not user_federations.exists():
-            try:
-                from ...models import FederationAdministrator
-                user_federations = Federation.objects.filter(
-                    administrators__user=request.user
-                )
-            except ImportError:
-                pass
-            
-        # Si l'utilisateur est associé à au moins une fédération, utiliser la première
-        if user_federations and user_federations.exists():
-            federation = user_federations.first()
-        else:
-            # L'utilisateur n'est associé à aucune fédération
-            messages.warning(request, _("Vous n'êtes associé à aucune fédération pour le moment."))
-            # Rediriger vers la création d'une fédération si en cours d'onboarding
-            if hasattr(request.user, 'profile') and request.user.profile.role == 'federation_admin':
-                return redirect('competitions:onboarding:federation')
-            # Sinon, rediriger vers le dashboard principal (pas vers welcome)
-            return redirect('competitions:dashboard:dashboard')
-    else:
-        # Récupérer la fédération par son ID
+    # Récupérer la fédération
+    try:
         federation = get_object_or_404(Federation, id=federation_id)
-    
-    # Vérifier les permissions
-    if not _user_can_access_federation(request.user, federation):
-        messages.error(request, _("Vous n'avez pas les permissions pour accéder à cette fédération."))
+    except Exception as e:
+        logger.error(f"Erreur récupération fédération {federation_id}: {e}")
+        messages.error(request, "Fédération introuvable.")
         return redirect('competitions:dashboard:dashboard')
     
-    # Logique du dashboard existante continue ici...
-    context = _get_federation_dashboard_context(request, federation)
+    # Vérifier les permissions (version simplifiée)
+    if not (request.user.is_superuser or federation.owner == request.user):
+        messages.error(request, "Vous n'avez pas les permissions pour accéder à cette fédération.")
+        return redirect('competitions:dashboard:dashboard')
+    
+    # Statistiques de base (version simplifiée)
+    stats = {
+        'clubs_count': Club.objects.filter(federation=federation).count(),
+        'competitions_count': Competition.objects.filter(organizing_organization=federation.organization).count() if federation.organization else 0,
+        'participants_count': Practitioner.objects.filter(organization=federation.organization).count() if federation.organization else 0,
+        'judges_count': Judge.objects.filter(organization=federation.organization).count() if federation.organization else 0,
+    }
+    
+    # Compétitions à venir
+    upcoming_competitions = Competition.objects.filter(
+        organizing_organization=federation.organization,
+        start_date__gte=timezone.now()
+    ).select_related('discipline').order_by('start_date')[:5] if federation.organization else []
+    
+    # Clubs récents
+    recent_clubs = Club.objects.filter(federation=federation).order_by('-created_at')[:5]
+    
+    # Statistiques financières (version simplifiée)
+    financial_stats = {
+        'balance': 0,
+        'income': 0,
+        'expense': 0,
+        'pending_invoices': 0
+    }
+    
+    # Statistiques de paiement (version simplifiée)
+    payment_stats = {
+        'total': 0,
+        'paid': 0,
+        'pending': 0
+    }
+    
+    # Statistiques de combat (version simplifiée)
+    combat_stats = {
+        'total_combats': 0,
+        'active_combats': 0
+    }
+    
+    context = {
+        'federation': federation,
+        'stats': stats,
+        'upcoming_competitions': upcoming_competitions,
+        'recent_clubs': recent_clubs,
+        'financial_stats': financial_stats,
+        'payment_stats': payment_stats,
+        'combat_stats': combat_stats,
+    }
     
     return render(request, 'competitions/dashboard/federation.html', context)
+
+
+# Fonctions de gestion simplifiées
+@login_required
+def federation_manage_clubs(request, federation_id):
+    """Gestion des clubs de la fédération"""
+    federation = get_object_or_404(Federation, id=federation_id)
+    clubs = Club.objects.filter(federation=federation)
+    
+    context = {
+        'federation': federation,
+        'clubs': clubs,
+    }
+    return render(request, 'competitions/dashboard/federation_clubs.html', context)
+
+
+@login_required
+def federation_manage_competitions(request, federation_id):
+    """Gestion des compétitions de la fédération"""
+    federation = get_object_or_404(Federation, id=federation_id)
+    competitions = Competition.objects.filter(federation=federation)
+    
+    context = {
+        'federation': federation,
+        'competitions': competitions,
+    }
+    return render(request, 'competitions/dashboard/federation_competitions.html', context)
+
+
+@login_required
+def federation_manage_judges(request, federation_id):
+    """Gestion des juges de la fédération"""
+    federation = get_object_or_404(Federation, id=federation_id)
+    judges = Judge.objects.filter(federation=federation)
+    
+    context = {
+        'federation': federation,
+        'judges': judges,
+    }
+    return render(request, 'competitions/dashboard/federation_judges.html', context)
+
+
+@login_required
+def federation_manage_settings(request, federation_id):
+    """Paramètres de la fédération"""
+    federation = get_object_or_404(Federation, id=federation_id)
+    
+    if request.method == 'POST':
+        form = FederationForm(request.POST, instance=federation)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Paramètres mis à jour avec succès.")
+            return redirect('competitions:federations:federation_dashboard', federation_id=federation_id)
+    else:
+        form = FederationForm(instance=federation)
+    
+    context = {
+        'federation': federation,
+        'form': form,
+    }
+    return render(request, 'competitions/dashboard/federation_settings.html', context)
 
 
 def _user_can_access_federation(user, federation):

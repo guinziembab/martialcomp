@@ -32,21 +32,18 @@ urlpatterns = [
     # Dashboard principal
     path('<int:federation_id>/dashboard/', federations.federation_dashboard, name='federation_dashboard'),
     
-    # Vues fonctionnelles (Actions rapides)
+    # Vues fonctionnelles (Actions rapides) - version simplifiée
     path('<int:federation_id>/clubs/', federations.federation_manage_clubs, name='clubs'),
     path('<int:federation_id>/competitions/', federations.federation_manage_competitions, name='competitions'),
     path('<int:federation_id>/judges/', federations.federation_manage_judges, name='judges'),
     path('<int:federation_id>/settings/', federations.federation_manage_settings, name='settings'),
-    path('<int:federation_id>/managed-competitions/', federations.federation_managed_competitions, name='managed_competitions'),
-    
-    # Nouvelles vues fonctionnelles (créées aujourd'hui)
-    path('<int:federation_id>/calendar/', federations.federation_calendar, name='calendar'),
-    path('<int:federation_id>/certifications/', federations.federation_manage_certifications, name='certifications'),
-    path('<int:federation_id>/create-competition/', federations.federation_create_competition, name='create_competition'),
-    path('<int:federation_id>/examens/', federations.federation_examens, name='examens'),
-    path('<int:federation_id>/import-export/', federations.federation_import_export, name='import_export'),
     
     # Vues stub (fonctionnalités avancées en développement)
+    path('<int:federation_id>/calendar/', stub_view, name='calendar'),
+    path('<int:federation_id>/certifications/', stub_view, name='certifications'),
+    path('<int:federation_id>/create-competition/', stub_view, name='create_competition'),
+    path('<int:federation_id>/examens/', stub_view, name='examens'),
+    path('<int:federation_id>/import-export/', stub_view, name='import_export'),
     path('<int:federation_id>/customize-theme/', stub_view, name='customize_theme'),
     path('<int:federation_id>/generate-qr/', stub_view, name='generate_qr'),
     path('<int:federation_id>/manage-content/', stub_view, name='manage_content'),
