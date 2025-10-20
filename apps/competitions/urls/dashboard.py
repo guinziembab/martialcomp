@@ -52,6 +52,7 @@ urlpatterns = [
     path('external-organizer/', external_organizer.dashboard_external_organizer, name='external_organizer'),
     
     # Dashboard fédérations
+    path('federation/<int:federation_id>/', federations.federation_dashboard, name='federation'),
     
     # Dashboard finance
     path('finance/', finance.federation_finance_dashboard, name='finance'),
