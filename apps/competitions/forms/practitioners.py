@@ -311,20 +311,7 @@ class PractitionerForm(forms.ModelForm):
         widget=forms.FileInput(attrs={'class': 'form-control'})
     )
     
-    birth_date = forms.DateField(
-        label=_("Date de naissance"),
-        required=True,
-        widget=forms.DateInput(attrs={
-            'class': 'form-control',
-            'type': 'date',
-            'pattern': '[0-9]{4}-[0-9]{2}-[0-9]{2}'
-        }),
-        input_formats=['%Y-%m-%d'],
-        error_messages={
-            'required': _("La date de naissance est requise."),
-            'invalid': _("Veuillez entrer une date valide."),
-        }
-    )
+
     
     def __init__(self, *args, **kwargs):
         # Extraire request si fourni
@@ -338,9 +325,10 @@ class PractitionerForm(forms.ModelForm):
         # Pré-remplir les champs si le pratiquant existe
         if self.instance.pk:
             self._prefill_grade_fields()
-            # Pré-remplir la date de naissance
-            if self.instance.birth_date:
-                self.fields['birth_date'].initial = self.instance.birth_date.strftime('%Y-%m-%d')
+            # La date de naissance est automatiquement pré-remplie par Django via le widget
+            # Pré-remplir les disciplines
+            if self.instance.disciplines.exists():
+                self.fields['disciplines'].initial = self.instance.disciplines.all()
         
         # Génération automatique du numéro de licence si champ vide
         if not self.initial.get('license_number') and not self.data.get('license_number'):
@@ -436,6 +424,7 @@ class PractitionerForm(forms.ModelForm):
             # Informations de base
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'birth_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
             'gender': forms.Select(attrs={'class': 'form-select'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
             'phone': forms.TextInput(attrs={'class': 'form-control'}),

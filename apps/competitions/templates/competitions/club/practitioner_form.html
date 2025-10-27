@@ -1,0 +1,1151 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+{% load custom_filters %}
+
+{% block title %}
+    {% if is_edit and practitioner %}
+        {% trans "Modifier le pratiquant" %} | {{ practitioner.full_name }}
+    {% else %}
+        {% trans "Ajouter un pratiquant" %}
+    {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 1.5rem;
+        background-color: #fff;
+        border-radius: 0.5rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    }
+    
+    .form-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .form-header i {
+        font-size: 1.8rem;
+        margin-right: 0.8rem;
+        color: #dc3545;
+    }
+    
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .required-field:after {
+        content: "*";
+        color: #dc3545;
+        margin-left: 4px;
+    }
+    
+    .tab-content {
+        padding-top: 1.5rem;
+    }
+    
+    .form-check-input:checked {
+        background-color: #dc3545;
+        border-color: #dc3545;
+    }
+    
+    .btn-submit {
+        padding: 0.5rem 1.5rem;
+        font-weight: 500;
+    }
+    
+    .nav-tabs .nav-link {
+        border: none;
+        color: #495057;
+        padding: 0.75rem 1rem;
+        border-radius: 0.25rem 0.25rem 0 0;
+        font-weight: 500;
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: #dc3545;
+        border-bottom: 3px solid #dc3545;
+        background-color: transparent;
+    }
+    
+    .nav-tabs .nav-link:hover:not(.active) {
+        border-bottom: 3px solid #dee2e6;
+    }
+    
+    .grade-disciplines-container .list-group-item {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .grade-disciplines-container .list-group-item:hover {
+        background-color: #f1f3f5;
+    }
+    
+    .grade-disciplines-container .list-group-item.active {
+        background-color: rgba(220, 53, 69, 0.1);
+        border-color: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+    }
+    
+    .profile-picture-container {
+        width: 150px;
+        height: 150px;
+        position: relative;
+        margin: 0 auto 1rem;
+    }
+    
+    .profile-picture {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 3px solid #e9ecef;
+    }
+    
+    .profile-picture-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8f9fa;
+        border-radius: 50%;
+        border: 3px dashed #e9ecef;
+        color: #adb5bd;
+        font-size: 2rem;
+    }
+    
+    .upload-button {
+        position: absolute;
+        bottom: 5px;
+        right: 5px;
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        background-color: #dc3545;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .upload-button:hover {
+        background-color: #c82333;
+    }
+    
+    .photo-input {
+        display: none;
+    }
+    
+    /* Document prévisualisation */
+    .document-preview {
+        padding: 0.5rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        margin-top: 0.5rem;
+    }
+    
+    .document-preview a {
+        display: flex;
+        align-items: center;
+        color: #495057;
+        text-decoration: none;
+    }
+    
+    .document-preview i {
+        margin-right: 0.5rem;
+        font-size: 1.25rem;
+        color: #dc3545;
+    }
+    
+    .document-preview a:hover {
+        color: #dc3545;
+    }
+</style>
+<style>
+    /* Styles pour la mise en évidence des grades Qwan Ki Do */
+    optgroup[label="Qwan Ki Do"] option {
+        font-weight: bold;
+    }
+    
+    /* Styles pour les types de caps/dangs */
+    optgroup[label="Qwan Ki Do"] option[value*="Cap Jaune"] {
+        background-color: #FFEB3B !important;
+        color: #333 !important;
+    }
+    
+    optgroup[label="Qwan Ki Do"] option[value*="Cap Rouge"] {
+        background-color: #F44336 !important;
+        color: white !important;
+    }
+    
+    optgroup[label="Qwan Ki Do"] option[value*="Cap Blanc"] {
+        background-color: #FFFFFF !important;
+        color: #333 !important;
+    }
+    
+    optgroup[label="Qwan Ki Do"] option[value*="Cap Bleu"],
+    optgroup[label="Qwan Ki Do"] option[value*="Écharpe Bleue"] {
+        background-color: #2196F3 !important;
+        color: white !important;
+    }
+    
+    optgroup[label="Qwan Ki Do"] option[value*="Dang"] {
+        background-color: #000000 !important;
+        color: white !important;
+    }
+    
+    /* Styles pour les cards de grade */
+    .card.cap-jaune {
+        border-left: 4px solid #FFEB3B !important;
+    }
+    
+    .card.cap-rouge {
+        border-left: 4px solid #F44336 !important;
+    }
+    
+    .card.cap-blanc {
+        border-left: 4px solid #FFFFFF !important;
+        border-color: #dee2e6;
+    }
+    
+    .card.cap-bleu {
+        border-left: 4px solid #2196F3 !important;
+    }
+    
+    .card.dang {
+        border-left: 4px solid #000000 !important;
+    }
+    
+    /* Légende pour les grades Qwan Ki Do */
+    .qwan-ki-do-legend {
+        margin-top: 1rem;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 0.25rem;
+    }
+    
+    .legend-item {
+        display: inline-flex;
+        align-items: center;
+        margin-right: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .legend-color {
+        width: 15px;
+        height: 15px;
+        margin-right: 5px;
+        border-radius: 3px;
+    }
+    
+    /* Amélioration visuelle pour la sélection de discipline */
+    #id_disciplines {
+        max-height: 150px;
+        overflow-y: auto;
+    }
+    
+    #id_disciplines option[value="6"] {
+        font-weight: bold;
+        color: #dc3545;
+    }
+    
+    /* Style pour la notification d'âge minimum */
+    .age-warning {
+        font-size: 0.8rem;
+        color: #dc3545;
+        margin-top: 0.25rem;
+    }
+    
+    /* Style pour les info-bulles des grades */
+    .grade-info {
+        cursor: help;
+        color: #6c757d;
+        margin-left: 0.25rem;
+    }
+    
+    /* Style pour le groupe d'options dans le select */
+    #id_grade optgroup {
+        padding: 5px;
+        font-weight: bold;
+    }
+    
+    #id_grade optgroup[label="Qwan Ki Do"] {
+        background-color: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="form-container">
+        <div class="form-header">
+            <i class="fas fa-user"></i>
+            <h2 class="mb-0">
+                {% if is_edit and practitioner %}
+                    {% trans "Modifier le pratiquant" %} | {{ practitioner.full_name }}
+                {% else %}
+                    {% trans "Ajouter un pratiquant" %}
+                {% endif %}
+            </h2>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-3">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" id="practitionerForm">
+            {% csrf_token %}
+            
+            <!-- Navigation par onglets -->
+            <ul class="nav nav-tabs" id="myTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic" type="button" role="tab" aria-controls="basic" aria-selected="true">
+                        <i class="fas fa-user-circle me-2"></i>{% trans "Informations de base" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="contact-tab" data-bs-toggle="tab" data-bs-target="#contact" type="button" role="tab" aria-controls="contact" aria-selected="false">
+                        <i class="fas fa-address-card me-2"></i>{% trans "Coordonnées" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="medical-tab" data-bs-toggle="tab" data-bs-target="#medical" type="button" role="tab" aria-controls="medical" aria-selected="false">
+                        <i class="fas fa-notes-medical me-2"></i>{% trans "Médical" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="sport-tab" data-bs-toggle="tab" data-bs-target="#sport" type="button" role="tab" aria-controls="sport" aria-selected="false">
+                        <i class="fas fa-medal me-2"></i>{% trans "Sportif" %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="other-tab" data-bs-toggle="tab" data-bs-target="#other" type="button" role="tab" aria-controls="other" aria-selected="false">
+                        <i class="fas fa-ellipsis-h me-2"></i>{% trans "Autres" %}
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="tab-content" id="myTabContent">
+                <!-- Onglet Informations de base -->
+                <div class="tab-pane fade show active" id="basic" role="tabpanel" aria-labelledby="basic-tab">
+                    <div class="form-section">
+                        <div class="row align-items-center">
+                            <div class="col-md-3">
+                                <div class="profile-picture-container">
+                                    {% if practitioner and practitioner.photo %}
+                                        <img src="{{ practitioner.photo.url }}" alt="{{ practitioner.full_name }}" class="profile-picture" id="profilePreview">
+                                    {% else %}
+                                        <div class="profile-picture-placeholder" id="profilePlaceholder">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                        <img src="#" alt="{% trans "Aperçu" %}" class="profile-picture d-none" id="profilePreview">
+                                    {% endif %}
+                                    <label for="id_photo" class="upload-button">
+                                        <i class="fas fa-camera"></i>
+                                    </label>
+                                    <input type="file" class="photo-input" name="photo" id="id_photo" accept="image/*">
+                                </div>
+                            </div>
+                            <div class="col-md-9">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.first_name.id_for_label }}" class="form-label required-field">{% trans "Prénom" %}</label>
+                                        {{ form.first_name }}
+                                        {% if form.first_name.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.first_name.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.last_name.id_for_label }}" class="form-label required-field">{% trans "Nom" %}</label>
+                                        {{ form.last_name }}
+                                        {% if form.last_name.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.last_name.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.birth_date.id_for_label }}" class="form-label required-field">{% trans "Date de naissance" %}</label>
+                                        {{ form.birth_date }}
+                                        {% if form.birth_date.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.birth_date.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.gender.id_for_label }}" class="form-label required-field">{% trans "Genre" %}</label>
+                                        {{ form.gender }}
+                                        {% if form.gender.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.gender.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.email.id_for_label }}" class="form-label">{% trans "Email" %}</label>
+                                        {{ form.email }}
+                                        {% if form.email.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.email.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.phone.id_for_label }}" class="form-label">{% trans "Téléphone" %}</label>
+                                        {{ form.phone }}
+                                        {% if form.phone.errors %}
+                                            <div class="invalid-feedback d-block">{{ form.phone.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Section Identité et documents -->
+                    <div class="form-section">
+                        <h4 class="mb-3">{% trans "Identité et documents officiels" %}</h4>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.nationality.id_for_label }}" class="form-label">{% trans "Nationalité" %}</label>
+                                {{ form.nationality }}
+                                {% if form.nationality.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.nationality.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.birth_place.id_for_label }}" class="form-label">{% trans "Lieu de naissance" %}</label>
+                                {{ form.birth_place }}
+                                {% if form.birth_place.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.birth_place.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.medical_certificate_date.id_for_label }}" class="form-label">{% trans "Date du certificat médical" %}</label>
+                                {{ form.medical_certificate_date }}
+                                {% if form.medical_certificate_date.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.medical_certificate_date.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.medical_certificate.id_for_label }}" class="form-label">{% trans "Certificat médical" %}</label>
+                                {% if practitioner and practitioner.medical_certificate %}
+                                    <div class="document-preview mb-2">
+                                        <a href="{{ practitioner.medical_certificate.url }}" target="_blank">
+                                            <i class="fas fa-file-medical"></i>
+                                            <span>{{ practitioner.medical_certificate.name|slice:"30:" }}...</span>
+                                        </a>
+                                    </div>
+                                {% endif %}
+                                {{ form.medical_certificate }}
+                                {% if form.medical_certificate.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.medical_certificate.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.parental_authorization.id_for_label }}" class="form-label">{% trans "Autorisation parentale" %}</label>
+                                {% if practitioner and practitioner.parental_authorization %}
+                                    <div class="document-preview mb-2">
+                                        <a href="{{ practitioner.parental_authorization.url }}" target="_blank">
+                                            <i class="fas fa-file-alt"></i>
+                                            <span>{{ practitioner.parental_authorization.name|slice:"30:" }}...</span>
+                                        </a>
+                                    </div>
+                                {% endif %}
+                                {{ form.parental_authorization }}
+                                {% if form.parental_authorization.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.parental_authorization.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Onglet Coordonnées -->
+                <div class="tab-pane fade" id="contact" role="tabpanel" aria-labelledby="contact-tab">
+                    <div class="form-section">
+                        <h4 class="mb-3">{% trans "Adresse" %}</h4>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="{{ form.address.id_for_label }}" class="form-label">{% trans "Adresse" %}</label>
+                                {{ form.address }}
+                                {% if form.address.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.address.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.city.id_for_label }}" class="form-label">{% trans "Ville" %}</label>
+                                {{ form.city }}
+                                {% if form.city.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.city.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.postal_code.id_for_label }}" class="form-label">{% trans "Code postal" %}</label>
+                                {{ form.postal_code }}
+                                {% if form.postal_code.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.postal_code.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h4 class="mb-3">{% trans "Contact d'urgence" %}</h4>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.emergency_contact_name.id_for_label }}" class="form-label">{% trans "Nom du contact d'urgence" %}</label>
+                                {{ form.emergency_contact_name }}
+                                {% if form.emergency_contact_name.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.emergency_contact_name.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.emergency_contact_relation.id_for_label }}" class="form-label">{% trans "Relation avec le contact" %}</label>
+                                {{ form.emergency_contact_relation }}
+                                {% if form.emergency_contact_relation.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.emergency_contact_relation.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.emergency_contact_phone.id_for_label }}" class="form-label">{% trans "Téléphone du contact d'urgence" %}</label>
+                                {{ form.emergency_contact_phone }}
+                                {% if form.emergency_contact_phone.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.emergency_contact_phone.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.emergency_contact_email.id_for_label }}" class="form-label">{% trans "Email du contact d'urgence" %}</label>
+                                {{ form.emergency_contact_email }}
+                                {% if form.emergency_contact_email.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.emergency_contact_email.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Onglet Médical -->
+                <div class="tab-pane fade" id="medical" role="tabpanel" aria-labelledby="medical-tab">
+                    <div class="form-section">
+                        <h4 class="mb-3">{% trans "Informations médicales" %}</h4>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.blood_group.id_for_label }}" class="form-label">{% trans "Groupe sanguin" %}</label>
+                                {{ form.blood_group }}
+                                {% if form.blood_group.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.blood_group.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.weight.id_for_label }}" class="form-label">{% trans "Poids (kg)" %}</label>
+                                {{ form.weight }}
+                                {% if form.weight.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.weight.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.height.id_for_label }}" class="form-label">{% trans "Taille (cm)" %}</label>
+                                {{ form.height }}
+                                {% if form.height.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.height.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="{{ form.allergies.id_for_label }}" class="form-label">{% trans "Allergies" %}</label>
+                                {{ form.allergies }}
+                                {% if form.allergies.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.allergies.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="{{ form.medical_conditions.id_for_label }}" class="form-label">{% trans "Conditions médicales" %}</label>
+                                {{ form.medical_conditions }}
+                                {% if form.medical_conditions.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.medical_conditions.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Onglet Sportif - CORRIGÉ -->
+                <div class="tab-pane fade" id="sport" role="tabpanel" aria-labelledby="sport-tab">
+                    <div class="form-section">
+                        <h4 class="mb-3">{% trans "Discipline et grades" %}</h4>
+                        
+                        {% if club.main_discipline %}
+                        <div class="alert alert-info mb-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            {% trans "La discipline principale de votre club est" %}: <strong>{{ club.main_discipline.name }}</strong>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">{% trans "Disciplines pratiquées" %}</label>
+                                {{ form.disciplines }}
+                                {% if form.disciplines.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.disciplines.errors }}</div>
+                                {% endif %}
+                                <div class="form-text">{% trans "Sélectionnez une ou plusieurs disciplines pratiquées par le pratiquant" %}</div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.grade_selection.id_for_label }}" class="form-label">{% trans "Grade principal" %}</label>
+                                {{ form.grade_selection }}
+                                {% if form.grade_selection.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.grade_selection.errors }}</div>
+                                {% endif %}
+                                <div class="form-text">
+                                    {% trans "Ce grade sera utilisé comme référence principale dans les listes et compétitions" %}
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Champ Numéro de licence déplacé ici -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="id_license_number" class="form-label">Numéro de licence</label>
+                                <div class="input-group">
+                                    {{ form.license_number }}
+                                    <button type="button" class="btn btn-outline-secondary" id="generateLicenseBtn" title="Générer automatiquement">
+                                        <i class="fas fa-magic"></i> Générer
+                                    </button>
+                                </div>
+                                <div class="form-text">Cliquez sur « Générer » pour obtenir un numéro unique selon la discipline, le club et la date de naissance.</div>
+                            </div>
+                        </div>
+                        
+                        {% if is_edit and practitioner and practitioner.id %}
+                        <div class="mt-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0">{% trans "Gestion avancée des grades" %}</h5>
+                                <a href="{% url 'grades:add_practitioner_grade' practitioner.id %}" class="btn btn-primary">
+                                    <i class="fas fa-award me-2"></i>{% trans "Attribuer un nouveau grade" %}
+                                </a>
+                            </div>
+                            
+                            <div class="alert alert-warning">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% trans "Pour attribuer ou modifier un grade, utilisez le module de gestion des grades. Le système permettra de suivre l'historique des grades et de gérer les promotions." %}
+                            </div>
+                            
+                            <div class="card mb-3">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0">{% trans "Grades actuels par discipline" %}</h6>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>{% trans "Discipline" %}</th>
+                                                    <th>{% trans "Grade actuel" %}</th>
+                                                    <th>{% trans "Date d'obtention" %}</th>
+                                                    <th>{% trans "Actions" %}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% if practitioner %}
+                                                    {% for discipline in practitioner.disciplines.all %}
+                                                        {% with current_grade=current_grades|get_item:discipline.id %}
+                                                            <tr>
+                                                                <td>{{ discipline.name }}</td>
+                                                                <td>
+                                                                    {% if current_grade %}
+                                                                        {{ current_grade.grade.name }}
+                                                                    {% else %}
+                                                                        <em>{% trans "Aucun grade attribué" %}</em>
+                                                                    {% endif %}
+                                                                </td>
+                                                                <td>
+                                                                    {% if current_grade %}
+                                                                        {{ current_grade.date_obtained|date:"d/m/Y" }}
+                                                                    {% else %}
+                                                                        -
+                                                                    {% endif %}
+                                                                </td>
+                                                                <td>
+                                                                    {% if current_grade %}
+                                                                        <a href="{% url 'grades:edit_practitioner_grade' current_grade.id %}" class="btn btn-sm btn-outline-primary">
+                                                                            <i class="fas fa-edit"></i>
+                                                                        </a>
+                                                                    {% else %}
+                                                                        <a href="{% url 'grades:add_practitioner_grade' practitioner.id %}?discipline={{ discipline.id }}" class="btn btn-sm btn-outline-success">
+                                                                            <i class="fas fa-plus"></i>
+                                                                        </a>
+                                                                    {% endif %}
+                                                                </td>
+                                                            </tr>
+                                                        {% endwith %}
+                                                    {% empty %}
+                                                        <tr>
+                                                            <td colspan="4" class="text-center py-3">
+                                                                <em>{% trans "Veuillez d'abord sélectionner une ou plusieurs disciplines" %}</em>
+                                                            </td>
+                                                        </tr>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <tr>
+                                                        <td colspan="4" class="text-center py-3">
+                                                            <em>{% trans "Veuillez d'abord sauvegarder le pratiquant pour gérer ses grades" %}</em>
+                                                        </td>
+                                                    </tr>
+                                                {% endif %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div class="card-footer bg-light d-flex justify-content-between align-items-center">
+                                    <span class="text-muted small">{% trans "Utilisez le module de grades pour un historique complet" %}</span>
+                                    <a href="{% url 'grades:practitioner_grades' practitioner.id %}" class="btn btn-sm btn-link">
+                                        <i class="fas fa-history me-1"></i>{% trans "Voir l'historique complet" %}
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <div class="card h-100">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0">{% trans "Accès rapides" %}</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="d-grid gap-2">
+                                                <a href="{% url 'grades:add_practitioner_grade' practitioner.id %}" class="btn btn-outline-primary">
+                                                    <i class="fas fa-award me-2"></i>{% trans "Attribuer un grade" %}
+                                                </a>
+                                                <a href="{% url 'grades:promote_practitioner' practitioner.id %}" class="btn btn-outline-success">
+                                                    <i class="fas fa-level-up-alt me-2"></i>{% trans "Promouvoir (grade suivant)" %}
+                                                </a>
+                                                <a href="{% url 'grades:practitioner_history' practitioner.id %}" class="btn btn-outline-secondary">
+                                                    <i class="fas fa-history me-2"></i>{% trans "Voir l'historique des grades" %}
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card h-100">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0">{% trans "Exigences de grade" %}</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <p class="text-muted">
+                                                {% trans "Pour attribuer un nouveau grade, assurez-vous que le pratiquant répond aux critères suivants :" %}
+                                            </p>
+                                            <ul class="small">
+                                                <li>{% trans "Âge minimum requis pour le grade" %}</li>
+                                                <li>{% trans "Temps minimum dans le grade précédent" %}</li>
+                                                <li>{% trans "Avoir passé l'examen de grade si nécessaire" %}</li>
+                                                <li>{% trans "Respect des critères techniques de la discipline" %}</li>
+                                            </ul>
+                                            <div class="alert alert-info small mb-0">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                {% trans "Le module de gestion des grades vérifiera automatiquement ces critères lors de l'attribution." %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Onglet Autres -->
+                <div class="tab-pane fade" id="other" role="tabpanel" aria-labelledby="other-tab">
+                    <div class="form-section">
+                        <h4 class="mb-3">{% trans "Compte utilisateur" %}</h4>
+                        
+                        {% if not is_edit or not practitioner or not practitioner.user %}
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="create_user" name="create_user">
+                                <label class="form-check-label" for="create_user">
+                                    {% trans "Créer un compte utilisateur automatiquement" %}
+                                </label>
+                                <div class="form-text">{% trans "Un compte sera créé pour ce pratiquant avec un mot de passe temporaire" %}</div>
+                            </div>
+                            
+                            <div id="existing_user_container" class="mb-3 d-none">
+                                <label for="existing_user" class="form-label">{% trans "Ou associer à un utilisateur existant" %}</label>
+                                <select class="form-select" id="existing_user" name="existing_user">
+                                    <option value="">{% trans "Sélectionner un utilisateur" %}</option>
+                                    {% for user in available_users %}
+                                        <option value="{{ user.id }}">{{ user.get_full_name|default:user.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                {% trans "Ce pratiquant est déjà associé à l'utilisateur" %}:
+                                <strong>{{ practitioner.user.username }}</strong>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-section">
+                        <h4 class="mb-3">{% trans "Notes" %}</h4>
+                        <div class="mb-3">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">{% trans "Notes additionnelles" %}</label>
+                            {{ form.notes }}
+                            {% if form.notes.errors %}
+                                <div class="invalid-feedback d-block">{{ form.notes.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Autorisation parentale digitale (visible seulement si le pratiquant est mineur) -->
+                    {% if is_minor %}
+                        <div class="form-section">
+                            <h4 class="mb-3">
+                                <i class="fas fa-file-signature me-2"></i>
+                                {% trans "Autorisation parentale" %}
+                            </h4>
+                            
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                {% trans "Ce pratiquant étant mineur, une autorisation parentale est requise pour participer aux activités du club et aux compétitions." %}
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label required-field">{% trans "Informations du représentant légal" %}</label>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <input type="text" name="parent_name" class="form-control" placeholder="{% trans 'Nom et prénom du représentant légal' %}" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <input type="email" name="parent_email" class="form-control" placeholder="{% trans 'Email du représentant légal' %}" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <input type="text" name="parent_phone" class="form-control" placeholder="{% trans 'Téléphone du représentant légal' %}" required>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label required-field">{% trans "Autorisations" %}</label>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="consent_practice" name="consent_practice" required>
+                                    <label class="form-check-label" for="consent_practice">
+                                        {% trans "J'autorise mon enfant à pratiquer l'art martial au sein du club" %}
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="consent_competition" name="consent_competition" required>
+                                    <label class="form-check-label" for="consent_competition">
+                                        {% trans "J'autorise mon enfant à participer aux compétitions organisées par le club et la fédération" %}
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="consent_medical" name="consent_medical" required>
+                                    <label class="form-check-label" for="consent_medical">
+                                        {% trans "J'autorise le club à prendre toutes les dispositions médicales nécessaires en cas d'urgence" %}
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="consent_rgpd" name="consent_rgpd" required>
+                                    <label class="form-check-label" for="consent_rgpd">
+                                        {% trans "J'accepte que les informations saisies soient utilisées pour les besoins de gestion du club (RGPD)" %}
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="consent_date" class="form-label required-field">{% trans "Date de l'autorisation" %}</label>
+                                <input type="date" name="consent_date" id="consent_date" class="form-control" value="{{ today|date:'Y-m-d' }}" required>
+                                <div class="form-text">{% trans "Cette date fait foi de signature électronique" %}</div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{% url 'competitions:club:practitioners' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Retour à la liste" %}
+                </a>
+                <button type="submit" class="btn btn-danger btn-submit">
+                    <i class="fas fa-save me-2"></i>{{ submit_text }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Gestion de la photo de profil
+    const photoInput = document.getElementById('id_photo');
+    const profilePreview = document.getElementById('profilePreview');
+    const profilePlaceholder = document.getElementById('profilePlaceholder');
+    
+    if (photoInput) {
+        photoInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                const url = URL.createObjectURL(file);
+                profilePreview.src = url;
+                profilePreview.classList.remove('d-none');
+                if (profilePlaceholder) {
+                    profilePlaceholder.classList.add('d-none');
+                }
+            }
+        });
+    }
+    
+    // Gestion du compte utilisateur
+    const createUserCheckbox = document.getElementById('create_user');
+    const existingUserContainer = document.getElementById('existing_user_container');
+    const existingUserSelect = document.getElementById('existing_user');
+    
+    if (createUserCheckbox && existingUserContainer) {
+        createUserCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                existingUserContainer.classList.add('d-none');
+                if (existingUserSelect) {
+                    existingUserSelect.value = '';
+                }
+            } else {
+                existingUserContainer.classList.remove('d-none');
+            }
+        });
+    }
+    
+    // Gestion des onglets via URL hash
+    function activateTabFromHash() {
+        const hash = window.location.hash;
+        if (hash) {
+            const tab = document.querySelector(`button[data-bs-target="${hash}"]`);
+            if (tab) {
+                const bsTab = new bootstrap.Tab(tab);
+                bsTab.show();
+            }
+        }
+    }
+    
+    // Activer l'onglet approprié au chargement
+    activateTabFromHash();
+    
+    // Mettre à jour le hash lorsque l'utilisateur change d'onglet
+    const tabEls = document.querySelectorAll('button[data-bs-toggle="tab"]');
+    tabEls.forEach(tabEl => {
+        tabEl.addEventListener('shown.bs.tab', function (event) {
+            history.replaceState(null, null, event.target.dataset.bsTarget);
+        });
+    });
+    
+    // ======= GESTION DES DISCIPLINES ET GRADES =======
+    
+    // Variable globale pour l'instance du filtreur de grades
+    let gradeFilterInstance = null;
+    
+    // Fonction globale updateGrades pour compatibilité avec le formulaire
+    window.updateGrades = function() {
+        if (gradeFilterInstance && typeof gradeFilterInstance.updateGrades === 'function') {
+            gradeFilterInstance.updateGrades();
+        } else {
+            console.warn('GradeFilter instance not initialized yet');
+        }
+    };
+    
+    // Charger le script de filtrage des grades
+    if (typeof GradeFilter === 'undefined') {
+        const script = document.createElement('script');
+        script.src = '{% static "competitions/js/grade_filtering.js" %}';
+        document.head.appendChild(script);
+        script.onload = function() {
+            initGradeFiltering();
+        };
+    } else {
+        initGradeFiltering();
+    }
+    
+    function initGradeFiltering() {
+        // Utiliser la classe GradeFilter pour gérer le filtrage des grades
+        const gradeSelect = document.querySelector('#id_grade_selection');
+        const disciplinesSelect = document.querySelector('#id_disciplines');
+        
+        if (gradeSelect && disciplinesSelect) {
+            // Créer une instance personnalisée de GradeFilter
+            gradeFilterInstance = new GradeFilter('#id_disciplines', '#id_grade_selection');
+            
+            // Personnaliser la méthode populateGrades pour conserver la sélection existante
+            const originalPopulateGrades = gradeFilterInstance.populateGrades.bind(gradeFilterInstance);
+            gradeFilterInstance.populateGrades = function(grades) {
+                const currentValue = gradeSelect.value;
+                originalPopulateGrades(grades);
+                
+                // Restaurer la sélection si le grade est toujours disponible
+                {% if form.grade_selection.value %}
+                const targetValue = "{{ form.grade_selection.value }}";
+                const option = gradeSelect.querySelector(`option[value="${targetValue}"]`);
+                if (option) {
+                    option.selected = true;
+                }
+                {% endif %}
+            };
+            
+            console.log('GradeFilter initialized successfully');
+        } else {
+            console.warn('Grade select elements not found');
+        }
+    }
+    
+    // Validation du formulaire
+    const form = document.getElementById('practitionerForm');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            let isValid = true;
+            const errors = [];
+            
+            // Vérification de la date de naissance
+            const birthDateInput = document.querySelector('#id_birth_date');
+            if (!birthDateInput.value) {
+                isValid = false;
+                errors.push({
+                    message: "La date de naissance est requise.",
+                    tab: 'basic-tab'
+                });
+            }
+            
+            // Vérifier si des disciplines sont sélectionnées
+            const disciplinesSelect = document.querySelector('#id_disciplines');
+            const hasSelectedDisciplines = disciplinesSelect && disciplinesSelect.selectedOptions.length > 0;
+            
+            if (!hasSelectedDisciplines) {
+                isValid = false;
+                errors.push({
+                    message: "Veuillez sélectionner au moins une discipline pour le pratiquant.",
+                    tab: 'sport-tab'
+                });
+            }
+            
+            // Si le formulaire n'est pas valide, afficher les erreurs
+            if (!isValid) {
+                event.preventDefault();
+                
+                // Afficher toutes les erreurs
+                errors.forEach((error, index) => {
+                    setTimeout(() => {
+                        alert(error.message);
+                        
+                        // Activer l'onglet concerné après l'alerte
+                        const tab = document.getElementById(error.tab);
+                        if (tab) {
+                            const bsTab = new bootstrap.Tab(tab);
+                            bsTab.show();
+                        }
+                    }, index * 100); // Légère pause entre les alertes
+                });
+            }
+        });
+    }
+    
+    // Fonction utilitaire pour gérer les champs de date
+    const dateFields = document.querySelectorAll('input[type="date"]');
+    dateFields.forEach(field => {
+        field.addEventListener('change', function() {
+            // S'assurer que le format est YYYY-MM-DD
+            if (this.value) {
+                const date = new Date(this.value);
+                if (!isNaN(date.getTime())) {
+                    const formattedDate = date.toISOString().split('T')[0];
+                    this.value = formattedDate;
+                }
+            }
+        });
+    });
+    
+    // Debug : Log les valeurs du formulaire lors de la soumission
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            console.log('Soumission du formulaire:');
+            const formData = new FormData(form);
+            for (let pair of formData.entries()) {
+                console.log(pair[0] + ': ' + pair[1]);
+            }
+        });
+    }
+
+    const generateBtn = document.getElementById('generateLicenseBtn');
+    const licenseInput = document.getElementById('id_license_number');
+    const birthDateInput = document.getElementById('id_birth_date');
+    const disciplinesSelect = document.getElementById('id_disciplines');
+    const lastNameInput = document.getElementById('id_last_name');
+
+    if (generateBtn) {
+        generateBtn.addEventListener('click', function() {
+            // Vérifier l'existence des champs
+            if (!birthDateInput || !disciplinesSelect || !lastNameInput) {
+                alert("Un ou plusieurs champs nécessaires sont introuvables dans le formulaire (date de naissance, disciplines, nom de famille).");
+                return;
+            }
+            const birthDate = birthDateInput.value;
+            // On envoie le texte de la discipline (nom), pas l'ID
+            const disciplines = Array.from(disciplinesSelect.selectedOptions).map(opt => opt.text.trim());
+            const lastName = lastNameInput.value;
+
+            if (!birthDate || disciplines.length === 0 || !lastName) {
+                alert("Veuillez renseigner la date de naissance, sélectionner au moins une discipline et indiquer le nom de famille.");
+                return;
+            }
+
+            fetch('/fr/competitions/api/generate-license-number/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken(),
+                },
+                body: JSON.stringify({
+                    birth_date: birthDate,
+                    disciplines: disciplines,
+                    last_name: lastName,
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.license_number) {
+                    licenseInput.value = data.license_number;
+                } else {
+                    alert("Erreur lors de la génération du numéro : " + (data.error || "inconnue"));
+                }
+            })
+            .catch((err) => {
+                alert("Erreur lors de la génération du numéro de licence. Détail : " + err);
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

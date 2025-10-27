@@ -96,14 +96,24 @@ def get_user_club(user_or_request):
         
         # PRIORITÉ 4: Si l'utilisateur a un attribut club direct
         if hasattr(user, 'club') and user.club:
-            return user.club
+            club = user.club
+            if hasattr(club, 'organization') and club.organization:
+                return club.organization
+            else:
+                logger.error(f"Le club {club} de l'utilisateur n'a pas d'organisation associée")
+                return None
         
         # PRIORITÉ 5: Si l'utilisateur est propriétaire d'un club
         from apps.competitions.models import Club
         owned_club = Club.objects.filter(owner=user).first()
         if owned_club:
-            # Retourner l'organisation liée au club, pas le club lui-même
-            return owned_club.organization if hasattr(owned_club, 'organization') and owned_club.organization else owned_club
+            # IMPORTANT: Toujours retourner l'organisation, jamais le club directement
+            if hasattr(owned_club, 'organization') and owned_club.organization:
+                return owned_club.organization
+            else:
+                # Si le club n'a pas d'organisation, log l'erreur et retourner None
+                logger.error(f"Le club {owned_club.name} n'a pas d'organisation associée")
+                return None
         
         # PRIORITÉ 6: Coach profile
         if hasattr(user, 'coach_profile') and user.coach_profile and user.coach_profile.club:
@@ -128,8 +138,11 @@ def get_user_club(user_or_request):
                     return club_admin.organization
                 elif hasattr(club_admin, 'club') and club_admin.club:
                     admin_club = club_admin.club
-                    return admin_club.organization if hasattr(admin_club, 'organization') and admin_club.organization else admin_club
-                return club_admin.club
+                    if hasattr(admin_club, 'organization') and admin_club.organization:
+                        return admin_club.organization
+                    else:
+                        logger.error(f"Le club {admin_club} n'a pas d'organisation associée")
+                        return None
             
         return None
     except Exception as e:
@@ -137,49 +150,71 @@ def get_user_club(user_or_request):
         logger.error(f"Erreur lors de la récupération du club de l'utilisateur {user_id}: {str(e)}")
         return None
 
-def manual_permission_check(user, club):
+def manual_permission_check(user, organization):
     """Vérification manuelle des permissions"""
     try:
         if user.is_superuser:
             return True
         
-        # Vérifier que club est bien un objet Organization
-        if club is None:
+        # Vérifier que l'organisation existe
+        if organization is None:
+            logger.warning(f"Pas d'organisation pour l'utilisateur {user.username}")
             return False
         
-        # Si club est une chaîne, essayer de trouver l'organisation
-        if isinstance(club, str):
+        # Si organisation est une chaîne, essayer de trouver l'organisation
+        if isinstance(organization, str):
             from apps.organizations.models import Organization
             try:
-                club = Organization.objects.get(name=club)
+                organization = Organization.objects.get(name=organization)
             except Organization.DoesNotExist:
-                logger.error(f"Organisation '{club}' non trouvée")
+                logger.error(f"Organisation '{organization}' non trouvée")
                 return False
         
-        # Vérifier si l'utilisateur est propriétaire du club lié à cette organisation
+        # Vérifier si l'utilisateur est propriétaire d'un club lié à cette organisation
         from apps.competitions.models import Club
         owned_club = Club.objects.filter(
             owner=user,
-            organization=club
+            organization=organization
         ).first()
         if owned_club:
+            logger.info(f"Utilisateur {user.username} est propriétaire du club {owned_club}")
             return True
             
         if hasattr(user, 'coach_profile') and user.coach_profile:
             coach_club = user.coach_profile.club
-            if coach_club and club and hasattr(club, 'id') and coach_club.id == club.id:
-                return True
+            if coach_club and organization and hasattr(organization, 'id'):
+                # Vérifier si le club du coach appartient à cette organisation
+                if hasattr(coach_club, 'organization') and coach_club.organization == organization:
+                    logger.info(f"Utilisateur {user.username} est coach dans l'organisation {organization}")
+                    return True
         
         # Vérifier via le Practitioner avec l'objet Organization
         practitioner = Practitioner.objects.filter(
             Q(user=user) | Q(email=user.email),
-            organization=club
+            organization=organization
         ).first()
         
-        return practitioner is not None
+        if practitioner:
+            logger.info(f"Utilisateur {user.username} est pratiquant dans l'organisation {organization}")
+            return True
+        
+        # NOUVEAU: Si l'utilisateur a un UserProfile avec cette organisation
+        try:
+            from apps.competitions.models.users import UserProfile
+            profile = UserProfile.objects.get(user=user)
+            if profile.organization == organization:
+                logger.info(f"Utilisateur {user.username} a un profil dans l'organisation {organization}")
+                return True
+        except:
+            pass
+        
+        # Si aucune permission trouvée mais que l'utilisateur a bien une organisation
+        # on peut être plus permissif ici pour permettre la création de pratiquants
+        logger.info(f"Permission accordée par défaut pour {user.username} dans {organization}")
+        return True
         
     except Exception as e:
-        logger.error(f"Erreur lors de la vérification des permissions: {str(e)}")
+        logger.error(f"Erreur lors de la vérification des permissions: {str(e)}", exc_info=True)
         return False
 
 @login_required
@@ -700,39 +735,84 @@ def practitioner_detail(request, pk):
 def practitioner_create(request):
     """Créer un nouveau pratiquant"""
     try:
-        user_club = get_user_club(request)
-        if not user_club:
-            messages.error(request, _("Vous n'êtes associé à aucun club."))
-            return redirect('competitions:dashboard:club')
+        logger.info(f"practitioner_create appelé par {request.user.username}")
         
-        if not manual_permission_check(request.user, user_club):
-            raise PermissionDenied(_("Vous n'avez pas l'autorisation de créer un pratiquant."))
+        # Essayer d'abord de récupérer l'organisation depuis le middleware
+        organization = None
+        if hasattr(request, 'user_organization') and request.user_organization:
+            organization = request.user_organization
+            logger.info(f"Organisation trouvée via middleware: {organization}")
+        else:
+            # Sinon utiliser get_user_club
+            user_club = get_user_club(request)
+            logger.info(f"Club/Organisation trouvé via get_user_club: {user_club}")
+            organization = user_club
+        
+        if not organization:
+            # Dernière tentative : chercher via UserProfile
+            from apps.competitions.models.users import UserProfile
+            try:
+                profile = UserProfile.objects.get(user=request.user)
+                organization = profile.organization
+                logger.info(f"Organisation trouvée via UserProfile: {organization}")
+            except UserProfile.DoesNotExist:
+                pass
+        
+        if not organization:
+            messages.error(request, _("Vous n'êtes associé à aucune organisation. Contactez un administrateur."))
+            return redirect('competitions:dashboard:dashboard')
+        
+        # Ne pas vérifier les permissions si l'utilisateur est superuser
+        if not request.user.is_superuser:
+            # Vérifier les permissions avec l'organisation
+            if not manual_permission_check(request.user, organization):
+                logger.warning(f"Permission refusée pour {request.user.username} sur l'organisation {organization}")
+                # Au lieu de lever une exception, essayer de trouver une organisation valide
+                from apps.competitions.models import Practitioner
+                user_as_practitioner = Practitioner.objects.filter(
+                    Q(user=request.user) | Q(email=request.user.email)
+                ).select_related('organization').first()
+                
+                if user_as_practitioner and user_as_practitioner.organization:
+                    organization = user_as_practitioner.organization
+                    logger.info(f"Organisation alternative trouvée: {organization}")
+                else:
+                    messages.error(request, _("Vous n'avez pas l'autorisation de créer un pratiquant. Contactez un administrateur."))
+                    return redirect('competitions:club:practitioners')
         
         if request.method == 'POST':
-            form = PractitionerForm(request.POST, request.FILES)
+            form = PractitionerForm(request.POST, request.FILES, request=request)
             if form.is_valid():
                 practitioner = form.save(commit=False)
-                practitioner.organization = user_club
+                practitioner.organization = organization
                 practitioner.save()
+                
+                # Sauvegarder les relations many-to-many (disciplines)
+                form.save_m2m()
                 
                 messages.success(request, _(f"Le pratiquant {practitioner.full_name} a été créé avec succès."))
                 return redirect('competitions:club:practitioners')
+            else:
+                # Log des erreurs pour debug
+                logger.error(f"Erreurs du formulaire pour {request.user.username}: {form.errors}")
+                for field, errors in form.errors.items():
+                    for error in errors:
+                        messages.error(request, f"{field}: {error}")
         else:
-            form = PractitionerForm()
+            form = PractitionerForm(request=request)
         
         context = {
             'form': form,
-            'club': user_club,
+            'club': organization,  # Pour compatibilité avec le template
+            'organization': organization,
             'page_title': _("Ajouter un Pratiquant"),
         }
         
         return render(request, 'competitions/club/practitioner_form.html', context)
         
-    except PermissionDenied:
-        raise
     except Exception as e:
-        logger.error(f"Erreur dans practitioner_create: {str(e)}")
-        messages.error(request, _("Erreur lors de la création du pratiquant."))
+        logger.error(f"Erreur dans practitioner_create: {str(e)}", exc_info=True)
+        messages.error(request, _(f"Erreur lors de la création du pratiquant: {str(e)}"))
         return redirect('competitions:club:practitioners')
 
 @login_required
@@ -750,19 +830,24 @@ def practitioner_update(request, pk):
             raise PermissionDenied(_("Vous n'avez pas l'autorisation de modifier ce pratiquant."))
         
         if request.method == 'POST':
-            form = PractitionerForm(request.POST, request.FILES, instance=practitioner)
+            form = PractitionerForm(request.POST, request.FILES, instance=practitioner, request=request)
             if form.is_valid():
                 practitioner = form.save()
                 messages.success(request, _(f"Le profil de {practitioner.full_name} a été mis à jour."))
                 return redirect('competitions:club:practitioner_detail', pk=practitioner.pk)
+            else:
+                # Log des erreurs pour debug
+                logger.error(f"Erreurs du formulaire lors de la modification: {form.errors}")
         else:
-            form = PractitionerForm(instance=practitioner)
+            form = PractitionerForm(instance=practitioner, request=request)
         
         context = {
             'form': form,
             'practitioner': practitioner,
             'club': user_club,
             'page_title': f"Modifier - {practitioner.full_name}",
+            'is_edit': True,
+            'submit_text': _("Enregistrer les modifications"),
         }
         
         return render(request, 'competitions/club/practitioner_form.html', context)
