@@ -845,6 +845,7 @@ def practitioner_update(request, pk):
             'form': form,
             'practitioner': practitioner,
             'club': user_club,
+            'organization': user_club,
             'page_title': f"Modifier - {practitioner.full_name}",
             'is_edit': True,
             'submit_text': _("Enregistrer les modifications"),
@@ -855,8 +856,8 @@ def practitioner_update(request, pk):
     except PermissionDenied:
         raise
     except Exception as e:
-        logger.error(f"Erreur dans practitioner_update: {str(e)}")
-        messages.error(request, _("Erreur lors de la modification du pratiquant."))
+        logger.error(f"Erreur dans practitioner_update: {str(e)}", exc_info=True)
+        messages.error(request, _(f"Erreur lors de la modification du pratiquant: {str(e)}"))
         return redirect('competitions:club:practitioners')
 
 @login_required
@@ -885,20 +886,253 @@ def practitioner_delete(request, practitioner_id):
         return redirect('competitions:club:practitioners')
 
 # Fonctions placeholder pour compatibilité
+@login_required
 def create_user_for_practitioner(request, practitioner_id):
-    """Créer un compte utilisateur pour un pratiquant"""
-    messages.info(request, _("Fonctionnalité en cours de développement."))
-    return redirect('competitions:club:practitioners')
+    """Créer un compte utilisateur pour un pratiquant avec mot de passe par défaut"""
+    try:
+        user_club = get_user_club(request)
+        if not user_club:
+            messages.error(request, _("Vous n'êtes associé à aucun club."))
+            return redirect('competitions:dashboard:club')
+        
+        practitioner = get_object_or_404(Practitioner, pk=practitioner_id, organization=user_club)
+        
+        if not manual_permission_check(request.user, user_club):
+            raise PermissionDenied(_("Vous n'avez pas l'autorisation de modifier ce pratiquant."))
+        
+        # Vérifier si le pratiquant a déjà un compte
+        if practitioner.user:
+            messages.warning(request, _("Ce pratiquant a déjà un compte utilisateur associé."))
+            return redirect('competitions:club:practitioner_detail', pk=practitioner_id)
+        
+        # Vérifier qu'un email existe
+        if not practitioner.email:
+            messages.error(request, _("Le pratiquant doit avoir une adresse email pour créer un compte."))
+            return redirect('competitions:club:practitioner_edit', pk=practitioner_id)
+        
+        if request.method == 'POST':
+            try:
+                with transaction.atomic():
+                    # Générer un nom d'utilisateur unique basé sur l'email
+                    base_username = practitioner.email.split('@')[0]
+                    username = base_username
+                    counter = 1
+                    while User.objects.filter(username=username).exists():
+                        username = f"{base_username}{counter}"
+                        counter += 1
+                    
+                    # Générer un mot de passe par défaut (8 caractères aléatoires)
+                    import random
+                    import string
+                    default_password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+                    
+                    # Créer l'utilisateur
+                    user = User.objects.create_user(
+                        username=username,
+                        email=practitioner.email,
+                        first_name=practitioner.first_name,
+                        last_name=practitioner.last_name,
+                        password=default_password
+                    )
+                    
+                    # Associer l'utilisateur au pratiquant
+                    practitioner.user = user
+                    practitioner.save()
+                    
+                    # Envoyer un email d'invitation (optionnel)
+                    try:
+                        from django.core.mail import send_mail
+                        from django.conf import settings
+                        
+                        subject = _("Votre compte Martial Hub a été créé")
+                        message = _(
+                            "Bonjour {name},\n\n"
+                            "Un compte a été créé pour vous sur Martial Hub par votre club {club}.\n\n"
+                            "Nom d'utilisateur : {username}\n"
+                            "Mot de passe temporaire : {password}\n\n"
+                            "Veuillez vous connecter et changer votre mot de passe dès que possible.\n\n"
+                            "URL de connexion : {url}\n\n"
+                            "Cordialement,\n"
+                            "L'équipe Martial Hub"
+                        ).format(
+                            name=practitioner.full_name,
+                            club=user_club.name,
+                            username=username,
+                            password=default_password,
+                            url=request.build_absolute_uri('/accounts/login/')
+                        )
+                        
+                        send_mail(
+                            subject,
+                            message,
+                            settings.DEFAULT_FROM_EMAIL,
+                            [practitioner.email],
+                            fail_silently=True,
+                        )
+                        email_sent = True
+                    except Exception as e:
+                        logger.error(f"Erreur lors de l'envoi de l'email : {str(e)}")
+                        email_sent = False
+                    
+                    if email_sent:
+                        messages.success(
+                            request, 
+                            _("Compte créé avec succès ! Un email avec les identifiants a été envoyé à {email}").format(email=practitioner.email)
+                        )
+                    else:
+                        # Afficher les identifiants dans un message si l'email n'a pas pu être envoyé
+                        messages.success(
+                            request,
+                            _("Compte créé avec succès ! Nom d'utilisateur : {username} - Mot de passe : {password}").format(
+                                username=username,
+                                password=default_password
+                            )
+                        )
+                        messages.info(
+                            request,
+                            _("Note : Veuillez communiquer ces identifiants au pratiquant de manière sécurisée.")
+                        )
+                    
+                    return redirect('competitions:club:practitioner_detail', pk=practitioner_id)
+                    
+            except Exception as e:
+                logger.error(f"Erreur lors de la création du compte : {str(e)}", exc_info=True)
+                messages.error(request, _("Erreur lors de la création du compte utilisateur."))
+        
+        context = {
+            'practitioner': practitioner,
+            'title': _("Créer un compte pour {name}").format(name=practitioner.full_name),
+            'club': user_club,
+        }
+        
+        return render(request, 'competitions/club/create_user_form.html', context)
+        
+    except PermissionDenied:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur dans create_user_for_practitioner: {str(e)}", exc_info=True)
+        messages.error(request, _("Erreur lors de l'accès à cette page."))
+        return redirect('competitions:club:practitioners')
 
+@login_required
 def link_user_to_practitioner(request, practitioner_id):
     """Lier un utilisateur existant à un pratiquant"""
-    messages.info(request, _("Fonctionnalité en cours de développement."))
-    return redirect('competitions:club:practitioners')
+    try:
+        user_club = get_user_club(request)
+        if not user_club:
+            messages.error(request, _("Vous n'êtes associé à aucun club."))
+            return redirect('competitions:dashboard:club')
+        
+        practitioner = get_object_or_404(Practitioner, pk=practitioner_id, organization=user_club)
+        
+        if not manual_permission_check(request.user, user_club):
+            raise PermissionDenied(_("Vous n'avez pas l'autorisation de modifier ce pratiquant."))
+        
+        # Vérifier si le pratiquant a déjà un compte
+        if practitioner.user:
+            messages.warning(request, _("Ce pratiquant a déjà un compte utilisateur associé."))
+            return redirect('competitions:club:practitioner_detail', pk=practitioner_id)
+        
+        if request.method == 'POST':
+            user_id = request.POST.get('user_id')
+            if user_id:
+                try:
+                    user = User.objects.get(pk=user_id)
+                    
+                    # Vérifier que l'utilisateur n'est pas déjà lié à un autre pratiquant
+                    existing_practitioner = Practitioner.objects.filter(user=user, organization=user_club).first()
+                    if existing_practitioner:
+                        messages.error(
+                            request,
+                            _("Cet utilisateur est déjà associé à {name}.").format(name=existing_practitioner.full_name)
+                        )
+                    else:
+                        practitioner.user = user
+                        practitioner.save()
+                        messages.success(
+                            request,
+                            _("L'utilisateur {username} a été associé avec succès à {name}.").format(
+                                username=user.username,
+                                name=practitioner.full_name
+                            )
+                        )
+                        return redirect('competitions:club:practitioner_detail', pk=practitioner_id)
+                        
+                except User.DoesNotExist:
+                    messages.error(request, _("Utilisateur introuvable."))
+            else:
+                messages.error(request, _("Veuillez sélectionner un utilisateur."))
+        
+        # Obtenir la liste des utilisateurs disponibles (sans pratiquant associé dans ce club)
+        linked_user_ids = Practitioner.objects.filter(
+            organization=user_club,
+            user__isnull=False
+        ).values_list('user_id', flat=True)
+        
+        available_users = User.objects.exclude(
+            id__in=linked_user_ids
+        ).order_by('last_name', 'first_name')
+        
+        context = {
+            'practitioner': practitioner,
+            'available_users': available_users,
+            'title': _("Associer un compte à {name}").format(name=practitioner.full_name),
+            'club': user_club,
+        }
+        
+        return render(request, 'competitions/club/link_user_form.html', context)
+        
+    except PermissionDenied:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur dans link_user_to_practitioner: {str(e)}", exc_info=True)
+        messages.error(request, _("Erreur lors de l'accès à cette page."))
+        return redirect('competitions:club:practitioners')
 
+@login_required
 def practitioner_qualifications_add(request, practitioner_id):
     """Ajouter une qualification à un pratiquant"""
-    messages.info(request, _("Fonctionnalité en cours de développement."))
-    return redirect('competitions:club:practitioners')
+    try:
+        user_club = get_user_club(request)
+        if not user_club:
+            messages.error(request, _("Vous n'êtes associé à aucun club."))
+            return redirect('competitions:dashboard:club')
+        
+        practitioner = get_object_or_404(Practitioner, pk=practitioner_id, organization=user_club)
+        
+        if not manual_permission_check(request.user, user_club):
+            raise PermissionDenied(_("Vous n'avez pas l'autorisation de modifier ce pratiquant."))
+        
+        # Import du formulaire de qualification
+        from apps.competitions.forms.qualification import QualificationForm
+        
+        if request.method == 'POST':
+            form = QualificationForm(request.POST, practitioner=practitioner)
+            if form.is_valid():
+                qualification = form.save(commit=False)
+                qualification.practitioner = practitioner
+                qualification.save()
+                messages.success(request, _("La qualification a été ajoutée avec succès."))
+                from django.urls import reverse
+                url = reverse('competitions:club:practitioner_detail', kwargs={'pk': practitioner.pk})
+                return redirect(url + '?tab=qualifications')
+        else:
+            form = QualificationForm(practitioner=practitioner)
+        
+        context = {
+            'form': form,
+            'practitioner': practitioner,
+            'page_title': f"Ajouter une qualification - {practitioner.full_name}",
+        }
+        
+        return render(request, 'competitions/club/qualification_form.html', context)
+        
+    except PermissionDenied:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur dans practitioner_qualifications_add: {str(e)}", exc_info=True)
+        messages.error(request, _("Erreur lors de l'ajout de la qualification."))
+        return redirect('competitions:club:practitioners')
 
 def practitioner_registrations(request, practitioner_id):
     """Voir les inscriptions d'un pratiquant"""
