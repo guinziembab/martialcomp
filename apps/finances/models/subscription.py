@@ -7,26 +7,34 @@ from . import PricingRegion, VolumeDiscount
 from decimal import Decimal
 from django.utils import timezone
 
+
+def get_default_currency():
+    """Retourne le code de la devise par défaut (EUR)"""
+    return 'EUR'
+
 class Subscription(models.Model):
     """Souscription avec nouveau modèle tarifaire par membre"""
-    
+
     STATUS_CHOICES = [
-        ('ACTIVE', 'Active'),
-        ('EXPIRED', 'Expirée'),
-        ('CANCELLED', 'Annulée'),
-        ('PENDING', 'En attente'),
-        ('TRIAL', 'Essai'),
+        ('ACTIVE', _('Active')),
+        ('EXPIRED', _('Expirée')),
+        ('CANCELLED', _('Annulée')),
+        ('PENDING', _('En attente')),
+        ('TRIAL', _('Essai')),
     ]
-    
+
     PAYMENT_METHODS = [
-        ('CARD', 'Carte bancaire'),
-        ('WIRE_TRANSFER', 'Virement'),
-        ('SEPA', 'Prélèvement SEPA'),
-        ('WALLET', 'Portefeuille'),
+        ('CARD', _('Carte bancaire')),
+        ('WIRE_TRANSFER', _('Virement')),
+        ('SEPA', _('Prélèvement SEPA')),
+        ('WALLET', _('Portefeuille')),
     ]
     
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='subscriptions')
-    region = models.ForeignKey(PricingRegion, on_delete=models.PROTECT)
+    region = models.ForeignKey(
+        PricingRegion, on_delete=models.PROTECT,
+        null=True, blank=True
+    )
     
     # Informations de facturation
     member_count = models.IntegerField(
@@ -42,8 +50,8 @@ class Subscription(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     billing_cycle = models.CharField(max_length=20, default='ANNUAL', choices=[
-        ('ANNUAL', 'Annuel'),
-        ('MONTHLY', 'Mensuel'),
+        ('ANNUAL', _('Annuel')),
+        ('MONTHLY', _('Mensuel')),
     ])
     
     # Statut et paiement
@@ -54,7 +62,32 @@ class Subscription(models.Model):
     # Informations de paiement échelonné
     installment_count = models.IntegerField(default=1, help_text='Nombre de versements')
     installment_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    
+
+    # Multi-devise (Phase 2)
+    currency = models.ForeignKey(
+        'finances.Currency',
+        on_delete=models.PROTECT,
+        verbose_name=_("Devise"),
+        default=get_default_currency,
+        help_text=_("Devise utilisée pour cette souscription")
+    )
+    total_amount_eur = models.DecimalField(
+        _("Montant total (EUR)"),
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_("Montant converti en EUR pour consolidation comptable")
+    )
+    exchange_rate_used = models.DecimalField(
+        _("Taux de change utilisé"),
+        max_digits=18,
+        decimal_places=8,
+        null=True,
+        blank=True,
+        help_text=_("Taux de change au moment de la transaction")
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -77,27 +110,81 @@ class Subscription(models.Model):
         """Calcule la tarification selon la région et le volume"""
         # Prix de base selon la région
         self.base_price_per_member = self.region.base_price_per_member
-        
+
         # Réduction volume
         volume_discount = VolumeDiscount.get_discount_for_members(self.member_count)
         self.volume_discount_percentage = volume_discount
-        
+
         # Prix final par membre
         discount_amount = self.base_price_per_member * (volume_discount / 100)
         self.final_price_per_member = self.base_price_per_member - discount_amount
-        
+
         # Montant total
         self.total_amount = self.final_price_per_member * self.member_count
-        
+
         # Montant par versement si échelonné
         if self.installment_count > 1:
             self.installment_amount = self.total_amount / self.installment_count
-    
+
+        # Calcul du montant en EUR si devise différente (Phase 2 Multi-devise)
+        self._calculate_eur_amount()
+
+    def _calculate_eur_amount(self):
+        """
+        Calcule le montant total en EUR pour consolidation comptable.
+        Utilise le taux de change actuel si devise différente de EUR.
+        """
+        try:
+            currency_code = self.currency_id if self.currency_id else 'EUR'
+
+            if currency_code == 'EUR':
+                # Pas de conversion nécessaire
+                self.total_amount_eur = self.total_amount
+                self.exchange_rate_used = Decimal('1.0')
+            else:
+                # Conversion vers EUR
+                from .currency import ExchangeRate
+                try:
+                    rate = ExchangeRate.get_current_rate(currency_code, 'EUR')
+                    self.exchange_rate_used = rate
+                    self.total_amount_eur = self.total_amount * rate
+                except ValueError:
+                    # Pas de taux disponible, garder les valeurs null
+                    self.total_amount_eur = None
+                    self.exchange_rate_used = None
+        except Exception:
+            # En cas d'erreur (ex: Currency non encore migrée), ignorer
+            pass
+
     def get_discount_savings(self):
-        """Retourne les économies réalisées grÃ¢ce Ã  la réduction volume"""
+        """Retourne les économies réalisées grâce à la réduction volume"""
         original_total = self.base_price_per_member * self.member_count
         return original_total - self.total_amount
-    
+
+    def get_formatted_total(self, include_symbol=True):
+        """
+        Retourne le montant total formaté selon la devise.
+
+        Args:
+            include_symbol: Inclure le symbole de la devise
+
+        Returns:
+            str: Montant formaté (ex: "1 234,56 €" ou "655 FCFA")
+        """
+        try:
+            if self.currency:
+                return self.currency.format_amount(self.total_amount, include_symbol)
+        except Exception:
+            pass
+        # Fallback: formatage simple
+        return f"{self.total_amount:.2f} EUR"
+
+    def get_formatted_total_eur(self):
+        """Retourne le montant en EUR formaté pour les rapports consolidés"""
+        if self.total_amount_eur:
+            return f"{self.total_amount_eur:.2f} €"
+        return "N/A"
+
     def is_referral_eligible(self):
         """Vérifie si cette souscription est éligible pour une commission de parrainage"""
         return self.is_first_payment and self.status == 'ACTIVE'
@@ -140,12 +227,12 @@ class Subscription(models.Model):
 
 class SubscriptionPayment(models.Model):
     """Paiements pour les souscriptions"""
-    
+
     STATUS_CHOICES = [
-        ('PENDING', 'En attente'),
-        ('COMPLETED', 'Complété'),
-        ('FAILED', 'Ã‰choué'),
-        ('REFUNDED', 'Remboursé'),
+        ('PENDING', _('En attente')),
+        ('COMPLETED', _('Complété')),
+        ('FAILED', _('Échoué')),
+        ('REFUNDED', _('Remboursé')),
     ]
     
     subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name='payments')
@@ -202,6 +289,9 @@ class SubscriptionTier(models.Model):
     Modèle pour définir les différents niveaux d'abonnement et leurs fonctionnalités.
     """
     TIER_CHOICES = [
+        ('free', _('Gratuit')),
+        ('premium', _('Premium')),
+        # Anciens tiers (désactivés, conservés pour compatibilité migration)
         ('dojo_essentials', _('Dojo Essentials')),
         ('masters_circle', _('Master\'s Circle')),
         ('grand_champion', _('Grand Champion Suite')),
@@ -401,10 +491,27 @@ class OrganizationSubscription(models.Model):
     current_clubs_count = models.IntegerField(_("Nombre de clubs actuels"), default=1)
     current_storage_mb = models.IntegerField(_("Stockage utilisé (MB)"), default=0)
     
+    # Stripe
+    stripe_customer_id = models.CharField(
+        _("Stripe Customer ID"), max_length=255,
+        null=True, blank=True, db_index=True,
+        help_text="cus_...",
+    )
+    stripe_subscription_id = models.CharField(
+        _("Stripe Subscription ID"), max_length=255,
+        null=True, blank=True, db_index=True,
+        help_text="sub_...",
+    )
+    stripe_price_id = models.CharField(
+        _("Stripe Price ID"), max_length=255,
+        null=True, blank=True,
+        help_text="price_...",
+    )
+
     # Métadonnées
     created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
     updated_at = models.DateTimeField(_("Modifié le"), auto_now=True)
-    
+
     class Meta:
         app_label = 'finances'
         verbose_name = _("Abonnement organisation")
@@ -433,36 +540,55 @@ class OrganizationSubscription(models.Model):
         )
     
     def has_feature(self, feature_name):
-        """Vérifie si l'organisation a accès Ã  une fonctionnalité."""
-        if not self.is_active:
-            return False
-            
-        try:
-            feature = FeatureFlag.objects.get(name=feature_name, is_active=True)
-            if feature.is_always_enabled:
-                return True
-            return self.subscription_tier in feature.subscription_tiers.all()
-        except FeatureFlag.DoesNotExist:
-            return False
-    
+        """Toutes les fonctionnalites sont disponibles pour tous les plans."""
+        return self.is_active
+
     def check_limits(self):
-        """Vérifie si l'organisation respecte les limites de son abonnement."""
+        """Verifie la limite de membres (seule limite active)."""
         limits_exceeded = []
-        
         if self.current_members_count > self.subscription_tier.max_members:
             limits_exceeded.append('members')
-            
-        if self.current_disciplines_count > self.subscription_tier.max_disciplines:
-            limits_exceeded.append('disciplines')
-            
-        if self.current_clubs_count > self.subscription_tier.max_clubs:
-            limits_exceeded.append('clubs')
-            
-        if self.current_storage_mb > self.subscription_tier.max_storage_mb:
-            limits_exceeded.append('storage')
-        
         return limits_exceeded
-    
+
+    def can_add_member(self):
+        """Verifie si on peut ajouter un membre (blocage dur a 10 en Free)."""
+        return (
+            self.current_members_count
+            < self.subscription_tier.max_members
+        )
+
+    @property
+    def effective_pricing(self):
+        """Retourne le pricing effectif selon le pays."""
+        from apps.finances.pricing_tiers import (
+            get_market_tier_for_country, PRICING,
+            FREE_TIER_MAX_MEMBERS
+        )
+        from decimal import Decimal
+        tier_name = self.subscription_tier.name
+        if tier_name == 'free':
+            return {
+                'tier': 'free',
+                'max_members': FREE_TIER_MAX_MEMBERS,
+                'yearly_per_member': Decimal('0.00'),
+                'monthly_per_member': Decimal('0.00'),
+            }
+        org = self.organization
+        country = ''
+        if hasattr(org, 'organization') and org.organization:
+            country = getattr(org.organization, 'country', '')
+        elif hasattr(org, 'country'):
+            country = org.country or ''
+        market_tier = get_market_tier_for_country(country)
+        pricing = PRICING[market_tier]
+        return {
+            'tier': 'premium',
+            'market_tier': market_tier,
+            'max_members': self.subscription_tier.max_members,
+            'yearly_per_member': pricing['yearly_per_member'],
+            'monthly_per_member': pricing['monthly_per_member'],
+        }
+
     def update_usage_counters(self):
         """Met Ã  jour les compteurs d'utilisation."""
         # Compter les membres actifs

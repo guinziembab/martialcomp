@@ -47,6 +47,7 @@ from apps.core.isolation import OrganizationIsolationMixin, get_organization_que
 # Judge Views
 class JudgePerformanceListView(LoginRequiredMixin, ListView):
     """List of performances available for judging."""
+    model = StandalonePerformance
     template_name = 'competitions/standalone_scoring/judge/performance_list.html'
     context_object_name = 'performances'
     
@@ -56,8 +57,19 @@ class JudgePerformanceListView(LoginRequiredMixin, ListView):
         if not self.request.user.is_authenticated:
             raise PermissionDenied("Authentification requise")
         
-        # Utiliser l'isolation organisationnelle
-        base_queryset = get_organization_queryset(self.queryset.model, self.request.user)
+        # Utiliser l'isolation organisationnelle - filter via competition's organization
+        user_profile = getattr(self.request.user, 'profile', None)
+        if user_profile and user_profile.organization:
+            # Get competitions for this organization
+            competition_ids = Competition.objects.filter(
+                organizing_organization=user_profile.organization
+            ).values_list('id', flat=True)
+            # Filter performances by competition_id
+            base_queryset = StandalonePerformance.objects.filter(
+                competition_id__in=competition_ids
+            )
+        else:
+            base_queryset = StandalonePerformance.objects.none()
         
         # Les administrateurs voient tous les objets de leur organisation
         if self.request.user.is_superuser or self.request.user.is_staff:
@@ -491,11 +503,22 @@ class StandaloneScoringDashboardView(LoginRequiredMixin, TemplateView):
         # Get competitions associated with current user's organization
         # This will need to be adjusted based on your application's structure
         competitions = Competition.objects.filter(
-            status=Competition.ACTIVE
+            status__in=['published', 'ongoing']
         ).order_by('-start_date')[:10]
         
-        # Get recent performances
-        recent_performances = get_organization_queryset(StandalonePerformance, self.request.user).order_by('-updated_at')[:10]
+        # Get recent performances - filter via competition's organization
+        user_profile = getattr(self.request.user, 'profile', None)
+        if user_profile and user_profile.organization:
+            # Get competitions for this organization
+            competition_ids = Competition.objects.filter(
+                organizing_organization=user_profile.organization
+            ).values_list('id', flat=True)
+            # Filter performances by competition_id
+            recent_performances = StandalonePerformance.objects.filter(
+                competition_id__in=competition_ids
+            ).order_by('-updated_at')[:10]
+        else:
+            recent_performances = StandalonePerformance.objects.none()
         
         # Add competition names to performances
         for performance in recent_performances:
@@ -517,11 +540,26 @@ class StandaloneScoringDashboardView(LoginRequiredMixin, TemplateView):
             except Practitioner.DoesNotExist:
                 performance.practitioner_name = f"Practitioner #{performance.practitioner_id}"
         
-        # Get scoring systems
-        scoring_systems = get_organization_queryset(StandaloneScoringSystem, self.request.user)
+        # Get scoring systems - no organization filter, get all
+        scoring_systems = StandaloneScoringSystem.objects.all()
         
-        # Get category configs
-        category_configs = get_organization_queryset(StandaloneCategoryScoringConfig, self.request.user)[:10]
+        # Get category configs - filter via category's competition organization
+        user_profile = getattr(self.request.user, 'profile', None)
+        if user_profile and user_profile.organization:
+            # Get competitions for this organization
+            competition_ids = Competition.objects.filter(
+                organizing_organization=user_profile.organization
+            ).values_list('id', flat=True)
+            # Get categories for these competitions
+            category_ids = Category.objects.filter(
+                competition_id__in=competition_ids
+            ).values_list('id', flat=True)
+            # Filter category configs by category_id
+            category_configs = StandaloneCategoryScoringConfig.objects.filter(
+                category_id__in=category_ids
+            )[:10]
+        else:
+            category_configs = StandaloneCategoryScoringConfig.objects.none()[:10]
         
         # Add category names to configs
         for config in category_configs:
@@ -612,7 +650,7 @@ class PerformanceListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         
         # Add competitions for filtering
-        competitions = Competition.objects.filter(status=Competition.ACTIVE)
+        competitions = Competition.objects.filter(status__in=['published', 'ongoing'])
         context['competitions'] = competitions
         
         # Add categories for filtering
@@ -881,7 +919,7 @@ class ScoringCriterionListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         
         # Add scoring systems for filtering
-        context['scoring_systems'] = get_organization_queryset(StandaloneScoringSystem, self.request.user)
+        context['scoring_systems'] = StandaloneScoringSystem.objects.all()
         
         # Add categories for filtering
         context['categories'] = get_organization_queryset(Category, self.request.user)
@@ -944,8 +982,8 @@ class CategoryScoringConfigView(LoginRequiredMixin, View):
         else:
             form = CategoryScoringConfigForm(initial={'category_id': category_id})
         
-        # Get scoring systems for context
-        scoring_systems = get_organization_queryset(StandaloneScoringSystem, self.request.user)
+        # Get scoring systems for context - no organization filter, get all
+        scoring_systems = StandaloneScoringSystem.objects.all()
         
         context = {
             'form': form,
@@ -974,8 +1012,8 @@ class CategoryScoringConfigView(LoginRequiredMixin, View):
             messages.success(request, _("Category scoring configuration saved successfully."))
             return redirect('competitions:standalone_scoring:category_scoring_config', category_id=category_id)
         
-        # Get scoring systems for context
-        scoring_systems = get_organization_queryset(StandaloneScoringSystem, self.request.user)
+        # Get scoring systems for context - no organization filter, get all
+        scoring_systems = StandaloneScoringSystem.objects.all()
         
         context = {
             'form': form,

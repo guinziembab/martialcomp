@@ -75,7 +75,7 @@ class CompetitionSchedule(models.Model):
 
 class TatamiSchedule(models.Model):
     """Modèle pour le planning spécifique d'un tatami."""
-    
+
     competition_schedule = models.ForeignKey(
         CompetitionSchedule,
         on_delete=models.CASCADE,
@@ -84,7 +84,17 @@ class TatamiSchedule(models.Model):
     )
     tatami_number = models.PositiveSmallIntegerField(_("Numéro de tatami"))
     name = models.CharField(_("Nom"), max_length=100, blank=True)
-    
+
+    # Lien avec l'aire de combat (synchronisation Cockpit ↔ Planning)
+    aire_combat = models.OneToOneField(
+        'competitions.AireCombat',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tatami_schedule',
+        verbose_name=_("Aire de combat")
+    )
+
     # Responsable du tatami
     responsible = models.ForeignKey(
         User,

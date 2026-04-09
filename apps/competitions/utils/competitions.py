@@ -138,31 +138,33 @@ def get_competition_statistics(competition):
     # Compter les catégories
     stats['categories_count'] = competition.categories.count()
     
-    # Compter les participants (inscriptions validées)
+    # Compter les participants (tous les inscrits compétiteurs)
     if hasattr(competition, 'registrations'):
-        stats['participants_count'] = CompetitionRegistration.objects.filter(
-            competition=competition,
-            status='approved',
-            is_competitor=True
-        ).count()
-        
+        all_registrations = CompetitionRegistration.objects.filter(
+            competition=competition
+        )
+        stats['participants_count'] = all_registrations.count()
+
         # Compter les inscriptions en attente
-        stats['registrations_pending'] = CompetitionRegistration.objects.filter(
-            competition=competition,
+        stats['registrations_pending'] = all_registrations.filter(
             status='pending'
         ).count()
-        
-        # Compter les clubs participants
-        stats['clubs_count'] = CompetitionRegistration.objects.filter(
-            competition=competition,
+
+        # Compter les inscriptions approuvées
+        stats['registrations_approved'] = all_registrations.filter(
             status='approved'
-        ).values('practitioner__club').distinct().count()
+        ).count()
+
+        # Compter les clubs participants (tous statuts)
+        stats['clubs_count'] = all_registrations.exclude(
+            practitioner__organization__isnull=True
+        ).values('practitioner__organization').distinct().count()
     
     # Compter les juges
     if hasattr(competition, 'categories'):
         stats['judges_count'] = JudgeAssignment.objects.filter(
             category__competition=competition
-        ).values('judge').distinct().count()
+        ).values('user').distinct().count()
     
     # Compter les performances d'aujourd'hui
     if hasattr(competition, 'technical_performances'):

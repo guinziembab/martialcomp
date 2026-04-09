@@ -6,6 +6,12 @@ import re
 
 logger = logging.getLogger(__name__)
 
+# Import des middlewares de contexte organisationnel
+from .organizational_context import (
+    OrganizationalContextMiddleware,
+    AutoClubSelectionMiddleware,
+)
+
 class OnboardingRedirectMiddleware:
     """
     Middleware pour rediriger les utilisateurs vers le processus d'onboarding

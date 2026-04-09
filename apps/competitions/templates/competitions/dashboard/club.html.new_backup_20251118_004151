@@ -1,0 +1,2091 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load custom_filters %}
+{% load family_badges %}
+
+{% block title %}{% trans "Tableau de bord" %}{% if club %} | {{ club.name }}{% endif %}{% endblock %}
+
+{% block extra_css %}
+<!-- CSS externe optimisé -->
+<link rel="stylesheet" href="{% static 'css/dashboard/club_dashboard.css' %}">
+<!-- Styles inline additionnels pour garantir l'application -->
+<style>
+  /* Variables de couleur et configuration de base */
+  :root {
+    --primary: #3366ff;
+    --primary-light: #e6ecff;
+    --primary-dark: #1a53ff;
+    --secondary: #6c757d;
+    --success: #28a745;
+    --info: #17a2b8;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --light: #f8f9fa;
+    --dark: #343a40;
+    --gray-100: #f8f9fa;
+    --gray-200: #e9ecef;
+    --gray-300: #dee2e6;
+    --gray-800: #343a40;
+    --card-border-radius: 12px;
+    --btn-border-radius: 6px;
+    --transition-speed: 0.3s;
+  }
+  
+  /* Structure principale */
+  body {
+    background-color: #f5f7fa;
+    overflow-x: hidden;
+  }
+
+  /* Structure avec onglets */
+  .dashboard-container {
+    display: flex;
+    min-height: calc(100vh - 56px);
+    flex-direction: column;
+  }
+
+  /* En-tête avec onglets */
+  .dashboard-header {
+    background: white;
+    border-bottom: 2px solid #dee2e6;
+    padding: 1rem 2rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+
+  /* Navigation par onglets */
+  .nav-tabs {
+    border-bottom: none;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 0 1rem;
+  }
+
+  .nav-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-tabs .nav-link {
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #6c757d;
+    font-weight: 500;
+    padding: 8px 12px;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    position: relative;
+    background: transparent;
+    font-size: 0.9rem;
+  }
+
+  .nav-tabs .nav-link:hover {
+    border-color: transparent transparent var(--primary);
+    color: var(--primary);
+    background-color: rgba(51, 102, 255, 0.05);
+  }
+
+  .nav-tabs .nav-link.active {
+    color: var(--primary);
+    background-color: rgba(51, 102, 255, 0.1);
+    border-color: transparent transparent var(--primary);
+    font-weight: 600;
+  }
+
+  .nav-tabs .nav-link i {
+    margin-right: 8px;
+  }
+
+  /* Contenu des onglets */
+  .tab-content {
+    flex: 1;
+    background: #f5f7fa;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .tab-pane {
+    height: calc(100vh - 200px);
+    overflow-y: auto;
+    padding: 2rem;
+  }
+
+  /* Cartes */
+  .card {
+    border: none;
+    border-radius: var(--card-border-radius);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.08);
+    margin-bottom: 1.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Statistiques */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: white;
+    border-radius: var(--card-border-radius);
+    padding: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s ease;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-5px);
+  }
+
+  .stat-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--primary);
+    margin: 0.5rem 0;
+  }
+
+  .stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    color: var(--secondary);
+  }
+
+  .stat-icon {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    font-size: 2rem;
+    opacity: 0.3;
+    color: var(--primary);
+  }
+
+  /* Actions rapides */
+  .quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .action-card {
+    background: white;
+    border-radius: var(--card-border-radius);
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    border: 2px solid transparent;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+
+  .action-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    border-color: var(--primary);
+    color: var(--primary);
+    text-decoration: none;
+  }
+
+  .action-icon {
+    font-size: 2.5rem;
+    color: var(--primary);
+    margin-bottom: 1rem;
+    display: block;
+  }
+
+  .action-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--dark);
+  }
+
+  .action-description {
+    font-size: 0.9rem;
+    color: var(--secondary);
+  }
+
+  .quick-action {
+    background: white;
+    border-radius: var(--card-border-radius);
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .quick-action:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    border-color: var(--primary);
+  }
+
+  .action-icon {
+    font-size: 2.5rem;
+    color: var(--primary);
+    margin-bottom: 1rem;
+  }
+
+  .action-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--dark);
+  }
+
+  .action-description {
+    font-size: 0.9rem;
+    color: var(--secondary);
+    margin-bottom: 1rem;
+  }
+
+  /* Tables modernes */
+  .modern-table {
+    width: 100%;
+    margin-bottom: 0;
+    background-color: transparent;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .modern-table thead th {
+    background-color: var(--gray-100);
+    border: none;
+    padding: 1rem 0.75rem;
+    font-weight: 600;
+    color: var(--gray-800);
+    border-bottom: 2px solid var(--gray-300);
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+  }
+
+  .modern-table tbody td {
+    padding: 1rem 0.75rem;
+    border-bottom: 1px solid var(--gray-200);
+    vertical-align: middle;
+    border: none;
+  }
+
+  .modern-table tbody tr {
+    transition: background-color 0.2s ease;
+  }
+
+  .modern-table tbody tr:hover {
+    background-color: var(--gray-100);
+  }
+
+  /* Sections du dashboard */
+  .dashboard-section {
+    margin-bottom: 2rem;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--dark);
+    margin: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .section-title i {
+    margin-right: 0.5rem;
+    color: var(--primary);
+  }
+
+  /* User avatar */
+  .user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+
+  /* Age display */
+  .age-display {
+    font-weight: 500;
+    color: var(--dark);
+  }
+
+  /* List group improvements */
+  .list-group-item {
+    border: none;
+    border-bottom: 1px solid var(--gray-200);
+    padding: 1rem;
+    transition: background-color 0.2s ease;
+  }
+
+  .list-group-item:hover {
+    background-color: var(--gray-100);
+  }
+
+  .list-group-item:last-child {
+    border-bottom: none;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .tab-pane {
+      padding: 1rem;
+      height: calc(100vh - 180px);
+    }
+    
+    .nav-tabs .nav-link {
+      padding: 6px 8px;
+      font-size: 0.8rem;
+    }
+    
+    .nav-tabs .nav-link i {
+      display: none;
+    }
+    
+    .stats-grid {
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+
+    .quick-actions-grid {
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+
+    .section-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .section-title {
+      font-size: 1.2rem;
+      margin-bottom: 0.5rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ========================================
+     DASHBOARD CLUB - VERSION 2.0.0 OPTIMISÉE
+     ✅ Encodage UTF-8 corrigé
+     ✅ IDs unifiés
+     ✅ Doublons supprimés
+     ✅ JavaScript externalisé
+     ======================================== -->
+
+<div class="container-fluid">
+  <div class="dashboard-container">
+    
+    <!-- ========================================
+         EN-TÊTE DU DASHBOARD
+         ======================================== -->
+    <div class="dashboard-header">
+      <div class="row align-items-center mb-3">
+        <div class="col-md-6">
+          <h1 class="dashboard-title">
+            <i class="fas fa-tachometer-alt me-2"></i>
+            {% trans "Tableau de bord" %}
+            {% if club %} - {{ club.name }}{% endif %}
+          </h1>
+          {% if club.organization %}
+            <small class="text-muted">
+              <i class="fas fa-building me-1"></i>{{ club.organization.name }}
+            </small>
+          {% endif %}
+        </div>
+        <div class="col-md-6 text-end">
+          {% if club_disciplines %}
+            <div class="mb-2">
+              <span class="text-muted">
+                <i class="fas fa-fist-raised me-1"></i>{% trans "Disciplines pratiquées" %}:
+              </span>
+              {% for discipline in club_disciplines %}
+                <span class="badge bg-primary me-1">{{ discipline.name }}</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+          <div class="btn-group">
+            <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-outline-primary btn-sm">
+              <i class="fas fa-sync-alt"></i> {% trans "Recharger" %}
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           NAVIGATION PAR ONGLETS
+           ======================================== -->
+      <div class="row">
+        <div class="col-12">
+          <ul class="nav nav-tabs" id="dashboardTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" 
+                      data-bs-target="#overview" type="button" role="tab">
+                <i class="fas fa-chart-line"></i> {% trans "Vue d'ensemble" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="members-tab" data-bs-toggle="tab" 
+                      data-bs-target="#members" type="button" role="tab">
+                <i class="fas fa-users"></i> {% trans "Pratiquants" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="competitions-tab" data-bs-toggle="tab" 
+                      data-bs-target="#competitions" type="button" role="tab">
+                <i class="fas fa-trophy"></i> {% trans "Compétitions" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="finances-tab" data-bs-toggle="tab" 
+                      data-bs-target="#finances" type="button" role="tab">
+                <i class="fas fa-euro-sign"></i> {% trans "Finances" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="training-tab" data-bs-toggle="tab" 
+                      data-bs-target="#training" type="button" role="tab">
+                <i class="fas fa-dumbbell"></i> {% trans "Entraînement" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="events-tab" data-bs-toggle="tab" 
+                      data-bs-target="#events" type="button" role="tab">
+                <i class="fas fa-calendar"></i> {% trans "Événements" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="combats-tab" data-bs-toggle="tab" 
+                      data-bs-target="#combats" type="button" role="tab">
+                <i class="fas fa-fist-raised"></i> {% trans "Combats" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="documents-tab" data-bs-toggle="tab" 
+                      data-bs-target="#documents" type="button" role="tab">
+                <i class="fas fa-file-alt"></i> {% trans "Documents" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="shop-tab" data-bs-toggle="tab" 
+                      data-bs-target="#shop" type="button" role="tab">
+                <i class="fas fa-shopping-cart"></i> {% trans "Boutique" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="sites-tab" data-bs-toggle="tab" 
+                      data-bs-target="#sites" type="button" role="tab">
+                <i class="fas fa-globe"></i> {% trans "Sites" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="membership-tab" data-bs-toggle="tab" 
+                      data-bs-target="#membership" type="button" role="tab">
+                <i class="fas fa-id-card"></i> {% trans "Adhésions" %}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="roles-tab" data-bs-toggle="tab" 
+                      data-bs-target="#roles" type="button" role="tab">
+                <i class="fas fa-user-shield"></i> {% trans "Rôles & Permissions" %}
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================
+         CONTENU DES ONGLETS
+         ======================================== -->
+    <div class="tab-content" id="dashboardTabsContent">
+      
+      <!-- ========================================
+           ONGLET 1: VUE D'ENSEMBLE
+           ======================================== -->
+      <div class="tab-pane fade show active" id="overview" role="tabpanel">
+        
+        <!-- Statistiques principales -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <i class="fas fa-users stat-icon"></i>
+            <div class="stat-number">{{ stats.total_practitioners|default:0 }}</div>
+            <div class="stat-label">{% trans "Pratiquants" %}</div>
+          </div>
+          
+          <div class="stat-card success">
+            <i class="fas fa-trophy stat-icon"></i>
+            <div class="stat-number">{{ stats.club_competitions|default:0 }}</div>
+            <div class="stat-label">{% trans "Compétitions organisées" %}</div>
+          </div>
+          
+          <div class="stat-card info">
+            <i class="fas fa-calendar-check stat-icon"></i>
+            <div class="stat-number">{{ stats.active_registrations|default:0 }}</div>
+            <div class="stat-label">{% trans "Inscriptions actives" %}</div>
+          </div>
+          
+          <div class="stat-card warning">
+            <i class="fas fa-gavel stat-icon"></i>
+            <div class="stat-number">{{ stats.judges_count|default:0 }}</div>
+            <div class="stat-label">{% trans "Juges/Arbitres" %}</div>
+          </div>
+        </div>
+
+        <!-- Actions rapides -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5><i class="fas fa-bolt"></i> {% trans "Actions rapides" %}</h5>
+          </div>
+          <div class="card-body">
+            <div class="quick-actions-grid">
+              <a href="{% url 'competitions:club:practitioner_add' %}" class="action-card">
+                <i class="fas fa-user-plus action-icon"></i>
+                <div class="action-title">{% trans "Ajouter pratiquant" %}</div>
+                <div class="action-description">{% trans "Nouveau membre" %}</div>
+              </a>
+              
+              <a href="{% url 'shop:dashboard:club_dashboard' %}" class="action-card">
+                <i class="fas fa-store action-icon"></i>
+                <div class="action-title">{% trans "Gestion boutique" %}</div>
+                <div class="action-description">{% trans "Vendre du matériel et gérer vos produits" %}</div>
+              </a>
+              
+              <a href="{% url 'competitions:club:bulk_registration' %}" class="action-card">
+                <i class="fas fa-trophy action-icon"></i>
+                <div class="action-title">{% trans "Gérer inscriptions" %}</div>
+                <div class="action-description">{% trans "Inscrire vos pratiquants aux compétitions" %}</div>
+              </a>
+              
+              <a href="{% url 'competitions:competitions:create' %}" class="action-card">
+                <i class="fas fa-trophy action-icon"></i>
+                <div class="action-title">{% trans "Nouvelle compétition" %}</div>
+                <div class="action-description">{% trans "Organiser un événement" %}</div>
+              </a>
+              
+              <a href="{% url 'competitions:events:event_list' %}" class="action-card">
+                <i class="fas fa-calendar-plus action-icon"></i>
+                <div class="action-title">{% trans "Planifier événement" %}</div>
+                <div class="action-description">{% trans "Créer un planning" %}</div>
+              </a>
+              
+              <a href="{% url 'competitions:club:qr_dashboard' %}" class="action-card">
+                <i class="fas fa-qrcode action-icon"></i>
+                <div class="action-title">{% trans "Générer QR" %}</div>
+                <div class="action-description">{% trans "Codes d'accès" %}</div>
+              </a>
+              
+              <a href="{% url 'competitions:club:import_export' %}" class="action-card">
+                <i class="fas fa-file-import action-icon"></i>
+                <div class="action-title">{% trans "Import/Export" %}</div>
+                <div class="action-description">{% trans "Données Excel" %}</div>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Résumé des activités récentes -->
+        <div class="row">
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-clock"></i> {% trans "Pratiquants récents" %}</h5>
+              </div>
+              <div class="card-body">
+                {% if recent_practitioners %}
+                  {% for practitioner in recent_practitioners|slice:":5" %}
+                  <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                    <div>
+                      <strong>{{ practitioner.first_name }} {{ practitioner.last_name }}</strong><br>
+                      <small class="text-muted">{% trans "Nouveau pratiquant" %}</small>
+                    </div>
+                    <span class="badge badge-success">{% trans "Nouveau" %}</span>
+                  </div>
+                  {% endfor %}
+                {% else %}
+                  <p class="text-muted text-center">{% trans "Aucune activité récente" %}</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-bell"></i> {% trans "Notifications" %}</h5>
+              </div>
+              <div class="card-body">
+                {% if recent_notifications %}
+                  {% for notification in recent_notifications|slice:":5" %}
+                  <div class="d-flex align-items-start mb-3">
+                    <div class="flex-grow-1">
+                      <div class="fw-bold">{{ notification.title }}</div>
+                      <small class="text-muted">{{ notification.created_at|timesince }}</small>
+                    </div>
+                  </div>
+                  {% endfor %}
+                {% else %}
+                  <p class="text-muted text-center">{% trans "Aucune notification" %}</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Compétitions à venir -->
+        <div class="dashboard-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <i class="fas fa-calendar-alt"></i> {% trans "Compétitions à venir" %}
+            </h2>
+            <a href="{% url 'competitions:competitions:list' %}" class="btn btn-outline-primary">
+              <i class="fas fa-eye me-1"></i> {% trans "Voir toutes" %}
+            </a>
+          </div>
+          
+          <div class="row">
+            {% if upcoming_competitions %}
+              {% for competition in upcoming_competitions %}
+                <div class="col-md-4 mb-3">
+                  <div class="card">
+                    <div class="card-body">
+                      <h5 class="card-title">{{ competition.title }}</h5>
+                      <small class="text-muted">
+                        <i class="fas fa-calendar"></i> 
+                        {% if competition.start_date %}
+                          {{ competition.start_date|date:"d M Y" }}
+                        {% else %}
+                          {% trans "Date non définie" %}
+                        {% endif %}
+                        <br>
+                        <i class="fas fa-map-marker-alt"></i> 
+                        {{ competition.venue_name|default:competition.city|default:"Non défini" }}
+                      </small>
+                      <div class="mt-2">
+                        <a href="{% url 'competitions:club:competition_registration_form' competition_id=competition.id %}" 
+                           class="btn btn-outline-primary btn-sm">
+                          <i class="fas fa-users"></i> {% trans "S'inscrire" %}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="col-12">
+                <div class="text-center py-4">
+                  <i class="fas fa-calendar-alt text-muted" style="font-size: 3rem;"></i>
+                  <h5 class="mt-3">{% trans "Aucune compétition à venir" %}</h5>
+                  <p class="text-muted">{% trans "Consultez régulièrement les nouvelles compétitions" %}</p>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           ONGLET 2: PRATIQUANTS
+           ======================================== -->
+      <div class="tab-pane fade" id="members" role="tabpanel">
+        <div class="row">
+          <div class="col-md-8">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-users"></i> {% trans "Gestion des pratiquants" %}</h5>
+                <div>
+                  <!-- ✅ CORRECTION: IDs avec tirets -->
+                  <button type="button" class="btn btn-success btn-sm me-2" id="import-csv-btn">
+                    <i class="fas fa-file-import"></i> {% trans "Import CSV" %}
+                  </button>
+                  <button type="button" class="btn btn-info btn-sm me-2" id="bulk-registration-btn">
+                    <i class="fas fa-trophy"></i> {% trans "Inscription en masse" %}
+                  </button>
+                  <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> {% trans "Ajouter" %}
+                  </a>
+                </div>
+              </div>
+              
+              <div class="card-body">
+                {% if all_practitioners %}
+                  <div class="table-responsive">
+                    <table class="table table-hover modern-table">
+                      <thead>
+                        <tr>
+                          <th style="width: 40px;">
+                            <input type="checkbox" 
+                                   id="select-all-practitioners" 
+                                   class="form-check-input">
+                          </th>
+                          <th>{% trans "Nom" %}</th>
+                          <th>{% trans "Âge" %}</th>
+                          <th>{% trans "Grade" %}</th>
+                          <th>{% trans "Statut" %}</th>
+                          <th>{% trans "Actions" %}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for practitioner in all_practitioners %}
+                          <tr data-practitioner-id="{{ practitioner.id }}">
+                            <td>
+                              <input type="checkbox" 
+                                     class="practitioner-checkbox form-check-input" 
+                                     value="{{ practitioner.id }}"
+                                     data-name="{{ practitioner.full_name }}"
+                                     id="practitioner-{{ practitioner.id }}">
+                            </td>
+                            <td>
+                              <div class="d-flex align-items-center">
+                                <div class="user-avatar me-2">
+                                  {{ practitioner.first_name|first }}{{ practitioner.last_name|first }}
+                                </div>
+                                <div>
+                                  <strong>{{ practitioner.full_name }}</strong>
+                                  {% if practitioner.email %}
+                                    <br><small class="text-muted">{{ practitioner.email }}</small>
+                                  {% endif %}
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <span class="age-display" 
+                                    data-birth-date="{{ practitioner.birth_date|date:'Y-m-d' }}">
+                                <span class="text-muted">-</span>
+                              </span>
+                            </td>
+                            <td>
+                              {% if practitioner.current_grade %}
+                                <span class="badge bg-secondary">
+                                  {{ practitioner.current_grade.grade.name }}
+                                </span>
+                              {% else %}
+                                <span class="text-muted">{% trans "Non défini" %}</span>
+                              {% endif %}
+                            </td>
+                            <td>
+                              <span class="badge {% if practitioner.is_active %}bg-success{% else %}bg-secondary{% endif %}"
+                                    data-status-badge="{{ practitioner.id }}">
+                                {% if practitioner.is_active %}{% trans "Actif" %}{% else %}{% trans "Inactif" %}{% endif %}
+                              </span>
+                            </td>
+                            <td>
+                              <div class="btn-group btn-group-sm">
+                                <a href="{% url 'competitions:club:practitioner_detail' pk=practitioner.id %}" 
+                                   class="btn btn-outline-primary" 
+                                   title="{% trans 'Voir' %}">
+                                  <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'competitions:club:practitioner_edit' pk=practitioner.id %}" 
+                                   class="btn btn-outline-warning"
+                                   title="{% trans 'Modifier' %}">
+                                  <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" 
+                                        class="btn btn-outline-info toggle-status-btn"
+                                        data-practitioner-id="{{ practitioner.id }}"
+                                        title="{% trans 'Changer statut' %}">
+                                  <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-outline-danger delete-practitioner-btn"
+                                        data-practitioner-id="{{ practitioner.id }}"
+                                        data-practitioner-name="{{ practitioner.full_name }}"
+                                        title="{% trans 'Supprimer' %}">
+                                  <i class="fas fa-trash"></i>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <!-- Pagination -->
+                  {% if is_paginated %}
+                    <nav aria-label="{% trans 'Navigation pages' %}">
+                      <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                          <li class="page-item">
+                            <a class="page-link" href="?page=1">{% trans "Première" %}</a>
+                          </li>
+                          <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">{% trans "Précédente" %}</a>
+                          </li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                          <span class="page-link">
+                            {% trans "Page" %} {{ page_obj.number }} {% trans "sur" %} {{ page_obj.paginator.num_pages }}
+                          </span>
+                        </li>
+
+                        {% if page_obj.has_next %}
+                          <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">{% trans "Suivante" %}</a>
+                          </li>
+                          <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">{% trans "Dernière" %}</a>
+                          </li>
+                        {% endif %}
+                      </ul>
+                    </nav>
+                  {% endif %}
+
+                {% else %}
+                  <div class="text-center py-4">
+                    <i class="fas fa-users text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">{% trans "Aucun pratiquant" %}</h5>
+                    <p class="text-muted">{% trans "Commencez par ajouter vos premiers membres" %}</p>
+                    <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-primary">
+                      <i class="fas fa-user-plus"></i> {% trans "Ajouter un pratiquant" %}
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <!-- Statistiques membres (sidebar) -->
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> {% trans "Statistiques membres" %}</h5>
+              </div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Total" %}</span>
+                    <strong>{{ stats.total_practitioners|default:0 }}</strong>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Actifs ce mois" %}</span>
+                    <strong>{{ stats.active_this_month|default:0 }}</strong>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Nouveaux ce mois" %}</span>
+                    <strong>{{ stats.new_this_month|default:0 }}</strong>
+                  </div>
+                </div>
+                
+                <!-- QR Codes -->
+                {% if club.has_qr_code_feature %}
+                  <hr>
+                  <h6>{% trans "QR Codes" %}</h6>
+                  <a href="{% url 'competitions:club:qr_dashboard' %}" class="btn btn-outline-primary btn-sm w-100">
+                    <i class="fas fa-qrcode"></i> {% trans "Gestion des QR codes" %}
+                  </a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           ONGLET 3: COMPÉTITIONS
+           ======================================== -->
+      <div class="tab-pane fade" id="competitions" role="tabpanel">
+        <!-- Guide de gestion complète -->
+        <div class="alert alert-info mb-4">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-info-circle me-3"></i>
+            <div class="flex-grow-1">
+              <h5 class="mb-1">{% trans "Gestion Complète des Compétitions" %}</h5>
+              <p class="mb-0">{% trans "Toutes les fonctionnalités de gestion sont accessibles depuis les menus déroulants de chaque compétition" %}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-trophy"></i> {% trans "Aperçu Compétitions" %}</h5>
+                <a href="{% url 'competitions:competitions:create' %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-plus"></i> {% trans "Nouvelle" %}
+                </a>
+              </div>
+              <div class="card-body">
+                {% if competitions_to_manage %}
+                  <div class="table-responsive">
+                    <table class="modern-table table">
+                      <thead>
+                        <tr>
+                          <th>{% trans "Compétition" %}</th>
+                          <th>{% trans "Date" %}</th>
+                          <th>{% trans "Statut" %}</th>
+                          <th>{% trans "Actions" %}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for competition in competitions_to_manage %}
+                        <tr>
+                          <td>
+                            <a href="{% url 'competitions:club:competition_hub' competition.id %}" 
+                               class="text-decoration-none competition-title-link" 
+                               title="{% trans 'Cliquez pour gérer cette compétition' %}">
+                              <strong>{{ competition.title }}</strong><br>
+                              <small class="text-muted">{% if competition.discipline %}{{ competition.discipline.name }}{% else %}-{% endif %}</small>
+                            </a>
+                          </td>
+                          <td>{% if competition.start_date %}{{ competition.start_date|date:"d M Y" }}{% else %}-{% endif %}</td>
+                          <td>
+                            <span class="badge badge-success">{% trans "Active" %}</span>
+                          </td>
+                          <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                              <a href="{% url 'competitions:club:competition_hub' competition.id %}" 
+                                 class="btn btn-primary" 
+                                 title="{% trans 'Hub de gestion' %}">
+                                <i class="fas fa-cog"></i> {% trans "Gérer" %}
+                              </a>
+                              <a href="{% url 'competitions:competitions:detail' pk=competition.id %}" 
+                                 class="btn btn-outline-secondary" 
+                                 title="{% trans 'Voir page publique' %}"
+                                 target="_blank">
+                                <i class="fas fa-eye"></i>
+                              </a>
+                              <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                                  <span class="visually-hidden">{% trans "Plus d'options" %}</span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                  <li><a class="dropdown-item" href="/{{ LANGUAGE_CODE|default:'fr' }}/competitions/club/competitions/{{ competition.id }}/manage/pro/">
+                                    <i class="fas fa-trophy"></i> {% trans "Gestion Pro" %}
+                                  </a></li>
+                                  <li><a class="dropdown-item" href="{% url 'competitions:competitions:manage_categories' competition.id %}">
+                                    <i class="fas fa-layer-group"></i> {% trans "Catégories" %}
+                                  </a></li>
+                                  <li><a class="dropdown-item" href="{% url 'competitions:management:schedule_overview' competition_id=competition.id %}">
+                                    <i class="fas fa-calendar-alt"></i> {% trans "Planning" %}
+                                  </a></li>
+                                </ul>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <div class="text-center py-4">
+                    <i class="fas fa-trophy text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">{% trans "Aucune compétition à gérer" %}</h5>
+                    <p class="text-muted">{% trans "Organisez votre première compétition" %}</p>
+                    <a href="{% url 'competitions:competitions:create' %}" class="btn btn-primary">
+                      <i class="fas fa-plus"></i> {% trans "Créer une compétition" %}
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-calendar-alt"></i> {% trans "Compétitions à venir" %}</h5>
+              </div>
+              <div class="card-body">
+                {% if upcoming_competitions %}
+                  {% for competition in upcoming_competitions %}
+                  <div class="card mb-3">
+                    <div class="card-body">
+                      <h6 class="card-title">{{ competition.title }}</h6>
+                      <p class="card-text">{{ competition.description|truncatewords:20 }}</p>
+                      <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                          <i class="fas fa-calendar"></i> {% if competition.start_date %}{{ competition.start_date|date:"d M Y" }}{% else %}Date non définie{% endif %}<br>
+                          <i class="fas fa-map-marker-alt"></i> {{ competition.location|default:"Non défini" }}
+                        </small>
+                        <a href="{% url 'competitions:club:competition_registration_form' competition_id=competition.id %}" class="btn btn-outline-primary btn-sm">
+                          <i class="fas fa-users"></i> {% trans "S'inscrire" %}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                  {% endfor %}
+                {% else %}
+                  <div class="text-center py-4">
+                    <i class="fas fa-calendar-alt text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">{% trans "Aucune compétition à venir" %}</h5>
+                    <p class="text-muted">{% trans "Consultez régulièrement les nouvelles compétitions" %}</p>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           ONGLET 4: FINANCES
+           ======================================== -->
+      <div class="tab-pane fade" id="finances" role="tabpanel">
+        <div class="row">
+          <div class="col-md-8">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-euro-sign"></i> {% trans "Suivi financier" %}</h5>
+              </div>
+              <div class="card-body">
+                {% if recent_payments %}
+                  <div class="table-responsive">
+                    <table class="table table-hover modern-table">
+                      <thead>
+                        <tr>
+                          <th>{% trans "Date" %}</th>
+                          <th>{% trans "Membre" %}</th>
+                          <th>{% trans "Montant" %}</th>
+                          <th>{% trans "Statut" %}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for payment in recent_payments|slice:":10" %}
+                        <tr>
+                          <td>{{ payment.created_at|date:"d/m/Y" }}</td>
+                          <td>{{ payment.practitioner.full_name|default:payment.user.get_full_name|default:"-" }}</td>
+                          <td><strong>{{ payment.amount }} €</strong></td>
+                          <td>
+                            {% if payment.status == 'completed' %}
+                              <span class="badge bg-success">{% trans "Payé" %}</span>
+                            {% elif payment.status == 'pending' %}
+                              <span class="badge bg-warning">{% trans "En attente" %}</span>
+                            {% else %}
+                              <span class="badge bg-danger">{% trans "Échoué" %}</span>
+                            {% endif %}
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    {% trans "Aucun paiement récent" %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> {% trans "Résumé" %}</h5>
+              </div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Revenus" %}</span>
+                    <strong class="text-success">{{ financial_stats.revenue|default:0 }} €</strong>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Dépenses" %}</span>
+                    <strong class="text-danger">{{ financial_stats.expenses|default:0 }} €</strong>
+                  </div>
+                </div>
+                <hr>
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span><strong>{% trans "Solde" %}</strong></span>
+                    <strong>{{ financial_stats.balance|default:0 }} €</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           ONGLET 5: ENTRAÎNEMENT
+           ======================================== -->
+      <div class="tab-pane fade" id="training" role="tabpanel">
+        <div class="row">
+          <div class="col-md-8">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-dumbbell"></i> {% trans "Sessions d'entraînement" %}</h5>
+                <a href="{% url 'competitions:club:create_training_session' %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-plus"></i> {% trans "Nouvelle session" %}
+                </a>
+              </div>
+              <div class="card-body">
+                {% if recent_sessions %}
+                  <div class="list-group list-group-flush">
+                    {% for session in recent_sessions|slice:":10" %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                      <div>
+                        <strong>{{ session.name|default:session.title|default:"Session" }}</strong><br>
+                        <small class="text-muted">
+                          <i class="fas fa-calendar"></i> {{ session.date|date:"d/m/Y"|default:session.start_time|date:"d/m/Y" }}
+                          {% if session.start_time %}
+                            <i class="fas fa-clock ms-2"></i> {{ session.start_time|time:"H:i" }}
+                          {% endif %}
+                        </small>
+                      </div>
+                      <a href="{% url 'competitions:club:attendance_list' session_id=session.id %}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-users"></i> {% trans "Présence" %}
+                      </a>
+                    </div>
+                    {% endfor %}
+                  </div>
+                  <div class="mt-3 text-center">
+                    <a href="{% url 'competitions:club:training_sessions' %}" class="btn btn-outline-primary btn-sm">
+                      {% trans "Voir toutes les sessions" %} <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                  </div>
+                {% else %}
+                  <div class="text-center py-4">
+                    <i class="fas fa-dumbbell text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">{% trans "Aucune session d'entraînement" %}</h5>
+                    <p class="text-muted">{% trans "Créez votre première session d'entraînement" %}</p>
+                    <a href="{% url 'competitions:club:create_training_session' %}" class="btn btn-primary">
+                      <i class="fas fa-plus"></i> {% trans "Nouvelle session" %}
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-clipboard-list"></i> {% trans "Programmes" %}</h5>
+              </div>
+              <div class="card-body">
+                {% if training_programs %}
+                  <div class="list-group list-group-flush">
+                    {% for program in training_programs|slice:":5" %}
+                    <div class="list-group-item">
+                      <strong>{{ program.name|default:program.title }}</strong><br>
+                      <small class="text-muted">{{ program.description|truncatewords:10 }}</small>
+                    </div>
+                    {% endfor %}
+                  </div>
+                  <div class="mt-3 text-center">
+                    <a href="{% url 'competitions:club:training_programs' %}" class="btn btn-outline-primary btn-sm">
+                      {% trans "Voir tous les programmes" %}
+                    </a>
+                  </div>
+                {% else %}
+                  <p class="text-muted text-center">{% trans "Aucun programme" %}</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           ONGLET 6: ÉVÉNEMENTS
+           ======================================== -->
+      <div class="tab-pane fade" id="events" role="tabpanel">
+        <div class="row">
+          <div class="col-md-12">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-calendar"></i> {% trans "Événements du club" %}</h5>
+                <a href="{% url 'competitions:events:create_event' %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-plus"></i> {% trans "Nouvel événement" %}
+                </a>
+              </div>
+              <div class="card-body">
+                {% if upcoming_events or recent_events %}
+                  {% if upcoming_events %}
+                    <h6 class="mb-3"><i class="fas fa-calendar-check"></i> {% trans "Événements à venir" %}</h6>
+                    <div class="list-group mb-4">
+                      {% for event in upcoming_events %}
+                        <a href="{% url 'competitions:events:event_detail' event_id=event.id %}" 
+                           class="list-group-item list-group-item-action">
+                          <div class="d-flex w-100 justify-content-between">
+                            <h5 class="mb-1">{{ event.name }}</h5>
+                            <small>{{ event.date|date:"d/m/Y" }}</small>
+                          </div>
+                          {% if event.description %}
+                            <p class="mb-1">{{ event.description|truncatewords:20 }}</p>
+                          {% endif %}
+                          {% if event.location %}
+                            <small class="text-muted">
+                              <i class="fas fa-map-marker-alt"></i> {{ event.location }}
+                            </small>
+                          {% endif %}
+                        </a>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                  
+                  {% if recent_events %}
+                    <h6 class="mb-3"><i class="fas fa-history"></i> {% trans "Événements récents" %}</h6>
+                    <div class="list-group">
+                      {% for event in recent_events %}
+                        <a href="{% url 'competitions:events:event_detail' event_id=event.id %}" 
+                           class="list-group-item list-group-item-action">
+                          <div class="d-flex w-100 justify-content-between">
+                            <h5 class="mb-1">{{ event.name }}</h5>
+                            <small>{{ event.date|date:"d/m/Y" }}</small>
+                          </div>
+                          {% if event.description %}
+                            <p class="mb-1">{{ event.description|truncatewords:20 }}</p>
+                          {% endif %}
+                          {% if event.location %}
+                            <small class="text-muted">
+                              <i class="fas fa-map-marker-alt"></i> {{ event.location }}
+                            </small>
+                          {% endif %}
+                        </a>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                {% else %}
+                  <div class="text-center py-4">
+                    <i class="fas fa-calendar text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">{% trans "Aucun événement" %}</h5>
+                    <p class="text-muted">{% trans "Créez votre premier événement" %}</p>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           ONGLET 7: COMBATS
+           ======================================== -->
+      <div class="tab-pane fade" id="combats" role="tabpanel">
+        <div class="row">
+          <div class="col-md-8">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-fist-raised"></i> {% trans "Combats récents" %}</h5>
+                <a href="{% url 'competitions:combat:liste_combats' %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-list"></i> {% trans "Voir tous les combats" %}
+                </a>
+              </div>
+              <div class="card-body">
+                {% if recent_combats %}
+                  <div class="table-responsive">
+                    <table class="table table-hover modern-table">
+                      <thead>
+                        <tr>
+                          <th>{% trans "Combat" %}</th>
+                          <th>{% trans "Statut" %}</th>
+                          <th>{% trans "Score" %}</th>
+                          <th>{% trans "Date" %}</th>
+                          <th>{% trans "Actions" %}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for combat in recent_combats|slice:":10" %}
+                        <tr>
+                          <td>
+                            <strong>{{ combat }}</strong>
+                            {% if combat.competition %}
+                              <br><small class="text-muted">{{ combat.competition.title|truncatewords:5 }}</small>
+                            {% endif %}
+                          </td>
+                          <td>
+                            {% if combat.status == 'termine' %}
+                              <span class="badge bg-success">{% trans "Terminé" %}</span>
+                            {% elif combat.status == 'en_cours' %}
+                              <span class="badge bg-warning">{% trans "En cours" %}</span>
+                            {% elif combat.status == 'planifie' %}
+                              <span class="badge bg-info">{% trans "Planifié" %}</span>
+                            {% else %}
+                              <span class="badge bg-danger">{% trans "Annulé" %}</span>
+                            {% endif %}
+                          </td>
+                          <td>
+                            {% if combat.score_rouge is not None and combat.score_blanc is not None %}
+                              <span class="text-danger">{{ combat.score_rouge }}</span> - 
+                              <span class="text-primary">{{ combat.score_blanc }}</span>
+                            {% else %}
+                              <span class="text-muted">-</span>
+                            {% endif %}
+                          </td>
+                          <td>
+                            {% if combat.date_planifiee %}
+                              {{ combat.date_planifiee|date:"d/m/Y H:i" }}
+                            {% elif combat.date %}
+                              {{ combat.date|date:"d/m/Y" }}
+                            {% else %}
+                              <span class="text-muted">-</span>
+                            {% endif %}
+                          </td>
+                          <td>
+                            <div class="btn-group btn-group-sm">
+                              <a href="{% url 'competitions:combat:detail_combat' combat.id %}" class="btn btn-outline-primary" title="{% trans 'Voir' %}">
+                                <i class="fas fa-eye"></i>
+                              </a>
+                              {% if combat.status == 'planifie' %}
+                              <a href="{% url 'competitions:combat:demarrer_combat' combat.id %}" class="btn btn-outline-success" title="{% trans 'Démarrer' %}">
+                                <i class="fas fa-play"></i>
+                              </a>
+                              {% elif combat.status == 'en_cours' %}
+                              <a href="{% url 'competitions:combat:interface_combat' combat.id %}" class="btn btn-outline-warning" title="{% trans 'Interface' %}">
+                                <i class="fas fa-desktop"></i>
+                              </a>
+                              {% endif %}
+                            </div>
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="mt-3 text-center">
+                    <a href="{% url 'competitions:combat:creer_combat' %}" class="btn btn-primary btn-sm me-2">
+                      <i class="fas fa-plus"></i> {% trans "Créer un combat" %}
+                    </a>
+                    <a href="{% url 'competitions:combat:creer_equipe' %}" class="btn btn-outline-primary btn-sm">
+                      <i class="fas fa-users"></i> {% trans "Créer une équipe" %}
+                    </a>
+                  </div>
+                {% else %}
+                  <div class="text-center py-4">
+                    <i class="fas fa-fist-raised text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">{% trans "Aucun combat récent" %}</h5>
+                    <p class="text-muted">{% trans "Créez votre premier combat ou organisez des équipes" %}</p>
+                    <div class="mt-3">
+                      <a href="{% url 'competitions:combat:creer_combat' %}" class="btn btn-primary btn-sm me-2">
+                        <i class="fas fa-plus"></i> {% trans "Créer un combat" %}
+                      </a>
+                      <a href="{% url 'competitions:combat:creer_equipe' %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-users"></i> {% trans "Créer une équipe" %}
+                      </a>
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> {% trans "Statistiques combats" %}</h5>
+              </div>
+              <div class="card-body">
+                {% if combat_stats %}
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                      <span>{% trans "Combats ce mois" %}</span>
+                      <strong>{{ combat_stats.month_combats|default:0 }}</strong>
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                      <span>{% trans "Victoires" %}</span>
+                      <strong class="text-success">{{ combat_stats.victories|default:0 }}</strong>
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                      <span>{% trans "Défaites" %}</span>
+                      <strong class="text-danger">{{ combat_stats.defeats|default:0 }}</strong>
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                      <span>{% trans "Taux de victoire" %}</span>
+                      <strong>{{ combat_stats.win_rate|floatformat:0|default:0 }}%</strong>
+                    </div>
+                  </div>
+                {% else %}
+                  <p class="text-muted text-center">{% trans "Aucune statistique disponible" %}</p>
+                {% endif %}
+              </div>
+            </div>
+            
+            {% if club_teams %}
+            <div class="card mt-3">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-users"></i> {% trans "Équipes" %}</h5>
+                <a href="{% url 'competitions:combat:creer_equipe' %}" class="btn btn-outline-primary btn-sm">
+                  <i class="fas fa-plus"></i> {% trans "Créer" %}
+                </a>
+              </div>
+              <div class="card-body">
+                  <div class="list-group list-group-flush">
+                    {% for team in club_teams|slice:":5" %}
+                    <div class="list-group-item">
+                      <strong>{{ team.nom }}</strong><br>
+                      <small class="text-muted">
+                        {% if team.competition %}
+                          {{ team.competition.title|truncatewords:5 }}
+                        {% endif %}
+                        {% if team.membres %}
+                          - {{ team.membres.count }} {% trans "membres" %}
+                        {% endif %}
+                      </small>
+                    </div>
+                    {% endfor %}
+                  </div>
+                <div class="mt-3 text-center">
+                  <a href="{% url 'competitions:combat:liste_equipes' %}" class="btn btn-outline-primary btn-sm">
+                    {% trans "Voir toutes les équipes" %}
+                  </a>
+                </div>
+              </div>
+            </div>
+            {% else %}
+            <div class="card mt-3">
+              <div class="card-header">
+                <h5><i class="fas fa-users"></i> {% trans "Équipes" %}</h5>
+              </div>
+              <div class="card-body text-center">
+                <p class="text-muted">{% trans "Aucune équipe disponible" %}</p>
+                <a href="{% url 'competitions:combat:creer_equipe' %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-plus"></i> {% trans "Créer une équipe" %}
+                </a>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           ONGLET 8: DOCUMENTS
+           ======================================== -->
+      <div class="tab-pane fade" id="documents" role="tabpanel">
+        <div class="row">
+          <div class="col-md-8">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-file-alt"></i> {% trans "Documents récents" %}</h5>
+                <a href="{% url 'documents:upload' %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-upload"></i> {% trans "Uploader document" %}
+                </a>
+              </div>
+              <div class="card-body">
+                {% if recent_documents %}
+                  <div class="table-responsive">
+                    <table class="table table-hover modern-table">
+                      <thead>
+                        <tr>
+                          <th>{% trans "Nom" %}</th>
+                          <th>{% trans "Type" %}</th>
+                          <th>{% trans "Taille" %}</th>
+                          <th>{% trans "Date" %}</th>
+                          <th>{% trans "Actions" %}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for document in recent_documents|slice:":10" %}
+                        <tr>
+                          <td>
+                            <div class="d-flex align-items-center">
+                              <i class="fas fa-file-{% if 'pdf' in document.mime_type|default:'' %}pdf{% elif 'image' in document.mime_type|default:'' %}image{% elif 'word' in document.mime_type|default:'' %}word{% else %}alt{% endif %} me-2"></i>
+                              <div>
+                                <strong>{{ document.title|default:document.name }}</strong>
+                                {% if document.description %}
+                                  <br><small class="text-muted">{{ document.description|truncatewords:8 }}</small>
+                                {% endif %}
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            {% if document.document_type %}
+                              <span class="badge bg-info">{{ document.get_document_type_display|default:document.document_type }}</span>
+                            {% else %}
+                              <span class="badge bg-secondary">{% trans "Non défini" %}</span>
+                            {% endif %}
+                          </td>
+                          <td>{{ document.file_size|filesizeformat|default:"-" }}</td>
+                          <td>{{ document.created_at|date:"d/m/Y"|default:"-" }}</td>
+                          <td>
+                            <div class="btn-group btn-group-sm">
+                              <a href="{% url 'documents:detail' document.id %}" class="btn btn-outline-primary" title="{% trans 'Voir' %}">
+                                <i class="fas fa-eye"></i>
+                              </a>
+                              <a href="{% url 'documents:download' document.id %}" class="btn btn-outline-success" title="{% trans 'Télécharger' %}">
+                                <i class="fas fa-download"></i>
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="mt-3 text-center">
+                    <a href="{% url 'documents:my_documents' %}" class="btn btn-outline-primary btn-sm">
+                      {% trans "Voir tous mes documents" %} <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                  </div>
+                {% else %}
+                  <div class="text-center py-4">
+                    <i class="fas fa-file-alt text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">{% trans "Aucun document" %}</h5>
+                    <p class="text-muted">{% trans "Commencez par uploader vos premiers documents" %}</p>
+                    <a href="{% url 'documents:upload' %}" class="btn btn-primary">
+                      <i class="fas fa-upload"></i> {% trans "Uploader un document" %}
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> {% trans "Statistiques documents" %}</h5>
+              </div>
+              <div class="card-body">
+                {% if document_stats %}
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                      <span>{% trans "Mes documents" %}</span>
+                      <strong>{{ document_stats.my_documents|default:0 }}</strong>
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                      <span>{% trans "Partagés avec moi" %}</span>
+                      <strong>{{ document_stats.shared_with_me|default:0 }}</strong>
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                      <span>{% trans "Espace utilisé" %}</span>
+                      <strong>{{ document_stats.total_size|filesizeformat|default:"0 B" }}</strong>
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                      <span>{% trans "Cette semaine" %}</span>
+                      <strong>{{ document_stats.recent_uploads|default:0 }}</strong>
+                    </div>
+                  </div>
+                {% else %}
+                  <p class="text-muted text-center">{% trans "Aucune statistique disponible" %}</p>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="card mt-3">
+              <div class="card-header">
+                <h5><i class="fas fa-folder"></i> {% trans "Actions rapides" %}</h5>
+              </div>
+              <div class="card-body">
+                <div class="d-grid gap-2">
+                  <a href="{% url 'documents:upload' %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-upload"></i> {% trans "Uploader" %}
+                  </a>
+                  <a href="{% url 'documents:my_documents' %}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-file"></i> {% trans "Mes documents" %}
+                  </a>
+                  <a href="{% url 'documents:shared_with_me' %}" class="btn btn-outline-info btn-sm">
+                    <i class="fas fa-share-alt"></i> {% trans "Partagés" %}
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           ONGLET 9: BOUTIQUE
+           ======================================== -->
+      <div class="tab-pane fade" id="shop" role="tabpanel">
+        <div class="row">
+          <div class="col-md-12">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-shopping-cart"></i> {% trans "Boutique du club" %}</h5>
+              </div>
+              <div class="card-body">
+                <div class="text-center py-4">
+                  <i class="fas fa-store text-muted" style="font-size: 3rem;"></i>
+                  <h5 class="mt-3">{% trans "Gestion de la boutique" %}</h5>
+                  <p class="text-muted">{% trans "Vendez du matériel et des produits à vos membres" %}</p>
+                  <a href="{% url 'shop:dashboard:club_dashboard' %}" class="btn btn-primary">
+                    <i class="fas fa-store"></i> {% trans "Accéder à la boutique" %}
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           ONGLET 10: SITES
+           ======================================== -->
+      <div class="tab-pane fade" id="sites" role="tabpanel">
+        <div class="row">
+          <div class="col-md-8">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-globe"></i> {% trans "Gestion des sites" %}</h5>
+                <div>
+                  <a href="/org/{{ club.slug|default:club.id }}/" target="_blank" class="btn btn-success btn-sm me-2">
+                    <i class="fas fa-external-link-alt"></i> {% trans "Voir site public" %}
+                  </a>
+                  <a href="/org/{{ club.slug|default:club.id }}/admin/site/" class="btn btn-primary btn-sm">
+                    <i class="fas fa-edit"></i> {% trans "Configurer" %}
+                  </a>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <!-- Site public -->
+                  <div class="col-md-6 mb-3">
+                    <div class="card border-0 bg-light">
+                      <div class="card-body">
+                        <div class="d-flex align-items-center mb-2">
+                          <i class="fas fa-globe text-success fa-2x me-3"></i>
+                          <div>
+                            <h6 class="card-title mb-1">{% trans "Site Public" %}</h6>
+                            <small class="text-muted">{% trans "Vitrine du club" %}</small>
+                          </div>
+                        </div>
+                        <p class="small text-muted mb-2">
+                          {% trans "Site web public pour présenter votre club aux visiteurs et recruter de nouveaux membres." %}
+                        </p>
+                        <div class="d-flex justify-content-between">
+                          <a href="/org/{{ club.slug|default:club.id }}/" target="_blank" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-eye"></i> {% trans "Voir" %}
+                          </a>
+                          <a href="/org/{{ club.slug|default:club.id }}/admin/site/" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-cog"></i> {% trans "Gérer" %}
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Dashboard club -->
+                  <div class="col-md-6 mb-3">
+                    <div class="card border-0 bg-light">
+                      <div class="card-body">
+                        <div class="d-flex align-items-center mb-2">
+                          <i class="fas fa-tachometer-alt text-primary fa-2x me-3"></i>
+                          <div>
+                            <h6 class="card-title mb-1">{% trans "Dashboard Club" %}</h6>
+                            <small class="text-muted">{% trans "Gestion interne" %}</small>
+                          </div>
+                        </div>
+                        <p class="small text-muted mb-2">
+                          {% trans "Interface de gestion pour les membres et l'administration du club." %}
+                        </p>
+                        <div class="d-flex justify-content-between">
+                          <span class="badge bg-success">{% trans "Actuel" %}</span>
+                          <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-home"></i> {% trans "Dashboard" %}
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-chart-line"></i> {% trans "Statistiques" %}</h5>
+              </div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Visites totales" %}</span>
+                    <strong>{{ site_stats.total_visits|default:0 }}</strong>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "QR codes scannés" %}</span>
+                    <strong>{{ site_stats.qr_scans|default:0 }}</strong>
+                  </div>
+                </div>
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between">
+                    <span>{% trans "Inscriptions via site" %}</span>
+                    <strong>{{ site_stats.registrations_via_site|default:0 }}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           ONGLET 11: ADHÉSIONS (MEMBERSHIP)
+           ======================================== -->
+      <div class="tab-pane fade" id="membership" role="tabpanel">
+        <div class="row">
+          <div class="col-md-8">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-id-card"></i> {% trans "Gestion des adhésions" %}</h5>
+                <a href="{% url 'membership:dashboard' %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-cog"></i> {% trans "Gérer les adhésions" %}
+                </a>
+              </div>
+              <div class="card-body">
+                {% if membership_stats %}
+                  <div class="row mb-4">
+                    <div class="col-md-3">
+                      <div class="text-center">
+                        <div class="h3 text-primary">{{ membership_stats.active_memberships|default:0 }}</div>
+                        <small class="text-muted">{% trans "Adhésions actives" %}</small>
+                      </div>
+                    </div>
+                    <div class="col-md-3">
+                      <div class="text-center">
+                        <div class="h3 text-success">{{ membership_stats.renewals_this_month|default:0 }}</div>
+                        <small class="text-muted">{% trans "Renouvellements ce mois" %}</small>
+                      </div>
+                    </div>
+                    <div class="col-md-3">
+                      <div class="text-center">
+                        <div class="h3 text-warning">{{ membership_stats.expiring_soon|default:0 }}</div>
+                        <small class="text-muted">{% trans "Expirent bientôt" %}</small>
+                      </div>
+                    </div>
+                    <div class="col-md-3">
+                      <div class="text-center">
+                        <div class="h3 text-danger">{{ membership_stats.expired|default:0 }}</div>
+                        <small class="text-muted">{% trans "Expirées" %}</small>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {% if recent_subscriptions %}
+                    <h6 class="mb-3">{% trans "Adhésions récentes" %}</h6>
+                    <div class="table-responsive">
+                      <table class="table table-hover modern-table">
+                        <thead>
+                          <tr>
+                            <th>{% trans "Membre" %}</th>
+                            <th>{% trans "Type" %}</th>
+                            <th>{% trans "Date début" %}</th>
+                            <th>{% trans "Date fin" %}</th>
+                            <th>{% trans "Statut" %}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {% for subscription in recent_subscriptions|slice:":10" %}
+                          <tr>
+                            <td>{{ subscription.user.get_full_name|default:subscription.user.username }}</td>
+                            <td>{{ subscription.membership_type.name|default:"-" }}</td>
+                            <td>{{ subscription.start_date|date:"d/m/Y"|default:"-" }}</td>
+                            <td>{{ subscription.end_date|date:"d/m/Y"|default:"-" }}</td>
+                            <td>
+                              {% if subscription.is_active %}
+                                <span class="badge bg-success">{% trans "Active" %}</span>
+                              {% else %}
+                                <span class="badge bg-danger">{% trans "Expirée" %}</span>
+                              {% endif %}
+                            </td>
+                          </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+                  {% endif %}
+                  
+                  {% if membership_alerts %}
+                    <div class="alert alert-warning mt-3">
+                      <i class="fas fa-exclamation-triangle"></i>
+                      <strong>{% trans "Alertes" %}:</strong>
+                      <ul class="mb-0 mt-2">
+                        {% for alert in membership_alerts %}
+                        <li>{{ alert }}</li>
+                        {% endfor %}
+                      </ul>
+                    </div>
+                  {% endif %}
+                {% else %}
+                  <div class="text-center py-4">
+                    <i class="fas fa-id-card text-muted" style="font-size: 3rem;"></i>
+                    <h5 class="mt-3">{% trans "Module d'adhésions" %}</h5>
+                    <p class="text-muted">{% trans "Gérez les adhésions et abonnements de vos membres" %}</p>
+                    <a href="{% url 'membership:dashboard' %}" class="btn btn-primary">
+                      <i class="fas fa-cog"></i> {% trans "Accéder à la gestion" %}
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> {% trans "Informations" %}</h5>
+              </div>
+              <div class="card-body">
+                <p class="small text-muted">
+                  {% trans "Le module d'adhésions permet de gérer les abonnements et adhésions de vos membres avec suivi des dates d'expiration et renouvellements automatiques." %}
+                </p>
+                  <div class="d-grid gap-2 mt-3">
+                    <a href="{% url 'membership:dashboard' %}" class="btn btn-outline-primary btn-sm">
+                      <i class="fas fa-tachometer-alt"></i> {% trans "Dashboard adhésions" %}
+                    </a>
+                    <a href="{% url 'membership:package_list' %}" class="btn btn-outline-info btn-sm">
+                      <i class="fas fa-list"></i> {% trans "Types d'adhésions" %}
+                    </a>
+                  </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           ONGLET 12: RÔLES & PERMISSIONS
+           ======================================== -->
+      <div class="tab-pane fade" id="roles" role="tabpanel">
+        <div class="stats-grid mb-4">
+          <div class="stat-card" style="background: linear-gradient(135deg, #8e24aa 0%, #d81b60 100%);">
+            <i class="fas fa-crown stat-icon"></i>
+            <div class="stat-number" id="admin-count">{{ roles_stats.admin_count|default:0 }}</div>
+            <div class="stat-label">{% trans "Administrateurs" %}</div>
+          </div>
+          
+          <div class="stat-card" style="background: linear-gradient(135deg, #5e35b1 0%, #7b1fa2 100%);">
+            <i class="fas fa-users-cog stat-icon"></i>
+            <div class="stat-number" id="manager-count">{{ roles_stats.manager_count|default:0 }}</div>
+            <div class="stat-label">{% trans "Gestionnaires" %}</div>
+          </div>
+          
+          <div class="stat-card" style="background: linear-gradient(135deg, #1e88e5 0%, #3949ab 100%);">
+            <i class="fas fa-chalkboard-teacher stat-icon"></i>
+            <div class="stat-number" id="coach-count">{{ roles_stats.coach_count|default:0 }}</div>
+            <div class="stat-label">{% trans "Entraîneurs" %}</div>
+          </div>
+          
+          <div class="stat-card" style="background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);">
+            <i class="fas fa-users stat-icon"></i>
+            <div class="stat-number" id="member-count">{{ roles_stats.member_count|default:0 }}</div>
+            <div class="stat-label">{% trans "Membres" %}</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <h5><i class="fas fa-user-shield"></i> {% trans "Gestion des rôles" %}</h5>
+                  <a href="{% url 'competitions:club:assign_role' %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-user-plus"></i> {% trans "Assigner un rôle" %}
+                  </a>
+                </div>
+              <div class="card-body">
+                <div class="alert alert-info mb-3">
+                  <i class="fas fa-info-circle"></i>
+                  {% trans "Gérez les rôles et permissions des membres de votre club" %}
+                </div>
+                
+                <div class="d-grid gap-2">
+                  <a href="{% url 'competitions:club:manage_roles' %}" class="btn btn-outline-primary">
+                    <i class="fas fa-cog"></i> {% trans "Gérer les rôles" %}
+                  </a>
+                  <a href="{% url 'competitions:club:assign_role' %}" class="btn btn-outline-success">
+                    <i class="fas fa-user-plus"></i> {% trans "Assigner un rôle" %}
+                  </a>
+                  <a href="{% url 'competitions:club:create_role' %}" class="btn btn-outline-info">
+                    <i class="fas fa-plus"></i> {% trans "Créer un nouveau rôle" %}
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> {% trans "Rôles disponibles" %}</h5>
+              </div>
+              <div class="card-body">
+                <div class="role-info mb-3">
+                  <div class="d-flex align-items-center mb-2">
+                    <div class="role-badge owner me-2" style="width: 12px; height: 12px; border-radius: 50%; background: #8e24aa;"></div>
+                    <strong>{% trans "Propriétaire" %}</strong>
+                  </div>
+                  <small class="text-muted">{% trans "Tous les droits, peut transférer la propriété" %}</small>
+                </div>
+                
+                <div class="role-info mb-3">
+                  <div class="d-flex align-items-center mb-2">
+                    <div class="role-badge admin me-2" style="width: 12px; height: 12px; border-radius: 50%; background: #5e35b1;"></div>
+                    <strong>{% trans "Administrateur" %}</strong>
+                  </div>
+                  <small class="text-muted">{% trans "Gestion complète du club" %}</small>
+                </div>
+                
+                <div class="role-info mb-3">
+                  <div class="d-flex align-items-center mb-2">
+                    <div class="role-badge manager me-2" style="width: 12px; height: 12px; border-radius: 50%; background: #1e88e5;"></div>
+                    <strong>{% trans "Gestionnaire" %}</strong>
+                  </div>
+                  <small class="text-muted">{% trans "Gestion des membres et inscriptions" %}</small>
+                </div>
+                
+                <div class="role-info mb-3">
+                  <div class="d-flex align-items-center mb-2">
+                    <div class="role-badge coach me-2" style="width: 12px; height: 12px; border-radius: 50%; background: #43a047;"></div>
+                    <strong>{% trans "Entraîneur" %}</strong>
+                  </div>
+                  <small class="text-muted">{% trans "Gestion de l'entraînement" %}</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- ========================================
+     JAVASCRIPT - CONFIGURATION & INITIALISATION
+     ======================================== -->
+
+<!-- Configuration Django pour JavaScript -->
+<script>
+// URLs Django accessibles depuis JavaScript
+const DJANGO_URLS = {
+    practitioner_delete: "{% url 'competitions:club:practitioner_delete' practitioner_id=0 %}",
+    practitioner_toggle_status: "{% url 'competitions:club:practitioner_toggle_status' pk=0 %}",
+    import_export: "{% url 'competitions:club:import_export' %}",
+    import_export_ajax: "{% url 'competitions:club:import_export_ajax' %}",
+    available_competitions: "{% url 'competitions:club:available_competitions_api' %}",
+    bulk_registration_process: "{% url 'competitions:club:bulk_registration_process' %}",
+    competition_registration_form: "{% url 'competitions:club:competition_registration_form' competition_id=0 %}"
+};
+
+// Traductions Django accessibles depuis JavaScript
+const DJANGO_TRANS = {
+    // Statuts
+    desactiver: "{% trans 'Désactiver' %}",
+    activer: "{% trans 'Activer' %}",
+    actif: "{% trans 'Actif' %}",
+    inactif: "{% trans 'Inactif' %}",
+    
+    // Messages de confirmation
+    confirmDelete: "{% trans 'Êtes-vous sûr de vouloir supprimer ce pratiquant ?' %}",
+    
+    // Messages de succès
+    deleteSuccess: "{% trans 'Pratiquant supprimé avec succès' %}",
+    uploadSuccess: "{% trans 'Import réussi' %}",
+    registrationSuccess: "{% trans 'Inscription réussie' %}",
+    
+    // Messages d'erreur
+    deleteError: "{% trans 'Erreur lors de la suppression' %}",
+    uploadError: "{% trans 'Erreur lors de l\'import' %}",
+    statusError: "{% trans 'Erreur lors du changement de statut' %}",
+    networkError: "{% trans 'Erreur de connexion' %}",
+    
+    // Import CSV
+    invalidFormat: "{% trans 'Format non supporté. Utilisez CSV ou Excel (.csv, .xlsx, .xls)' %}",
+    fileTooLarge: "{% trans 'Le fichier est trop volumineux (max 10MB)' %}",
+    importInProgress: "{% trans 'Import en cours...' %}",
+    
+    // Inscription en masse
+    noPractitioners: "{% trans 'Aucun pratiquant disponible. Ajoutez d\'abord des membres.' %}",
+    selectPractitioners: "{% trans 'Veuillez sélectionner au moins un pratiquant' %}",
+    selectCompetition: "{% trans 'Veuillez sélectionner une compétition' %}",
+    registrationInProgress: "{% trans 'Inscription en cours...' %}"
+};
+</script>
+
+<!-- Modules JavaScript externes optimisés -->
+<script src="{% static 'js/dashboard/club_dashboard_core.js' %}"></script>
+<script src="{% static 'js/dashboard/club_dashboard_bulk.js' %}"></script>
+<script src="{% static 'js/dashboard/club_dashboard_import.js' %}"></script>
+
+<!-- Initialisation des modules -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Initialisation Dashboard Club v2.0.0');
+    
+    try {
+        // Initialiser le module principal
+        if (typeof ClubDashboard !== 'undefined') {
+            ClubDashboard.init(DJANGO_URLS, DJANGO_TRANS);
+        } else {
+            console.error('❌ Module ClubDashboard non chargé');
+        }
+        
+        // Initialiser le module d'inscription en masse
+        if (typeof BulkRegistration !== 'undefined') {
+            BulkRegistration.init(DJANGO_URLS, DJANGO_TRANS);
+        } else {
+            console.warn('⚠️ Module BulkRegistration non chargé');
+        }
+        
+        // Initialiser le module d'import CSV
+        if (typeof CSVImport !== 'undefined') {
+            CSVImport.init(DJANGO_URLS, DJANGO_TRANS);
+        } else {
+            console.warn('⚠️ Module CSVImport non chargé');
+        }
+        
+        // Calculer les âges au chargement initial
+        setTimeout(function() {
+            if (typeof ClubDashboard !== 'undefined' && ClubDashboard.calculateAges) {
+                ClubDashboard.calculateAges();
+            }
+        }, 500);
+        
+        console.log('✅ Dashboard Club v2.0.0 initialisé avec succès');
+        
+    } catch (error) {
+        console.error('❌ Erreur lors de l\'initialisation:', error);
+    }
+});
+
+// Cache buster pour forcer le rechargement en production
+// Version: 20241117-v2.0.0
+</script>
+{% endblock %}

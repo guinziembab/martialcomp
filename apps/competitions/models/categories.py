@@ -115,15 +115,70 @@ class CompetitionCategory(models.Model):
         ('closed', _('Fermé')),
         ('full', _('Complet'))
     ], default='open')
-    
+
+    # Programmation - assignation au tatami et ordre de passage
+    assigned_tatami = models.PositiveSmallIntegerField(
+        _("Tatami assigné"),
+        null=True,
+        blank=True,
+        help_text=_("Numéro du tatami/aire où cette catégorie sera jugée")
+    )
+    schedule_order = models.PositiveIntegerField(
+        _("Ordre de passage"),
+        null=True,
+        blank=True,
+        help_text=_("Ordre de passage sur le tatami assigné")
+    )
+    estimated_start_time = models.TimeField(
+        _("Heure de début estimée"),
+        null=True,
+        blank=True
+    )
+    estimated_duration = models.PositiveIntegerField(
+        _("Durée estimée (minutes)"),
+        null=True,
+        blank=True,
+        default=30
+    )
+    is_completed = models.BooleanField(
+        _("Catégorie terminée"),
+        default=False,
+        help_text=_("Indique si tous les passages de cette catégorie sont terminés")
+    )
+
+    # Mode combat: équipe ou individuel (pour les catégories de type combat)
+    COMBAT_MODE_CHOICES = [
+        ('team', _('Équipe')),
+        ('individual', _('Individuel')),
+    ]
+    combat_mode = models.CharField(
+        _("Mode combat"),
+        max_length=20,
+        choices=COMBAT_MODE_CHOICES,
+        default='team',
+        help_text=_("Mode de combat pour cette catégorie (équipe ou individuel)")
+    )
+
+    # Configuration de combat par catégorie
+    combat_duration = models.PositiveSmallIntegerField(
+        _("Durée du combat (secondes)"),
+        default=120,
+        help_text=_("Durée en secondes (ex: 120 pour 2 minutes)")
+    )
+    combat_extra_time = models.PositiveSmallIntegerField(
+        _("Extra-time (secondes)"),
+        default=0,
+        help_text=_("Temps supplémentaire en cas d'égalité (0 = pas de prolongation)")
+    )
+
     created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
     updated_at = models.DateTimeField(_("Mis Ã  jour le"), auto_now=True)
-    
+
     class Meta:
         app_label = 'competitions'
         verbose_name = _("Catégorie de compétition")
         verbose_name_plural = _("Catégories de compétition")
-        ordering = ['competition', 'name']
+        ordering = ['competition', 'assigned_tatami', 'schedule_order', 'name']
         constraints = [
             models.UniqueConstraint(
                 fields=['competition', 'name'],
@@ -159,7 +214,8 @@ class CompetitionCategory(models.Model):
     @property
     def registered_count(self):
         """Nombre de participants inscrits dans cette catégorie."""
-        return self.participants.count()
+        # La relation correcte est 'registrations' via ManyToManyField
+        return self.registrations.count()
     
     @property
     def is_full(self):

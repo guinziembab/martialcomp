@@ -39,6 +39,7 @@ urlpatterns = [
     path('tasks/<int:task_id>/move/', views.task_move, name='task_move'),
     path('tasks/<int:task_id>/status/', views.task_update_status, name='task_update_status'),
     path('tasks/<int:task_id>/priority/', views.task_update_priority, name='task_update_priority'),
+    path('tasks/<int:task_id>/assign/', views.task_assign, name='task_assign'),
     path('tasks/<int:task_id>/comment/', views.task_add_comment, name='task_add_comment'),
     path('tasks/<int:task_id>/card/', views.kanban_task_card, name='kanban_task_card'),
 ]

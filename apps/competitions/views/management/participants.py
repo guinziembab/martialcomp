@@ -5,9 +5,10 @@ from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.core.paginator import Paginator
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
 from django.urls import reverse
+import logging
 
 from apps.competitions.models import (
     Competition, CompetitionCategory, CompetitionRegistration, 
@@ -15,7 +16,6 @@ from apps.competitions.models import (
 )
 from apps.competitions.utils.decorators import competition_management_permission_required
 from apps.competitions.forms.registrations import (
-from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
     CompetitionRegistrationForm, BulkRegistrationApprovalForm,
     CategoryAssignmentForm
 )
@@ -30,11 +30,17 @@ def participants_list(request, competition_id):
     # Récupérer la compétition
     competition = get_object_or_404(Competition, pk=competition_id)
     
-    # Récupérer les inscriptions
+    # Récupérer les inscriptions - afficher toutes les inscriptions de la compétition
+    # Inclure toutes les inscriptions, qu'elles aient is_competitor=True ou False
+    # Cela permet d'afficher tous les participants inscrits
     registrations = CompetitionRegistration.objects.filter(
-        competition=competition,
-        is_competitor=True
-    ).select_related('practitioner', 'practitioner__club')
+        competition=competition
+    ).select_related('practitioner', 'practitioner__organization')
+    
+    # Debug: logger le nombre d'inscriptions trouvées
+    logger = logging.getLogger(__name__)
+    total_count = registrations.count()
+    logger.info(f"Competition {competition_id}: Found {total_count} total registrations")
     
     # Filtres
     status = request.GET.get('status')
@@ -47,7 +53,10 @@ def participants_list(request, competition_id):
         registrations = registrations.filter(status=status)
     
     if club_id:
-        registrations = registrations.filter(practitioner__club_id=club_id)
+        # Filtrer par organisation via le club
+        club = Club.objects.filter(id=club_id).first()
+        if club:
+            registrations = registrations.filter(practitioner__organization=club.organization)
     
     if category_id:
         registrations = registrations.filter(categories__id=category_id)
@@ -56,29 +65,64 @@ def participants_list(request, competition_id):
         registrations = registrations.filter(
             Q(practitioner__first_name__icontains=search_query) | 
             Q(practitioner__last_name__icontains=search_query) |
-            Q(practitioner__club__name__icontains=search_query)
+            Q(practitioner__organization__name__icontains=search_query)
         )
     
     # Récupérer les clubs et catégories pour les filtres
+    # Obtenir les organisations des pratiquants inscrits à cette compétition
+    # Utiliser toutes les inscriptions pour obtenir les organisations
+    all_registrations = CompetitionRegistration.objects.filter(competition=competition)
+    organization_ids = all_registrations.values_list('practitioner__organization_id', flat=True).distinct()
+    
+    # Obtenir les clubs associés à ces organisations
     clubs = Club.objects.filter(
-        practitioners__registrations__competition=competition,
-        practitioners__registrations__is_competitor=True
+        organization_id__in=organization_ids
     ).distinct()
     
     categories = CompetitionCategory.objects.filter(
         competition=competition
     ).order_by('name')
     
-    # Pagination
-    paginator = Paginator(registrations.order_by('practitioner__last_name'), 25)
+    # Pagination - ordre par nom et prénom
+    registrations_ordered = registrations.order_by(
+        'practitioner__last_name', 'practitioner__first_name'
+    )
+    paginator = Paginator(registrations_ordered, 25)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
+    # Statistiques pour le template - utiliser toutes les inscriptions
+    stats_registrations = CompetitionRegistration.objects.filter(competition=competition)
+    
+    stats = {
+        'total_participants': stats_registrations.count(),
+        'approved_participants': stats_registrations.filter(status='approved').count(),
+        'pending_participants': stats_registrations.filter(status='pending').count(),
+        'rejected_participants': stats_registrations.filter(status='rejected').count(),
+    }
+    
+    # Créer un mapping organisation -> club pour le template
+    org_to_club = {}
+    for club in clubs:
+        if club.organization:
+            org_to_club[club.organization.id] = club.id
+    
+    # Debug: compter les inscriptions avant et après filtres
+    debug_info = {
+        'total_before_filters': CompetitionRegistration.objects.filter(competition=competition).count(),
+        'total_after_filters': registrations.count(),
+        'page_obj_count': page_obj.object_list.count() if hasattr(page_obj, 'object_list') else 0,
+    }
+    logger.info(f"Competition {competition_id} debug: {debug_info}")
+    
     context = {
         'competition': competition,
-        'page_obj': page_obj,
+        'registrations': page_obj,  # Le template utilise 'registrations'
+        'page_obj': page_obj,  # Pour la pagination
         'clubs': clubs,
         'categories': categories,
+        'stats': stats,
+        'org_to_club': org_to_club,  # Mapping organisation -> club
         'status_filter': status,
         'club_filter': club_id,
         'category_filter': category_id,
@@ -86,6 +130,7 @@ def participants_list(request, competition_id):
         'pending_count': registrations.filter(status='pending').count(),
         'approved_count': registrations.filter(status='approved').count(),
         'rejected_count': registrations.filter(status='rejected').count(),
+        'debug_info': debug_info,  # Pour le débogage
     }
     
     return render(request, 'competitions/management/participants.html', context)
@@ -102,16 +147,60 @@ def participant_detail(request, competition_id, registration_id):
     registration = get_object_or_404(
         CompetitionRegistration, 
         pk=registration_id, 
-        competition=competition,
-        is_competitor=True
+        competition=competition
+        # Supprimé is_competitor=True pour permettre l'accès à toutes les inscriptions
     )
     
     if request.method == 'POST':
+        # Vérifier si c'est une demande de suppression de catégorie
+        if 'remove_category' in request.POST:
+            category_id = request.POST.get('remove_category')
+            try:
+                category = CompetitionCategory.objects.get(id=category_id, competition=competition)
+                registration.categories.remove(category)
+                messages.success(request, _("La catégorie {} a été retirée avec succès.").format(category.name))
+            except CompetitionCategory.DoesNotExist:
+                messages.error(request, _("Catégorie non trouvée."))
+            return redirect('competitions:management:participant_detail', 
+                          competition_id=competition_id, 
+                          registration_id=registration_id)
+        
+        # Vérifier si c'est une demande d'ajout de catégorie
+        if 'add_category' in request.POST:
+            category_id = request.POST.get('add_category')
+            try:
+                category = CompetitionCategory.objects.get(id=category_id, competition=competition)
+                registration.categories.add(category)
+                messages.success(request, _("La catégorie {} a été ajoutée avec succès.").format(category.name))
+            except CompetitionCategory.DoesNotExist:
+                messages.error(request, _("Catégorie non trouvée."))
+            return redirect('competitions:management:participant_detail', 
+                          competition_id=competition_id, 
+                          registration_id=registration_id)
+        
+        # Vérifier si c'est une mise à jour des catégories via le formulaire select multiple
+        if 'categories' in request.POST:
+            category_ids = request.POST.getlist('categories')
+            try:
+                category_ids = [int(cid) for cid in category_ids]
+                categories = CompetitionCategory.objects.filter(
+                    id__in=category_ids,
+                    competition=competition
+                )
+                registration.categories.set(categories)
+                messages.success(request, _("Les catégories ont été mises à jour avec succès."))
+            except (ValueError, TypeError):
+                messages.error(request, _("Catégories invalides."))
+            return redirect('competitions:management:participant_detail', 
+                          competition_id=competition_id, 
+                          registration_id=registration_id)
+        
+        # Sinon, traiter le formulaire d'inscription standard
         form = CompetitionRegistrationForm(request.POST, instance=registration)
         if form.is_valid():
             form.save()
-            messages.success(request, _("L'inscription a été mise Ã  jour avec succès."))
-            return redirect('competitions:management:participants_list', competition_id=competition_id)
+            messages.success(request, _("L'inscription a été mise à jour avec succès."))
+            return redirect('competitions:management:participants', competition_id=competition_id)
     else:
         form = CompetitionRegistrationForm(instance=registration)
     
@@ -172,7 +261,7 @@ def update_registration_status(request, competition_id, registration_id):
     
     # Rediriger vers la liste ou le détail selon le paramètre
     if request.POST.get('redirect_to_list'):
-        return redirect('competitions:management:participants_list', competition_id=competition_id)
+        return redirect('competitions:management:participants', competition_id=competition_id)
     
     return redirect('competitions:management:participant_detail', 
                    competition_id=competition_id, 
@@ -189,27 +278,55 @@ def bulk_approval(request, competition_id):
     competition = get_object_or_404(Competition, pk=competition_id)
     
     if request.method == 'POST':
-        form = BulkRegistrationApprovalForm(request.POST, competition=competition)
+        # Vérifier si c'est une demande de suppression de catégorie
+        if 'remove_category' in request.POST:
+            category_id = request.POST.get('remove_category')
+            try:
+                category = CompetitionCategory.objects.get(id=category_id, competition=competition)
+                registration.categories.remove(category)
+                messages.success(request, _("La catégorie {} a été retirée avec succès.").format(category.name))
+            except CompetitionCategory.DoesNotExist:
+                messages.error(request, _("Catégorie non trouvée."))
+            return redirect('competitions:management:participant_detail', 
+                          competition_id=competition_id, 
+                          registration_id=registration_id)
+        
+        # Vérifier si c'est une demande d'ajout de catégorie
+        if 'add_category' in request.POST:
+            category_id = request.POST.get('add_category')
+            try:
+                category = CompetitionCategory.objects.get(id=category_id, competition=competition)
+                registration.categories.add(category)
+                messages.success(request, _("La catégorie {} a été ajoutée avec succès.").format(category.name))
+            except CompetitionCategory.DoesNotExist:
+                messages.error(request, _("Catégorie non trouvée."))
+            return redirect('competitions:management:participant_detail', 
+                          competition_id=competition_id, 
+                          registration_id=registration_id)
+        
+        # Vérifier si c'est une mise à jour des catégories via le formulaire select multiple
+        if 'categories' in request.POST:
+            category_ids = request.POST.getlist('categories')
+            try:
+                category_ids = [int(cid) for cid in category_ids]
+                categories = CompetitionCategory.objects.filter(
+                    id__in=category_ids,
+                    competition=competition
+                )
+                registration.categories.set(categories)
+                messages.success(request, _("Les catégories ont été mises à jour avec succès."))
+            except (ValueError, TypeError):
+                messages.error(request, _("Catégories invalides."))
+            return redirect('competitions:management:participant_detail', 
+                          competition_id=competition_id, 
+                          registration_id=registration_id)
+        
+        # Sinon, traiter le formulaire d'inscription standard
+        form = CompetitionRegistrationForm(request.POST, instance=registration)
         if form.is_valid():
-            action = form.cleaned_data['action']
-            selected_registrations = form.cleaned_data['registrations']
-            note = form.cleaned_data['note']
-            
-            # Mettre Ã  jour le statut des inscriptions sélectionnées
-            for registration in selected_registrations:
-                registration.status = action
-                if note:
-                    if registration.notes:
-                        registration.notes += f"\n{note}"
-                    else:
-                        registration.notes = note
-                registration.save()
-            
-            count = len(selected_registrations)
-            action_display = _("approuvées") if action == 'approved' else _("rejetées")
-            messages.success(request, _("{} inscriptions ont été {}.").format(count, action_display))
-            
-            return redirect('competitions:management:participants_list', competition_id=competition_id)
+            form.save()
+            messages.success(request, _("L'inscription a été mise à jour avec succès."))
+            return redirect('competitions:management:participants', competition_id=competition_id)
     else:
         # Pré-sélectionner les inscriptions en attente
         initial_registrations = CompetitionRegistration.objects.filter(
@@ -239,20 +356,55 @@ def category_assignment(request, competition_id):
     competition = get_object_or_404(Competition, pk=competition_id)
     
     if request.method == 'POST':
-        form = CategoryAssignmentForm(request.POST, competition=competition)
-        if form.is_valid():
-            category = form.cleaned_data['category']
-            registrations = form.cleaned_data['registrations']
-            
-            # Ajouter les participants Ã  la catégorie
-            for registration in registrations:
+        # Vérifier si c'est une demande de suppression de catégorie
+        if 'remove_category' in request.POST:
+            category_id = request.POST.get('remove_category')
+            try:
+                category = CompetitionCategory.objects.get(id=category_id, competition=competition)
+                registration.categories.remove(category)
+                messages.success(request, _("La catégorie {} a été retirée avec succès.").format(category.name))
+            except CompetitionCategory.DoesNotExist:
+                messages.error(request, _("Catégorie non trouvée."))
+            return redirect('competitions:management:participant_detail', 
+                          competition_id=competition_id, 
+                          registration_id=registration_id)
+        
+        # Vérifier si c'est une demande d'ajout de catégorie
+        if 'add_category' in request.POST:
+            category_id = request.POST.get('add_category')
+            try:
+                category = CompetitionCategory.objects.get(id=category_id, competition=competition)
                 registration.categories.add(category)
-            
-            count = len(registrations)
-            messages.success(request, _("{} participants ont été assignés Ã  la catégorie {}.").format(
-                count, category.name))
-            
-            return redirect('competitions:management:participants_list', competition_id=competition_id)
+                messages.success(request, _("La catégorie {} a été ajoutée avec succès.").format(category.name))
+            except CompetitionCategory.DoesNotExist:
+                messages.error(request, _("Catégorie non trouvée."))
+            return redirect('competitions:management:participant_detail', 
+                          competition_id=competition_id, 
+                          registration_id=registration_id)
+        
+        # Vérifier si c'est une mise à jour des catégories via le formulaire select multiple
+        if 'categories' in request.POST:
+            category_ids = request.POST.getlist('categories')
+            try:
+                category_ids = [int(cid) for cid in category_ids]
+                categories = CompetitionCategory.objects.filter(
+                    id__in=category_ids,
+                    competition=competition
+                )
+                registration.categories.set(categories)
+                messages.success(request, _("Les catégories ont été mises à jour avec succès."))
+            except (ValueError, TypeError):
+                messages.error(request, _("Catégories invalides."))
+            return redirect('competitions:management:participant_detail', 
+                          competition_id=competition_id, 
+                          registration_id=registration_id)
+        
+        # Sinon, traiter le formulaire d'inscription standard
+        form = CompetitionRegistrationForm(request.POST, instance=registration)
+        if form.is_valid():
+            form.save()
+            messages.success(request, _("L'inscription a été mise à jour avec succès."))
+            return redirect('competitions:management:participants', competition_id=competition_id)
     else:
         # Formulaire initial
         form = CategoryAssignmentForm(competition=competition)
@@ -283,7 +435,7 @@ def participant_search(request, competition_id):
         is_competitor=True,
         status='approved',
         practitioner__isnull=False
-    ).select_related('practitioner', 'practitioner__club').filter(
+    ).select_related('practitioner', 'practitioner__organization').filter(
         Q(practitioner__first_name__icontains=search_query) | 
         Q(practitioner__last_name__icontains=search_query)
     )[:10]
@@ -294,8 +446,8 @@ def participant_search(request, competition_id):
         results.append({
             'id': registration.id,
             'name': f"{p.first_name} {p.last_name}",
-            'club': p.club.name if p.club else "",
-            'club_id': p.club.id if p.club else None,
+            'club': p.organization.name if p.organization else "",
+            'club_id': None,  # Pas d'ID direct, utiliser organisation
             'detail_url': reverse('competitions:management:participant_detail', 
                                  kwargs={'competition_id': competition_id, 
                                          'registration_id': registration.id})
@@ -318,7 +470,7 @@ def club_participants(request, competition_id, club_id):
     registrations = CompetitionRegistration.objects.filter(
         competition=competition,
         is_competitor=True,
-        practitioner__club=club
+        practitioner__organization=club.organization
     ).select_related('practitioner')
     
     context = {
@@ -349,14 +501,17 @@ def export_participants(request, competition_id):
     registrations = CompetitionRegistration.objects.filter(
         competition=competition,
         is_competitor=True
-    ).select_related('practitioner', 'practitioner__club')
+    ).select_related('practitioner', 'practitioner__organization')
     
     # Appliquer les filtres
     if status:
         registrations = registrations.filter(status=status)
     
     if club_id:
-        registrations = registrations.filter(practitioner__club_id=club_id)
+        # Filtrer par organisation via le club
+        club = Club.objects.filter(id=club_id).first()
+        if club:
+            registrations = registrations.filter(practitioner__organization=club.organization)
     
     if category_id:
         registrations = registrations.filter(categories__id=category_id)
@@ -379,7 +534,7 @@ def export_participants(request, competition_id):
         writer.writerow([
             p.last_name,
             p.first_name,
-            p.club.name if p.club else "",
+            p.organization.name if p.organization else "",
             p.grade,
             categories,
             reg.get_status_display(),
@@ -387,4 +542,158 @@ def export_participants(request, competition_id):
         ])
     
     return response
+
+
+@login_required
+@competition_management_permission_required
+@require_POST
+def approve_participant(request, competition_id, registration_id):
+    """
+    Approuve une inscription de participant.
+    """
+    competition = get_object_or_404(Competition, pk=competition_id)
+    registration = get_object_or_404(
+        CompetitionRegistration,
+        pk=registration_id,
+        competition=competition
+    )
+    
+    registration.status = 'approved'
+    registration.save()
+    
+    messages.success(request, _("L'inscription a été approuvée avec succès."))
+    return redirect('competitions:management:participants', competition_id=competition_id)
+
+
+@login_required
+@competition_management_permission_required
+@require_POST
+def reject_participant(request, competition_id, registration_id):
+    """
+    Rejette une inscription de participant.
+    """
+    competition = get_object_or_404(Competition, pk=competition_id)
+    registration = get_object_or_404(
+        CompetitionRegistration,
+        pk=registration_id,
+        competition=competition
+    )
+    
+    reject_reason = request.POST.get('reject_reason', '')
+    registration.status = 'rejected'
+    
+    if reject_reason:
+        if registration.notes:
+            registration.notes += f"\nRejet: {reject_reason}"
+        else:
+            registration.notes = f"Rejet: {reject_reason}"
+    
+    registration.save()
+    
+    messages.success(request, _("L'inscription a été rejetée."))
+    return redirect('competitions:management:participants', competition_id=competition_id)
+
+
+@login_required
+@competition_management_permission_required
+@require_POST
+def delete_participant(request, competition_id, registration_id):
+    """
+    Supprime une inscription de participant.
+    """
+    competition = get_object_or_404(Competition, pk=competition_id)
+    registration = get_object_or_404(
+        CompetitionRegistration,
+        pk=registration_id,
+        competition=competition
+    )
+    
+    practitioner_name = registration.practitioner.full_name
+    registration.delete()
+    
+    messages.success(request, _("L'inscription de {} a été supprimée.").format(practitioner_name))
+    return redirect('competitions:management:participants', competition_id=competition_id)
+
+
+@login_required
+@competition_management_permission_required
+def assign_categories(request, competition_id, registration_id):
+    """
+    Attribue des catégories à un participant.
+    Accepte GET et POST. En GET, redirige vers la liste des participants.
+    """
+    competition = get_object_or_404(Competition, pk=competition_id)
+    registration = get_object_or_404(
+        CompetitionRegistration,
+        pk=registration_id,
+        competition=competition
+        # Supprimé is_competitor=True pour permettre l'assignation à toutes les inscriptions
+    )
+    
+    # Si GET, afficher une page avec le formulaire pour assigner les catégories
+    if request.method != 'POST':
+        # Récupérer toutes les catégories de la compétition
+        all_categories = CompetitionCategory.objects.filter(
+            competition=competition
+        ).order_by('name')
+        
+        # Récupérer les catégories déjà assignées
+        assigned_categories = registration.categories.all()
+        
+        context = {
+            'competition': competition,
+            'registration': registration,
+            'categories': all_categories,
+            'assigned_categories': assigned_categories,
+        }
+        
+        return render(request, 'competitions/management/assign_categories.html', context)
+    
+    # Récupérer les catégories sélectionnées
+    category_ids = request.POST.getlist('categories[]')
+    
+    # Convertir en entiers
+    try:
+        category_ids = [int(cid) for cid in category_ids]
+    except (ValueError, TypeError):
+        messages.error(request, _("Catégories invalides."))
+        return redirect('competitions:management:participants', competition_id=competition_id)
+    
+    # Vérifier que les catégories appartiennent à la compétition
+    categories = CompetitionCategory.objects.filter(
+        id__in=category_ids,
+        competition=competition
+    )
+    
+    # Mettre à jour les catégories du participant
+    registration.categories.set(categories)
+    
+    messages.success(request, _("Les catégories ont été mises à jour avec succès."))
+    return redirect('competitions:management:participants', competition_id=competition_id)
+
+
+@login_required
+@require_POST
+def bulk_action_participants(request, competition_id):
+    """Approuver ou rejeter plusieurs inscriptions en une fois."""
+    competition = get_object_or_404(Competition, pk=competition_id)
+    action = request.POST.get('action')
+    ids = request.POST.getlist('registration_ids')
+
+    if not ids:
+        return JsonResponse({'success': False, 'error': 'Aucune inscription sélectionnée'})
+
+    registrations = CompetitionRegistration.objects.filter(
+        pk__in=ids,
+        competition=competition
+    )
+
+    if action == 'approve':
+        count = registrations.update(status='approved')
+        return JsonResponse({'success': True, 'message': f'{count} inscription(s) approuvée(s)'})
+    elif action == 'reject':
+        count = registrations.update(status='rejected')
+        return JsonResponse({'success': True, 'message': f'{count} inscription(s) rejetée(s)'})
+    else:
+        return JsonResponse({'success': False, 'error': 'Action inconnue'})
 

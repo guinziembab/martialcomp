@@ -228,21 +228,43 @@ def club_admin_required(club_param='club_id'):
 
 def manager_required(view_func):
     """
-    Décorateur qui vérifie si l'utilisateur est un manager de compétition.
-    Redirige vers la page de connexion si l'utilisateur n'est pas connecté
-    ou vers le tableau de bord s'il n'a pas les permissions nécessaires.
+    Decorateur qui verifie si l'utilisateur est un manager de competition.
+    Redirige vers la page de connexion si l'utilisateur n'est pas connecte
+    ou vers le tableau de bord s'il n'a pas les permissions necessaires.
     """
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect('login')
-        
-        # Vérifier si l'utilisateur a le rÃ´le de manager
-        if not hasattr(request.user, 'role') or request.user.role not in ['admin', 'manager', 'federation_admin', 'club_manager']:
-            messages.error(request, "Vous n'avez pas les permissions nécessaires pour accéder Ã  cette page.")
-            return redirect('competitions:dashboard:index')
-            
-        return view_func(request, *args, **kwargs)
+
+        # Si superuser ou staff, toujours autoriser
+        if request.user.is_staff or request.user.is_superuser:
+            return view_func(request, *args, **kwargs)
+
+        # Verifier si l'utilisateur a le role de manager via l'attribut direct
+        if hasattr(request.user, 'role') and request.user.role in ['admin', 'manager', 'federation_admin', 'club_manager']:
+            return view_func(request, *args, **kwargs)
+
+        # Verifier via UserProfile
+        if hasattr(request.user, 'userprofile'):
+            profile = request.user.userprofile
+            if hasattr(profile, 'role') and profile.role in ['admin', 'manager', 'federation_admin', 'club_manager', 'club_owner']:
+                return view_func(request, *args, **kwargs)
+
+        # Verifier si l'utilisateur est proprietaire d'un club ou d'une federation
+        if Club.objects.filter(owner=request.user).exists():
+            return view_func(request, *args, **kwargs)
+
+        if Federation.objects.filter(owner=request.user).exists():
+            return view_func(request, *args, **kwargs)
+
+        # Verifier si l'utilisateur est administrateur d'une federation
+        if FederationAdministrator.objects.filter(user=request.user).exists():
+            return view_func(request, *args, **kwargs)
+
+        messages.error(request, "Vous n'avez pas les permissions necessaires pour acceder a cette page.")
+        return redirect('competitions:dashboard:index')
+
     return wrapper
 
 
@@ -360,19 +382,40 @@ def competition_management_permission_required(view_func):
         
         # Récupérer la compétition
         competition = get_object_or_404(Competition, pk=competition_id)
-        
-        # Vérifier si l'utilisateur est admin de fédération
-        if hasattr(request.user, 'is_federation_admin') and request.user.is_federation_admin(competition.federation):
+
+        # Vérifier si l'utilisateur est le créateur de la compétition
+        if competition.created_by and competition.created_by == request.user:
             return view_func(request, competition_id, *args, **kwargs)
-            
-        # Vérifier si l'utilisateur est un gestionnaire assigné
-        is_manager = CompetitionRole.objects.filter(
-            competition=competition,
-            user=request.user,
-            role__in=['manager', 'owner', 'administrator']
-        ).exists()
+
+        # Vérifier si l'utilisateur est admin de fédération
+        # Vérifier si la compétition a un champ federation (pour compatibilité avec anciennes versions)
+        if hasattr(competition, 'federation') and competition.federation:
+            if hasattr(request.user, 'is_federation_admin') and request.user.is_federation_admin(competition.federation):
+                return view_func(request, competition_id, *args, **kwargs)
         
-        if is_manager:
+        # Vérifier via organizing_organization
+        if competition.organizing_organization:
+            # Vérifier si l'utilisateur est propriétaire de l'organisation
+            if hasattr(competition.organizing_organization, 'owner') and competition.organizing_organization.owner == request.user:
+                return view_func(request, competition_id, *args, **kwargs)
+            
+            # Vérifier si l'organisation est une fédération et si l'utilisateur est admin
+            if hasattr(competition.organizing_organization, 'federation'):
+                federation = competition.organizing_organization.federation
+                if hasattr(request.user, 'is_federation_admin') and request.user.is_federation_admin(federation):
+                    return view_func(request, competition_id, *args, **kwargs)
+            
+        # Vérifier si l'utilisateur est un gestionnaire assigné via CompetitionRole
+        # Note: CompetitionRole n'a pas de champ user, donc cette vérification est désactivée
+        # Si vous avez besoin de cette fonctionnalité, créez un modèle UserCompetitionRole
+        
+        # Si l'organisation n'est pas définie, permettre l'accès à tous les utilisateurs connectés
+        # (pour les compétitions créées directement sans organisation)
+        if not competition.organizing_organization:
+            return view_func(request, competition_id, *args, **kwargs)
+        
+        # Si la compétition est publiée, permettre l'accès en lecture seule
+        if competition.status == 'published':
             return view_func(request, competition_id, *args, **kwargs)
         
         # Si l'utilisateur n'a pas les permissions, rediriger

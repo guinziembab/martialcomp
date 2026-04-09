@@ -20,6 +20,45 @@ def dashboard(request):
         profile = UserProfile.objects.get(user=request.user)
         logger.debug(f"User {request.user.username} has role: {profile.role}")
         
+        # Vérifier d'abord si l'utilisateur a un mode dashboard en session
+        dashboard_mode = request.session.get('dashboard_mode')
+        
+        # Si l'utilisateur est pratiquant, vérifier s'il a un profil juge
+        if profile.role == 'participant':
+            from ...models import Practitioner, Judge
+            judge_profile = None
+            
+            # Vérifier d'abord s'il y a un profil Judge directement lié à l'utilisateur
+            try:
+                judge_profile = Judge.objects.get(user=request.user)
+                logger.info(f"User {request.user.username} has direct judge profile")
+            except Judge.DoesNotExist:
+                # Sinon, vérifier via le profil pratiquant
+                try:
+                    practitioner = Practitioner.objects.get(user=request.user)
+                    judge_profile = Judge.objects.get(practitioner=practitioner)
+                    logger.info(f"User {request.user.username} has judge profile via practitioner")
+                except (Practitioner.DoesNotExist, Judge.DoesNotExist):
+                    pass
+            
+            if judge_profile:
+                # Si un mode dashboard est défini en session, l'utiliser
+                if dashboard_mode == 'judge':
+                    return redirect('competitions:dashboard:referee')
+                elif dashboard_mode == 'participant':
+                    return redirect('competitions:dashboard:participant')
+                
+                # Sinon, si l'utilisateur a un profil juge mais pas de mode en session,
+                # le rediriger vers le dashboard juge par défaut
+                request.session['dashboard_mode'] = 'judge'
+                logger.info(f"User {request.user.username} has judge profile, redirecting to referee dashboard")
+                return redirect('competitions:dashboard:referee')
+            else:
+                # Pas de profil juge, continuer comme pratiquant normal
+                if dashboard_mode == 'judge':
+                    # Réinitialiser le mode si le profil n'existe pas
+                    request.session['dashboard_mode'] = 'participant'
+        
         # Redirigez en fonction du rôle
         if profile.role == 'admin' and request.user.is_staff:
             return redirect('competitions:dashboard:admin')

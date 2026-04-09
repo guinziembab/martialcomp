@@ -187,8 +187,8 @@ class AccountingCategoryDeleteView(LoginRequiredMixin, DeleteView):
             messages.error(request, _('Impossible de supprimer une catégorie qui contient des sous-catégories.'))
             return redirect('finances:accounts:accounting_category_list')
             
-        # Vérifier si la catégorie est utilisée
-        if category.transactions.exists():
+        # Vérifier si la catégorie est utilisée (via InvoiceItem ou MembershipFee)
+        if category.invoiceitem_set.exists() or category.membershipfee_set.exists():
             messages.error(request, _(
                 'Impossible de supprimer une catégorie utilisée dans des transactions. '
                 'Vous pouvez la désactiver Ã  la place.'
@@ -206,7 +206,7 @@ class AccountingCategoryDeleteView(LoginRequiredMixin, DeleteView):
         # Vérifier si la catégorie peut Ãªtre supprimée
         category = self.get_object()
         context['has_children'] = category.children.exists()
-        context['is_used'] = category.transactions.exists()
+        context['is_used'] = category.invoiceitem_set.exists() or category.membershipfee_set.exists()
         
         return context
 
@@ -219,7 +219,7 @@ def accounting_category_parent_options(request):
         return JsonResponse({'error': 'forbidden'}, status=403)
 
     category_type = request.GET.get('type')
-    queryset = get_organization_queryset(AccountingCategory, self.request.user)
+    queryset = get_organization_queryset(AccountingCategory, request.user)
 
     if category_type in ('income', 'expense'):
         queryset = queryset.filter(type=category_type)
@@ -316,10 +316,11 @@ class FinancialAccountDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['permissions'] = get_financial_permissions(self.request.user)
-        
+
         # Récupérer les transactions récentes pour ce compte
-        context['recent_transactions'] = self.object.transactions.all().order_by('-date')[:10]
-        
+        # Le related_name par défaut est 'transaction_set' (pas 'transactions')
+        context['recent_transactions'] = self.object.transaction_set.all().order_by('-date')[:10]
+
         return context
 
 
@@ -405,7 +406,7 @@ class FinancialAccountDeleteView(LoginRequiredMixin, DeleteView):
         account = self.get_object()
         
         # Vérifier si le compte a des transactions
-        if account.transactions.exists():
+        if account.transaction_set.exists():
             messages.error(request, _(
                 'Impossible de supprimer un compte qui contient des transactions. '
                 'Vous pouvez le désactiver Ã  la place.'
@@ -422,7 +423,7 @@ class FinancialAccountDeleteView(LoginRequiredMixin, DeleteView):
         
         # Vérifier si le compte peut Ãªtre supprimé
         account = self.get_object()
-        context['has_transactions'] = account.transactions.exists()
+        context['has_transactions'] = account.transaction_set.exists()
         
         return context
 

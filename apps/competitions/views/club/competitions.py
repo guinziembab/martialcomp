@@ -12,6 +12,12 @@ from ...models import Club, Competition, CompetitionRegistration
 from ...utils.decorators import club_required
 from apps.competitions.utils.permission_helpers import manual_permission_check
 from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
+from apps.competitions.utils.organization_discipline_filtering import (
+    filter_competitions_by_org_disciplines,
+    filter_practitioners_by_org_disciplines,
+    filter_judges_by_org_disciplines,
+    get_organization_disciplines
+)
 
 
 @login_required
@@ -21,7 +27,7 @@ def club_competitions(request):
     Affiche les compétitions auxquelles le club est inscrit ou qu'il organise.
     Cette vue centralise toutes les compétitions liées au club.
     """
-    club = request.club
+    club = getattr(request, 'club', None)
     if not club:
         club = Club.objects.filter(owner=request.user).first()
         
@@ -40,15 +46,20 @@ def club_competitions(request):
         upcoming_competitions = Competition.objects.none()
         past_competitions = Competition.objects.none()
     else:
-        # Compétitions futures (à venir)
-        upcoming_competitions = Competition.objects.filter(
-            Q(registrations__practitioner__organization=club_organization) | Q(organizing_organization=club_organization),
+        # Compétitions futures (à venir) - Filtrer par disciplines de l'organisation
+        base_competitions = filter_competitions_by_org_disciplines(club_organization)
+        # Ajouter aussi les compétitions où des pratiquants de l'organisation sont inscrits
+        practitioners_qs = filter_practitioners_by_org_disciplines(club_organization)
+        practitioner_competitions = Competition.objects.filter(
+            registrations__practitioner__in=practitioners_qs
+        ).distinct()
+        
+        upcoming_competitions = (base_competitions | practitioner_competitions).filter(
             end_date__gte=now
         ).distinct().order_by('start_date')
         
         # Compétitions passées
-        past_competitions = Competition.objects.filter(
-            Q(registrations__practitioner__organization=club_organization) | Q(organizing_organization=club_organization),
+        past_competitions = (base_competitions | practitioner_competitions).filter(
             end_date__lt=now
         ).distinct().order_by('-start_date')
     
@@ -58,9 +69,11 @@ def club_competitions(request):
         if not club_organization:
             participants_count = 0
         else:
+            # Filtrer les participants par disciplines de l'organisation
+            practitioners_qs = filter_practitioners_by_org_disciplines(club_organization)
             participants_count = CompetitionRegistration.objects.filter(
                 competition=comp,
-                practitioner__organization=club_organization,
+                practitioner__in=practitioners_qs,
                 is_competitor=True
             ).count()
         
@@ -86,7 +99,8 @@ def club_competition_detail(request, competition_id):
     Affiche les détails d'une compétition spécifique pour le club,
     y compris les pratiquants inscrits et leurs catégories.
     """
-    club = request.club
+    # Obtenir le club de l'utilisateur
+    club = getattr(request, 'club', None)
     if not club:
         club = Club.objects.filter(owner=request.user).first()
         
@@ -104,10 +118,11 @@ def club_competition_detail(request, competition_id):
         messages.warning(request, _("Aucune organisation associée trouvée pour ce club."))
         registrations = CompetitionRegistration.objects.none()
     else:
-        # Récupérer les inscriptions des membres du club
+        # Récupérer les inscriptions des membres du club (filtrées par disciplines)
+        practitioners_qs = filter_practitioners_by_org_disciplines(club_organization)
         registrations = CompetitionRegistration.objects.filter(
             competition=competition,
-            practitioner__organization=club_organization
+            practitioner__in=practitioners_qs
         ).select_related('practitioner')
     
     context = {
@@ -129,7 +144,7 @@ def competition_management_dashboard(request):
     - Vue des catégories
     - Drag & drop pour déplacer pratiquants entre catégories
     """
-    club = request.club
+    club = getattr(request, 'club', None)
     if not club:
         club = Club.objects.filter(owner=request.user).first()
         
@@ -161,19 +176,17 @@ def competition_management_dashboard(request):
         status='open'
     ).order_by('start_date')
     
-    # Récupérer les pratiquants du club
+    # Récupérer les pratiquants du club (filtrés par disciplines)
     from ...models import Practitioner
-    practitioners = Practitioner.objects.filter(
-        organization=club_organization,
+    practitioners = filter_practitioners_by_org_disciplines(club_organization).filter(
         is_active=True
     ).select_related('user')
     
-    # Récupérer les juges disponibles
+    # Récupérer les juges disponibles (filtrés par disciplines)
     judges = []
     try:
         from ...models import Judge
-        judges = Judge.objects.filter(
-            practitioner__organization=club_organization,
+        judges = filter_judges_by_org_disciplines(club_organization).filter(
             is_active=True
         ).select_related('practitioner')
     except ImportError:
@@ -186,10 +199,11 @@ def competition_management_dashboard(request):
         # Catégories de la compétition
         categories = competition.categories.all().prefetch_related('registrations__practitioner')
         
-        # Inscriptions existantes des pratiquants du club
+        # Inscriptions existantes des pratiquants du club (filtrées par disciplines)
+        practitioners_qs = filter_practitioners_by_org_disciplines(club_organization)
         registrations = CompetitionRegistration.objects.filter(
             competition=competition,
-            practitioner__organization=club_organization
+            practitioner__in=practitioners_qs
         ).select_related('practitioner', 'category')
         
         # Organiser les inscriptions par catégorie
@@ -250,7 +264,7 @@ def api_move_practitioner_category(request):
         competition = get_object_or_404(Competition, id=competition_id)
         
         # Vérifier les permissions
-        club = request.club or Club.objects.filter(owner=request.user).first()
+        club = getattr(request, 'club', None) or Club.objects.filter(owner=request.user).first()
         if not club or not (club.organization == practitioner.organization):
             return JsonResponse({'success': False, 'message': 'Permissions insuffisantes'})
         
@@ -321,7 +335,7 @@ def api_remove_registration(request):
             return JsonResponse({'success': False, 'message': 'ID inscription manquant'})
         
         # Vérifier les permissions
-        club = request.club or Club.objects.filter(owner=request.user).first()
+        club = getattr(request, 'club', None) or Club.objects.filter(owner=request.user).first()
         
         registration = get_object_or_404(CompetitionRegistration, id=registration_id)
         

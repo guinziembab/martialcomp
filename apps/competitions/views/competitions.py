@@ -6,7 +6,8 @@ from django.utils.translation import gettext_lazy as _
 from django.core.paginator import Paginator
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_GET
-from django.db import transaction
+from django.db import models, transaction
+from django.db.models import Q
 import csv
 from datetime import datetime
 from ..models import Federation
@@ -262,7 +263,7 @@ def competition_list(request):
     
     # Si c'est un admin système (is_staff)
     if hasattr(request.user, 'is_staff') and request.user.is_staff:
-        competitions = get_organization_queryset(Competition, self.request.user).order_by('-start_date')
+        competitions = get_organization_queryset(Competition, request.user).order_by('-start_date')
         context['is_admin'] = True
     # Si c'est un admin fédération
     elif hasattr(request, 'federation') and request.federation:
@@ -298,24 +299,48 @@ def competition_create(request, federation_id=None):
     Vue unifiée pour la création d'une compétition.
     Accessible par les profils : fédération, club, manager.
     """
-    # Déterminer les permissions et le contexte selon le rÃ´le
+    # Déterminer les permissions et le contexte selon le rôle
+    # Le rôle peut être sur l'utilisateur ou dans son profil
     role = getattr(request.user, 'role', None)
-    
-    # Vérifier les permissions selon le rÃ´le
-    if role not in ['federation_admin', 'club_manager', 'admin', 'external_organizer']:
-        messages.error(request, _("Vous n'avez pas les droits nécessaires pour créer une compétition."))
-        return redirect('competitions:competitions:list')
-    
-    # Récupérer le club, la fédération ou l'organisation externe associés Ã  l'utilisateur
+    if not role and hasattr(request.user, 'userprofile'):
+        role = getattr(request.user.userprofile, 'role', None)
+    if not role and hasattr(request.user, 'profile'):
+        role = getattr(request.user.profile, 'role', None)
+
+    # Récupérer le club, la fédération ou l'organisation externe associés à l'utilisateur
     club = None
     federation = None
     organization = None
-    
+
+    # Si un federation_id est fourni, vérifier les permissions pour cette fédération
     if federation_id:
         federation = get_object_or_404(Federation, id=federation_id)
-        if federation.owner != request.user and role != 'admin':
-            messages.error(request, _( "Vous n'avez pas accès Ã  cette fédération."))
+        has_federation_permission = False
+
+        # Super admin ou admin global
+        if request.user.is_superuser or role == 'admin':
+            has_federation_permission = True
+        # Owner de la fédération (comparaison par ID)
+        elif federation.owner_id == request.user.id:
+            has_federation_permission = True
+        # Administrateur de la fédération
+        elif hasattr(federation, 'administrators'):
+            try:
+                if federation.administrators.filter(user=request.user).exists():
+                    has_federation_permission = True
+            except Exception:
+                pass
+
+        if not has_federation_permission:
+            messages.error(request, _("Vous n'avez pas accès à cette fédération."))
             return redirect('competitions:dashboard:dashboard')
+
+        # Permission accordée via fédération, récupérer l'organisation
+        organization = getattr(federation, 'organization', None) or getattr(federation, 'as_organization', None)
+    # Sinon, vérifier les permissions selon le rôle
+    elif role not in ['federation_admin', 'club_manager', 'admin', 'external_organizer']:
+        messages.error(request, _("Vous n'avez pas les droits nécessaires pour créer une compétition."))
+        return redirect('competitions:competitions:list')
     elif role == 'club_manager':
         if hasattr(request.user, 'club') and request.user.club:
             club = request.user.club
@@ -369,14 +394,15 @@ def competition_create(request, federation_id=None):
     
     # Traitement du formulaire
     if request.method == 'POST':
-        form = CompetitionForm(request.POST, request.FILES)
-        
+        form = CompetitionForm(request.POST, request.FILES, user=request.user)
+
         if form.is_valid():
             try:
                 with transaction.atomic():
                     competition = form.save(commit=False)
                     # Associer l'utilisateur comme organizer
                     competition.organizer = request.user
+                    competition.created_by = request.user
                     # Associer Ã  l'organisation trouvée ou créée
                     if organization:
                         competition.organizing_organization = organization
@@ -388,15 +414,25 @@ def competition_create(request, federation_id=None):
                     # Déterminer le statut selon la case "publier immédiatement"
                     is_published = form.cleaned_data.get('is_published', False)
                     competition.status = 'published' if is_published else 'draft'
-                    
+
+                    # Sauvegarder les champs extra (non inclus dans Meta.fields)
+                    competition.start_time = form.cleaned_data.get('start_time')
+                    competition.end_time = form.cleaned_data.get('end_time')
+                    if form.cleaned_data.get('max_participants') is not None:
+                        competition.max_participants = form.cleaned_data.get('max_participants')
+                    if form.cleaned_data.get('min_age') is not None:
+                        competition.min_age = form.cleaned_data.get('min_age')
+                    # Sauvegarder postal_code depuis le template
+                    competition.postal_code = request.POST.get('postal_code', '').strip()
+
                     # Définir les dates par défaut si non fournies
                     if not competition.registration_deadline:
                         # Par défaut, la date limite est la veille du début
                         if competition.start_date:
                             competition.registration_deadline = competition.start_date - timezone.timedelta(days=1)
-                    
+
                     competition.save()
-                    
+
                     # Enregistrer les types de compétition
                     competition_types = form.cleaned_data.get('competition_types')
                     if competition_types:
@@ -448,8 +484,8 @@ def competition_create(request, federation_id=None):
             'min_age': 6,
             'max_participants': 150,
         }
-        form = CompetitionForm(initial=initial_data)
-    
+        form = CompetitionForm(initial=initial_data, user=request.user)
+
     # Liste des disciplines pour le formulaire
     disciplines = Discipline.objects.filter(is_active=True)
     
@@ -470,40 +506,156 @@ def competition_create(request, federation_id=None):
 def competition_detail(request, pk):
     """Affiche les détails d'une compétition avec gestion des droits d'accès."""
     competition = get_object_or_404(Competition, pk=pk)
-    
-    # Vérification des droits d'accès
+
+    # Vérification des droits d'accès pour les compétitions non publiées
     if competition.status != 'published':
-        # Pour les compétitions non publiées, vérifier les droits
-        profile = UserProfile.objects.get(user=request.user)
-        
-        # Admin système peut tout voir
-        if profile.role == 'admin' and request.user.is_staff:
-            pass  # Autorisé
-        # Admin fédération peut voir les compétitions de sa discipline
-        elif profile.role == 'federation_admin':
-            try:
-                federation = Federation.objects.get(owner=request.user)
-                if competition.discipline != federation.discipline:
-                    messages.error(request, _("Vous n'avez pas accès Ã  cette compétition."))
-                    return redirect('competitions:competitions:list')
-            except Federation.DoesNotExist:
-                messages.error(request, _("Vous n'avez pas accès Ã  cette compétition."))
-                return redirect('competitions:competitions:list')
-        # Autres rÃ´les n'ont pas accès
-        else:
+        has_access = False
+
+        # Admin système (is_staff ou is_superuser) peut tout voir
+        if request.user.is_staff or request.user.is_superuser:
+            has_access = True
+
+        # Le créateur de la compétition peut toujours la voir
+        elif competition.created_by and competition.created_by == request.user:
+            has_access = True
+
+        # Le propriétaire de la fédération associée peut la voir
+        elif hasattr(competition, 'federation') and competition.federation:
+            if competition.federation.owner == request.user:
+                has_access = True
+            # Ou si l'utilisateur est admin de cette fédération
+            elif hasattr(competition.federation, 'administrators'):
+                try:
+                    if competition.federation.administrators.filter(user=request.user).exists():
+                        has_access = True
+                except Exception:
+                    pass
+
+        # Le propriétaire du club associé peut la voir
+        elif hasattr(competition, 'club') and competition.club:
+            if competition.club.owner == request.user:
+                has_access = True
+
+        # Vérifier via le rôle de l'utilisateur
+        if not has_access:
+            role = getattr(request.user, 'role', None)
+            if not role and hasattr(request.user, 'userprofile'):
+                role = getattr(request.user.userprofile, 'role', None)
+            if not role and hasattr(request.user, 'profile'):
+                role = getattr(request.user.profile, 'role', None)
+
+            # Admin fédération peut voir les compétitions de sa discipline ou de sa fédération
+            if role == 'federation_admin':
+                try:
+                    user_federation = Federation.objects.filter(owner=request.user).first()
+                    if user_federation:
+                        # Même fédération
+                        if competition.federation and competition.federation.id == user_federation.id:
+                            has_access = True
+                        # Même discipline (si définie)
+                        elif competition.discipline and user_federation.discipline:
+                            if competition.discipline == user_federation.discipline:
+                                has_access = True
+                except Exception:
+                    pass
+
+            # Club manager peut voir les compétitions de son club
+            elif role == 'club_manager':
+                try:
+                    from ..models import Club
+                    user_club = Club.objects.filter(owner=request.user).first()
+                    if user_club and competition.club and competition.club.id == user_club.id:
+                        has_access = True
+                except Exception:
+                    pass
+
+        if not has_access:
             messages.error(request, _("Cette compétition n'est pas encore publiée."))
             return redirect('competitions:competitions:list')
-    
+
     # Si l'accès est autorisé, afficher les détails
+
+    # Build categories with participant counts
+    categories_with_counts = []
+    for category in competition.categories.all():
+        participant_count = ParticipantCategoryRegistration.objects.filter(
+            category=category, registration__competition=competition
+        ).count()
+        categories_with_counts.append({
+            'category': category,
+            'participant_count': participant_count,
+        })
+
+    # Get registrations
+    registrations = CompetitionRegistration.objects.filter(
+        competition=competition
+    ).exclude(status='rejected').select_related('practitioner')
+
+    # Separate participants and judges
+    # Compter les juges (ceux qui ont un rôle de juge)
+    judges = registrations.filter(
+        Q(is_technical_judge=True) | Q(is_combat_referee=True)
+    )
+    total_judges = judges.count()
+
+    # Les participants = tous les inscrits sauf les juges purs
+    # (un inscrit qui n'est ni juge technique ni arbitre est un compétiteur)
+    participants = registrations.exclude(
+        Q(is_technical_judge=True) | Q(is_combat_referee=True),
+        is_competitor=False,
+    )
+    total_participants = participants.count()
+
+    # Check permissions
+    from apps.organizations.models import OrganizationMember
+    can_manage_competition = (
+        request.user.is_staff or
+        request.user.is_superuser or
+        competition.created_by == request.user or
+        (competition.organizing_organization and OrganizationMember.objects.filter(
+            user=request.user, organization=competition.organizing_organization
+        ).exists())
+    )
+
+    # Traitement POST : promouvoir des inscrits en juge/arbitre
+    if request.method == 'POST' and request.POST.get('action') == 'promote_judge' and can_manage_competition:
+        reg_ids = request.POST.getlist('registration_ids')
+        judge_role = request.POST.get('judge_role')
+        if reg_ids:
+            updated = 0
+            for reg_id in reg_ids:
+                try:
+                    reg = CompetitionRegistration.objects.get(id=reg_id, competition=competition)
+                    if judge_role == 'technical_judge':
+                        reg.is_technical_judge = True
+                    elif judge_role == 'combat_referee':
+                        reg.is_combat_referee = True
+                    reg.save()
+                    updated += 1
+                except CompetitionRegistration.DoesNotExist:
+                    pass
+            messages.success(request, _("{} participant(s) promu(s) juge/arbitre.").format(updated))
+        else:
+            messages.warning(request, _("Aucun participant sélectionné."))
+        return redirect('competitions:competitions:detail', pk=competition.id)
+
     context = {
         'competition': competition,
         'registration_open': (
-            competition.registration_deadline and 
+            competition.registration_deadline and
             competition.registration_deadline >= timezone.now().date()
         ),
+        'categories_with_counts': categories_with_counts,
+        'registrations': participants,
+        'participants': registrations.select_related('practitioner').order_by('practitioner__last_name'),
+        'total_participants': total_participants,
+        'judges': judges,
+        'total_judges': total_judges,
+        'can_manage_competition': can_manage_competition,
     }
-    
+
     return render(request, 'competitions/competition/detail_enhanced.html', context)
+
 
 @login_required
 def competition_update(request, pk):
@@ -536,21 +688,41 @@ def competition_update(request, pk):
     
     # Traitement du formulaire
     if request.method == 'POST':
-        form = CompetitionForm(request.POST, request.FILES, instance=competition)
-        
+        form = CompetitionForm(request.POST, request.FILES, instance=competition, user=request.user)
+
+        # DEBUG: Log POST data for time/postal fields
+        import logging as _logging
+        _dbg = _logging.getLogger('competitions.debug')
+        _dbg.warning(f"[UPDATE] POST start_time={request.POST.get('start_time')!r}, end_time={request.POST.get('end_time')!r}, postal_code={request.POST.get('postal_code')!r}")
+        _dbg.warning(f"[UPDATE] form.is_valid()={form.is_valid()}")
+        if not form.is_valid():
+            _dbg.warning(f"[UPDATE] form.errors={form.errors}")
+
         if form.is_valid():
             try:
                 with transaction.atomic():
                     competition = form.save(commit=False)
-                    
-                    # Mise Ã  jour du statut selon la case "publier immédiatement"
-                    is_published = form.cleaned_data.get('is_published', False)
-                    
-                    # Ne pas changer le statut si déjÃ  complété ou annulé
-                    if competition.status not in ['completed', 'cancelled']:
+
+                    # Mise à jour du statut
+                    new_status = form.cleaned_data.get('status')
+                    if new_status:
+                        competition.status = new_status
+                    else:
+                        is_published = form.cleaned_data.get('is_published', False)
                         competition.status = 'published' if is_published else 'draft'
-                    
+
+                    # Sauvegarder les champs extra (non inclus dans Meta.fields)
+                    competition.start_time = form.cleaned_data.get('start_time')
+                    competition.end_time = form.cleaned_data.get('end_time')
+                    if form.cleaned_data.get('max_participants') is not None:
+                        competition.max_participants = form.cleaned_data.get('max_participants')
+                    if form.cleaned_data.get('min_age') is not None:
+                        competition.min_age = form.cleaned_data.get('min_age')
+
+                    # Sauvegarder postal_code depuis le template (pas dans Meta.fields)
+                    competition.postal_code = request.POST.get('postal_code', '').strip()
                     competition.save()
+                    _dbg.warning(f"[UPDATE] SAVE OK pk={competition.pk}: start_time={competition.start_time!r}, end_time={competition.end_time!r}, postal_code={competition.postal_code!r}")
                     
                     # Mettre Ã  jour les types de compétition
                     competition_types = form.cleaned_data.get('competition_types')
@@ -561,6 +733,7 @@ def competition_update(request, pk):
                     return redirect('competitions:competitions:detail', pk=competition.id)
                     
             except Exception as e:
+                _dbg.warning(f"[UPDATE] EXCEPTION: {e!r}")
                 messages.error(request, _("Une erreur est survenue lors de la mise Ã  jour de la compétition: {}").format(str(e)))
         else:
             # Afficher les erreurs spécifiques du formulaire
@@ -571,7 +744,7 @@ def competition_update(request, pk):
         # Initialiser le formulaire avec les données de la compétition
         form = CompetitionForm(instance=competition, initial={
             'is_published': competition.status == 'published'
-        })
+        }, user=request.user)
     
     # Liste des disciplines pour le formulaire
     disciplines = Discipline.objects.filter(is_active=True)
@@ -588,14 +761,68 @@ def competition_update(request, pk):
     return render(request, 'competitions/competition/create.html', context)
 
 @login_required
-@federation_required
-def competition_delete(request, pk):
+def competition_change_status(request, pk):
+    """Vue pour changer rapidement le statut d'une compétition (POST uniquement)."""
     competition = get_object_or_404(Competition, pk=pk)
-    
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    new_status = request.POST.get('status', '')
+    valid_statuses = ['draft', 'published', 'ongoing', 'completed', 'cancelled']
+    if new_status not in valid_statuses:
+        messages.error(request, _("Statut invalide."))
+        return redirect('competitions:dashboard:club')
+
+    old_status = competition.status
+    competition.status = new_status
+    competition.save(update_fields=['status'])
+
+    status_labels = {
+        'draft': _('Brouillon'),
+        'published': _('Publiée'),
+        'ongoing': _('En cours'),
+        'completed': _('Terminée'),
+        'cancelled': _('Annulée'),
+    }
+    messages.success(
+        request,
+        _("Statut de « %(title)s » changé de %(old)s à %(new)s.") % {
+            'title': competition.title,
+            'old': status_labels.get(old_status, old_status),
+            'new': status_labels.get(new_status, new_status),
+        }
+    )
+    return redirect('competitions:dashboard:club')
+
+
+@login_required
+@federation_required
+@login_required
+def competition_delete(request, pk):
+    """Suppression d'une compétition avec confirmation."""
+    competition = get_object_or_404(Competition, pk=pk)
+
+    # Seul le créateur de la compétition ou un superuser peut supprimer
+    is_creator = competition.created_by and competition.created_by == request.user
+    is_org_admin = (
+        competition.organizing_organization
+        and hasattr(request.user, 'organization_memberships')
+        and request.user.organization_memberships.filter(
+            organization=competition.organizing_organization,
+            role__in=['owner', 'admin']
+        ).exists()
+    )
+    if not (is_creator or is_org_admin or request.user.is_superuser):
+        messages.error(request, _("Seul l'administrateur qui a créé cette compétition peut la supprimer."))
+        return redirect('competitions:competitions:detail', pk=pk)
+
     if request.method == 'POST':
+        title = competition.title
         competition.delete()
+        messages.success(request, _("La compétition « {} » a été supprimée.").format(title))
         return redirect('competitions:competitions:list')
-    
+
     return render(request, 'competitions/competition/confirm_delete.html', {
         'competition': competition
     })
@@ -772,24 +999,33 @@ def manage_competition_registrations(request, competition_id):
     competition = get_object_or_404(Competition, id=competition_id)
     
     # Vérifier les droits d'accès
-    if not request.user.is_staff and competition.created_by != request.user:
+    from apps.organizations.models import OrganizationMember
+    has_access = (
+        request.user.is_staff
+        or request.user.is_superuser
+        or competition.created_by == request.user
+        or (competition.organizing_organization and OrganizationMember.objects.filter(
+            user=request.user, organization=competition.organizing_organization
+        ).exists())
+    )
+    if not has_access:
         messages.error(request, _("Vous n'avez pas les droits pour gérer cette compétition."))
         return redirect('competitions:competitions:detail', pk=competition.id)
     
     # Récupération des inscriptions avec les relations nécessaires pour éviter les requÃªtes N+1
     registrations = CompetitionRegistration.objects.filter(
         competition=competition
-    ).select_related('practitioner', 'practitioner__club').prefetch_related('competition_types')
-    
+    ).select_related('practitioner', 'practitioner__organization').prefetch_related('competition_types')
+
     # Filtres
     status_filter = request.GET.get('status')
     role_filter = request.GET.get('role')
     club_filter = request.GET.get('club')
     search_query = request.GET.get('q')
-    
+
     if status_filter:
         registrations = registrations.filter(status=status_filter)
-    
+
     if role_filter == 'competitor':
         registrations = registrations.filter(is_competitor=True)
     elif role_filter == 'technical_judge':
@@ -798,17 +1034,17 @@ def manage_competition_registrations(request, competition_id):
         registrations = registrations.filter(is_combat_referee=True)
     elif role_filter == 'volunteer':
         registrations = registrations.filter(is_volunteer=True)
-    
+
     if club_filter:
-        registrations = registrations.filter(practitioner__club_id=club_filter)
-    
+        registrations = registrations.filter(practitioner__organization_id=club_filter)
+
     # Recherche textuelle
     if search_query:
         registrations = registrations.filter(
             Q(practitioner__first_name__icontains=search_query) |
             Q(practitioner__last_name__icontains=search_query) |
             Q(practitioner__license_number__icontains=search_query) |
-            Q(practitioner__club__name__icontains=search_query)
+            Q(practitioner__organization__name__icontains=search_query)
         )
     
     # Action de mise Ã  jour du statut
@@ -841,7 +1077,7 @@ def manage_competition_registrations(request, competition_id):
                         messages.success(request, _("{} inscriptions ont été remises en attente.").format(updated))
                     
                     elif action == 'delete':
-                        deleted, _ = CompetitionRegistration.objects.filter(id__in=registration_ids).delete()
+                        deleted, _details = CompetitionRegistration.objects.filter(id__in=registration_ids).delete()
                         messages.success(request, _("{} inscriptions ont été supprimées.").format(deleted))
                     
                     elif action == 'export':
@@ -885,8 +1121,9 @@ def manage_competition_registrations(request, competition_id):
     }
     
     # Clubs pour le filtre (utilisation de distinct pour éviter les doublons)
-    clubs = Club.objects.filter(
-        id__in=registrations.values_list('practitioner__club_id', flat=True).distinct()
+    from apps.competitions.models import Organization
+    clubs = Organization.objects.filter(
+        id__in=registrations.values_list('practitioner__organization_id', flat=True).distinct()
     ).order_by('name')
     
     return render(request, 'competitions/manage_registrations.html', {
@@ -924,14 +1161,14 @@ def export_competition_registrations(request, competition_id):
     competition = get_object_or_404(Competition, id=competition_id)
     
     # Vérifier les droits d'accès
-    if not request.user.is_staff and not competition.is_organizer(request.user):
+    if not request.user.is_staff and competition.created_by != request.user:
         messages.error(request, _("Vous n'avez pas les droits pour exporter les données de cette compétition."))
         return redirect('competitions:competitions:detail', pk=competition.id)
     
     # Récupérer les inscriptions avec toutes les relations nécessaires
     registrations = CompetitionRegistration.objects.filter(
         competition=competition
-    ).select_related('practitioner', 'practitioner__club', 'practitioner__user')
+    ).select_related('practitioner', 'practitioner__organization')
     
     # Filtrer par IDs si spécifiés dans l'URL
     ids_param = request.GET.get('ids')
@@ -1128,4 +1365,83 @@ def export_competition_registrations(request, competition_id):
     # Si le format demandé n'est pas supporté
     messages.error(request, _("Format d'export non supporté."))
     return redirect('competitions:competitions:manage_registrations', competition_id=competition.id)
+
+
+@login_required
+def competition_duplicate(request, pk):
+    """Duplicate a competition with all its configuration (categories, types) but without participant data."""
+    source = get_object_or_404(Competition, pk=pk)
+
+    try:
+        with transaction.atomic():
+            # Store M2M and categories before copying
+            source_types = list(source.competition_types.all())
+            source_categories = list(source.categories.all())
+
+            # Create a copy by resetting pk
+            new_comp = Competition()
+            # Copy configuration fields
+            new_comp.title = f"{source.title} (Copie)"
+            new_comp.description = source.description
+            new_comp.start_date = source.start_date
+            new_comp.end_date = source.end_date
+            new_comp.start_time = source.start_time
+            new_comp.end_time = source.end_time
+            new_comp.venue_name = source.venue_name
+            new_comp.address = source.address
+            new_comp.city = source.city
+            new_comp.postal_code = source.postal_code
+            new_comp.max_participants = source.max_participants
+            new_comp.registration_deadline = source.registration_deadline
+            new_comp.logo = source.logo
+            new_comp.min_age = source.min_age
+            new_comp.max_age = source.max_age
+            new_comp.requires_medical_certificate = source.requires_medical_certificate
+            new_comp.requires_license = source.requires_license
+            new_comp.discipline = source.discipline
+            new_comp.organizing_organization = source.organizing_organization
+            # Stream config (not runtime)
+            new_comp.stream_enabled = source.stream_enabled
+            new_comp.stream_platform = source.stream_platform
+            new_comp.stream_url = source.stream_url
+            new_comp.stream_chat_enabled = source.stream_chat_enabled
+            # Reset fields
+            new_comp.status = 'draft'
+            new_comp.is_published = False
+            new_comp.created_by = request.user
+            new_comp.slug = ''  # Will be auto-generated on save
+
+            new_comp.save()
+
+            # Copy M2M competition_types
+            new_comp.competition_types.set(source_types)
+
+            # Duplicate categories
+            for cat in source_categories:
+                CompetitionCategory.objects.create(
+                    competition=new_comp,
+                    competition_type=cat.competition_type,
+                    template=cat.template,
+                    name=cat.name,
+                    min_age=cat.min_age,
+                    max_age=cat.max_age,
+                    min_grade=cat.min_grade,
+                    max_grade=cat.max_grade,
+                    min_weight=cat.min_weight,
+                    max_weight=cat.max_weight,
+                    gender=cat.gender,
+                    max_participants=cat.max_participants,
+                    combat_mode=cat.combat_mode,
+                    estimated_duration=cat.estimated_duration,
+                    # Reset scheduling and status
+                    registration_status='open',
+                    is_completed=False,
+                )
+
+        messages.success(request, _("La compétition a été dupliquée avec succès."))
+        return redirect('competitions:competitions:update', pk=new_comp.pk)
+
+    except Exception as e:
+        messages.error(request, _("Erreur lors de la duplication : {}").format(str(e)))
+        return redirect('competitions:dashboard:dashboard')
 

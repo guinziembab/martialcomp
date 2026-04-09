@@ -1,0 +1,798 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Création de club" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .onboarding-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+    
+    .onboarding-header {
+        text-align: center;
+        margin-bottom: 3rem;
+    }
+    
+    .onboarding-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 1rem;
+    }
+    
+    .onboarding-subtitle {
+        font-size: 1.2rem;
+        color: #666;
+        max-width: 700px;
+        margin: 0 auto;
+    }
+    
+    .progress-container {
+        max-width: 600px;
+        margin: 0 auto 3rem;
+    }
+    
+    .progress-steps {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+    
+    .step {
+        position: relative;
+        text-align: center;
+        font-size: 0.9rem;
+    }
+    
+    .step-number {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        color: #6c757d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.5rem;
+        font-weight: 600;
+        position: relative;
+        z-index: 2;
+    }
+    
+    .step.active .step-number {
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .step.completed .step-number {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .step-label {
+        font-weight: 500;
+    }
+    
+    .step.active .step-label {
+        color: #dc3545;
+    }
+    
+    .step.completed .step-label {
+        color: #28a745;
+    }
+    
+    .progress-line {
+        height: 4px;
+        background-color: #e9ecef;
+        position: relative;
+        margin: 0 auto;
+        margin-top: -17px;
+        z-index: 1;
+    }
+    
+    .progress-line-fill {
+        height: 100%;
+        background-color: #28a745;
+        width: 0%;
+        transition: width 0.5s ease;
+    }
+    
+    .form-section {
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        margin-bottom: 2rem;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        border: 1px solid #f0f0f0;
+    }
+    
+    .form-section:hover {
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+    
+    .section-header {
+        background-color: #f8f9fa;
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid #e9ecef;
+        display: flex;
+        align-items: center;
+    }
+    
+    .section-header h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    .section-header i {
+        margin-right: 0.75rem;
+        color: #dc3545;
+        font-size: 1.5rem;
+    }
+    
+    .section-body {
+        padding: 1.5rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-label {
+        display: block;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: #333;
+    }
+    
+    .form-control {
+        display: block;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        line-height: 1.5;
+        color: #495057;
+        background-color: #fff;
+        background-clip: padding-box;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+    
+    .form-control:focus {
+        color: #495057;
+        background-color: #fff;
+        border-color: #ff8a99;
+        outline: 0;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    
+    .form-text {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    
+    .required:after {
+        content: " *";
+        color: #dc3545;
+    }
+    
+    .preview-container {
+        margin-top: 10px;
+        width: 150px;
+        height: 150px;
+        border: 2px dashed #ced4da;
+        border-radius: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .preview-text {
+        color: #6c757d;
+        font-size: 0.9rem;
+        text-align: center;
+    }
+    
+    .preview-image {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: none;
+    }
+    
+    .file-input-container {
+        position: relative;
+        overflow: hidden;
+        display: inline-block;
+        cursor: pointer;
+    }
+    
+    .file-input {
+        position: absolute;
+        left: 0;
+        top: 0;
+        opacity: 0;
+        cursor: pointer;
+        width: 100%;
+        height: 100%;
+    }
+    
+    .file-input-label {
+        display: inline-block;
+        padding: 0.375rem 0.75rem;
+        background-color: #f8f9fa;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        font-size: 1rem;
+        line-height: 1.5;
+        color: #495057;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+    }
+    
+    .file-input-label:hover {
+        background-color: #e9ecef;
+        border-color: #ced4da;
+    }
+    
+    .file-name {
+        margin-left: 10px;
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    
+    .actions-container {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 2rem;
+    }
+    
+    .btn-action {
+        font-size: 1.1rem;
+        padding: 0.75rem 2rem;
+        font-weight: 500;
+        border-radius: 5px;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary {
+        background-color: #dc3545;
+        border-color: #dc3545;
+    }
+    
+    .btn-primary:hover {
+        background-color: #c82333;
+        border-color: #bd2130;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+    }
+    
+    .btn-outline-secondary {
+        color: #6c757d;
+        border-color: #6c757d;
+    }
+    
+    .btn-outline-secondary:hover {
+        color: #fff;
+        background-color: #6c757d;
+        border-color: #6c757d;
+        transform: translateY(-2px);
+    }
+    
+    .invalid-feedback {
+        display: block;
+        width: 100%;
+        margin-top: 0.25rem;
+        font-size: 0.875rem;
+        color: #dc3545;
+    }
+    
+    textarea.form-control {
+        min-height: 100px;
+    }
+    
+    /* Animation */
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .animate-in {
+        animation: fadeIn 0.6s ease-out forwards;
+    }
+    
+    .form-section:nth-child(1) {
+        animation-delay: 0.1s;
+    }
+    
+    .form-section:nth-child(2) {
+        animation-delay: 0.3s;
+    }
+    
+    @media (max-width: 768px) {
+        .onboarding-container {
+            padding: 1rem;
+        }
+        
+        .actions-container {
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .actions-container .btn {
+            width: 100%;
+        }
+    }
+    .subdomain-preview {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid var(--primary);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-top: 1.5rem;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+    .subdomain-preview.active {
+        background: linear-gradient(135deg, rgba(220, 53, 69, 0.1) 0%, rgba(220, 53, 69, 0.05) 100%);
+        border-color: var(--primary);
+        box-shadow: 0 4px 15px rgba(220, 53, 69, 0.1);
+    }
+    .subdomain-url {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--primary);
+        margin-bottom: 0.5rem;
+        word-break: break-all;
+    }
+    .subdomain-description {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-bottom: 1rem;
+    }
+    .subdomain-features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+    .subdomain-feature {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    .subdomain-feature i {
+        color: #28a745;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="onboarding-container">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4">
+                <i class="fas fa-info-circle me-2"></i>
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    <div class="onboarding-header">
+        <h1 class="onboarding-title">{% trans "Créez votre club" %}</h1>
+        <p class="onboarding-subtitle">
+            {% trans "Fournissez les informations nécessaires pour créer votre club et commencer à gérer vos activités." %}
+        </p>
+    </div>
+    <!-- Barre de progression -->
+    <div class="progress-container">
+        <div class="progress-steps">
+            <div class="step completed">
+                <div class="step-number">
+                    <i class="fas fa-check"></i>
+                </div>
+                <div class="step-label">{% trans "Rôle" %}</div>
+            </div>
+            <div class="step active">
+                <div class="step-number">2</div>
+                <div class="step-label">{% trans "Configuration" %}</div>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-label">{% trans "Finalisation" %}</div>
+            </div>
+        </div>
+        <div class="progress-line">
+            <div class="progress-line-fill" style="width: 0%"></div>
+        </div>
+    </div>
+    <!-- Bloc site web club (harmonisé avec fédération) -->
+    {% if form.website.value or club.website %}
+    <div class="subdomain-preview active">
+        <div class="subdomain-url">
+            <i class="fas fa-globe me-2"></i>
+            <a href="{{ form.website.value|default:club.website }}" target="_blank">{{ form.website.value|default:club.website }}</a>
+        </div>
+        <div class="subdomain-description">
+            {% trans "Votre site web MartialComp est prêt !" %}<br>
+            {% trans "Vous pouvez y accéder à tout moment via ce lien." %}
+        </div>
+        <div class="subdomain-features">
+            <div class="subdomain-feature"><i class="fas fa-check-circle"></i> {% trans "Gestion des membres" %}</div>
+            <div class="subdomain-feature"><i class="fas fa-check-circle"></i> {% trans "Inscriptions en ligne" %}</div>
+            <div class="subdomain-feature"><i class="fas fa-check-circle"></i> {% trans "QR codes d'accès" %}</div>
+        </div>
+        <div class="mt-3">
+            <small class="text-muted">
+                {% trans "Pour accéder à ce site en local, ajoutez cette ligne à votre fichier hosts :" %}<br>
+                <code>127.0.0.1   {{ form.website.value|default:club.website|cut:'https://'|cut:'http://'|cut:'/' }}</code>
+            </small>
+        </div>
+    </div>
+    {% endif %}
+    <!-- Formulaire club -->
+    <form method="post" enctype="multipart/form-data" id="club-creation-form">
+        {% csrf_token %}
+        
+        <!-- Informations de base -->
+        <div class="form-section animate-in">
+            <div class="section-header">
+                <i class="fas fa-info-circle"></i>
+                <h3>{% trans "Informations de base" %}</h3>
+            </div>
+            <div class="section-body">
+                <div class="form-group">
+                    <label for="{{ form.name.id_for_label }}" class="form-label required">{{ form.name.label }}</label>
+                    {{ form.name }}
+                    {% if form.name.help_text %}
+                        <small class="form-text text-muted">{{ form.name.help_text }}</small>
+                    {% endif %}
+                    {% if form.name.errors %}
+                        <div class="invalid-feedback">{{ form.name.errors }}</div>
+                    {% endif %}
+                </div>
+                <!-- Aperçu dynamique du sous-domaine -->
+                <div class="subdomain-preview" id="subdomainPreview" style="display:none;">
+                    <div class="subdomain-url" id="subdomainUrl">
+                        <i class="fas fa-link me-2"></i>
+                        <span id="generatedSubdomain">votre-club</span>.martialcomp.com
+                    </div>
+                    <div class="subdomain-description">
+                        {% trans "Votre site web sera automatiquement accessible à cette adresse" %}
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_address" class="form-label">{% trans "Adresse" %}</label>
+                    <input type="text" id="id_address" name="address" class="form-control" placeholder="{% trans 'Adresse' %}" value="{{ form.address.value|default:'' }}">
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="{{ form.country.id_for_label }}" class="form-label required">{{ form.country.label }}</label>
+                            {{ form.country }}
+                            {% if form.country.errors %}
+                                <div class="invalid-feedback">{{ form.country.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="id_city" class="form-label">{% trans "Ville" %}</label>
+                            <input type="text" name="city" class="form-control" placeholder="{% trans 'Ville' %}" id="id_city" value="{{ form.city.value|default:'' }}">
+                            {% if form.city.errors %}
+                                <div class="invalid-feedback">{{ form.city.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="id_postal_code" class="form-label">{% trans "Code postal" %}</label>
+                            <input type="text" name="postal_code" class="form-control" placeholder="{% trans 'Code postal' %}" id="id_postal_code" value="{{ form.postal_code.value|default:'' }}">
+                            {% if form.postal_code.errors %}
+                                <div class="invalid-feedback">{{ form.postal_code.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.discipline.id_for_label }}" class="form-label">{{ form.discipline.label }}</label>
+                    {{ form.discipline }}
+                    {% if form.discipline.help_text %}
+                        <small class="form-text text-muted">{{ form.discipline.help_text }}</small>
+                    {% endif %}
+                    {% if form.discipline.errors %}
+                        <div class="invalid-feedback">{{ form.discipline.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Contact et présentation -->
+        <div class="form-section animate-in">
+            <div class="section-header">
+                <i class="fas fa-address-card"></i>
+                <h3>{% trans "Contact et présentation" %}</h3>
+            </div>
+            <div class="section-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.contact_email.id_for_label }}" class="form-label">{{ form.contact_email.label }}</label>
+                            {{ form.contact_email }}
+                            {% if form.contact_email.errors %}
+                                <div class="invalid-feedback">{{ form.contact_email.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.contact_phone.id_for_label }}" class="form-label">{{ form.contact_phone.label }}</label>
+                            {{ form.contact_phone }}
+                            {% if form.contact_phone.errors %}
+                                <div class="invalid-feedback">{{ form.contact_phone.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.website.id_for_label }}" class="form-label">{{ form.website.label }}</label>
+                    {{ form.website }}
+                    {% if form.website.errors %}
+                        <div class="invalid-feedback">{{ form.website.errors }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.description.id_for_label }}" class="form-label">{{ form.description.label }}</label>
+                    {{ form.description }}
+                    {% if form.description.help_text %}
+                        <small class="form-text text-muted">{{ form.description.help_text }}</small>
+                    {% endif %}
+                    {% if form.description.errors %}
+                        <div class="invalid-feedback">{{ form.description.errors }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="form-group">
+                    <label for="{{ form.logo.id_for_label }}" class="form-label">{{ form.logo.label }}</label>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="preview-container" id="logo-preview-container">
+                                <div class="preview-text" id="preview-text">
+                                    <i class="fas fa-image fa-2x mb-2"></i><br>
+                                    {% trans "Aperçu du logo" %}
+                                </div>
+                                <img src="#" alt="{% trans 'Aperçu du logo' %}" class="preview-image" id="logo-preview">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="file-input-container">
+                                <label for="{{ form.logo.id_for_label }}" class="file-input-label">
+                                    <i class="fas fa-upload me-2"></i>{% trans "Choisir un fichier" %}
+                                </label>
+                                {{ form.logo }}
+                                <span class="file-name" id="file-name">{% trans "Aucun fichier choisi" %}</span>
+                            </div>
+                            
+                            {% if form.logo.help_text %}
+                                <small class="form-text text-muted mt-2">{{ form.logo.help_text }}</small>
+                            {% endif %}
+                            {% if form.logo.errors %}
+                                <div class="invalid-feedback">{{ form.logo.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="actions-container">
+            <a href="{% url 'competitions:onboarding:role_selection' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+            </a>
+            
+            <button type="submit" class="btn btn-primary btn-action">
+                <i class="fas fa-dojo me-2"></i>{% trans "Créer mon club" %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/places.js@1.19.0"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Algolia Places pour l'autocomplétion d'adresse
+        var addressInput = document.getElementById('id_address');
+        if (addressInput && window.places) {
+            var placesAutocomplete = places({
+                container: addressInput
+            });
+            placesAutocomplete.on('change', function(e) {
+                // Laisser l'utilisateur choisir le pays via la liste déroulante
+                if (document.getElementById('id_city')) {
+                    document.getElementById('id_city').value = e.suggestion.city || '';
+                }
+                if (document.getElementById('id_postal_code')) {
+                    document.getElementById('id_postal_code').value = e.suggestion.postcode || '';
+                }
+            });
+        }
+        // Animation de la barre de progression
+        setTimeout(function() {
+            document.querySelector('.progress-line-fill').style.width = '50%';
+        }, 300);
+        
+        // Prévisualisation du logo
+        const logoInput = document.getElementById('{{ form.logo.id_for_label }}');
+        const logoPreview = document.getElementById('logo-preview');
+        const previewText = document.getElementById('preview-text');
+        const fileName = document.getElementById('file-name');
+        
+        if (logoInput) {
+            logoInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    fileName.textContent = file.name;
+                    
+                    // Afficher la prévisualisation
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        logoPreview.src = event.target.result;
+                        logoPreview.style.display = 'block';
+                        previewText.style.display = 'none';
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    fileName.textContent = "{% trans 'Aucun fichier choisi' %}";
+                    logoPreview.style.display = 'none';
+                    previewText.style.display = 'block';
+                }
+            });
+        }
+        
+        // Gestion du site web - ajout automatique du protocole
+        const websiteInput = document.getElementById('{{ form.website.id_for_label }}');
+        if (websiteInput) {
+            form.addEventListener('submit', function(e) {
+                if (websiteInput.value.trim() && !websiteInput.value.startsWith('http://') && !websiteInput.value.startsWith('https://')) {
+                    websiteInput.value = 'https://' + websiteInput.value;
+                }
+            });
+        }
+        
+        // Validation du formulaire
+        const form = document.getElementById('club-creation-form');
+        form.addEventListener('submit', function(e) {
+            let isValid = true;
+            
+            // Vérifier que le nom du club est renseigné
+            const nameInput = document.getElementById('{{ form.name.id_for_label }}');
+            if (nameInput && !nameInput.value.trim()) {
+                isValid = false;
+                nameInput.classList.add('is-invalid');
+                
+                // Créer un message d'erreur s'il n'existe pas déjà
+                let existingError = nameInput.nextElementSibling;
+                while (existingError && !existingError.classList.contains('invalid-feedback')) {
+                    existingError = existingError.nextElementSibling;
+                }
+                
+                if (!existingError) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'invalid-feedback';
+                    errorDiv.textContent = "{% trans 'Veuillez saisir le nom du club.' %}";
+                    nameInput.insertAdjacentElement('afterend', errorDiv);
+                }
+            } else if (nameInput) {
+                nameInput.classList.remove('is-invalid');
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
+                
+                // Faire défiler jusqu'au premier champ en erreur
+                const firstInvalidField = document.querySelector('.is-invalid');
+                if (firstInvalidField) {
+                    firstInvalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    firstInvalidField.focus();
+                }
+            }
+        });
+        
+        // Améliorer l'aspect des champs form-control
+        const formControls = document.querySelectorAll('.form-control');
+        formControls.forEach(function(control) {
+            if (!control.classList.contains('django-select2')) {
+                control.classList.add('form-control');
+            }
+        });
+        
+        // Gestion des succès et redirections
+        {% if club_created %}
+            // Redirection automatique après création réussie
+            setTimeout(function() {
+                const successMessage = document.createElement('div');
+                successMessage.className = 'alert alert-success alert-dismissible fade show mb-4';
+                successMessage.innerHTML = `
+                    <i class="fas fa-check-circle me-2"></i>
+                    {% trans "Votre club a été créé avec succès! Redirection en cours..." %}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                
+                // Insérer le message en haut du conteneur
+                const container = document.querySelector('.onboarding-container');
+                if (container) {
+                    container.insertBefore(successMessage, container.firstChild);
+                }
+                
+                // Redirection après un délai
+                setTimeout(function() {
+                    window.location.href = "{% url 'competitions:onboarding:club_details' %}";
+                }, 2000);
+            }, 500);
+        {% endif %}
+        
+        // Gestion des erreurs de création
+        const errorMessages = document.querySelectorAll('.alert-danger');
+        if (errorMessages.length > 0) {
+            // Défiler vers le message d'erreur
+            errorMessages[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        // Génération du sous-domaine
+        const nameInput = document.getElementById('id_name');
+        const previewDiv = document.getElementById('subdomainPreview');
+        const subdomainSpan = document.getElementById('generatedSubdomain');
+        
+        if (nameInput && previewDiv && subdomainSpan) {
+            function generateSubdomainFromName(name) {
+                return name.toLowerCase()
+                    .replace(/[àáâãäå]/g, 'a')
+                    .replace(/[èéêë]/g, 'e')
+                    .replace(/[ìíîï]/g, 'i')
+                    .replace(/[òóôõö]/g, 'o')
+                    .replace(/[ùúûü]/g, 'u')
+                    .replace(/[ç]/g, 'c')
+                    .replace(/[ñ]/g, 'n')
+                    .replace(/[^a-z0-9]/g, '-')
+                    .replace(/-+/g, '-')
+                    .replace(/^-|-$/g, '');
+            }
+
+            nameInput.addEventListener('input', function() {
+                const subdomain = generateSubdomainFromName(nameInput.value || 'votre-club');
+                subdomainSpan.textContent = subdomain || 'votre-club';
+                previewDiv.style.display = subdomain ? 'block' : 'none';
+            });
+
+            // Initialisation
+            nameInput.dispatchEvent(new Event('input'));
+        }
+    });
+</script>
+{% endblock %}

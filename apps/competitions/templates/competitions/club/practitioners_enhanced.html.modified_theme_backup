@@ -1,0 +1,1304 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Gestion des pratiquants" %} | Martial Hub{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --pl-bg-dark: #0f0f1a;
+        --pl-bg-card: #16213e;
+        --pl-bg-lighter: #1a1a2e;
+        --pl-bg-input: rgba(255, 255, 255, 0.08);
+        --pl-gold: #c9a227;
+        --pl-gold-light: #d4a42a;
+        --pl-text: #eaeaea;
+        --pl-text-muted: #a0a0a0;
+        --pl-border: rgba(255, 255, 255, 0.1);
+        --pl-success: #00d26a;
+        --pl-warning: #ffc107;
+        --pl-danger: #e94560;
+        --pl-info: #3498db;
+    }
+
+    body {
+        background: linear-gradient(135deg, var(--pl-bg-dark) 0%, var(--pl-bg-lighter) 100%) !important;
+        min-height: 100vh;
+        color: var(--pl-text);
+    }
+
+    /* === STYLES COMMUNS === */
+    .practitioners-container {
+        background: transparent;
+        min-height: 100vh;
+        padding: 1.5rem 0;
+    }
+
+    .toolbar {
+        background: var(--pl-bg-card);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        border: 1px solid var(--pl-border);
+    }
+
+    .toolbar h2 {
+        color: var(--pl-text);
+    }
+
+    .toolbar h2 i {
+        color: var(--pl-gold) !important;
+    }
+
+    .toolbar .text-muted {
+        color: var(--pl-text-muted) !important;
+    }
+
+    .view-toggle {
+        display: flex;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 10px;
+        padding: 4px;
+        gap: 4px;
+    }
+
+    .view-toggle button {
+        flex: 1;
+        border: none;
+        background: transparent;
+        padding: 12px 20px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        font-weight: 500;
+        color: var(--pl-text-muted);
+        cursor: pointer;
+    }
+
+    .view-toggle button.active {
+        background: linear-gradient(135deg, var(--pl-gold) 0%, var(--pl-gold-light) 100%);
+        color: var(--pl-bg-dark);
+        box-shadow: 0 4px 15px rgba(201, 162, 39, 0.3);
+    }
+
+    .view-toggle button:hover:not(.active) {
+        background: rgba(255,255,255,0.1);
+        color: var(--pl-text);
+    }
+
+    .view-toggle button i {
+        margin-right: 0.5rem;
+    }
+
+    .filters-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        align-items: end;
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--pl-border);
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        min-width: 200px;
+        flex: 1;
+    }
+
+    .filter-group label {
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: var(--pl-text);
+        font-size: 0.9rem;
+    }
+
+    .filter-input {
+        padding: 0.75rem;
+        border: 1px solid var(--pl-border);
+        border-radius: 8px;
+        background: var(--pl-bg-input);
+        color: var(--pl-text);
+        transition: all 0.3s ease;
+    }
+
+    .filter-input::placeholder {
+        color: var(--pl-text-muted);
+    }
+
+    .filter-input:focus {
+        outline: none;
+        border-color: var(--pl-gold);
+        box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .filter-input option {
+        background: var(--pl-bg-card);
+        color: var(--pl-text);
+    }
+
+    /* === STATS BAR === */
+    .stats-bar {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin: 2rem 0;
+    }
+
+    .stat-card {
+        background: var(--pl-bg-card);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid var(--pl-border);
+        text-align: center;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-3px);
+        border-color: var(--pl-gold);
+    }
+
+    .stat-card .stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--pl-gold);
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-card .stat-label {
+        color: var(--pl-text-muted);
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    /* === STYLES VUE CARTES === */
+    .cards-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+    }
+
+    .cards-container.d-none {
+        display: none !important;
+    }
+
+    .practitioner-card {
+        background: var(--pl-bg-card);
+        border-radius: 16px;
+        padding: 1.5rem;
+        border: 1px solid var(--pl-border);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .practitioner-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 35px rgba(0,0,0,0.3);
+        border-color: var(--pl-gold);
+    }
+
+    .practitioner-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .practitioner-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--pl-gold) 0%, var(--pl-gold-light) 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--pl-bg-dark);
+        font-size: 1.5rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        position: relative;
+        flex-shrink: 0;
+    }
+
+    .practitioner-avatar::after {
+        content: '';
+        position: absolute;
+        inset: -3px;
+        border-radius: 50%;
+        border: 2px solid var(--pl-gold);
+        opacity: 0.3;
+    }
+
+    .practitioner-info h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #ffffff !important;
+    }
+
+    .practitioner-meta {
+        font-size: 0.85rem;
+        color: var(--pl-text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .practitioner-meta i {
+        color: var(--pl-gold);
+    }
+
+    .grade-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        background: rgba(201, 162, 39, 0.15);
+        color: var(--pl-gold);
+        border: 1px solid rgba(201, 162, 39, 0.3);
+    }
+
+    /* Grades Qwan Ki Do - adaptés au thème sombre */
+    .grade-cap-jaune { background: rgba(255, 235, 59, 0.15); color: #FFEB3B; border: 1px solid rgba(255, 235, 59, 0.3); }
+    .grade-cap-rouge { background: rgba(244, 67, 54, 0.15); color: #F44336; border: 1px solid rgba(244, 67, 54, 0.3); }
+    .grade-cap-blanc { background: rgba(255, 255, 255, 0.1); color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.3); }
+    .grade-cap-bleu { background: rgba(33, 150, 243, 0.15); color: #2196F3; border: 1px solid rgba(33, 150, 243, 0.3); }
+    .grade-cap-marron { background: rgba(121, 85, 72, 0.2); color: #a1887f; border: 1px solid rgba(121, 85, 72, 0.4); }
+    .grade-cap-noir { background: rgba(0, 0, 0, 0.4); color: var(--pl-gold); border: 1px solid var(--pl-gold); }
+
+    /* Grades supplémentaires */
+    .grade-cap-vert { background: rgba(76, 175, 80, 0.15); color: #4CAF50; border: 1px solid rgba(76, 175, 80, 0.3); }
+    .grade-cap-orange { background: rgba(255, 152, 0, 0.15); color: #FF9800; border: 1px solid rgba(255, 152, 0, 0.3); }
+
+    /* Indicateur de couleur dans le badge de grade */
+    .grade-badge::before {
+        content: '';
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        border: 1px solid rgba(255,255,255,0.2);
+        flex-shrink: 0;
+    }
+
+    .grade-badge[data-color]::before {
+        background-color: var(--grade-color);
+        box-shadow: 0 0 5px var(--grade-color);
+    }
+
+    .grade-badge[data-color="#FFFFFF"]::before,
+    .grade-badge[data-color="#ffffff"]::before {
+        background-color: #ffffff;
+        border: 2px solid var(--pl-border);
+        box-shadow: 0 0 5px rgba(255,255,255,0.5);
+    }
+
+    .practitioner-details {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--pl-border);
+    }
+
+    .detail-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        color: var(--pl-text-muted);
+    }
+
+    .detail-item i {
+        width: 16px;
+        color: var(--pl-gold);
+        flex-shrink: 0;
+    }
+
+    .practitioner-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .btn-action {
+        flex: 1;
+        padding: 0.6rem;
+        border: 1px solid var(--pl-border);
+        background: var(--pl-bg-input);
+        border-radius: 8px;
+        color: var(--pl-text-muted);
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    .btn-action:hover {
+        background: var(--pl-gold);
+        color: var(--pl-bg-dark);
+        border-color: var(--pl-gold);
+        text-decoration: none;
+        transform: translateY(-2px);
+    }
+
+    .btn-action.btn-primary {
+        background: linear-gradient(135deg, var(--pl-gold) 0%, var(--pl-gold-light) 100%);
+        color: var(--pl-bg-dark);
+        border-color: var(--pl-gold);
+        font-weight: 600;
+    }
+
+    .btn-action.btn-primary:hover {
+        box-shadow: 0 4px 15px rgba(201, 162, 39, 0.4);
+    }
+
+    /* === STYLES VUE TABLEAU === */
+    .table-container {
+        background: var(--pl-bg-card);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        border: 1px solid var(--pl-border);
+        margin-top: 2rem;
+    }
+
+    .table-container.d-none {
+        display: none !important;
+    }
+
+    .table-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid var(--pl-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .table-header h5 {
+        margin: 0;
+        color: var(--pl-gold);
+    }
+
+    .table-header .badge {
+        background: rgba(201, 162, 39, 0.15) !important;
+        color: var(--pl-gold) !important;
+    }
+
+    .bulk-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .practitioners-table {
+        width: 100%;
+        margin: 0;
+        color: var(--pl-text);
+    }
+
+    .practitioners-table th {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 1rem;
+        font-weight: 600;
+        color: var(--pl-text-muted);
+        border-bottom: 1px solid var(--pl-border);
+        font-size: 0.85rem;
+        text-transform: uppercase;
+    }
+
+    .practitioners-table td {
+        padding: 1rem;
+        border-bottom: 1px solid var(--pl-border);
+        vertical-align: middle;
+    }
+
+    .practitioners-table tbody tr:hover {
+        background: rgba(201, 162, 39, 0.05);
+    }
+
+    .practitioners-table .fw-semibold {
+        color: #ffffff !important;
+    }
+
+    /* Nom du pratiquant - toujours visible en blanc */
+    .practitioners-table td .fw-semibold,
+    .practitioners-table tbody td div.fw-semibold,
+    .practitioners-table td > div > div > .fw-semibold {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
+
+    .practitioners-table .text-muted {
+        color: var(--pl-text-muted) !important;
+    }
+
+    /* Badges de statut */
+    .badge.bg-success {
+        background: rgba(0, 210, 106, 0.2) !important;
+        color: var(--pl-success) !important;
+    }
+
+    .badge.bg-danger {
+        background: rgba(233, 69, 96, 0.2) !important;
+        color: var(--pl-danger) !important;
+    }
+
+    .badge.bg-info {
+        background: rgba(52, 152, 219, 0.2) !important;
+        color: var(--pl-info) !important;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--pl-text-muted);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        color: var(--pl-gold);
+        opacity: 0.5;
+        margin-bottom: 1rem;
+    }
+
+    .empty-state h4 {
+        color: var(--pl-text);
+        margin-bottom: 1rem;
+    }
+
+    /* Boutons Bootstrap Override */
+    .btn-primary {
+        background: linear-gradient(135deg, var(--pl-gold) 0%, var(--pl-gold-light) 100%);
+        border-color: var(--pl-gold);
+        color: var(--pl-bg-dark);
+        font-weight: 600;
+    }
+
+    .btn-primary:hover {
+        background: linear-gradient(135deg, var(--pl-gold-light) 0%, var(--pl-gold) 100%);
+        border-color: var(--pl-gold-light);
+        color: var(--pl-bg-dark);
+        box-shadow: 0 4px 15px rgba(201, 162, 39, 0.4);
+    }
+
+    .btn-outline-secondary {
+        border-color: var(--pl-border);
+        color: var(--pl-text-muted);
+        background: transparent;
+    }
+
+    .btn-outline-secondary:hover {
+        border-color: var(--pl-gold);
+        color: var(--pl-gold);
+        background: rgba(201, 162, 39, 0.1);
+    }
+
+    .btn-outline-info {
+        border-color: var(--pl-gold);
+        color: var(--pl-gold);
+        background: transparent;
+    }
+
+    .btn-outline-info:hover {
+        background: var(--pl-gold);
+        color: var(--pl-bg-dark);
+    }
+
+    .btn-outline-primary {
+        border-color: var(--pl-gold);
+        color: var(--pl-gold);
+    }
+
+    .btn-outline-primary:hover {
+        background: var(--pl-gold);
+        color: var(--pl-bg-dark);
+    }
+
+    .btn-sm.btn-primary {
+        padding: 0.4rem 0.75rem;
+    }
+
+    .btn-sm.btn-outline-secondary {
+        border-color: var(--pl-border);
+        color: var(--pl-text-muted);
+    }
+
+    .btn-sm.btn-outline-secondary:hover {
+        border-color: var(--pl-gold);
+        color: var(--pl-gold);
+        background: rgba(201, 162, 39, 0.1);
+    }
+
+    /* Dropdown */
+    .dropdown-menu {
+        background: var(--pl-bg-card);
+        border: 1px solid var(--pl-border);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    }
+
+    .dropdown-item {
+        color: var(--pl-text);
+    }
+
+    .dropdown-item:hover {
+        background: rgba(201, 162, 39, 0.1);
+        color: var(--pl-gold);
+    }
+
+    /* Pagination */
+    .pagination .page-link {
+        background: var(--pl-bg-card);
+        border-color: var(--pl-border);
+        color: var(--pl-text-muted);
+    }
+
+    .pagination .page-link:hover {
+        background: rgba(201, 162, 39, 0.1);
+        border-color: var(--pl-gold);
+        color: var(--pl-gold);
+    }
+
+    .pagination .page-item.active .page-link {
+        background: var(--pl-gold);
+        border-color: var(--pl-gold);
+        color: var(--pl-bg-dark);
+    }
+
+    /* Statut icons */
+    .text-success {
+        color: var(--pl-success) !important;
+    }
+
+    .text-danger {
+        color: var(--pl-danger) !important;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .cards-container {
+            grid-template-columns: 1fr;
+        }
+
+        .filters-row {
+            flex-direction: column;
+        }
+
+        .filter-group {
+            min-width: 100%;
+        }
+
+        .stats-bar {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .table-responsive {
+            font-size: 0.875rem;
+        }
+
+        .practitioner-actions {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="practitioners-container">
+    <div class="container-fluid">
+        <!-- En-tête -->
+        <div class="toolbar">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                    <h2 class="h4 mb-1">
+                        <i class="fas fa-users text-primary me-2"></i>
+                        {% trans "Gestion des Pratiquants" %}
+                    </h2>
+                    <p class="text-muted mb-0">
+                        {% trans "Gérez votre communauté de pratiquants avec des outils professionnels" %}
+                    </p>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>
+                        {% trans "Nouveau Pratiquant" %}
+                    </a>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-download me-1"></i>
+                            {% trans "Export" %}
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item" href="javascript:void(0);" onclick="exportData('csv')">
+                                    <i class="fas fa-file-csv me-2"></i>
+                                    {% trans "CSV" %}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="javascript:void(0);" onclick="exportData('excel')">
+                                    <i class="fas fa-file-excel me-2"></i>
+                                    {% trans "Excel" %}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="javascript:void(0);" onclick="exportData('pdf')">
+                                    <i class="fas fa-file-pdf me-2"></i>
+                                    {% trans "PDF" %}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Bouton d'aide pour les couleurs de grades -->
+                    <button class="btn btn-outline-info" type="button" data-bs-toggle="modal" data-bs-target="#gradeColorsModal">
+                        <i class="fas fa-palette me-1"></i>
+                        {% trans "Couleurs Grades" %}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Bascule de vue -->
+            <div class="row mt-4 align-items-center">
+                <div class="col-md-4">
+                    <div class="view-toggle">
+                        <button type="button" class="active" data-view="cards" id="cardsBtn">
+                            <i class="fas fa-th-large"></i>
+                            {% trans "Cartes" %}
+                        </button>
+                        <button type="button" data-view="table" id="tableBtn">
+                            <i class="fas fa-table"></i>
+                            {% trans "Tableau" %}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtres -->
+            <form method="get" class="filters-row" id="filtersForm">
+                <div class="filter-group">
+                    <label for="search">{% trans "Recherche" %}</label>
+                    <input type="text" name="search" id="search" class="filter-input" 
+                           placeholder="{% trans 'Nom, prénom, email...' %}" 
+                           value="{{ request.GET.search }}">
+                </div>
+                
+                <div class="filter-group">
+                    <label for="grade">{% trans "Grade" %}</label>
+                    <select name="grade" id="grade" class="filter-input">
+                        <option value="">{% trans "Tous les grades" %}</option>
+                        <option value="none" {% if request.GET.grade == "none" %}selected{% endif %}>
+                            {% trans "Sans grade" %}
+                        </option>
+                        {% for grade_value, grade_name in grade_choices %}
+                            <option value="{{ grade_value }}" 
+                                    {% if request.GET.grade == grade_value|stringformat:"s" %}selected{% endif %}>
+                                {{ grade_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="age_group">{% trans "Groupe d'âge" %}</label>
+                    <select name="age_group" id="age_group" class="filter-input">
+                        <option value="">{% trans "Tous les âges" %}</option>
+                        <option value="child" {% if request.GET.age_group == "child" %}selected{% endif %}>
+                            {% trans "Enfants (- 12 ans)" %}
+                        </option>
+                        <option value="teen" {% if request.GET.age_group == "teen" %}selected{% endif %}>
+                            {% trans "Adolescents (12-17 ans)" %}
+                        </option>
+                        <option value="adult" {% if request.GET.age_group == "adult" %}selected{% endif %}>
+                            {% trans "Adultes (18+ ans)" %}
+                        </option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="status">{% trans "Statut" %}</label>
+                    <select name="status" id="status" class="filter-input">
+                        <option value="">{% trans "Tous" %}</option>
+                        <option value="active" {% if request.GET.status == "active" %}selected{% endif %}>
+                            {% trans "Actifs" %}
+                        </option>
+                        <option value="inactive" {% if request.GET.status == "inactive" %}selected{% endif %}>
+                            {% trans "Inactifs" %}
+                        </option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label>&nbsp;</label>
+                    <button type="submit" class="filter-input btn btn-primary">
+                        <i class="fas fa-search me-1"></i>
+                        {% trans "Filtrer" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Statistiques -->
+        {% if stats %}
+        <div class="stats-bar">
+            <div class="stat-card">
+                <span class="stat-number">{{ stats.total_practitioners }}</span>
+                <span class="stat-label">{% trans "Total Pratiquants" %}</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">{{ stats.active_practitioners }}</span>
+                <span class="stat-label">{% trans "Actifs" %}</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">{{ stats.practitioners_with_accounts }}</span>
+                <span class="stat-label">{% trans "Avec Compte" %}</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">{{ stats.completion_rate }}%</span>
+                <span class="stat-label">{% trans "Taux d'Inscription" %}</span>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Vue Cartes -->
+        <div class="cards-container" id="cardsView">
+            {% if practitioners %}
+                {% for practitioner in practitioners %}
+                <div class="practitioner-card">
+                    <div class="practitioner-header">
+                        <div class="practitioner-avatar">
+                            {{ practitioner.first_name|first|default:"?" }}{{ practitioner.last_name|first|default:"?" }}
+                        </div>
+                        <div class="practitioner-info">
+                            <h3>{{ practitioner.first_name }} {{ practitioner.last_name }}</h3>
+                            <div class="practitioner-meta">
+                                {% if practitioner.computed_age %}
+                                    <span>{{ practitioner.computed_age }} ans</span>
+                                {% endif %}
+                                {% if practitioner.email %}
+                                    <span><i class="fas fa-envelope"></i> {{ practitioner.email }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Grade Badge -->
+                    {% if practitioner.computed_grade_display %}
+                        <div class="grade-badge grade-{{ practitioner.computed_grade_css_class|default:'cap-blanc' }}" 
+                             data-color="{{ practitioner.computed_grade_color|default:'#6c757d' }}"
+                             style="--grade-color: {{ practitioner.computed_grade_color|default:'#6c757d' }};">
+                            <i class="fas fa-medal"></i>
+                            {{ practitioner.computed_grade_display }}
+                        </div>
+                    {% endif %}
+
+                    <!-- Détails -->
+                    <div class="practitioner-details">
+                        {% if practitioner.phone %}
+                        <div class="detail-item">
+                            <i class="fas fa-phone"></i>
+                            <span>{{ practitioner.phone }}</span>
+                        </div>
+                        {% endif %}
+                        
+                        {% if practitioner.license_number %}
+                        <div class="detail-item">
+                            <i class="fas fa-id-card"></i>
+                            <span>{{ practitioner.license_number }}</span>
+                        </div>
+                        {% endif %}
+                        
+                        {% if practitioner.computed_discipline_display %}
+                        <div class="detail-item">
+                            <i class="fas fa-fist-raised"></i>
+                            <span>{{ practitioner.computed_discipline_display }}</span>
+                        </div>
+                        {% elif practitioner.primary_discipline %}
+                        <div class="detail-item">
+                            <i class="fas fa-fist-raised"></i>
+                            <span>{{ practitioner.primary_discipline.name }}</span>
+                        </div>
+                        {% endif %}
+                        
+                        {% if practitioner.is_coach %}
+                        <div class="detail-item">
+                            <i class="fas fa-chalkboard-teacher"></i>
+                            <span>{% trans "Instructeur" %}</span>
+                        </div>
+                        {% endif %}
+                        
+                        {% if practitioner.computed_grade_date %}
+                        <div class="detail-item">
+                            <i class="fas fa-medal"></i>
+                            <span>{% trans "Grade obtenu le" %} {{ practitioner.computed_grade_date|date:"d/m/Y" }}</span>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="detail-item">
+                            <i class="fas fa-calendar"></i>
+                            <span>{% trans "Inscrit le" %} {{ practitioner.registration_date|date:"M Y"|default:"N/A" }}</span>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <i class="fas fa-circle {% if practitioner.is_active %}text-success{% else %}text-danger{% endif %}"></i>
+                            <span>{% if practitioner.is_active %}{% trans "Actif" %}{% else %}{% trans "Inactif" %}{% endif %}</span>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="practitioner-actions">
+                        <a href="{% url 'competitions:club:practitioner_detail' practitioner.pk %}" 
+                           class="btn-action btn-primary" title="{% trans 'Voir le profil' %}">
+                            <i class="fas fa-eye"></i>
+                            {% trans "Voir" %}
+                        </a>
+                        <a href="{% url 'competitions:club:practitioner_edit' practitioner.pk %}" 
+                           class="btn-action" title="{% trans 'Modifier' %}">
+                            <i class="fas fa-edit"></i>
+                            {% trans "Modifier" %}
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-12">
+                    <div class="empty-state">
+                        <i class="fas fa-users"></i>
+                        <h4>{% trans "Aucun pratiquant trouvé" %}</h4>
+                        {% if request.GET.search or request.GET.grade or request.GET.age_group or request.GET.status %}
+                            <p>{% trans "Aucun pratiquant ne correspond à vos critères de recherche." %}</p>
+                            <a href="{% url 'competitions:club:practitioners' %}" class="btn btn-outline-primary">
+                                <i class="fas fa-times me-1"></i>
+                                {% trans "Effacer les filtres" %}
+                            </a>
+                        {% else %}
+                            <p>{% trans "Commencez par ajouter des pratiquants à votre club." %}</p>
+                            <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-primary">
+                                <i class="fas fa-plus me-1"></i>
+                                {% trans "Ajouter un pratiquant" %}
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Vue Tableau -->
+        <div class="table-container d-none" id="tableView">
+            <div class="table-header">
+                <div class="d-flex align-items-center gap-3">
+                    <h5 class="mb-0">
+                        <i class="fas fa-table me-2"></i>
+                        {% trans "Vue Tableau Détaillée" %}
+                    </h5>
+                    <span class="badge bg-light text-dark">
+                        {{ practitioners|length }} {% trans "pratiquants" %}
+                    </span>
+                </div>
+            </div>
+
+            {% if practitioners %}
+            <div class="table-responsive">
+                <table class="practitioners-table table table-hover">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Nom" %}</th>
+                            <th>{% trans "Grade" %}</th>
+                            <th>{% trans "Age" %}</th>
+                            <th>{% trans "Discipline" %}</th>
+                            <th>{% trans "Contact" %}</th>
+                            <th>{% trans "Statut" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for practitioner in practitioners %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="practitioner-avatar" style="width: 40px; height: 40px; font-size: 1rem;">
+                                        {{ practitioner.first_name|first|default:"?" }}{{ practitioner.last_name|first|default:"?" }}
+                                    </div>
+                                    <div>
+                                        <div class="fw-semibold">{{ practitioner.first_name }} {{ practitioner.last_name }}</div>
+                                        {% if practitioner.license_number %}
+                                            <small class="text-muted">{{ practitioner.license_number }}</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if practitioner.computed_grade_display %}
+                                    <span class="grade-badge grade-{{ practitioner.computed_grade_css_class|default:'cap-blanc' }}"
+                                          data-color="{{ practitioner.computed_grade_color|default:'#6c757d' }}"
+                                          style="--grade-color: {{ practitioner.computed_grade_color|default:'#6c757d' }};">
+                                        {{ practitioner.computed_grade_display }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">{% trans "Non défini" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if practitioner.computed_age %}
+                                    {{ practitioner.computed_age }} ans
+                                {% else %}
+                                    <span class="text-muted">{% trans "N/A" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if practitioner.computed_discipline_display %}
+                                    {{ practitioner.computed_discipline_display }}
+                                {% elif practitioner.primary_discipline %}
+                                    {{ practitioner.primary_discipline.name }}
+                                {% else %}
+                                    <span class="text-muted">{% trans "Non défini" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if practitioner.email %}
+                                    <div><i class="fas fa-envelope me-1"></i> {{ practitioner.email }}</div>
+                                {% endif %}
+                                {% if practitioner.phone %}
+                                    <div><i class="fas fa-phone me-1"></i> {{ practitioner.phone }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge {% if practitioner.is_active %}bg-success{% else %}bg-danger{% endif %}">
+                                    {% if practitioner.is_active %}{% trans "Actif" %}{% else %}{% trans "Inactif" %}{% endif %}
+                                </span>
+                                {% if practitioner.is_coach %}
+                                    <span class="badge bg-info ms-1">{% trans "Coach" %}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'competitions:club:practitioner_detail' practitioner.pk %}" 
+                                       class="btn btn-sm btn-primary" title="{% trans 'Voir' %}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'competitions:club:practitioner_edit' practitioner.pk %}" 
+                                       class="btn btn-sm btn-outline-secondary" title="{% trans 'Modifier' %}">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-users"></i>
+                    <h4>{% trans "Aucun pratiquant trouvé" %}</h4>
+                    <p>{% trans "Commencez par ajouter des pratiquants à votre club." %}</p>
+                    <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>
+                        {% trans "Ajouter un pratiquant" %}
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Pagination -->
+        {% if practitioners.has_other_pages %}
+        <nav aria-label="{% trans 'Navigation des pages' %}" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if practitioners.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.grade %}grade={{ request.GET.grade }}&{% endif %}{% if request.GET.age_group %}age_group={{ request.GET.age_group }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}page={{ practitioners.previous_page_number }}">
+                            {% trans "Précédent" %}
+                        </a>
+                    </li>
+                {% endif %}
+
+                {% for num in practitioners.paginator.page_range %}
+                    {% if practitioners.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                    {% elif num > practitioners.number|add:'-3' and num < practitioners.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.grade %}grade={{ request.GET.grade }}&{% endif %}{% if request.GET.age_group %}age_group={{ request.GET.age_group }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}page={{ num }}">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if practitioners.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.grade %}grade={{ request.GET.grade }}&{% endif %}{% if request.GET.age_group %}age_group={{ request.GET.age_group }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}page={{ practitioners.next_page_number }}">
+                            {% trans "Suivant" %}
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal d'explication des couleurs de grades -->
+<div class="modal fade" id="gradeColorsModal" tabindex="-1" aria-labelledby="gradeColorsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background: var(--pl-bg-card); border: 1px solid var(--pl-border); color: var(--pl-text);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--pl-border);">
+                <h5 class="modal-title" id="gradeColorsModalLabel" style="color: var(--pl-gold);">
+                    <i class="fas fa-palette me-2"></i>
+                    {% trans "Guide des Couleurs de Grades" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- Qwan Ki Do -->
+                    <div class="col-md-6 mb-4">
+                        <h6 class="fw-bold mb-3" style="color: var(--pl-gold);">
+                            <i class="fas fa-fist-raised me-1"></i>
+                            Qwan Ki Do
+                        </h6>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle me-2" style="width: 16px; height: 16px; background: #FFEB3B; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 0 5px #FFEB3B;"></div>
+                                <span>{% trans "Caps Jaunes" %}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle me-2" style="width: 16px; height: 16px; background: #F44336; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 0 5px #F44336;"></div>
+                                <span>{% trans "Caps Rouges" %}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle me-2" style="width: 16px; height: 16px; background: #FFFFFF; border: 2px solid var(--pl-border); box-shadow: 0 0 5px rgba(255,255,255,0.5);"></div>
+                                <span>{% trans "Caps Blancs" %}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle me-2" style="width: 16px; height: 16px; background: #2196F3; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 0 5px #2196F3;"></div>
+                                <span>{% trans "Caps Bleus & Écharpe Bleue" %}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle me-2" style="width: 16px; height: 16px; background: #000000; border: 2px solid var(--pl-gold); box-shadow: 0 0 5px var(--pl-gold);"></div>
+                                <span>{% trans "Dangs" %}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Karaté, Judo, Arts Martiaux Traditionnels -->
+                    <div class="col-md-6 mb-4">
+                        <h6 class="fw-bold mb-3" style="color: var(--pl-gold);">
+                            <i class="fas fa-hand-rock me-1"></i>
+                            {% trans "Karaté, Judo & Arts Martiaux" %}
+                        </h6>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle me-2" style="width: 16px; height: 16px; background: #FFFFFF; border: 2px solid var(--pl-border); box-shadow: 0 0 5px rgba(255,255,255,0.5);"></div>
+                                <span>{% trans "Ceinture Blanche" %}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle me-2" style="width: 16px; height: 16px; background: #FFEB3B; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 0 5px #FFEB3B;"></div>
+                                <span>{% trans "Ceinture Jaune" %}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle me-2" style="width: 16px; height: 16px; background: #FF9800; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 0 5px #FF9800;"></div>
+                                <span>{% trans "Ceinture Orange" %}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle me-2" style="width: 16px; height: 16px; background: #4CAF50; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 0 5px #4CAF50;"></div>
+                                <span>{% trans "Ceinture Verte" %}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle me-2" style="width: 16px; height: 16px; background: #2196F3; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 0 5px #2196F3;"></div>
+                                <span>{% trans "Ceinture Bleue" %}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle me-2" style="width: 16px; height: 16px; background: #795548; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 0 5px #795548;"></div>
+                                <span>{% trans "Ceinture Marron" %}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle me-2" style="width: 16px; height: 16px; background: #000000; border: 2px solid var(--pl-gold); box-shadow: 0 0 5px var(--pl-gold);"></div>
+                                <span>{% trans "Ceinture Noire" %}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert mt-3" style="background: rgba(52, 152, 219, 0.15); border: 1px solid rgba(52, 152, 219, 0.3); color: var(--pl-info);">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {% trans "Les couleurs s'affichent automatiquement selon les grades attribués dans le système de gestion des grades avancé ou selon les noms de grades standards." %}
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid var(--pl-border);">
+                <button type="button" class="btn" style="background: var(--pl-gold); color: var(--pl-bg-dark); font-weight: 600;" data-bs-dismiss="modal">{% trans "Fermer" %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    'use strict';
+    
+    // Fonction d'initialisation retardée pour s'assurer que tout est chargé
+    function initializePractitionersView() {
+        console.log('🚀 Initializing practitioners view...');
+        
+        // Récupération des éléments
+        const cardsBtn = document.getElementById('cardsBtn');
+        const tableBtn = document.getElementById('tableBtn');
+        const cardsView = document.getElementById('cardsView');
+        const tableView = document.getElementById('tableView');
+        
+        // Vérifier que tous les éléments existent
+        if (!cardsBtn || !tableBtn || !cardsView || !tableView) {
+            console.error('❌ Missing required elements:', {
+                cardsBtn: !!cardsBtn,
+                tableBtn: !!tableBtn,
+                cardsView: !!cardsView,
+                tableView: !!tableView
+            });
+            return;
+        }
+        
+        console.log('✅ All elements found - Setting up view toggle');
+        
+        // Fonction de bascule de vue
+        function switchView(viewType) {
+            console.log('🔄 Switching to view:', viewType);
+            
+            if (viewType === 'cards') {
+                // Activer vue cartes
+                cardsBtn.classList.add('active');
+                tableBtn.classList.remove('active');
+                cardsView.classList.remove('d-none');
+                tableView.classList.add('d-none');
+                localStorage.setItem('practitioners_view', 'cards');
+                console.log('✅ Cards view activated');
+            } else {
+                // Activer vue tableau
+                tableBtn.classList.add('active');
+                cardsBtn.classList.remove('active');
+                cardsView.classList.add('d-none');
+                tableView.classList.remove('d-none');
+                localStorage.setItem('practitioners_view', 'table');
+                console.log('✅ Table view activated');
+            }
+        }
+        
+        // Événements de clic
+        cardsBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('🖱️ Cards button clicked');
+            switchView('cards');
+        });
+        
+        tableBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('🖱️ Table button clicked');
+            switchView('table');
+        });
+        
+        // Restaurer la vue sauvegardée
+        const savedView = localStorage.getItem('practitioners_view');
+        console.log('💾 Saved view preference:', savedView);
+        
+        if (savedView === 'table') {
+            switchView('table');
+        } else {
+            // Par défaut, afficher les cartes
+            switchView('cards');
+        }
+        
+        // Filtrage en temps réel pour la recherche
+        const searchInput = document.getElementById('search');
+        let searchTimeout;
+        
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    console.log('🔍 Submitting search form');
+                    document.getElementById('filtersForm').submit();
+                }, 800); // Attendre 800ms après la dernière frappe
+            });
+        }
+        
+        // Auto-submit pour les select
+        document.querySelectorAll('select.filter-input').forEach(select => {
+            select.addEventListener('change', function() {
+                console.log('🎛️ Filter changed:', this.name, this.value);
+                document.getElementById('filtersForm').submit();
+            });
+        });
+        
+        console.log('🎉 Practitioners view initialization complete');
+    }
+    
+    // Attendre que le DOM ET Bootstrap soient chargés
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('📄 DOM loaded');
+            // Attendre un peu plus pour s'assurer que Bootstrap est prêt
+            setTimeout(initializePractitionersView, 100);
+        });
+    } else {
+        // Le DOM est déjà chargé
+        console.log('📄 DOM already loaded');
+        setTimeout(initializePractitionersView, 100);
+    }
+    
+    // Fonction d'export globale
+    window.exportData = function(format) {
+        console.log('📤 Exporting data in format:', format);
+        const params = new URLSearchParams(window.location.search);
+        params.set('format', format);
+        window.location.href = window.location.pathname + '?' + params.toString();
+    };
+    
+    // Amélioration des badges de grades avec tooltips
+    function initGradeBadges() {
+        const gradeBadges = document.querySelectorAll('.grade-badge[data-color]');
+        
+        gradeBadges.forEach(badge => {
+            const color = badge.getAttribute('data-color');
+            const gradeName = badge.textContent.trim();
+            
+            // Ajouter un titre tooltip avec info couleur
+            if (color && color !== '#6c757d') {
+                badge.title = `${gradeName} (Couleur: ${color})`;
+                
+                // Améliorer le contraste pour les grades blancs
+                if (color.toUpperCase() === '#FFFFFF') {
+                    badge.style.border = '2px solid #dee2e6';
+                    badge.style.boxShadow = '0 0 0 1px #adb5bd';
+                }
+            }
+        });
+    }
+    
+    // Initialiser les badges après le chargement
+    setTimeout(() => {
+        initGradeBadges();
+    }, 200);
+    
+})();
+</script>
+{% endblock %}

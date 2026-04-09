@@ -45,7 +45,7 @@ class GradeAdminForm(forms.ModelForm):
 @admin.register(Grade)
 class GradeAdmin(admin.ModelAdmin):  # Temporairement changé de TranslationAdmin Ã  ModelAdmin
     form = GradeAdminForm
-    list_display = ('name', 'discipline', 'category', 'level', 'color_display', 'is_dan_grade', 'is_active')
+    list_display = ('name', 'discipline', 'category', 'level', 'color_display', 'image_preview_small', 'is_dan_grade', 'is_active')
     list_filter = ('discipline', 'category', 'is_dan_grade', 'is_active')
     search_fields = ('name', 'discipline__name', 'category__name')
     ordering = ('discipline', 'level', 'name')
@@ -58,6 +58,10 @@ class GradeAdmin(admin.ModelAdmin):  # Temporairement changé de TranslationAdmi
         (_("Détails du grade"), {
             'fields': ('color', 'color_code', 'level', 'order', 'is_dan_grade')
         }),
+        (_("Image du grade"), {
+            'fields': ('image', 'image_preview', 'icon'),
+            'description': _("Téléchargez une image pour représenter ce grade (PNG, JPG, SVG - max 500KB, recommandé 100x100px)")
+        }),
         (_("Critères d'accès"), {
             'fields': ('min_age', 'min_time_in_previous_grade', 'requirements_text')
         }),
@@ -65,11 +69,47 @@ class GradeAdmin(admin.ModelAdmin):  # Temporairement changé de TranslationAdmi
             'fields': ('is_active',)
         }),
     )
-    
+    readonly_fields = ('image_preview',)
+
     # Script JavaScript pour le filtrage dynamique des catégories
     class Media:
         js = ('admin/js/grade_category_filter.js',)
-    
+
+    def image_preview(self, obj):
+        """Affiche une prévisualisation de l'image du grade dans le formulaire d'admin."""
+        if obj.image:
+            return format_html(
+                '<div style="margin: 10px 0;">'
+                '<img src="{}" style="max-width: 100px; max-height: 100px; border: 2px solid {}; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"/>'
+                '<p style="margin-top: 5px; font-size: 12px; color: #666;">Taille recommandée: 100x100px</p>'
+                '</div>',
+                obj.image.url,
+                obj.color_code or '#ddd'
+            )
+        color = obj.color_code or '#6c757d'
+        initials = obj.initials if obj.pk else 'GR'
+        return format_html(
+            '<div style="width: 100px; height: 100px; background-color: {}; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 24px;">{}</div>'
+            '<p style="margin-top: 5px; font-size: 12px; color: #666;">Aucune image - Affichage des initiales par défaut</p>',
+            color, initials
+        )
+    image_preview.short_description = _("Prévisualisation")
+
+    def image_preview_small(self, obj):
+        """Affiche une petite prévisualisation dans la liste admin."""
+        if obj.image:
+            return format_html(
+                '<img src="{}" style="width: 30px; height: 30px; border-radius: 4px; object-fit: cover; border: 1px solid {};"/>',
+                obj.image.url,
+                obj.color_code or '#ddd'
+            )
+        color = obj.color_code or '#6c757d'
+        return format_html(
+            '<div style="width: 30px; height: 30px; background-color: {}; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 10px;">{}</div>',
+            color, obj.initials
+        )
+    image_preview_small.short_description = _("Image")
+
     def color_display(self, obj):
         if obj.color_code:
             return format_html(

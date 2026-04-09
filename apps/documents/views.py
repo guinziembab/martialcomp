@@ -8,6 +8,7 @@ from django.http import JsonResponse, HttpResponse, Http404
 from django.core.paginator import Paginator
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_protect
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from datetime import timedelta
@@ -124,6 +125,233 @@ def folder_view(request, folder_id=None):
 
 
 @login_required
+@require_http_methods(["POST"])
+def create_folder_ajax(request):
+    """Création d'un dossier via AJAX depuis la page d'upload"""
+    name = request.POST.get('name', '').strip()
+    parent_id = request.POST.get('parent_id', '').strip()
+
+    if not name:
+        return JsonResponse({'error': _('Le nom du dossier est requis.')}, status=400)
+
+    parent = None
+    if parent_id:
+        try:
+            parent = DocumentFolder.objects.get(id=parent_id)
+        except DocumentFolder.DoesNotExist:
+            return JsonResponse({'error': _('Dossier parent introuvable.')}, status=400)
+
+    folder = DocumentFolder.objects.create(
+        name=name,
+        owner=request.user,
+        parent=parent,
+    )
+
+    return JsonResponse({
+        'success': True,
+        'folder': {
+            'id': str(folder.id),
+            'name': folder.name,
+            'path': folder.path or folder.name,
+        }
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def upload_document_ajax(request):
+    """Upload d'un document via AJAX (pour multi-file upload)"""
+    form = DocumentUploadForm(request.POST, request.FILES, user=request.user)
+    if form.is_valid():
+        document = form.save()
+
+        DocumentAccessLog.objects.create(
+            document=document,
+            user=request.user,
+            action=DocumentAccessLog.ACTION_EDIT,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            details={'action': 'document_created'}
+        )
+
+        return JsonResponse({
+            'success': True,
+            'document': {
+                'id': str(document.id),
+                'title': document.title,
+            }
+        })
+    else:
+        errors = {field: [str(e) for e in errs] for field, errs in form.errors.items()}
+        return JsonResponse({'error': errors}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def share_document_ajax(request, document_id):
+    """Partager un document via AJAX"""
+    import traceback
+    import logging
+    logger = logging.getLogger('django')
+
+    try:
+        document = get_object_or_404(Document, id=document_id)
+
+        # Vérifier que l'utilisateur peut partager
+        if not (document.created_by == request.user or request.user.is_superuser):
+            return JsonResponse({'error': str(_('Permissions insuffisantes'))}, status=403)
+
+        share_type = request.POST.get('share_type', '')
+        entity_id = request.POST.get('entity_id', '')
+        access_level = request.POST.get('access_level', 'R')
+
+        if not entity_id:
+            return JsonResponse({'error': str(_('Veuillez sélectionner un destinataire.'))}, status=400)
+
+        if share_type == 'user':
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            target_user = User.objects.get(pk=entity_id)
+            # Vérifier doublon
+            if DocumentShare.objects.filter(document=document, user=target_user).exists():
+                return JsonResponse({'error': str(_('Ce document est déjà partagé avec cet utilisateur.'))}, status=400)
+            share = DocumentShare.objects.create(
+                document=document, user=target_user,
+                access_level=access_level, created_by=request.user
+            )
+            share_name = target_user.get_full_name() or target_user.username
+            share_icon = 'fa-user'
+
+        elif share_type == 'club':
+            from apps.organizations.models import Organization
+            org = Organization.objects.get(pk=entity_id)
+            ct = ContentType.objects.get_for_model(Organization)
+            if DocumentShare.objects.filter(document=document, group_content_type=ct, group_object_id=str(org.pk)).exists():
+                return JsonResponse({'error': str(_('Ce document est déjà partagé avec ce club.'))}, status=400)
+            share = DocumentShare.objects.create(
+                document=document, group_content_type=ct, group_object_id=str(org.pk),
+                access_level=access_level, created_by=request.user
+            )
+            share_name = org.name
+            share_icon = 'fa-shield-alt'
+
+        elif share_type == 'federation':
+            from apps.competitions.models.federations import Federation
+            fed = Federation.objects.get(pk=entity_id)
+            ct = ContentType.objects.get_for_model(Federation)
+            if DocumentShare.objects.filter(document=document, group_content_type=ct, group_object_id=str(fed.pk)).exists():
+                return JsonResponse({'error': str(_('Ce document est déjà partagé avec cette fédération.'))}, status=400)
+            share = DocumentShare.objects.create(
+                document=document, group_content_type=ct, group_object_id=str(fed.pk),
+                access_level=access_level, created_by=request.user
+            )
+            share_name = fed.name
+            share_icon = 'fa-landmark'
+
+        elif share_type == 'role':
+            role_name = entity_id
+            from django.contrib.auth.models import Group
+            group, created = Group.objects.get_or_create(name=f'doc_role:{role_name}')
+            ct = ContentType.objects.get_for_model(Group)
+            if DocumentShare.objects.filter(document=document, group_content_type=ct, group_object_id=str(group.pk)).exists():
+                return JsonResponse({'error': str(_('Ce document est déjà partagé avec ce rôle.'))}, status=400)
+            share = DocumentShare.objects.create(
+                document=document, group_content_type=ct, group_object_id=str(group.pk),
+                access_level=access_level, created_by=request.user
+            )
+            role_labels = {
+                'judge': _('Arbitres'), 'coach': _('Entraîneurs'),
+                'member': _('Tous les membres'), 'admin': _('Administrateurs'),
+                'manager': _('Gestionnaires'), 'owner': _('Propriétaires'),
+            }
+            share_name = str(role_labels.get(role_name, role_name))
+            share_icon = 'fa-users-cog'
+        else:
+            return JsonResponse({'error': str(_('Type de partage non valide.'))}, status=400)
+
+        access_labels = {'R': _('Lecture'), 'W': _('Écriture'), 'F': _('Contrôle total')}
+
+        return JsonResponse({
+            'success': True,
+            'share': {
+                'id': str(share.id),
+                'name': str(share_name),
+                'icon': share_icon,
+                'type': share_type,
+                'access_level': str(access_labels.get(access_level, access_level)),
+                'date': share.created_at.strftime('%d/%m/%Y'),
+            }
+        })
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error(f"share_document_ajax error: {e}\n{tb}")
+        return JsonResponse({'error': f"Erreur serveur: {str(e)}"}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def revoke_share_ajax(request, share_id):
+    """Révoquer un partage via AJAX"""
+    share = get_object_or_404(DocumentShare, id=share_id)
+
+    if not (share.document.created_by == request.user or request.user.is_superuser):
+        return JsonResponse({'error': _('Permissions insuffisantes')}, status=403)
+
+    share.delete()
+    return JsonResponse({'success': True})
+
+
+@login_required
+def search_share_targets(request):
+    """Recherche AJAX des cibles de partage (users, clubs, fédérations)"""
+    q = request.GET.get('q', '').strip()
+    share_type = request.GET.get('type', 'user')
+    results = []
+
+    if len(q) < 2:
+        return JsonResponse({'results': results})
+
+    if share_type == 'user':
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        users = User.objects.filter(
+            Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(username__icontains=q) | Q(email__icontains=q)
+        ).exclude(pk=request.user.pk)[:10]
+        for u in users:
+            results.append({
+                'id': str(u.pk),
+                'name': u.get_full_name() or u.username,
+                'detail': u.email,
+                'icon': 'fa-user',
+            })
+
+    elif share_type == 'club':
+        from apps.organizations.models import Organization
+        orgs = Organization.objects.filter(name__icontains=q)[:10]
+        for o in orgs:
+            results.append({
+                'id': str(o.pk),
+                'name': o.name,
+                'detail': str(o.organization_type) if hasattr(o, 'organization_type') else '',
+                'icon': 'fa-shield-alt',
+            })
+
+    elif share_type == 'federation':
+        from apps.competitions.models.federations import Federation
+        feds = Federation.objects.filter(name__icontains=q)[:10]
+        for f in feds:
+            results.append({
+                'id': str(f.pk),
+                'name': f.name,
+                'detail': f.country if hasattr(f, 'country') else '',
+                'icon': 'fa-landmark',
+            })
+
+    return JsonResponse({'results': results})
+
+
+@login_required
 def upload_document(request, folder_id=None):
     """Upload d'un nouveau document"""
     folder = None
@@ -222,6 +450,50 @@ def document_detail(request, document_id):
                      access_level=DocumentShare.ACCESS_FULL
                  ).exists())
     
+    # Partages existants avec détails
+    shares = []
+    if can_share:
+        for s in DocumentShare.objects.filter(document=document).select_related('user', 'created_by'):
+            share_info = {
+                'id': str(s.id),
+                'access_level': s.get_access_level_display(),
+                'date': s.created_at.strftime('%d/%m/%Y'),
+            }
+            if s.user:
+                share_info['name'] = s.user.get_full_name() or s.user.username
+                share_info['icon'] = 'fa-user'
+                share_info['type'] = 'user'
+            elif s.group_content_type:
+                try:
+                    entity = s.group_content_type.get_object_for_this_type(pk=s.group_object_id)
+                    share_info['name'] = str(entity.name if hasattr(entity, 'name') else entity)
+                except Exception:
+                    share_info['name'] = f'{s.group_content_type.model} #{s.group_object_id}'
+                model_name = s.group_content_type.model
+                if model_name == 'organization':
+                    share_info['icon'] = 'fa-shield-alt'
+                    share_info['type'] = 'club'
+                elif model_name == 'federation':
+                    share_info['icon'] = 'fa-landmark'
+                    share_info['type'] = 'federation'
+                elif model_name == 'group':
+                    share_info['icon'] = 'fa-users-cog'
+                    share_info['type'] = 'role'
+                    # Traduire le nom du rôle
+                    name = share_info['name']
+                    if name.startswith('doc_role:'):
+                        role_key = name.replace('doc_role:', '')
+                        role_labels = {
+                            'judge': _('Arbitres'), 'coach': _('Entraîneurs'),
+                            'member': _('Tous les membres'), 'admin': _('Administrateurs'),
+                            'manager': _('Gestionnaires'),
+                        }
+                        share_info['name'] = str(role_labels.get(role_key, role_key))
+                else:
+                    share_info['icon'] = 'fa-share'
+                    share_info['type'] = model_name
+            shares.append(share_info)
+
     context = {
         'document': document,
         'comments': comments,
@@ -229,9 +501,10 @@ def document_detail(request, document_id):
         'versions': versions,
         'can_edit': can_edit,
         'can_share': can_share,
+        'shares': shares,
         'title': document.title,
     }
-    
+
     return render(request, 'documents/detail.html', context)
 
 

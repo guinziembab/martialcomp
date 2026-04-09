@@ -3,8 +3,10 @@ from django.urls import path
 from .views import (
     LoginView, RegisterView, RefreshTokenView, LogoutView, UserView,
     DeviceRegistrationView, PKCEInitView, PKCEAuthorizationView,
-    PKCECompleteView, RevokeTokenView, UserProfileView,
+    PKCECompleteView, RevokeTokenView, UserProfileView, UploadAvatarView,
     SocialLoginGoogleView, SocialLoginFacebookView,
+    SSOGenerateTokenView,
+    PasswordChangeView, PasswordResetRequestView, PasswordResetConfirmView,
 )
 from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
 
@@ -19,11 +21,12 @@ urlpatterns = [
     path('user/', UserView.as_view(), name='user'),
     # Profile (compat & v1)
     path('profile/', UserProfileView.as_view(), name='profile'),
-    
+    path('profile/upload-avatar/', UploadAvatarView.as_view(), name='upload_avatar'),
+
     # Endpoints pour la gestion des appareils
     path('devices/', DeviceRegistrationView.as_view(), name='devices'),
     path('devices/revoke/', RevokeTokenView.as_view(), name='revoke_device'),
-    
+
     # Endpoints pour PKCE (Proof Key for Code Exchange)
     path('pkce/init/', PKCEInitView.as_view(), name='pkce_init'),
     path('pkce/authorize/', PKCEAuthorizationView.as_view(), name='pkce_authorize'),
@@ -32,4 +35,12 @@ urlpatterns = [
     # Social auth endpoints
     path('social/google/', SocialLoginGoogleView.as_view(), name='social_google'),
     path('social/facebook/', SocialLoginFacebookView.as_view(), name='social_facebook'),
+
+    # SSO endpoint (mobile -> web)
+    path('sso/generate/', SSOGenerateTokenView.as_view(), name='sso_generate'),
+
+    # Password management endpoints
+    path('password-change/', PasswordChangeView.as_view(), name='password_change'),
+    path('password-reset/', PasswordResetRequestView.as_view(), name='password_reset'),
+    path('password-reset-confirm/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
 ]

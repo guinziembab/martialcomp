@@ -67,7 +67,7 @@ def get_organization_subscription(organization):
             from datetime import timedelta
             
             try:
-                tier = SubscriptionTier.objects.get(name='dojo_essentials')
+                tier = SubscriptionTier.objects.get(name='free')
                 subscription = OrganizationSubscription.objects.create(
                     organization=organization,
                     subscription_tier=tier,

@@ -103,7 +103,24 @@ class UserProfile(models.Model):
             federations = self.user.get_administered_federations()
             return federations.first() if federations.exists() else None
         return None
-    
+
+    @property
+    def avatar(self):
+        """
+        Retourne la photo de l'utilisateur via son practitioner associé.
+        Cette propriété permet d'accéder à la photo via user.userprofile.avatar
+        comme attendu par les templates.
+        """
+        try:
+            # Chercher le practitioner lié à cet utilisateur
+            Practitioner = apps.get_model('competitions', 'Practitioner')
+            practitioner = Practitioner.objects.filter(user=self.user).first()
+            if practitioner and practitioner.photo:
+                return practitioner.photo
+        except Exception:
+            pass
+        return None
+
     class Meta:
         app_label = 'competitions'
         verbose_name = _("Profil utilisateur")

@@ -106,4 +106,7 @@ def financial_stats(request):
     except Exception:
         pass
     
-    return {'financial_stats': stats}
+    return {
+        'financial_stats': stats,
+        'currency_code': stats.get('currency', 'EUR'),
+    }

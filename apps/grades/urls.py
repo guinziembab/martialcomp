@@ -1,9 +1,10 @@
 from django.urls import path
 from .views import (
-    dashboard, history, management, systems, 
-    bulk, api, core
+    dashboard, history, management, systems,
+    bulk, api, core, scoring
 )
 from apps.grades.views import certificates
+from . import views
 
 app_name = 'grades'
 
@@ -77,10 +78,10 @@ urlpatterns = [
     path('requirement/<int:pk>/delete/', core.GradeRequirementDeleteView.as_view(), name='requirement_delete'),
     
     # Routes pour l'API
-    path('api/grades-by-disciplines/', api.get_grades_by_disciplines, name='api_grades_by_disciplines'),
-    path('api/discipline/<int:discipline_id>/grades/', api.get_grades_by_discipline, name='api_discipline_grades'),
-    path('api/create-grade/', api.create_grade_for_discipline, name='api_create_grade'),
-    path('api/search-grades/', api.search_grades, name='api_search_grades'),
+    path('api/grades-by-disciplines/', api.grades_by_disciplines, name='api_grades_by_disciplines'),
+    # path('api/discipline/<int:discipline_id>/grades/', api.get_grades_by_discipline, name='api_discipline_grades'),
+    # path('api/create-grade/', api.create_grade_for_discipline, name='api_create_grade'),
+    # path('api/search-grades/', api.search_grades, name='api_search_grades'),
     path('api/categories-by-discipline/', api.categories_by_discipline, name='api_categories_by_discipline'),
     
     # Routes pour l'importation/exportation
@@ -94,5 +95,15 @@ urlpatterns = [
     path('certificate/qr/<str:certificate_number>/', certificates.generate_verification_qr, name='verification_qr'),
     path('certificate/download/<int:grade_id>/', certificates.download_certificate, name='download_certificate'),
     path('api/generate-certificate-number/', certificates.generate_certificate_number_ajax, name='generate_certificate_number_ajax'),
+
+    # Routes pour la notation des examens
+    path('exam/<int:exam_id>/scoring/config/', scoring.scoring_config, name='scoring_config'),
+    path('exam/<int:exam_id>/scoring/sheet/', scoring.examiner_sheet, name='examiner_sheet'),
+    path('exam/<int:exam_id>/scoring/dashboard/', scoring.scoring_dashboard, name='scoring_dashboard'),
+    path('exam/<int:exam_id>/scoring/results/', scoring.exam_results, name='exam_results'),
+    path('exam/<int:exam_id>/scoring/publish/', scoring.ajax_publish_results, name='ajax_publish_results'),
+    path('scoring/save-score/', scoring.ajax_save_score, name='ajax_save_score'),
+    path('exam/<int:exam_id>/scoring/module/', scoring.scoring_module_manage, name='scoring_module_manage'),
+    path('scoring/module/<int:module_id>/criterion/', scoring.scoring_criterion_manage, name='scoring_criterion_manage'),
 ]
 

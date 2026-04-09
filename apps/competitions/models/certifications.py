@@ -1,8 +1,13 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from django.contrib.auth import get_user_model
+import uuid
+import hashlib
 
 from apps.organizations.models import Organization, OrganizationMember, OrganizationRole
+
+User = get_user_model()
 
 class JudgeCertification(models.Model):
     """Modèle pour les certifications de juges délivrées par les organisations."""
@@ -382,3 +387,466 @@ class ExamRegistration(models.Model):
         self.save()
 
 
+class CertificateTemplate(models.Model):
+    """Modèle de template pour les certificats PDF."""
+
+    TEMPLATE_TYPE_CHOICES = [
+        ('judge', _('Certification de juge')),
+        ('grade', _('Diplôme de grade')),
+        ('participation', _('Attestation de participation')),
+        ('achievement', _('Certificat de réussite')),
+    ]
+
+    ORIENTATION_CHOICES = [
+        ('landscape', _('Paysage')),
+        ('portrait', _('Portrait')),
+    ]
+
+    # Relations
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='certificate_templates',
+        verbose_name=_("Organisation")
+    )
+
+    # Informations générales
+    name = models.CharField(_("Nom du modèle"), max_length=100)
+    template_type = models.CharField(
+        _("Type de certificat"),
+        max_length=20,
+        choices=TEMPLATE_TYPE_CHOICES,
+        default='judge'
+    )
+    description = models.TextField(_("Description"), blank=True)
+
+    # Configuration visuelle
+    orientation = models.CharField(
+        _("Orientation"),
+        max_length=20,
+        choices=ORIENTATION_CHOICES,
+        default='landscape'
+    )
+    background_image = models.ImageField(
+        _("Image de fond"),
+        upload_to='certificates/backgrounds/',
+        blank=True,
+        null=True
+    )
+    logo_position = models.CharField(
+        _("Position du logo"),
+        max_length=20,
+        default='top-center',
+        help_text=_("Position: top-left, top-center, top-right")
+    )
+
+    # Couleurs et polices
+    primary_color = models.CharField(_("Couleur primaire"), max_length=7, default='#1a1f2e')
+    secondary_color = models.CharField(_("Couleur secondaire"), max_length=7, default='#c9a227')
+    text_color = models.CharField(_("Couleur du texte"), max_length=7, default='#333333')
+    title_font_size = models.PositiveIntegerField(_("Taille titre (pt)"), default=36)
+    body_font_size = models.PositiveIntegerField(_("Taille corps (pt)"), default=14)
+
+    # Contenu du template
+    header_text = models.CharField(_("Texte d'en-tête"), max_length=200, blank=True)
+    title_text = models.CharField(
+        _("Texte du titre"),
+        max_length=200,
+        default=_("CERTIFICAT")
+    )
+    body_template = models.TextField(
+        _("Template du corps"),
+        help_text=_("Variables disponibles: {recipient_name}, {certification_type}, {level}, {date}, {certification_number}, {organization_name}, {discipline}"),
+        default="Certifie que {recipient_name} a obtenu la certification de {certification_type} niveau {level} en date du {date}."
+    )
+    footer_text = models.TextField(_("Texte de pied de page"), blank=True)
+
+    # Signatures
+    show_signature_line = models.BooleanField(_("Afficher ligne de signature"), default=True)
+    signature_label = models.CharField(_("Label signature"), max_length=100, default=_("Le Président"))
+    signature_image = models.ImageField(
+        _("Image de signature"),
+        upload_to='certificates/signatures/',
+        blank=True,
+        null=True
+    )
+    show_stamp = models.BooleanField(_("Afficher cachet"), default=True)
+    stamp_image = models.ImageField(
+        _("Image du cachet"),
+        upload_to='certificates/stamps/',
+        blank=True,
+        null=True
+    )
+
+    # QR Code
+    include_qr_code = models.BooleanField(_("Inclure QR code de vérification"), default=True)
+    qr_position = models.CharField(
+        _("Position QR code"),
+        max_length=20,
+        default='bottom-right'
+    )
+
+    # Métadonnées
+    is_default = models.BooleanField(_("Modèle par défaut"), default=False)
+    is_active = models.BooleanField(_("Actif"), default=True)
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+    created_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_certificate_templates',
+        verbose_name=_("Créé par")
+    )
+
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Modèle de certificat")
+        verbose_name_plural = _("Modèles de certificats")
+        ordering = ['organization', 'template_type', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.get_template_type_display()})"
+
+    def save(self, *args, **kwargs):
+        # S'assurer qu'il n'y a qu'un seul modèle par défaut par type et organisation
+        if self.is_default:
+            CertificateTemplate.objects.filter(
+                organization=self.organization,
+                template_type=self.template_type,
+                is_default=True
+            ).exclude(pk=self.pk).update(is_default=False)
+        super().save(*args, **kwargs)
+
+
+class IssuedCertificate(models.Model):
+    """Certificat délivré à un utilisateur."""
+
+    STATUS_CHOICES = [
+        ('valid', _('Valide')),
+        ('expired', _('Expiré')),
+        ('revoked', _('Révoqué')),
+        ('suspended', _('Suspendu')),
+    ]
+
+    # Identifiant unique
+    certificate_uuid = models.UUIDField(
+        _("UUID du certificat"),
+        default=uuid.uuid4,
+        unique=True,
+        editable=False
+    )
+    verification_code = models.CharField(
+        _("Code de vérification"),
+        max_length=12,
+        unique=True,
+        editable=False
+    )
+
+    # Relations
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='issued_certificates',
+        verbose_name=_("Organisation émettrice")
+    )
+    template = models.ForeignKey(
+        CertificateTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='issued_certificates',
+        verbose_name=_("Modèle utilisé")
+    )
+    recipient = models.ForeignKey(
+        'auth.User',
+        on_delete=models.CASCADE,
+        related_name='received_certificates',
+        verbose_name=_("Bénéficiaire")
+    )
+    judge = models.ForeignKey(
+        'Judge',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='certificates',
+        verbose_name=_("Profil juge")
+    )
+
+    # Lien vers certification ou examen
+    certification = models.ForeignKey(
+        JudgeCertification,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='issued_certificates',
+        verbose_name=_("Type de certification")
+    )
+    exam = models.ForeignKey(
+        'Exam',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='issued_certificates',
+        verbose_name=_("Examen associé")
+    )
+
+    # Informations du certificat
+    certificate_number = models.CharField(_("Numéro de certificat"), max_length=50)
+    title = models.CharField(_("Titre du certificat"), max_length=200)
+    recipient_name = models.CharField(_("Nom du bénéficiaire"), max_length=200)
+    certification_type = models.CharField(_("Type de certification"), max_length=100)
+    level = models.CharField(_("Niveau"), max_length=50, blank=True)
+    discipline = models.CharField(_("Discipline"), max_length=100, blank=True)
+
+    # Dates
+    issue_date = models.DateField(_("Date d'émission"), default=timezone.now)
+    valid_from = models.DateField(_("Valide à partir de"), default=timezone.now)
+    valid_until = models.DateField(_("Valide jusqu'au"), null=True, blank=True)
+
+    # Statut
+    status = models.CharField(
+        _("Statut"),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='valid'
+    )
+    revocation_reason = models.TextField(_("Raison de révocation"), blank=True)
+    revoked_at = models.DateTimeField(_("Révoqué le"), null=True, blank=True)
+    revoked_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='revoked_certificates',
+        verbose_name=_("Révoqué par")
+    )
+
+    # Fichier PDF
+    pdf_file = models.FileField(
+        _("Fichier PDF"),
+        upload_to='certificates/issued/',
+        blank=True,
+        null=True
+    )
+
+    # Métadonnées
+    issued_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='issued_certificates_as_issuer',
+        verbose_name=_("Émis par")
+    )
+    notes = models.TextField(_("Notes internes"), blank=True)
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+
+    # Compteurs
+    download_count = models.PositiveIntegerField(_("Nombre de téléchargements"), default=0)
+    verification_count = models.PositiveIntegerField(_("Nombre de vérifications"), default=0)
+    last_verified_at = models.DateTimeField(_("Dernière vérification"), null=True, blank=True)
+
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Certificat émis")
+        verbose_name_plural = _("Certificats émis")
+        ordering = ['-issue_date', '-created_at']
+
+    def __str__(self):
+        return f"{self.certificate_number} - {self.recipient_name}"
+
+    def save(self, *args, **kwargs):
+        if not self.verification_code:
+            self.verification_code = self.generate_verification_code()
+        super().save(*args, **kwargs)
+
+    def generate_verification_code(self):
+        """Génère un code de vérification unique de 12 caractères."""
+        unique_string = f"{self.certificate_uuid}{timezone.now().timestamp()}"
+        hash_object = hashlib.sha256(unique_string.encode())
+        return hash_object.hexdigest()[:12].upper()
+
+    @property
+    def is_valid(self):
+        """Vérifie si le certificat est valide."""
+        if self.status != 'valid':
+            return False
+        if self.valid_until and self.valid_until < timezone.now().date():
+            return False
+        return True
+
+    @property
+    def verification_url(self):
+        """URL de vérification du certificat."""
+        from django.urls import reverse
+        return reverse('competitions:certificate_verify', kwargs={'code': self.verification_code})
+
+    def revoke(self, user, reason=""):
+        """Révoque le certificat."""
+        self.status = 'revoked'
+        self.revoked_by = user
+        self.revoked_at = timezone.now()
+        self.revocation_reason = reason
+        self.save()
+
+    def suspend(self, reason=""):
+        """Suspend le certificat."""
+        self.status = 'suspended'
+        self.revocation_reason = reason
+        self.save()
+
+    def reactivate(self):
+        """Réactive un certificat suspendu."""
+        if self.status == 'suspended':
+            self.status = 'valid'
+            self.revocation_reason = ""
+            self.save()
+
+    def record_verification(self):
+        """Enregistre une vérification du certificat."""
+        self.verification_count += 1
+        self.last_verified_at = timezone.now()
+        self.save(update_fields=['verification_count', 'last_verified_at'])
+
+    def record_download(self):
+        """Enregistre un téléchargement du certificat."""
+        self.download_count += 1
+        self.save(update_fields=['download_count'])
+
+
+class CertificationRequest(models.Model):
+    """Demande de certification par un juge/club."""
+
+    STATUS_CHOICES = [
+        ('pending', _('En attente')),
+        ('under_review', _('En cours d\'examen')),
+        ('approved', _('Approuvée')),
+        ('rejected', _('Rejetée')),
+        ('cancelled', _('Annulée')),
+    ]
+
+    # Relations
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='certification_requests',
+        verbose_name=_("Organisation (fédération)")
+    )
+    applicant = models.ForeignKey(
+        'auth.User',
+        on_delete=models.CASCADE,
+        related_name='certification_requests',
+        verbose_name=_("Demandeur")
+    )
+    judge = models.ForeignKey(
+        'Judge',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='certification_requests',
+        verbose_name=_("Profil juge")
+    )
+    certification_type = models.ForeignKey(
+        JudgeCertification,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='requests',
+        verbose_name=_("Type de certification demandée")
+    )
+
+    # Informations de la demande
+    requested_level = models.CharField(
+        _("Niveau demandé"),
+        max_length=20,
+        choices=[
+            ('novice', _('Novice')),
+            ('regional', _('Régional')),
+            ('national', _('National')),
+            ('international', _('International')),
+        ],
+        default='regional'
+    )
+    motivation = models.TextField(_("Motivation"), help_text=_("Expliquez pourquoi vous demandez cette certification"))
+    experience_description = models.TextField(_("Description de l'expérience"), blank=True)
+
+    # Pièces jointes
+    cv_file = models.FileField(
+        _("CV"),
+        upload_to='certification_requests/cv/',
+        blank=True,
+        null=True
+    )
+    supporting_documents = models.FileField(
+        _("Documents justificatifs"),
+        upload_to='certification_requests/documents/',
+        blank=True,
+        null=True
+    )
+
+    # Statut
+    status = models.CharField(
+        _("Statut"),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+
+    # Traitement
+    reviewed_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_certification_requests',
+        verbose_name=_("Examiné par")
+    )
+    reviewed_at = models.DateTimeField(_("Examiné le"), null=True, blank=True)
+    reviewer_notes = models.TextField(_("Notes de l'examinateur"), blank=True)
+    rejection_reason = models.TextField(_("Raison du rejet"), blank=True)
+
+    # Certificat généré
+    issued_certificate = models.OneToOneField(
+        IssuedCertificate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='certification_request',
+        verbose_name=_("Certificat émis")
+    )
+
+    # Métadonnées
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Demande de certification")
+        verbose_name_plural = _("Demandes de certification")
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Demande de {self.applicant.get_full_name() or self.applicant.username} - {self.get_requested_level_display()}"
+
+    def approve(self, reviewer, notes=""):
+        """Approuve la demande."""
+        self.status = 'approved'
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.reviewer_notes = notes
+        self.save()
+
+    def reject(self, reviewer, reason=""):
+        """Rejette la demande."""
+        self.status = 'rejected'
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.rejection_reason = reason
+        self.save()
+
+    def start_review(self, reviewer):
+        """Marque la demande comme en cours d'examen."""
+        self.status = 'under_review'
+        self.reviewed_by = reviewer
+        self.save()

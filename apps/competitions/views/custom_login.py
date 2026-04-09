@@ -8,6 +8,7 @@ from django.utils.translation import gettext_lazy as _
 from django.middleware.csrf import get_token
 from django.urls import reverse
 from django.conf import settings
+from django.utils.http import url_has_allowed_host_and_scheme
 from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
 
 @ensure_csrf_cookie
@@ -22,7 +23,8 @@ def custom_login_view(request):
         if request.GET.get('show_login') == '1':
             return redirect(f"{reverse('welcome')}?show_login=1")
         get_token(request)
-        return render(request, 'account/login.html', {})
+        next_url = request.GET.get('next', '')
+        return render(request, 'account/login.html', {'next': next_url})
     
     elif request.method == "POST":
         # DEBUG: Log des informations CSRF
@@ -42,12 +44,17 @@ def custom_login_view(request):
             if user is not None:
                 if user.is_active:
                     login(request, user)
-                    
-                    # Redirection selon le rÃ´le
+
+                    # Vérifier si une URL "next" est demandée (ex: lien d'inscription partagé)
+                    next_url = request.POST.get('next') or request.GET.get('next', '')
+                    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+                        return redirect(next_url)
+
+                    # Sinon, redirection selon le rôle
                     try:
                         from apps.competitions.models.users import UserProfile
                         profile = UserProfile.objects.get(user=user)
-                        
+
                         if profile.onboarding_completed:
                             # Redirection dashboard selon le rôle
                             role_map_names = {
@@ -72,7 +79,7 @@ def custom_login_view(request):
                         else:
                             # Redirection onboarding
                             return redirect(reverse('competitions:onboarding:role_selection'))
-                            
+
                     except:
                         # Fallback vers spectator
                         return redirect(reverse('competitions:dashboard:spectator'))

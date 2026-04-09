@@ -62,30 +62,35 @@ def practitioner_finance_dashboard(request):
     # Statistiques financières
     current_year = timezone.now().year
     transactions = Transaction.objects.filter(financial_account=account)
-    
+
+    # ContentType pour le practitioner (pour les requêtes Invoice avec GenericForeignKey)
+    practitioner_ct = ContentType.objects.get_for_model(Practitioner)
+
     stats = {
-        'balance': account.balance,
+        'balance': account.current_balance if account else 0,
         'total_paid_this_year': transactions.filter(
-            transaction_type='debit',
+            type='debit',
             date__year=current_year
         ).aggregate(total=Sum('amount'))['total'] or 0,
         'total_pending': Invoice.objects.filter(
-            practitioner=practitioner,
+            recipient_content_type=practitioner_ct,
+            recipient_object_id=practitioner.id,
             status='pending'
-        ).aggregate(total=Sum('total_amount'))['total'] or 0,
+        ).aggregate(total=Sum('total'))['total'] or 0,
         'upcoming_payments': PaymentAttempt.objects.filter(
             transaction__created_by=request.user,
             status='initiated',
             transaction__date__gte=timezone.now().date()
         ).count()
     }
-    
+
     # Dernières transactions
     recent_transactions = transactions.order_by('-date')[:10]
-    
+
     # Factures en attente
     pending_invoices = Invoice.objects.filter(
-        practitioner=practitioner,
+        recipient_content_type=practitioner_ct,
+        recipient_object_id=practitioner.id,
         status='pending'
     ).order_by('due_date')
     
@@ -121,6 +126,9 @@ def practitioner_transactions(request):
         messages.error(request, _("Erreur lors de la récupération du profil."))
         return redirect('welcome')
     
+    # ContentType pour le practitioner
+    practitioner_ct = ContentType.objects.get_for_model(Practitioner)
+
     # Récupérer le compte
     try:
         account = FinancialAccount.objects.get(
@@ -130,7 +138,7 @@ def practitioner_transactions(request):
     except FinancialAccount.DoesNotExist:
         messages.error(request, _("Aucun compte financier trouvé."))
         return redirect('competitions:practitioner_finance_dashboard')
-    
+
     # Filtres
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
@@ -184,14 +192,20 @@ def practitioner_invoices(request):
     # Filtres
     status_filter = request.GET.get('status', 'all')
     year_filter = request.GET.get('year', timezone.now().year)
-    
-    invoices = Invoice.objects.filter(practitioner=practitioner)
-    
+
+    # ContentType pour le practitioner (pour les requêtes Invoice avec GenericForeignKey)
+    practitioner_ct = ContentType.objects.get_for_model(Practitioner)
+
+    invoices = Invoice.objects.filter(
+        recipient_content_type=practitioner_ct,
+        recipient_object_id=practitioner.id
+    )
+
     # Appliquer les filtres
     if status_filter != 'all':
         invoices = invoices.filter(status=status_filter)
     if year_filter:
-        invoices = invoices.filter(date__year=year_filter)
+        invoices = invoices.filter(issued_date__year=year_filter)
     
     # Statistiques
     invoice_stats = {
@@ -202,14 +216,14 @@ def practitioner_invoices(request):
             status='pending',
             due_date__lt=timezone.now().date()
         ).count(),
-        'total_amount': invoices.aggregate(total=Sum('total_amount'))['total'] or 0,
-        'total_paid': invoices.filter(status='paid').aggregate(total=Sum('total_amount'))['total'] or 0,
-        'total_pending': invoices.filter(status='pending').aggregate(total=Sum('total_amount'))['total'] or 0,
+        'total_amount': invoices.aggregate(total=Sum('total'))['total'] or 0,
+        'total_paid': invoices.filter(status='paid').aggregate(total=Sum('total'))['total'] or 0,
+        'total_pending': invoices.filter(status='pending').aggregate(total=Sum('total'))['total'] or 0,
     }
-    
+
     context = {
         'practitioner': practitioner,
-        'invoices': invoices.order_by('-date'),
+        'invoices': invoices.order_by('-issued_date'),
         'invoice_stats': invoice_stats,
         'status_filter': status_filter,
         'year_filter': year_filter,
@@ -231,7 +245,14 @@ def practitioner_invoice_detail(request, invoice_id):
         messages.error(request, _("Erreur lors de la récupération du profil."))
         return redirect('welcome')
     
-    invoice = get_object_or_404(Invoice, id=invoice_id, practitioner=practitioner)
+    # ContentType pour le practitioner (pour les requêtes Invoice avec GenericForeignKey)
+    practitioner_ct = ContentType.objects.get_for_model(Practitioner)
+    invoice = get_object_or_404(
+        Invoice,
+        id=invoice_id,
+        recipient_content_type=practitioner_ct,
+        recipient_object_id=practitioner.id
+    )
     
     # Récupérer les paiements associés
     payments = PaymentAttempt.objects.filter(invoice=invoice)
@@ -259,7 +280,7 @@ def practitioner_payments(request):
         return redirect('welcome')
     
     # Récupérer tous les paiements
-    payments = PaymentAttempt.objects.filter(payer=request.user).order_by('-created_at')
+    payments = PaymentAttempt.objects.filter(payer=request.user).order_by('-initiated_at')
     
     # Filtres
     status_filter = request.GET.get('status', 'all')
@@ -309,7 +330,14 @@ def practitioner_make_payment(request, invoice_id=None):
     
     invoice = None
     if invoice_id:
-        invoice = get_object_or_404(Invoice, id=invoice_id, practitioner=practitioner, status='pending')
+        practitioner_ct = ContentType.objects.get_for_model(Practitioner)
+        invoice = get_object_or_404(
+            Invoice,
+            id=invoice_id,
+            recipient_content_type=practitioner_ct,
+            recipient_object_id=practitioner.id,
+            status='pending'
+        )
     
     if request.method == 'POST':
         payment_method = request.POST.get('payment_method')
@@ -371,16 +399,22 @@ def practitioner_membership_payment(request):
         payment_method = request.POST.get('payment_method')
         
         fee = get_object_or_404(MembershipFee, id=fee_id)
-        
-        # Créer la facture
+
+        # ContentType pour le practitioner
+        practitioner_ct = ContentType.objects.get_for_model(Practitioner)
+
+        # Créer la facture avec GenericForeignKey
         invoice = Invoice.objects.create(
-            practitioner=practitioner,
-            organization=practitioner.organization,
-            invoice_type='membership',
-            total_amount=fee.amount,
+            recipient_content_type=practitioner_ct,
+            recipient_object_id=practitioner.id,
+            issuer_content_type=ContentType.objects.get_for_model(
+                practitioner.organization
+            ),
+            issuer_object_id=practitioner.organization.id,
+            total=fee.amount,
             status='pending',
             due_date=timezone.now().date() + timedelta(days=30),
-            description=f"Adhésion {fee.membership_type} - {fee.period}"
+            notes=f"Adhésion {fee.membership_type} - {fee.period}"
         )
         
         # Créer le paiement
@@ -419,7 +453,10 @@ def practitioner_finance_reports(request):
     
     # Période sélectionnée
     year = int(request.GET.get('year', timezone.now().year))
-    
+
+    # ContentType pour le practitioner
+    practitioner_ct = ContentType.objects.get_for_model(Practitioner)
+
     # Récupérer le compte
     try:
         account = FinancialAccount.objects.get(
@@ -429,18 +466,22 @@ def practitioner_finance_reports(request):
     except FinancialAccount.DoesNotExist:
         messages.error(request, _("Aucun compte financier trouvé."))
         return redirect('competitions:practitioner_finance_dashboard')
-    
+
     # Données pour les graphiques
     monthly_data = []
     for month in range(1, 13):
         month_transactions = Transaction.objects.filter(
-            account=account,
+            financial_account=account,
             date__year=year,
             date__month=month
         )
-        
-        credits = month_transactions.filter(transaction_type='credit').aggregate(total=Sum('amount'))['total'] or 0
-        debits = month_transactions.filter(transaction_type='debit').aggregate(total=Sum('amount'))['total'] or 0
+
+        credits = month_transactions.filter(
+            type='credit'
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        debits = month_transactions.filter(
+            type='debit'
+        ).aggregate(total=Sum('amount'))['total'] or 0
         
         monthly_data.append({
             'month': month,
@@ -451,24 +492,24 @@ def practitioner_finance_reports(request):
     
     # Répartition par catégorie
     category_data = Transaction.objects.filter(
-        account=account,
+        financial_account=account,
         date__year=year,
-        transaction_type='debit'
+        type='debit'
     ).values('category').annotate(
         total=Sum('amount')
     ).order_by('-total')
-    
+
     # Totaux annuels
     yearly_stats = {
         'total_credits': Transaction.objects.filter(
-            account=account,
+            financial_account=account,
             date__year=year,
-            transaction_type='credit'
+            type='credit'
         ).aggregate(total=Sum('amount'))['total'] or 0,
         'total_debits': Transaction.objects.filter(
-            account=account,
+            financial_account=account,
             date__year=year,
-            transaction_type='debit'
+            type='debit'
         ).aggregate(total=Sum('amount'))['total'] or 0,
     }
     yearly_stats['balance'] = yearly_stats['total_credits'] - yearly_stats['total_debits']

@@ -611,3 +611,151 @@ class PersonalGoal(models.Model):
         self.status = 'failed'
         self.save()
 
+
+class AbsenceDeclaration(models.Model):
+    """Déclaration d'absence par un pratiquant ou parent."""
+
+    DECLARATION_TYPE_CHOICES = [
+        ('absence', _('Absence')),
+        ('late', _('Retard')),
+        ('early_leave', _('Départ anticipé')),
+    ]
+
+    REASON_CATEGORY_CHOICES = [
+        ('health', _('Santé/Maladie')),
+        ('school', _('École/Travail')),
+        ('family', _('Famille')),
+        ('vacation', _('Vacances')),
+        ('other', _('Autre')),
+    ]
+
+    STATUS_CHOICES = [
+        ('pending', _('En attente')),
+        ('acknowledged', _('Pris en compte')),
+        ('rejected', _('Refusé')),
+    ]
+
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+
+    practitioner = models.ForeignKey(
+        'competitions.Practitioner',
+        on_delete=models.CASCADE,
+        related_name='absence_declarations',
+        verbose_name=_("Pratiquant")
+    )
+
+    declaration_type = models.CharField(
+        _("Type de déclaration"),
+        max_length=20,
+        choices=DECLARATION_TYPE_CHOICES,
+        default='absence'
+    )
+
+    # Date spécifique ou plage de dates
+    date = models.DateField(_("Date"))
+    date_end = models.DateField(_("Date de fin"), null=True, blank=True)
+
+    # Créneau concerné (optionnel si absence toute la journée)
+    training_slot = models.ForeignKey(
+        TrainingSlot,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='absence_declarations',
+        verbose_name=_("Créneau d'entraînement")
+    )
+
+    # Raison
+    reason = models.TextField(_("Commentaire"), blank=True)
+    reason_category = models.CharField(
+        _("Catégorie de raison"),
+        max_length=20,
+        choices=REASON_CATEGORY_CHOICES,
+        null=True,
+        blank=True
+    )
+
+    # Qui a déclaré (peut être parent ou pratiquant)
+    declared_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='declared_absences',
+        verbose_name=_("Déclaré par")
+    )
+    declared_at = models.DateTimeField(_("Déclaré le"), auto_now_add=True)
+
+    # Statut de validation
+    status = models.CharField(
+        _("Statut"),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+
+    # Validation par l'instructeur
+    acknowledged_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='acknowledged_absences',
+        verbose_name=_("Validé par")
+    )
+    acknowledged_at = models.DateTimeField(_("Validé le"), null=True, blank=True)
+    instructor_note = models.TextField(_("Note de l'instructeur"), blank=True)
+
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Déclaration d'absence")
+        verbose_name_plural = _("Déclarations d'absence")
+        ordering = ['-date', '-declared_at']
+
+    def __str__(self):
+        return f"{self.practitioner.full_name} - {self.get_declaration_type_display()} - {self.date}"
+
+    def acknowledge(self, user, note=''):
+        """Valide la déclaration."""
+        self.status = 'acknowledged'
+        self.acknowledged_by = user
+        self.acknowledged_at = timezone.now()
+        self.instructor_note = note
+        self.save()
+
+    def reject(self, user, note=''):
+        """Refuse la déclaration."""
+        self.status = 'rejected'
+        self.acknowledged_by = user
+        self.acknowledged_at = timezone.now()
+        self.instructor_note = note
+        self.save()
+
+    @property
+    def is_pending(self):
+        return self.status == 'pending'
+
+    @property
+    def is_acknowledged(self):
+        return self.status == 'acknowledged'
+
+    @property
+    def is_multi_day(self):
+        """Vérifie si c'est une absence sur plusieurs jours."""
+        return self.date_end is not None and self.date_end > self.date
+
+    def get_dates(self):
+        """Retourne la liste des dates concernées."""
+        from datetime import timedelta
+        if not self.is_multi_day:
+            return [self.date]
+
+        dates = []
+        current = self.date
+        while current <= self.date_end:
+            dates.append(current)
+            current += timedelta(days=1)
+        return dates
+

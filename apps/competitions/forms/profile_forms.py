@@ -255,3 +255,28 @@ class AvatarUploadForm(forms.Form):
                 raise ValidationError(_("Impossible de traiter cette image."))
         
         return avatar
+
+
+class OrganizationDisciplinesForm(forms.Form):
+    """Formulaire pour sélectionner les disciplines d'une organisation."""
+    
+    disciplines = forms.ModelMultipleChoiceField(
+        queryset=None,
+        widget=forms.CheckboxSelectMultiple(attrs={
+            'class': 'form-check-input'
+        }),
+        required=False,
+        label=_("Disciplines pratiquées")
+    )
+    
+    def __init__(self, *args, **kwargs):
+        organization = kwargs.pop('organization', None)
+        super().__init__(*args, **kwargs)
+        
+        # Récupérer toutes les disciplines actives
+        from ..models.discipline import Discipline
+        self.fields['disciplines'].queryset = Discipline.objects.filter(is_active=True).order_by('name')
+        
+        # Pré-sélectionner les disciplines actuelles de l'organisation
+        if organization:
+            self.fields['disciplines'].initial = organization.disciplines.all()

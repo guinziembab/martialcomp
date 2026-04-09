@@ -310,7 +310,9 @@ class SubdomainGenerator:
         middleware = getattr(dj_settings, 'MIDDLEWARE', [])
         tenant_mw = 'apps.multitenant.middleware.TenantMiddleware'
         if tenant_mw not in middleware:
-            base = getattr(dj_settings, 'BASE_URL', 'http://localhost:8000').rstrip('/')
+            # Utiliser SITE_URL (production) ou BASE_URL ou fallback
+            base = getattr(dj_settings, 'SITE_URL', None) or getattr(dj_settings, 'BASE_URL', 'http://localhost:8000')
+            base = base.rstrip('/')
             url = f"{base}/org/{getattr(organization, 'slug', None) or organization.id}"
             if path:
                 path = path.lstrip('/')

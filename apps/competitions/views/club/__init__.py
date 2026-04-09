@@ -6,7 +6,8 @@ Module pour la gestion des clubs et de leurs membres.
 from .practitioners import (
     practitioners_list, practitioner_create, 
     practitioner_update, practitioner_detail, practitioner_delete,
-    create_user_for_practitioner, link_user_to_practitioner
+    create_user_for_practitioner, link_user_to_practitioner,
+    send_practitioner_credentials
 )
 
 from .registrations import (
@@ -39,5 +40,6 @@ from apps.core.isolation import OrganizationIsolationMixin, get_organization_que
 
 # Alias pour la compatibilité avec l'ancien code
 club_practitioners = practitioners_list
+
 
 

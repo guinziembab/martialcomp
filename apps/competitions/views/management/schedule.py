@@ -23,7 +23,6 @@ from apps.competitions.forms.schedule import (
     BulkCategoryScheduleForm
 )
 from apps.competitions.utils.schedule import (
-from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
     generate_match_schedule, optimize_tatami_usage,
     detect_schedule_conflicts
 )
@@ -80,6 +79,49 @@ def schedule_overview(request, competition_id):
         competition_schedule=schedule
     ).select_related('changed_by').order_by('-timestamp')[:10]
     
+    # Calculer les heures pour la timeline
+    start_hour = schedule.start_time.hour if schedule.start_time else 9
+    end_hour = schedule.end_time.hour if schedule.end_time else 18
+    hours = list(range(start_hour, end_hour + 1))
+    
+    # Calculer les positions et largeurs pour la timeline
+    total_minutes = (end_hour - start_hour) * 60
+    for cat_schedule in category_schedules:
+        if cat_schedule.estimated_start_time and cat_schedule.estimated_end_time:
+            # Calculer la position de départ (en minutes depuis le début)
+            start_minutes = (cat_schedule.estimated_start_time.hour - start_hour) * 60 + cat_schedule.estimated_start_time.minute
+            
+            # Calculer la durée (en minutes)
+            end_minutes = (cat_schedule.estimated_end_time.hour - start_hour) * 60 + cat_schedule.estimated_end_time.minute
+            duration_minutes = end_minutes - start_minutes
+            
+            # Calculer le pourcentage de position (left) et de largeur (width)
+            if total_minutes > 0:
+                cat_schedule.timeline_left = (start_minutes / total_minutes) * 100
+                cat_schedule.timeline_width = (duration_minutes / total_minutes) * 100
+            else:
+                cat_schedule.timeline_left = 0
+                cat_schedule.timeline_width = 0
+        elif cat_schedule.estimated_start_time:
+            # Fallback: pas de estimated_end_time, estimer une duree par defaut
+            participants_count = cat_schedule.category.registrations.count() if cat_schedule.category else 0
+            default_duration = max(30, participants_count * (schedule.match_duration or 3))
+            start_minutes = (cat_schedule.estimated_start_time.hour - start_hour) * 60 + cat_schedule.estimated_start_time.minute
+            if total_minutes > 0:
+                cat_schedule.timeline_left = (start_minutes / total_minutes) * 100
+                cat_schedule.timeline_width = (default_duration / total_minutes) * 100
+            else:
+                cat_schedule.timeline_left = 0
+                cat_schedule.timeline_width = 0
+        else:
+            cat_schedule.timeline_left = 0
+            cat_schedule.timeline_width = 0
+    
+    # Calculer les statistiques de progression
+    total_categories = CompetitionCategory.objects.filter(competition=competition).count()
+    scheduled_categories = category_schedules.count()
+    progress_percent = (scheduled_categories / total_categories * 100) if total_categories > 0 else 0
+    
     context = {
         'competition': competition,
         'schedule': schedule,
@@ -87,7 +129,11 @@ def schedule_overview(request, competition_id):
         'category_schedules': category_schedules,
         'categories_without_schedule': categories_without_schedule,
         'recent_changes': recent_changes,
-        'today': timezone.now().date(),
+        'today': competition.start_date or timezone.now().date(),
+        'hours': hours,
+        'progress_percent': progress_percent,
+        'scheduled_categories': scheduled_categories,
+        'total_categories': total_categories,
     }
     
     return render(request, 'competitions/management/schedule.html', context)
@@ -607,11 +653,13 @@ def bulk_category_scheduling(request, competition_id):
     if request.method == 'POST':
         form = BulkCategoryScheduleForm(request.POST, schedule=schedule)
         if form.is_valid():
-            tatami = form.cleaned_data['tatami']
+            tatami = form.cleaned_data['tatami']  # Now a TatamiSchedule instance
             categories = form.cleaned_data['categories']
             start_time = form.cleaned_data['start_time']
+            duration_per_match = form.cleaned_data.get('duration_per_match', 3)
             
             # Planifier les catégories une par une
+            from datetime import datetime, timedelta
             current_time = start_time
             for i, category in enumerate(categories):
                 # Vérifier si la catégorie a déjÃ  un planning
@@ -620,10 +668,17 @@ def bulk_category_scheduling(request, competition_id):
                     category=category
                 ).first()
                 
+                # Estimer la duree et calculer heure de fin
+                participants_count = category.registrations.count()
+                est_duration = max(30, participants_count * duration_per_match)
+                dt_start = datetime.combine(datetime.today(), current_time)
+                dt_end = dt_start + timedelta(minutes=est_duration)
+                estimated_end = dt_end.time()
+
                 if existing:
-                    # Mettre Ã  jour le planning existant
                     existing.tatami = tatami
                     existing.estimated_start_time = current_time
+                    existing.estimated_end_time = estimated_end
                     existing.order = i + 1
                     existing.save()
                     
@@ -643,6 +698,7 @@ def bulk_category_scheduling(request, competition_id):
                         category=category,
                         tatami=tatami,
                         estimated_start_time=current_time,
+                        estimated_end_time=estimated_end,
                         order=i + 1
                     )
                     
@@ -655,16 +711,8 @@ def bulk_category_scheduling(request, competition_id):
                         description=_("Catégorie ajoutée au planning: {}").format(category.name)
                     )
                 
-                # Avancer l'heure pour la prochaine catégorie
-                from datetime import datetime, timedelta
-                # Estimer la durée de la catégorie
-                participants_count = category.registrations.count()
-                duration_minutes = max(30, participants_count * 3)  # Au moins 30 minutes, ou 3 minutes par participant
-                
-                # Convertir l'heure en datetime pour ajouter la durée
-                dt = datetime.combine(datetime.today(), current_time)
-                dt = dt + timedelta(minutes=duration_minutes)
-                current_time = dt.time()
+                # Avancer au prochain creneau
+                current_time = estimated_end
             
             messages.success(request, _("{} catégories ont été planifiées avec succès.").format(len(categories)))
             return redirect('competitions:management:schedule_overview', competition_id=competition_id)
@@ -868,3 +916,188 @@ def export_schedule(request, competition_id):
         messages.error(request, _("Format d'export non pris en charge."))
         return redirect('competitions:management:schedule_overview', competition_id=competition_id)
 
+
+@login_required
+@competition_management_permission_required
+def api_category_info(request, competition_id):
+    """
+    API endpoint pour récupérer les informations d'une catégorie.
+    Retourne les informations en JSON : discipline, type, nombre de participants, tranche d'âge.
+    """
+    category_id = request.GET.get('category_id')
+    
+    if not category_id:
+        return JsonResponse({'success': False, 'error': _("ID de catégorie manquant")}, status=400)
+    
+    try:
+        # Récupérer la catégorie avec les relations nécessaires
+        category = CompetitionCategory.objects.select_related(
+            'competition_type',
+            'competition_type__discipline'
+        ).get(
+            id=category_id,
+            competition_id=competition_id
+        )
+        
+        # Compter les participants inscrits dans cette catégorie
+        from apps.competitions.models import CompetitionRegistration
+        participants_count = CompetitionRegistration.objects.filter(
+            competition_id=competition_id,
+            categories=category
+        ).count()
+        
+        # Récupérer les informations
+        data = {
+            'success': True,
+            'discipline': str(category.competition_type.discipline) if category.competition_type and category.competition_type.discipline else '-',
+            'type': str(category.competition_type) if category.competition_type else '-',
+            'participants_count': participants_count,
+            'min_age': category.min_age,
+            'max_age': category.max_age,
+        }
+        
+        return JsonResponse(data)
+
+    except CompetitionCategory.DoesNotExist:
+        return JsonResponse({'success': False, 'error': _("Catégorie non trouvée")}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@competition_management_permission_required
+def api_quick_add_category(request, competition_id):
+    """
+    API endpoint pour ajouter rapidement une catégorie au planning via drag & drop.
+    Méthode POST avec JSON body: {category_id, tatami_id, start_time (HH:MM)}
+    """
+    import json
+    from datetime import datetime
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': _("Méthode non autorisée")}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        category_id = data.get('category_id')
+        tatami_id = data.get('tatami_id')
+        start_time_str = data.get('start_time', '09:00')
+        duration_minutes = data.get('duration', 30)
+
+        if not category_id or not tatami_id:
+            return JsonResponse({'success': False, 'error': _("Données manquantes")}, status=400)
+
+        # Récupérer la compétition et le planning
+        competition = get_object_or_404(Competition, pk=competition_id)
+        schedule = get_object_or_404(CompetitionSchedule, competition=competition)
+
+        # Récupérer la catégorie et le tatami
+        category = get_object_or_404(CompetitionCategory, id=category_id, competition=competition)
+        tatami = get_object_or_404(TatamiSchedule, id=tatami_id, competition_schedule=schedule)
+
+        # Vérifier que la catégorie n'est pas déjà planifiée
+        if CategorySchedule.objects.filter(competition_schedule=schedule, category=category).exists():
+            return JsonResponse({
+                'success': False,
+                'error': _("Cette catégorie est déjà planifiée")
+            }, status=400)
+
+        # Parser l'heure de début
+        try:
+            start_time = datetime.strptime(start_time_str, '%H:%M').time()
+        except ValueError:
+            start_time = schedule.start_time or datetime.strptime('09:00', '%H:%M').time()
+
+        # Calculer l'heure de fin
+        from datetime import timedelta
+        start_datetime = datetime.combine(datetime.today(), start_time)
+        end_datetime = start_datetime + timedelta(minutes=duration_minutes)
+        end_time = end_datetime.time()
+
+        # Déterminer l'ordre (prochain ordre disponible)
+        last_order = CategorySchedule.objects.filter(
+            competition_schedule=schedule
+        ).order_by('-order').values_list('order', flat=True).first() or 0
+
+        # Créer le planning de catégorie
+        with transaction.atomic():
+            category_schedule = CategorySchedule.objects.create(
+                competition_schedule=schedule,
+                category=category,
+                tatami=tatami,
+                estimated_start_time=start_time,
+                estimated_end_time=end_time,
+                order=last_order + 1,
+                priority='normal'
+            )
+
+            # Enregistrer le changement dans l'historique
+            ScheduleChange.objects.create(
+                competition_schedule=schedule,
+                category_schedule=category_schedule,
+                change_type='category_added',
+                changed_by=request.user,
+                description=_("Catégorie ajoutée au planning: {}").format(category.name)
+            )
+
+        return JsonResponse({
+            'success': True,
+            'message': _("Catégorie ajoutée au planning"),
+            'data': {
+                'category_schedule_id': category_schedule.id,
+                'category_name': category.name,
+                'tatami_name': tatami.name,
+                'start_time': start_time.strftime('%H:%M'),
+                'end_time': end_time.strftime('%H:%M'),
+            }
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': _("Données JSON invalides")}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@competition_management_permission_required
+def api_get_next_available_time(request, competition_id):
+    """
+    API endpoint pour obtenir la prochaine heure disponible sur un tatami.
+    GET avec paramètre tatami_id
+    """
+    tatami_id = request.GET.get('tatami_id')
+
+    if not tatami_id:
+        return JsonResponse({'success': False, 'error': _("ID tatami manquant")}, status=400)
+
+    try:
+        competition = get_object_or_404(Competition, pk=competition_id)
+        schedule = get_object_or_404(CompetitionSchedule, competition=competition)
+        tatami = get_object_or_404(TatamiSchedule, id=tatami_id, competition_schedule=schedule)
+
+        # Trouver la dernière catégorie planifiée sur ce tatami
+        last_category = CategorySchedule.objects.filter(
+            competition_schedule=schedule,
+            tatami=tatami
+        ).order_by('-estimated_end_time').first()
+
+        if last_category and last_category.estimated_end_time:
+            next_time = last_category.estimated_end_time
+        else:
+            # Utiliser l'heure de début du planning
+            next_time = schedule.start_time or '09:00'
+
+        # Formater l'heure
+        if hasattr(next_time, 'strftime'):
+            next_time_str = next_time.strftime('%H:%M')
+        else:
+            next_time_str = str(next_time)[:5]
+
+        return JsonResponse({
+            'success': True,
+            'next_time': next_time_str,
+            'tatami_name': tatami.name
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)

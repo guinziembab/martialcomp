@@ -49,14 +49,28 @@ def task_detail(request, task_id):
     
     # Get task activity
     activity = get_task_activity(task)
-    
+
     # Get related tasks
     related_tasks = []
     if task.parent_task:
         related_tasks.extend(task.parent_task.subtasks.exclude(id=task.id))
     if task.subtasks.exists():
         related_tasks.extend(task.subtasks.all())
-    
+
+    # Get board members for inline assignment
+    board_members = []
+    try:
+        from apps.organizations.models import OrganizationMember
+        board_members = OrganizationMember.objects.filter(
+            organization=task.board.organization,
+            is_active=True
+        ).select_related('user').order_by('user__first_name', 'user__last_name')
+    except ImportError:
+        pass
+
+    # Get board columns for inline column change
+    board_columns = task.board.columns.order_by('position')
+
     context = {
         'task': task,
         'comment_form': comment_form,
@@ -65,6 +79,10 @@ def task_detail(request, task_id):
         'can_edit': task.can_edit(request.user),
         'can_edit_board': check_board_access(request.user, task.board, 'edit'),
         'progress_percentage': task.get_progress_percentage() if task.has_subtasks else None,
+        'board_members': board_members,
+        'board_columns': board_columns,
+        'task_statuses': TaskStatus.choices,
+        'task_priorities': TaskPriority.choices,
     }
     
     return render(request, 'task_management/tasks/task_detail.html', context)
@@ -356,20 +374,81 @@ def task_update_status(request, task_id):
             'error': _('Permission insuffisante')
         }, status=403)
     
-    new_status = request.POST.get('status')
+    import json as _json
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        data = request.POST
+    new_status = data.get('status')
     if new_status not in [choice[0] for choice in TaskStatus.choices]:
         return JsonResponse({
             'success': False,
             'error': _('Statut invalide')
         }, status=400)
-    
+
+    old_column = task.column
     task.status = new_status
+    if new_status == TaskStatus.DONE and not task.completed_at:
+        task.completed_at = timezone.now()
+    elif new_status != TaskStatus.DONE:
+        task.completed_at = None
+
+    # Move task to matching column on the board
+    # Use explicit name mapping (case-insensitive) to avoid translation issues
+    STATUS_COLUMN_MAP = {
+        'todo': ['à faire', 'a faire', 'todo', 'to do'],
+        'in_progress': ['en cours', 'in progress'],
+        'in_review': ['en révision', 'en revision', 'in review'],
+        'done': ['terminé', 'termine', 'done', 'completed'],
+        'blocked': ['bloqué', 'bloque', 'blocked'],
+    }
+    moved_to_column = None
+    matching_col = None
+
+    # Strategy 1: match column name against known names for this status
+    expected_names = STATUS_COLUMN_MAP.get(new_status, [])
+    if expected_names:
+        board_columns = list(task.board.columns.order_by('position'))
+        for col in board_columns:
+            if col.name.lower().strip() in expected_names:
+                matching_col = col
+                break
+
+    # Strategy 2: for 'done', also check is_done_column flag
+    if not matching_col and new_status == TaskStatus.DONE:
+        matching_col = task.board.columns.filter(
+            is_done_column=True
+        ).first()
+
+    # Strategy 3: fallback to position-based matching
+    if not matching_col:
+        status_position = {
+            'todo': 0, 'in_progress': 1,
+            'in_review': 2, 'done': 3,
+        }
+        target_pos = status_position.get(new_status)
+        if target_pos is not None:
+            board_columns = list(
+                task.board.columns.order_by('position')
+            )
+            if target_pos < len(board_columns):
+                matching_col = board_columns[target_pos]
+
+    if matching_col and matching_col.id != old_column.id:
+        task.column = matching_col
+        task.position = 0
+        moved_to_column = {
+            'id': matching_col.id,
+            'name': matching_col.name,
+        }
+
     task.save()
-    
+
     return JsonResponse({
         'success': True,
         'status': task.status,
-        'status_display': task.get_status_display()
+        'status_display': task.get_status_display(),
+        'moved_to_column': moved_to_column,
     })
 
 
@@ -386,21 +465,25 @@ def task_update_priority(request, task_id):
             'error': _('Permission insuffisante')
         }, status=403)
     
-    new_priority = request.POST.get('priority')
+    import json as _json
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        data = request.POST
+    new_priority = data.get('priority')
     if new_priority not in [choice[0] for choice in TaskPriority.choices]:
         return JsonResponse({
             'success': False,
             'error': _('Priorité invalide')
         }, status=400)
-    
+
     task.priority = new_priority
     task.save()
-    
+
     return JsonResponse({
         'success': True,
         'priority': task.priority,
         'priority_display': task.get_priority_display(),
-        'priority_color': task.get_priority_color()
     })
 
 
@@ -443,6 +526,61 @@ def task_add_comment(request, task_id):
             'created_at': comment.created_at.isoformat(),
             'is_reply': comment.is_reply,
         }
+    })
+
+
+@login_required
+@require_POST
+def task_assign(request, task_id):
+    """Toggle assignment of a user to a task via AJAX"""
+    task = get_object_or_404(Task, id=task_id)
+
+    if not task.can_edit(request.user):
+        return JsonResponse({'success': False, 'error': _('Permission insuffisante')}, status=403)
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        data = request.POST
+
+    user_id = data.get('user_id')
+    if not user_id:
+        return JsonResponse({'success': False, 'error': _('user_id requis')}, status=400)
+
+    try:
+        target_user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({'success': False, 'error': _('Utilisateur non trouvé')}, status=404)
+
+    # Toggle: if already assigned, remove; otherwise add
+    existing = TaskAssignment.objects.filter(task=task, assignee=target_user).first()
+    if existing:
+        existing.delete()
+        action = 'removed'
+    else:
+        TaskAssignment.objects.create(
+            task=task,
+            assignee=target_user,
+            assigned_by=request.user,
+            role=TaskAssignment.AssignmentRole.ASSIGNEE
+        )
+        action = 'added'
+
+    assignees = [
+        {
+            'id': a.id,
+            'name': a.get_full_name() or a.username,
+            'initials': (a.first_name[:1] + a.last_name[:1]).upper() if a.first_name else a.username[:2].upper(),
+        }
+        for a in task.get_assignees()
+    ]
+
+    return JsonResponse({
+        'success': True,
+        'action': action,
+        'assignees': assignees,
+        'assignee_count': len(assignees),
     })
 
 

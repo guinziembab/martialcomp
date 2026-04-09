@@ -36,14 +36,18 @@ def get_user_access_context(user):
     # Pour chaque club
     for club in clubs:
         # Récupérer les disciplines du club
-        club_disciplines = club.disciplines.all()
+        if hasattr(club, 'disciplines'):
+            club_disciplines = club.disciplines.all()
+        else:
+            # Si c'est une Organization, pas de disciplines directes
+            club_disciplines = Discipline.objects.none()
         
         for discipline in club_disciplines:
             # Ajouter la discipline Ã  l'ensemble des disciplines autorisées
             user_disciplines.add(discipline)
             
             # Récupérer la fédération associée pour ce club et cette discipline
-            federation = club.federation
+            federation = getattr(club, 'federation', None)
             
             # Ajouter au mapping
             if discipline.id not in discipline_federation_mapping:

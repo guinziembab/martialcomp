@@ -31,9 +31,25 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
-X_FRAME_OPTIONS = 'DENY'
+X_FRAME_OPTIONS = 'SAMEORIGIN'  # Permet l'iframe depuis le même domaine (aperçu du site)
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+
+# Configuration CSRF pour production
+# Note: Django ne supporte pas les wildcards dans CSRF_TRUSTED_ORIGINS
+# Ajouter explicitement tous les domaines nécessaires
+CSRF_TRUSTED_ORIGINS = [
+    'https://martialcomp.com',
+    'https://www.martialcomp.com',
+]
+# Ajouter des origines supplémentaires depuis les variables d'environnement si nécessaire
+csrf_origins_env = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+if csrf_origins_env:
+    CSRF_TRUSTED_ORIGINS.extend([origin.strip() for origin in csrf_origins_env.split(',') if origin.strip()])
+
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_HTTPONLY = True
+CSRF_USE_SESSIONS = False  # Utiliser les cookies CSRF
 
 # Configuration de la base de données de production
 # Utiliser les mêmes paramètres que le développement si les variables d'environnement ne sont pas définies
@@ -151,7 +167,8 @@ TEMPLATES[0]['OPTIONS']['loaders'] = [
 # Configuration des middlewares de sécurité
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'apps.core.middleware.block_practitioner.BlockPractitionerMiddleware',  # URGENT FIX: Bloque l'accès aux practitioners
+    # 'corsheaders.middleware.CorsMiddleware',  # DÉSACTIVÉ: Cloudflare gère CORS (duplication si activé)
+    # 'apps.core.middleware.block_practitioner.BlockPractitionerMiddleware',  # DÉSACTIVÉ: Plus nécessaire
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',  # AJOUTÉ : Middleware de localisation manquant
     'django.middleware.common.CommonMiddleware',
@@ -160,17 +177,54 @@ MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',  # AJOUTÉ : Middleware Allauth manquant
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'apps.permissions_manager.middleware.PermissionCacheMiddleware',
+    'apps.permissions_manager.middleware.PermissionsMiddleware',
 ]
 
-# Configuration des emails
+# ================================================================
+# CONFIGURATION DES EMAILS - POSTFIX LOCAL PLESK
+# ================================================================
+# Option 1: Postfix local (recommandé pour Plesk/IONOS)
+# Le serveur Postfix de Plesk gère l'envoi sans authentification depuis localhost
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@martialcomp.com')
+
+# Utiliser le Postfix local de Plesk par défaut, ou IONOS SMTP si configuré
+_email_host = os.environ.get('EMAIL_HOST', 'localhost')
+if _email_host == 'localhost':
+    # Configuration Postfix local (pas d'authentification nécessaire)
+    EMAIL_HOST = 'localhost'
+    EMAIL_PORT = 25
+    EMAIL_USE_TLS = False
+    EMAIL_USE_SSL = False
+    EMAIL_HOST_USER = ''
+    EMAIL_HOST_PASSWORD = ''
+else:
+    # Configuration IONOS SMTP externe
+    EMAIL_HOST = _email_host
+    EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+    EMAIL_USE_TLS = True
+    EMAIL_USE_SSL = False
+    EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+
+EMAIL_TIMEOUT = 30  # Timeout en secondes
+
+# Adresses email par défaut
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'MartialComp <noreply@martialcomp.com>')
+SERVER_EMAIL = os.environ.get('SERVER_EMAIL', 'noreply@martialcomp.com')
+
+# Emails de service
+ACCOUNTING_EMAIL = os.environ.get('ACCOUNTING_EMAIL', 'finance@martialcomp.com')
+CUSTOMER_SERVICE_EMAIL = os.environ.get('CUSTOMER_SERVICE_EMAIL', 'support@martialcomp.com')
+SUPPORT_EMAIL = os.environ.get('SUPPORT_EMAIL', 'support@martialcomp.com')
+
+# Administrateurs pour les notifications d'erreurs
+ADMINS = [
+    ('MartialComp Admin', os.environ.get('ADMIN_EMAIL', 'admin@martialcomp.com')),
+]
+MANAGERS = ADMINS
+
+# URL du site pour les liens dans les emails
+SITE_URL = os.environ.get('SITE_URL', 'https://martialcomp.com')
 
 # Configuration de la sécurité des mots de passe
 AUTH_PASSWORD_VALIDATORS = [
@@ -217,10 +271,63 @@ if 'django_prometheus' in INSTALLED_APPS:
     MIDDLEWARE.insert(0, 'django_prometheus.middleware.PrometheusBeforeMiddleware')
     MIDDLEWARE.append('django_prometheus.middleware.PrometheusAfterMiddleware')
 
-# Configuration des CORS (si nécessaire)
+# Configuration des CORS pour application mobile
 cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '')
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',') if origin.strip()]
+
+# Ajouter les origins par défaut pour mobile si non définies
+if not CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS = [
+        'https://martialcomp.com',
+        'https://www.martialcomp.com',
+        'https://api.martialcomp.com',
+    ]
+
+# Pour les apps Expo/React Native en développement/preview
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^exp://.*$",  # Expo Go app
+    r"^https://.*\.expo\.dev$",  # Expo web builds
+]
+
 CORS_ALLOW_CREDENTIALS = True
+
+# Autoriser localhost pour le développement mobile
+CORS_ALLOWED_ORIGINS += ["http://localhost:8081", "http://127.0.0.1:8081", "http://localhost:19006"]
+
+# Headers autorisés pour les requêtes mobiles
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-tenant-id',
+    'x-device-id',
+    'x-app-version',
+    'cache-control',
+    'pragma',
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_EXPOSE_HEADERS = [
+    'content-disposition',
+    'x-request-id',
+]
+
+# Optimiser les preflight requests (OPTIONS) pour l'app mobile
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 heures de cache pour les OPTIONS requests
 
 # Configuration des domaines autorisés pour les emails
 ALLOWED_EMAIL_DOMAINS = os.environ.get('ALLOWED_EMAIL_DOMAINS', '').split(',')
@@ -241,6 +348,7 @@ PERFORMANCE_MONITORING = {
 # Configuration de la sécurité des API
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  # JWT pour mobile
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.TokenAuthentication',
     ],
@@ -252,8 +360,8 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',
-        'user': '1000/hour',
+        'anon': '1000/hour',      # Augmenté de 100 à 1000 pour éviter le blocage
+        'user': '10000/hour',     # Augmenté de 1000 à 10000 pour l'app mobile
     },
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',

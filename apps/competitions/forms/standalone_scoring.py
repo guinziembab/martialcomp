@@ -167,14 +167,14 @@ class PerformanceForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         
         # Populate competition choices
-        competitions = Competition.objects.filter(status=Competition.ACTIVE).order_by('name')
+        competitions = Competition.objects.filter(status__in=['published', 'active', 'ongoing']).order_by('title')
         self.fields['competition_id'].choices = [('', _("Select Competition"))]
-        self.fields['competition_id'].choices.extend([(str(c.id), c.name) for c in competitions])
-        
+        self.fields['competition_id'].choices.extend([(str(c.id), c.title) for c in competitions])
+
         # Populate category choices
         categories = Category.objects.all().order_by('name')
         self.fields['category_id'].choices = [('', _("Select Category"))]
-        self.fields['category_id'].choices.extend([(str(c.id), c.name) for c in categories])
+        self.fields['category_id'].choices.extend([(str(c.id), str(c)) for c in categories])
         
         # Populate practitioner choices
         practitioners = Practitioner.objects.all().order_by('last_name', 'first_name')

@@ -13,27 +13,40 @@ from django.http import HttpResponse, JsonResponse
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_GET
 from django.contrib.auth.mixins import LoginRequiredMixin
+import logging
 
 from apps.competitions.models import Discipline, Practitioner, Club
 from apps.competitions.utils.decorators import club_required, federation_required
 from apps.grades.models import (
-    Grade, 
-    PractitionerGrade, 
-    GradeCategory, 
-    GradeExam, 
+    Grade,
+    PractitionerGrade,
+    GradeCategory,
+    GradeExam,
     GradeExamRegistration,
     GradeRequirement
 )
 from apps.grades.forms import (
-    GradeForm, 
-    PractitionerGradeForm, 
-    GradeCategoryForm, 
+    GradeForm,
+    PractitionerGradeForm,
+    GradeCategoryForm,
     BulkGradeAssignmentForm,
     GradeExamForm,
     GradeExamRegistrationForm,
     GradeRequirementForm
 )
 from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
+
+# PHASE 1 SECURITY: Import helpers de filtrage par discipline
+from apps.competitions.utils.permission_helpers import (
+    get_user_disciplines,
+    get_user_organization,
+    check_discipline_access,
+    filter_queryset_by_user_disciplines,
+    secure_discipline_api_view,
+    DisciplineAccessMixin
+)
+
+logger = logging.getLogger('discipline_isolation')
 
 
 # ========== Vues pour les Grades ==========
@@ -52,25 +65,14 @@ class GradeListView(ListView):
         # Obtenir le queryset de base
         queryset = super().get_queryset()
         
-        # Appliquer l'isolation organisationnelle si disponible
+        # PHASE 1 SECURITY: Appliquer le filtrage par discipline
         try:
-            org_queryset = get_organization_queryset(self.model, self.request.user)
-            if org_queryset is not None:
-                queryset = org_queryset
-        except Exception:
-            # En cas d'erreur avec l'isolation, continuer avec le queryset de base
-            pass
-        
-        # Segmentation: limiter aux disciplines de l'organisation courante si disponible
-        try:
-            from apps.finances.currency_service import _get_request_organization  # lazy import
-            org = _get_request_organization(self.request)
-            if org is not None and hasattr(org, 'disciplines'):
-                allowed = list(org.disciplines.values_list('id', flat=True))
-                if allowed:
-                    queryset = queryset.filter(discipline_id__in=allowed)
-        except Exception:
-            pass
+            # Utiliser les nouveaux helpers securises
+            queryset = filter_queryset_by_user_disciplines(queryset, self.request.user, 'discipline')
+        except Exception as e:
+            # PHASE 1 SECURITY: En cas d'erreur, retourner queryset vide (jamais tout)
+            logger.critical(f"GradeListView discipline isolation FAILED: {e}")
+            queryset = queryset.none()
         
         # Filtres
         discipline_id = self.request.GET.get('discipline')
@@ -123,14 +125,19 @@ class GradeListView(ListView):
         context['is_active'] = self.request.GET.get('is_active', '')
         context['search_query'] = self.request.GET.get('q', '')
         
+        # Si une discipline est sélectionnée, filtrer les catégories pour cette discipline uniquement
+        if context['selected_discipline']:
+            context['categories'] = context['categories'].filter(discipline_id=context['selected_discipline'])
+        
         return context
 
 
-class GradeDetailView(DetailView):
+class GradeDetailView(DisciplineAccessMixin, DetailView):
     model = Grade
     template_name = 'grades/grade_detail.html'
     context_object_name = 'grade'
-    
+    discipline_field = 'discipline'
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         grade = self.get_object()
@@ -152,16 +159,18 @@ class GradeDetailView(DetailView):
         return context
 
 
-class GradeCreateView(LoginRequiredMixin, CreateView):
+class GradeCreateView(DisciplineAccessMixin, CreateView):
     model = Grade
     form_class = GradeForm
     template_name = 'grades/grade_form.html'
     success_url = reverse_lazy('grades:grade_list')
-    
+    discipline_field = 'discipline'
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = _("Ajouter un grade")
-        context['disciplines'] = get_organization_queryset(Discipline, self.request.user)
+        # PHASE 2 SECURITY: Utiliser les disciplines accessibles
+        context['disciplines'] = get_user_disciplines(self.request.user)
         return context
     
     def form_valid(self, form):
@@ -169,15 +178,17 @@ class GradeCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class GradeUpdateView(LoginRequiredMixin, UpdateView):
+class GradeUpdateView(DisciplineAccessMixin, UpdateView):
     model = Grade
     form_class = GradeForm
     template_name = 'grades/grade_form.html'
-    
+    discipline_field = 'discipline'
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = _("Modifier le grade")
-        context['disciplines'] = get_organization_queryset(Discipline, self.request.user)
+        # PHASE 2 SECURITY: Utiliser les disciplines accessibles
+        context['disciplines'] = get_user_disciplines(self.request.user)
         return context
     
     def get_success_url(self):
@@ -188,12 +199,13 @@ class GradeUpdateView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class GradeDeleteView(LoginRequiredMixin, DeleteView):
+class GradeDeleteView(DisciplineAccessMixin, DeleteView):
     model = Grade
     template_name = 'grades/grade_confirm_delete.html'
     success_url = reverse_lazy('grades:grade_list')
     context_object_name = 'grade'
-    
+    discipline_field = 'discipline'
+
     def delete(self, request, *args, **kwargs):
         grade = self.get_object()
         
@@ -211,46 +223,16 @@ class GradeDeleteView(LoginRequiredMixin, DeleteView):
 
 # ========== Vues pour les Catégories de Grade ==========
 
-class GradeCategoryListView(ListView):
+class GradeCategoryListView(DisciplineAccessMixin, ListView):
     model = GradeCategory
     template_name = 'grades/category_list.html'
     context_object_name = 'categories'
     paginate_by = 20
-    
+    discipline_field = 'discipline'
+
     def get_queryset(self):
-        # Isolation par organisation
-        if not self.request.user.is_authenticated:
-            raise PermissionDenied("Authentification requise")
-        
-        # Obtenir le queryset de base
+        # PHASE 2 SECURITY: Utiliser DisciplineAccessMixin pour le filtrage
         queryset = super().get_queryset()
-        
-        # Pour GradeCategory, l'isolation se fait via discipline__organization
-        # car le modèle n'a pas de champ organization direct
-        if not (self.request.user.is_superuser or self.request.user.is_staff):
-            try:
-                from apps.competitions.models.users import UserProfile
-                profile = UserProfile.objects.get(user=self.request.user)
-                if profile.organization:
-                    # Filtrer via la relation discipline->organization
-                    queryset = queryset.filter(discipline__organization=profile.organization)
-                else:
-                    queryset = queryset.none()
-            except UserProfile.DoesNotExist:
-                queryset = queryset.none()
-            except Exception:
-                # En cas d'erreur, essayer via disciplines autorisées
-                try:
-                    from apps.finances.currency_service import _get_request_organization
-                    org = _get_request_organization(self.request)
-                    if org is not None and hasattr(org, 'disciplines'):
-                        allowed = list(org.disciplines.values_list('id', flat=True))
-                        if allowed:
-                            queryset = queryset.filter(discipline_id__in=allowed)
-                    else:
-                        queryset = queryset.none()
-                except Exception:
-                    queryset = queryset.none()
         
         # Filtres
         discipline_id = self.request.GET.get('discipline')
@@ -273,33 +255,29 @@ class GradeCategoryListView(ListView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        try:
-            from apps.finances.currency_service import _get_request_organization
-            org = _get_request_organization(self.request)
-            if org is not None and hasattr(org, 'disciplines'):
-                context['disciplines'] = org.disciplines.all()
-            else:
-                context['disciplines'] = get_organization_queryset(Discipline, self.request.user)
-        except Exception:
-            context['disciplines'] = get_organization_queryset(Discipline, self.request.user)
-        
+        # PHASE 2 SECURITY: Utiliser les disciplines accessibles
+        context['disciplines'] = get_user_disciplines(self.request.user)
+
         # Conserver les paramètres de filtre
         context['selected_discipline'] = self.request.GET.get('discipline', '')
         context['is_active'] = self.request.GET.get('is_active', '')
         context['search_query'] = self.request.GET.get('q', '')
-        
+
         return context
 
 
-class GradeCategoryCreateView(LoginRequiredMixin, CreateView):
+class GradeCategoryCreateView(DisciplineAccessMixin, CreateView):
     model = GradeCategory
     form_class = GradeCategoryForm
     template_name = 'grades/category_form.html'
     success_url = reverse_lazy('grades:category_list')
-    
+    discipline_field = 'discipline'
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = _("Ajouter une catégorie de grade")
+        # PHASE 2 SECURITY: Ajouter les disciplines accessibles
+        context['disciplines'] = get_user_disciplines(self.request.user)
         return context
     
     def form_valid(self, form):
@@ -307,15 +285,18 @@ class GradeCategoryCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class GradeCategoryUpdateView(LoginRequiredMixin, UpdateView):
+class GradeCategoryUpdateView(DisciplineAccessMixin, UpdateView):
     model = GradeCategory
     form_class = GradeCategoryForm
     template_name = 'grades/category_form.html'
     success_url = reverse_lazy('grades:category_list')
-    
+    discipline_field = 'discipline'
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = _("Modifier la catégorie de grade")
+        # PHASE 2 SECURITY: Ajouter les disciplines accessibles
+        context['disciplines'] = get_user_disciplines(self.request.user)
         return context
     
     def form_valid(self, form):
@@ -323,12 +304,13 @@ class GradeCategoryUpdateView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-class GradeCategoryDeleteView(LoginRequiredMixin, DeleteView):
+class GradeCategoryDeleteView(DisciplineAccessMixin, DeleteView):
     model = GradeCategory
     template_name = 'grades/category_confirm_delete.html'
     success_url = reverse_lazy('grades:category_list')
     context_object_name = 'category'
-    
+    discipline_field = 'discipline'
+
     def delete(self, request, *args, **kwargs):
         category = self.get_object()
         
@@ -573,21 +555,32 @@ def bulk_grade_assignment(request):
 
 
 @require_GET
+@login_required
 def get_eligible_practitioners(request):
-    """API pour récupérer les pratiquants éligibles pour un grade spécifique."""
+    """API pour récupérer les pratiquants éligibles pour un grade spécifique.
+    PHASE 2 SECURITY: Ajoute @login_required et verification d'acces a la discipline du grade.
+    """
     grade_id = request.GET.get('grade_id')
     club_id = request.GET.get('club_id')
-    
+
     if not grade_id or not club_id:
         return JsonResponse({'error': 'Grade ID and Club ID are required'}, status=400)
-    
+
     try:
         grade = Grade.objects.get(id=grade_id)
+
+        # PHASE 2 SECURITY: Verifier l'acces a la discipline du grade
+        user = request.user
+        if not user.is_superuser:
+            if not check_discipline_access(user, grade.discipline):
+                logger.warning(f"get_eligible_practitioners: User {user} denied")
+                return JsonResponse({'error': 'Access denied'}, status=403)
+
         # Récupérer le club puis son organisation
         club = Club.objects.get(id=club_id)
         organization = club.organization or club.as_organization
         if not organization:
-            return JsonResponse({'error': 'Aucune organisation trouvée pour ce club'}, status=404)
+            return JsonResponse({'error': 'No organization found'}, status=404)
         practitioners = Practitioner.objects.filter(organization=organization)
         
         # Filtrer les pratiquants éligibles (Ã¢ge minimum, etc.)
@@ -616,30 +609,16 @@ def get_eligible_practitioners(request):
 
 # ========== Vues pour les Examens de Passage de Grade ==========
 
-class GradeExamListView(ListView):
+class GradeExamListView(DisciplineAccessMixin, ListView):
     model = GradeExam
     template_name = 'grades/exam_list.html'
     context_object_name = 'exams'
     paginate_by = 10
-    
-    def get_queryset(self):
+    discipline_field = 'discipline'
 
-        # Isolation par organisation
-        if not self.request.user.is_authenticated:
-            raise PermissionDenied("Authentification requise")
-        
-        # Obtenir le queryset de base et appliquer l'isolation organisationnelle
+    def get_queryset(self):
+        # PHASE 2 SECURITY: Utiliser DisciplineAccessMixin pour le filtrage
         queryset = super().get_queryset()
-        try:
-            org_queryset = get_organization_queryset(self.model, self.request.user)
-            if org_queryset is not None:
-                queryset = org_queryset
-        except Exception:
-            pass
-        
-        # Les administrateurs voient tous les objets de leur organisation
-        if self.request.user.is_superuser or self.request.user.is_staff:
-            return queryset
         
         # Filtres
         discipline_id = self.request.GET.get('discipline')
@@ -668,33 +647,39 @@ class GradeExamListView(ListView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['disciplines'] = get_organization_queryset(Discipline, self.request.user)
-        
+        # PHASE 2 SECURITY: Utiliser les disciplines accessibles
+        context['disciplines'] = get_user_disciplines(self.request.user)
+
         # Conserver les paramètres de filtre
         context['selected_discipline'] = self.request.GET.get('discipline', '')
         context['selected_status'] = self.request.GET.get('status', '')
         context['search_query'] = self.request.GET.get('q', '')
         context['upcoming'] = self.request.GET.get('upcoming', 'false')
-        
-        # Statistiques
+
+        # PHASE 2 SECURITY: Statistiques filtrees par disciplines accessibles
         today = timezone.now().date()
-        context['upcoming_exams_count'] = GradeExam.objects.filter(date__gte=today).count()
-        context['past_exams_count'] = GradeExam.objects.filter(date__lt=today).count()
-        
+        accessible_disciplines = get_user_disciplines(self.request.user)
+        if accessible_disciplines.exists():
+            context['upcoming_exams_count'] = GradeExam.objects.filter(date__gte=today, discipline__in=accessible_disciplines).count()
+            context['past_exams_count'] = GradeExam.objects.filter(date__lt=today, discipline__in=accessible_disciplines).count()
+        else:
+            context['upcoming_exams_count'] = 0
+            context['past_exams_count'] = 0
+
         return context
 
 
-class GradeExamDetailView(DetailView):
+class GradeExamDetailView(LoginRequiredMixin, DetailView):
     model = GradeExam
     template_name = 'grades/exam_detail.html'
     context_object_name = 'exam'
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         exam = self.get_object()
         
         # Récupérer les inscriptions Ã  l'examen
-        context['registrations'] = exam.registrations.all().select_related('practitioner', 'target_grade')
+        context['registrations'] = exam.registrations.all().select_related('practitioner', 'practitioner__grade', 'target_grade')
         
         # Statistiques
         context['total_registrations'] = exam.registrations.count()
@@ -709,12 +694,18 @@ class GradeExamDetailView(DetailView):
         return context
 
 
-class GradeExamCreateView(LoginRequiredMixin, CreateView):
+class GradeExamCreateView(DisciplineAccessMixin, CreateView):
     model = GradeExam
     form_class = GradeExamForm
     template_name = 'grades/exam_form.html'
     success_url = reverse_lazy('grades:exam_list')
-    
+    discipline_field = 'discipline'
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
     def get_initial(self):
         """Préremplir le formulaire avec les valeurs de l'URL."""
         initial = super().get_initial()
@@ -806,15 +797,22 @@ class GradeExamCreateView(LoginRequiredMixin, CreateView):
         return response
 
 
-class GradeExamUpdateView(LoginRequiredMixin, UpdateView):
+class GradeExamUpdateView(DisciplineAccessMixin, UpdateView):
     model = GradeExam
     form_class = GradeExamForm
     template_name = 'grades/exam_form.html'
-    
+    discipline_field = 'discipline'
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = _("Modifier l'examen de passage de grade")
-        context['disciplines'] = get_organization_queryset(Discipline, self.request.user)
+        # PHASE 2 SECURITY: Utiliser les disciplines accessibles
+        context['disciplines'] = get_user_disciplines(self.request.user)
         return context
     
     def get_success_url(self):
@@ -831,12 +829,13 @@ class GradeExamUpdateView(LoginRequiredMixin, UpdateView):
         return response
 
 
-class GradeExamDeleteView(LoginRequiredMixin, DeleteView):
+class GradeExamDeleteView(DisciplineAccessMixin, DeleteView):
     model = GradeExam
     template_name = 'grades/exam_confirm_delete.html'
     success_url = reverse_lazy('grades:exam_list')
     context_object_name = 'exam'
-    
+    discipline_field = 'discipline'
+
     def delete(self, request, *args, **kwargs):
         exam = self.get_object()
         
@@ -852,42 +851,149 @@ class GradeExamDeleteView(LoginRequiredMixin, DeleteView):
         return super().delete(request, *args, **kwargs)
 
 
+
 @login_required
-@club_required
 def register_for_exam(request, exam_id):
-    """Inscrit un pratiquant Ã  un examen de passage de grade."""
-    # Récupérer le club de l'utilisateur
-    club = request.club
-    
-    # Récupérer l'examen
+    """Inscrit des pratiquants a un examen via coches."""
     exam = get_object_or_404(GradeExam, pk=exam_id)
-    
-    # Vérifier si l'inscription est encore ouverte
+
     if not exam.is_registration_open:
-        messages.error(request, _("Les inscriptions pour cet examen sont fermées."))
+        messages.error(
+            request,
+            _("Les inscriptions pour cet examen sont fermees.")
+        )
         return redirect('grades:exam_detail', pk=exam.pk)
-    
-    if request.method == 'POST':
-        form = GradeExamRegistrationForm(request.POST, exam=exam, club=club)
-        if form.is_valid():
-            registration = form.save(commit=False)
-            registration.exam = exam
-            registration.save()
-            
-            messages.success(request, _("L'inscription Ã  l'examen a été enregistrée avec succès."))
-            return redirect('grades:exam_detail', pk=exam.pk)
+
+    # Trouver l'organisation de l'utilisateur (GDPR)
+    user_org = None
+
+    # 1) Via le profil Practitioner de l'utilisateur
+    user_pract = Practitioner.objects.filter(
+        user=request.user
+    ).select_related('organization').first()
+    if user_pract and user_pract.organization:
+        user_org = user_pract.organization
+
+    # 2) Via le UserProfile.organization
+    if not user_org:
+        try:
+            profile = request.user.userprofile
+            if profile and profile.organization:
+                user_org = profile.organization
+        except Exception:
+            pass
+
+    # 3) Via les clubs administres par l'utilisateur
+    if not user_org:
+        try:
+            administered_clubs = request.user.get_administered_clubs()
+            if administered_clubs.exists():
+                club = administered_clubs.first()
+                user_org = club.organization or club.as_organization
+        except Exception:
+            pass
+
+    # 4) Via OrganizationMember
+    if not user_org:
+        try:
+            from apps.organizations.models import OrganizationMember
+            membership = OrganizationMember.objects.filter(
+                user=request.user
+            ).select_related('organization').first()
+            if membership:
+                user_org = membership.organization
+        except Exception:
+            pass
+
+    # 5) Via le club de la request (middleware)
+    if not user_org:
+        if hasattr(request, 'club') and request.club:
+            club = request.club
+            user_org = (getattr(club, 'organization', None)
+                        or getattr(club, 'as_organization', None))
+
+    # Filtrer les pratiquants par organisation (GDPR)
+    if user_org:
+        practitioners = Practitioner.objects.filter(
+            organization=user_org
+        ).select_related('grade', 'organization')
+    elif request.user.is_staff or request.user.is_superuser:
+        practitioners = Practitioner.objects.all().select_related(
+            'grade', 'organization'
+        )
     else:
-        form = GradeExamRegistrationForm(exam=exam, club=club)
-    
+        practitioners = Practitioner.objects.none()
+
+    # Exclure les deja inscrits
+    already = exam.registrations.values_list(
+        'practitioner_id', flat=True
+    )
+    practitioners = practitioners.exclude(
+        id__in=already
+    ).order_by('last_name', 'first_name')
+
+    available_grades = exam.available_grades.select_related(
+        'discipline'
+    ).order_by('level')
+
+    if request.method == 'POST':
+        selected_ids = request.POST.getlist('practitioners')
+        target_grade_id = request.POST.get('target_grade')
+
+        if not selected_ids:
+            messages.error(
+                request,
+                _("Veuillez selectionner au moins un pratiquant.")
+            )
+        elif not target_grade_id:
+            messages.error(
+                request,
+                _("Veuillez selectionner un grade vise.")
+            )
+        else:
+            target_grade = get_object_or_404(
+                Grade, pk=target_grade_id
+            )
+            count = 0
+            for pid in selected_ids:
+                pract = Practitioner.objects.filter(
+                    pk=pid
+                ).first()
+                already_reg = GradeExamRegistration.objects.filter(
+                    exam=exam, practitioner=pract
+                ).exists()
+                if pract and not already_reg:
+                    GradeExamRegistration.objects.create(
+                        exam=exam,
+                        practitioner=pract,
+                        target_grade=target_grade,
+                        status='pending',
+                    )
+                    count += 1
+            if count > 0:
+                messages.success(
+                    request,
+                    _("%(count)d pratiquant(s) inscrit(s).")
+                    % {'count': count}
+                )
+            return redirect(
+                'grades:exam_detail', pk=exam.pk
+            )
+
     context = {
-        'form': form,
         'exam': exam,
-        'club': club,
-        'title': _("Inscription Ã  l'examen de passage de grade"),
-        'submit_text': _("S'inscrire Ã  l'examen"),
+        'practitioners': practitioners,
+        'available_grades': available_grades,
+        'title': _("Inscription a l'examen"),
+        'submit_text': _(
+            "Inscrire les pratiquants selectionnes"
+        ),
     }
-    
-    return render(request, 'grades/exam_registration_form.html', context)
+    return render(
+        request,
+        'grades/exam_registration_form.html',
+        context
+    )
 
 
 @login_required
@@ -974,47 +1080,17 @@ def cancel_exam_registration(request, registration_id):
 
 # ========== Vues pour les Exigences de Grade ==========
 
-class GradeRequirementListView(ListView):
+class GradeRequirementListView(DisciplineAccessMixin, ListView):
     model = GradeRequirement
     template_name = 'grades/requirement_list.html'
     context_object_name = 'requirements'
     paginate_by = 20
-    
+    discipline_field = 'grade__discipline'
+
     def get_queryset(self):
-        # Isolation par organisation
-        if not self.request.user.is_authenticated:
-            raise PermissionDenied("Authentification requise")
-        
-        # Obtenir le queryset de base
+        # PHASE 2 SECURITY: Utiliser DisciplineAccessMixin pour le filtrage
         queryset = super().get_queryset()
-        
-        # Pour GradeRequirement, l'isolation se fait via grade__discipline__organization
-        # car le modèle n'a pas de champ organization direct
-        if not (self.request.user.is_superuser or self.request.user.is_staff):
-            try:
-                from apps.competitions.models.users import UserProfile
-                profile = UserProfile.objects.get(user=self.request.user)
-                if profile.organization:
-                    # Filtrer via la relation grade->discipline->organization
-                    queryset = queryset.filter(grade__discipline__organization=profile.organization)
-                else:
-                    queryset = queryset.none()
-            except UserProfile.DoesNotExist:
-                queryset = queryset.none()
-            except Exception:
-                # En cas d'erreur, essayer via disciplines autorisées
-                try:
-                    from apps.finances.currency_service import _get_request_organization
-                    org = _get_request_organization(self.request)
-                    if org is not None and hasattr(org, 'disciplines'):
-                        allowed = list(org.disciplines.values_list('id', flat=True))
-                        if allowed:
-                            queryset = queryset.filter(grade__discipline_id__in=allowed)
-                    else:
-                        queryset = queryset.none()
-                except Exception:
-                    queryset = queryset.none()
-        
+
         # Filtres
         grade_id = self.request.GET.get('grade')
         discipline_id = self.request.GET.get('discipline')
@@ -1037,25 +1113,25 @@ class GradeRequirementListView(ListView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['disciplines'] = get_organization_queryset(Discipline, self.request.user)
-        
-        # Pour Grade, filtrer via discipline__organization car Grade n'a pas de champ organization
-        disciplines = context['disciplines']
+        # PHASE 2 SECURITY: Utiliser les disciplines accessibles
+        disciplines = get_user_disciplines(self.request.user)
+        context['disciplines'] = disciplines
         context['grades'] = Grade.objects.filter(discipline__in=disciplines)
-        
+
         # Conserver les paramètres de filtre
         context['selected_discipline'] = self.request.GET.get('discipline', '')
         context['selected_grade'] = self.request.GET.get('grade', '')
         context['search_query'] = self.request.GET.get('q', '')
-        
+
         return context
 
 
-class GradeRequirementCreateView(LoginRequiredMixin, CreateView):
+class GradeRequirementCreateView(DisciplineAccessMixin, CreateView):
     model = GradeRequirement
     form_class = GradeRequirementForm
     template_name = 'grades/requirement_form.html'
-    
+    discipline_field = 'grade__discipline'
+
     def get_initial(self):
         initial = super().get_initial()
         
@@ -1111,9 +1187,9 @@ class GradeRequirementCreateView(LoginRequiredMixin, CreateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = _("Ajouter une exigence de grade")
-        
-        # Ajouter la liste des disciplines pour le sélecteur
-        context['disciplines'] = Discipline.objects.filter(is_active=True).order_by('name')
+
+        # PHASE 2 SECURITY: Ajouter les disciplines accessibles
+        context['disciplines'] = get_user_disciplines(self.request.user)
         
         # Récupérer la discipline sélectionnée si présente
         discipline_id = self.request.GET.get('discipline')
@@ -1153,15 +1229,18 @@ class GradeRequirementCreateView(LoginRequiredMixin, CreateView):
         return reverse_lazy('grades:requirement_list')
 
 
-class GradeRequirementUpdateView(LoginRequiredMixin, UpdateView):
+class GradeRequirementUpdateView(DisciplineAccessMixin, UpdateView):
     model = GradeRequirement
     form_class = GradeRequirementForm
     template_name = 'grades/requirement_form.html'
-    
+    discipline_field = 'grade__discipline'
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = _("Modifier l'exigence de grade")
         context['grade'] = self.object.grade
+        # PHASE 2 SECURITY: Ajouter les disciplines accessibles
+        context['disciplines'] = get_user_disciplines(self.request.user)
         return context
     
     def form_valid(self, form):
@@ -1173,11 +1252,12 @@ class GradeRequirementUpdateView(LoginRequiredMixin, UpdateView):
         return reverse('grades:grade_detail', kwargs={'pk': grade_id})
 
 
-class GradeRequirementDeleteView(LoginRequiredMixin, DeleteView):
+class GradeRequirementDeleteView(DisciplineAccessMixin, DeleteView):
     model = GradeRequirement
     template_name = 'grades/requirement_confirm_delete.html'
     context_object_name = 'requirement'
-    
+    discipline_field = 'grade__discipline'
+
     def get_success_url(self):
         grade_id = self.object.grade.id
         return reverse('grades:grade_detail', kwargs={'pk': grade_id})
@@ -1190,30 +1270,48 @@ class GradeRequirementDeleteView(LoginRequiredMixin, DeleteView):
 # ========== Vues pour l'API et les requÃªtes AJAX ==========
 
 @require_GET
+@login_required
 def search_grade_system(request):
-    """API pour rechercher dans le système de grades."""
+    """
+    API pour rechercher dans le systeme de grades.
+    PHASE 1 SECURITY: Filtre par disciplines accessibles.
+    """
     search_query = request.GET.get('q', '')
     discipline_id = request.GET.get('discipline', '')
-    
+
     if not search_query and not discipline_id:
         return JsonResponse({'results': []})
-    
-    # Construire la requÃªte
-    queryset = Grade.objects.filter(is_active=True)
-    
+
+    # PHASE 1 SECURITY: Filtrer par disciplines accessibles
+    user = request.user
+    if user.is_superuser:
+        queryset = Grade.objects.filter(is_active=True)
+    else:
+        accessible_disciplines = get_user_disciplines(user)
+        if not accessible_disciplines.exists():
+            logger.warning(f"search_grade_system: User {user} has no accessible disciplines")
+            return JsonResponse({'results': [], 'warning': 'No accessible disciplines'})
+        queryset = Grade.objects.filter(is_active=True, discipline__in=accessible_disciplines)
+
     if discipline_id:
+        # PHASE 1 SECURITY: Verifier que la discipline demandee est accessible
+        if not user.is_superuser:
+            accessible_ids = list(accessible_disciplines.values_list('id', flat=True))
+            if int(discipline_id) not in accessible_ids:
+                logger.warning(f"search_grade_system: User {user} denied access to discipline {discipline_id}")
+                return JsonResponse({'results': [], 'error': 'Discipline not accessible'}, status=403)
         queryset = queryset.filter(discipline_id=discipline_id)
-    
+
     if search_query:
         queryset = queryset.filter(
-            Q(name__icontains=search_query) | 
+            Q(name__icontains=search_query) |
             Q(color__icontains=search_query) |
             Q(discipline__name__icontains=search_query)
         )
-    
-    # Limiter les résultats pour des performances
+
+    # Limiter les resultats pour des performances
     grades = queryset.order_by('discipline', 'level')[:20]
-    
+
     results = []
     for grade in grades:
         results.append({
@@ -1224,22 +1322,33 @@ def search_grade_system(request):
             'level': grade.level,
             'category': grade.category.name if grade.category else '',
         })
-    
+
     return JsonResponse({'results': results})
 
 
 @require_GET
+@login_required
 def get_discipline_grade_structure(request, discipline_id):
-    """API pour récupérer la structure complète des grades d'une discipline."""
+    """
+    API pour recuperer la structure complete des grades d'une discipline.
+    PHASE 1 SECURITY: Verifie l'acces a la discipline.
+    """
     try:
         discipline = Discipline.objects.get(pk=discipline_id)
-        
-        # Récupérer les catégories de grade pour cette discipline
+
+        # PHASE 1 SECURITY: Verifier l'acces a cette discipline
+        user = request.user
+        if not user.is_superuser:
+            if not check_discipline_access(user, discipline):
+                logger.warning(f"get_discipline_grade_structure: User {user} denied access to discipline {discipline_id}")
+                return JsonResponse({'error': 'Access denied to this discipline'}, status=403)
+
+        # Recuperer les categories de grade pour cette discipline
         categories = GradeCategory.objects.filter(discipline=discipline).order_by('order')
-        
-        # Récupérer tous les grades pour cette discipline
+
+        # Recuperer tous les grades pour cette discipline
         grades = Grade.objects.filter(discipline=discipline).order_by('level')
-        
+
         # Construire la structure
         structure = {
             'discipline': {
@@ -1250,8 +1359,8 @@ def get_discipline_grade_structure(request, discipline_id):
             'categories': [],
             'grades': []
         }
-        
-        # Ajouter les catégories
+
+        # Ajouter les categories
         for category in categories:
             structure['categories'].append({
                 'id': category.id,
@@ -1259,7 +1368,7 @@ def get_discipline_grade_structure(request, discipline_id):
                 'order': category.order,
                 'description': category.description,
             })
-        
+
         # Ajouter les grades
         for grade in grades:
             structure['grades'].append({
@@ -1273,11 +1382,12 @@ def get_discipline_grade_structure(request, discipline_id):
                 'category_id': grade.category_id if grade.category else None,
                 'category_name': grade.category.name if grade.category else None,
             })
-        
+
         return JsonResponse(structure)
     except Discipline.DoesNotExist:
         return JsonResponse({'error': 'Discipline not found'}, status=404)
     except Exception as e:
+        logger.error(f"get_discipline_grade_structure error: {e}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -1398,19 +1508,34 @@ def export_grades(request):
 
 
 @require_GET
+@login_required
 def categories_by_discipline(request):
-    """Vue API pour récupérer les catégories d'une discipline."""
+    """
+    Vue API pour recuperer les categories d'une discipline.
+    PHASE 1 SECURITY: Verifie l'acces a la discipline.
+    """
     discipline_id = request.GET.get('discipline_id')
-    
+
     if not discipline_id:
         return JsonResponse({'categories': []})
-    
+
+    # PHASE 1 SECURITY: Verifier l'acces a cette discipline
+    user = request.user
+    if not user.is_superuser:
+        accessible_disciplines = get_user_disciplines(user)
+        accessible_ids = list(accessible_disciplines.values_list('id', flat=True))
+        try:
+            if int(discipline_id) not in accessible_ids:
+                logger.warning(f"categories_by_discipline: User {user} denied access to discipline {discipline_id}")
+                return JsonResponse({'categories': [], 'error': 'Access denied'}, status=403)
+        except (ValueError, TypeError):
+            return JsonResponse({'categories': []})
+
     categories = GradeCategory.objects.filter(
         discipline_id=discipline_id,
         is_active=True
     ).order_by('order', 'name')
-    
-    data = [{'id': cat.id, 'name': cat.name} for cat in categories]
-    
-    return JsonResponse({'categories': data})
 
+    data = [{'id': cat.id, 'name': cat.name} for cat in categories]
+
+    return JsonResponse({'categories': data})

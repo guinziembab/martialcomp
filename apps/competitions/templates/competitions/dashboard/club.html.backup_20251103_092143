@@ -1,0 +1,4239 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load custom_filters %}
+{% load family_badges %}
+
+{% block title %}{% trans "Tableau de bord" %} | {{ club.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Variables de couleur et configuration de base - CONSERVÉES */
+  :root {
+    --primary: #3366ff;
+    --primary-light: #e6ecff;
+    --primary-dark: #1a53ff;
+    --secondary: #6c757d;
+    --success: #28a745;
+    --info: #17a2b8;
+    --warning: #ffc107;
+    --danger: #dc3545;
+    --light: #f8f9fa;
+    --dark: #343a40;
+    --gray-100: #f8f9fa;
+    --gray-200: #e9ecef;
+    --gray-300: #dee2e6;
+    --gray-800: #343a40;
+    --sidebar-width: 280px;
+    --sidebar-width-collapsed: 80px;
+    --card-border-radius: 12px;
+    --btn-border-radius: 6px;
+    --transition-speed: 0.3s;
+  }
+  
+  /* Structure principale */
+  body {
+    background-color: #f5f7fa;
+    overflow-x: hidden;
+  }
+
+  /* NOUVEAU: Structure avec onglets - ANTI-SCROLL */
+  .dashboard-container {
+    display: flex;
+    min-height: calc(100vh - 56px);
+    flex-direction: column; /* Changé pour les onglets */
+  }
+
+  /* En-tête avec onglets */
+  .dashboard-header {
+    background: white;
+    border-bottom: 2px solid #dee2e6;
+    padding: 1rem 2rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+
+  /* Navigation par onglets moderne et responsive */
+  .nav-tabs {
+    border-bottom: none;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 0 1rem;
+  }
+
+  .nav-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-tabs .nav-link {
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #6c757d;
+    font-weight: 500;
+    padding: 8px 12px;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    position: relative;
+    background: transparent;
+    font-size: 0.9rem;
+    min-width: auto;
+  }
+
+  /* Styles responsive pour mobiles */
+  @media (max-width: 768px) {
+    .nav-tabs {
+      padding: 0 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    .nav-tabs .nav-link {
+      padding: 6px 8px;
+      font-size: 0.8rem;
+    }
+    
+    .nav-tabs .nav-link i {
+      display: none;
+    }
+    
+    .dashboard-header {
+      padding: 0.5rem 1rem;
+    }
+    
+    .tab-pane {
+      padding: 1rem 0.5rem;
+      height: calc(100vh - 150px);
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .nav-tabs .nav-link {
+      padding: 4px 6px;
+      font-size: 0.75rem;
+    }
+  }
+  
+  /* Améliorations pour le tableau des pratiquants */
+  .modern-table {
+    font-size: 0.9rem;
+  }
+  
+  @media (max-width: 768px) {
+    .modern-table {
+      font-size: 0.8rem;
+    }
+    
+    .modern-table th,
+    .modern-table td {
+      padding: 0.5rem 0.25rem;
+    }
+    
+    .btn-group-sm .btn {
+      padding: 0.125rem 0.25rem;
+    }
+    
+    .card-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    
+    .card-header > div {
+      margin-top: 0.5rem;
+    }
+  }
+  
+  @media (max-width: 576px) {
+    .modern-table th:first-child,
+    .modern-table td:first-child {
+      position: sticky;
+      left: 0;
+      background: white;
+      z-index: 10;
+    }
+    
+    .age-display {
+      font-size: 0.75rem;
+    }
+  }
+
+  .nav-tabs .nav-link:hover {
+    border-color: transparent transparent var(--primary);
+    color: var(--primary);
+    background-color: rgba(51, 102, 255, 0.05);
+  }
+
+  .nav-tabs .nav-link.active {
+    color: var(--primary);
+    background-color: rgba(51, 102, 255, 0.1);
+    border-color: transparent transparent var(--primary);
+    font-weight: 600;
+  }
+
+  .nav-tabs .nav-link i {
+    margin-right: 8px;
+  }
+
+  /* Contenu des onglets - SANS SCROLL */
+  .tab-content {
+    flex: 1;
+    background: #f5f7fa;
+    overflow: hidden; /* Empêche le scroll */
+    padding: 0;
+  }
+
+  .tab-pane {
+    height: calc(100vh - 200px); /* Hauteur fixe */
+    overflow-y: auto; /* Scroll uniquement dans l'onglet actif */
+    padding: 2rem;
+  }
+
+  /* CONSERVÉ: Tous les styles originaux pour les cartes */
+  .card {
+    border: none;
+    border-radius: var(--card-border-radius);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.08);
+    margin-bottom: 1.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
+  }
+
+  .card-header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    border: none;
+    border-radius: var(--card-border-radius) var(--card-border-radius) 0 0;
+    padding: 1rem 1.5rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .card-header h1, .card-header h2, .card-header h3, 
+  .card-header h4, .card-header h5, .card-header h6 {
+    color: white;
+    margin: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .card-header i {
+    margin-right: 0.5rem;
+  }
+
+  .card-body {
+    padding: 1.5rem;
+  }
+
+  /* CONSERVÉ: Styles des statistiques */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    border-radius: var(--card-border-radius);
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 5px 15px rgba(51, 102, 255, 0.3);
+    transition: transform 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-5px);
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .stat-card:hover::before {
+    opacity: 1;
+  }
+
+  .stat-card.success {
+    background: linear-gradient(135deg, var(--success) 0%, #1e7e34 100%);
+    box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+  }
+
+  .stat-card.info {
+    background: linear-gradient(135deg, var(--info) 0%, #138496 100%);
+    box-shadow: 0 5px 15px rgba(23, 162, 184, 0.3);
+  }
+
+  .stat-card.warning {
+    background: linear-gradient(135deg, var(--warning) 0%, #e0a800 100%);
+    box-shadow: 0 5px 15px rgba(255, 193, 7, 0.3);
+  }
+
+  .stat-card.danger {
+    background: linear-gradient(135deg, var(--danger) 0%, #c82333 100%);
+    box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+  }
+
+  .stat-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    position: relative;
+    z-index: 1;
+  }
+
+  .stat-icon {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    font-size: 2rem;
+    opacity: 0.3;
+  }
+
+  /* CONSERVÉ: Actions rapides */
+  .quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .action-card {
+    background: white;
+    border-radius: var(--card-border-radius);
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--dark);
+  }
+
+  .action-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    border-color: var(--primary);
+    color: var(--primary);
+    text-decoration: none;
+  }
+
+  .action-icon {
+    font-size: 2.5rem;
+    color: var(--primary);
+    margin-bottom: 1rem;
+    display: block;
+  }
+
+  .action-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .action-description {
+    font-size: 0.9rem;
+    color: var(--secondary);
+  }
+
+  /* CONSERVÉ: Tables modernes */
+  .modern-table {
+    width: 100%;
+    margin-bottom: 0;
+    background-color: transparent;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .modern-table thead th {
+    background-color: var(--gray-100);
+    border: none;
+    padding: 1rem 0.75rem;
+    font-weight: 600;
+    color: var(--gray-800);
+    border-bottom: 2px solid var(--gray-300);
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+  }
+
+  .modern-table tbody td {
+    padding: 1rem 0.75rem;
+    border-bottom: 1px solid var(--gray-200);
+    vertical-align: middle;
+    border: none;
+    position: relative;
+    overflow: visible !important; /* Permet au menu déroulant de s'afficher au-delà de la cellule */
+  }
+
+  .modern-table tbody tr {
+    transition: background-color 0.2s ease;
+  }
+
+  .modern-table tbody tr:hover {
+    background-color: var(--gray-100);
+  }
+
+  /* NOUVEAU: Titre de compétition cliquable */
+  .competition-title-link {
+    color: #2c3e50;
+    transition: all 0.3s ease;
+  }
+  
+  .competition-title-link:hover {
+    color: #667eea !important;
+    text-decoration: underline !important;
+  }
+  
+  .competition-title-link strong {
+    cursor: pointer;
+  }
+  
+  .competition-title-link:hover strong {
+    color: #667eea;
+  }
+
+  /* CORRECTION: Menu déroulant "Gérer" - Optimisation de l'affichage */
+
+  /* Correction du menu déroulant dans le tableau */
+  .modern-table .btn-group {
+    position: static; /* Permet au dropdown de se positionner par rapport au tableau */
+  }
+
+  .modern-table .dropdown-menu {
+    position: absolute !important;
+    top: 100% !important;
+    left: auto !important;
+    right: 0 !important;
+    min-width: 280px !important; /* Largeur suffisante pour les labels complets */
+    max-width: 350px;
+    z-index: 1050 !important; /* z-index élevé pour affichage au-dessus */
+    margin-top: 0.125rem !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 0.5rem 0;
+    max-height: 80vh; /* Limite de hauteur avec scroll si nécessaire */
+    overflow-y: auto;
+  }
+
+  /* S'assurer que le menu reste visible même si la cellule est étroite */
+  .modern-table .btn-group.dropdown {
+    position: relative;
+  }
+
+  /* Amélioration de l'apparence des items du menu */
+  .modern-table .dropdown-menu .dropdown-item {
+    padding: 0.625rem 1rem;
+    white-space: normal; /* Permet le retour à la ligne si nécessaire */
+    word-wrap: break-word;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  .modern-table .dropdown-menu .dropdown-item i {
+    width: 20px;
+    margin-right: 0.5rem;
+    text-align: center;
+  }
+
+  .modern-table .dropdown-menu .dropdown-header {
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--gray-800);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .modern-table .dropdown-menu .dropdown-divider {
+    margin: 0.5rem 0;
+  }
+
+  /* S'assurer que le table-responsive ne coupe pas le menu */
+  .table-responsive {
+    overflow: visible !important;
+    position: relative;
+  }
+
+  /* Sur mobile, ajuster la position du menu */
+  @media (max-width: 768px) {
+    .modern-table .dropdown-menu {
+      min-width: 240px !important;
+      max-width: 90vw;
+      right: 0 !important;
+      left: auto !important;
+    }
+  }
+
+  /* CONSERVÉ: Badges et status */
+  .badge {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 50px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .badge-success {
+    background-color: var(--success);
+    color: white;
+  }
+
+  .badge-warning {
+    background-color: var(--warning);
+    color: white;
+  }
+
+  .badge-info {
+    background-color: var(--info);
+    color: white;
+  }
+
+  .badge-danger {
+    background-color: var(--danger);
+    color: white;
+  }
+
+  /* CONSERVÉ: Boutons */
+  .btn {
+    border-radius: var(--btn-border-radius);
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    transition: all 0.3s ease;
+    border: none;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+  }
+
+  .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background-color: var(--primary);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background-color: var(--primary-dark);
+    color: white;
+  }
+
+  .btn-success {
+    background-color: var(--success);
+    color: white;
+  }
+
+  .btn-success:hover {
+    background-color: #218838;
+    color: white;
+  }
+
+  .btn-info {
+    background-color: var(--info);
+    color: white;
+  }
+
+  .btn-info:hover {
+    background-color: #138496;
+    color: white;
+  }
+
+  .btn-warning {
+    background-color: var(--warning);
+    color: var(--dark);
+  }
+
+  .btn-warning:hover {
+    background-color: #e0a800;
+    color: var(--dark);
+  }
+
+  .btn-outline-primary {
+    border: 2px solid var(--primary);
+    color: var(--primary);
+    background: transparent;
+  }
+
+  .btn-outline-primary:hover {
+    background-color: var(--primary);
+    color: white;
+  }
+
+  .btn i {
+    margin-right: 0.5rem;
+  }
+
+  /* CONSERVÉ: Section adhésions */
+  .membership-v2-section {
+    background: linear-gradient(135deg, #9c27b0 0%, #e91e63 100%);
+    color: white;
+    border-radius: var(--card-border-radius);
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .membership-v2-section h3 {
+    color: white;
+    margin-bottom: 1rem;
+  }
+
+  /* NOUVEAU: Styles pour l'onglet Sites */
+  .theme-preview {
+    width: 100%;
+    height: 40px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+  }
+
+  .theme-preview:hover {
+    border-color: #fff;
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  }
+
+  .site-management-actions .btn {
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  /* CONSERVÉ: Progress bars */
+  .progress {
+    height: 10px;
+    border-radius: 50px;
+    background-color: rgba(255, 255, 255, 0.2);
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+
+  .progress-bar {
+    border-radius: 50px;
+    transition: width 0.6s ease;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .tab-pane {
+      padding: 1rem;
+      height: calc(100vh - 180px);
+    }
+    
+    .nav-tabs .nav-link {
+      padding: 8px 16px;
+      font-size: 0.9rem;
+    }
+    
+    .stat-number {
+      font-size: 2rem;
+    }
+
+    .stats-grid {
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .quick-actions-grid {
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+  }
+
+  @media (max-width: 576px) {
+    .nav-tabs {
+      flex-wrap: wrap;
+    }
+    
+    .nav-tabs .nav-link {
+      padding: 6px 12px;
+      font-size: 0.8rem;
+    }
+  }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .tab-pane.show {
+    animation: fadeIn 0.3s ease;
+  }
+
+  /* Indicateurs d'onglets actifs */
+  .nav-tabs .nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6px;
+    height: 6px;
+    background: var(--primary);
+    border-radius: 50%;
+  }
+  
+  /* Styles pour les badges de grades avec couleurs */
+  .grade-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    position: relative;
+  }
+  
+  .grade-badge::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.25rem;
+    border: 1px solid rgba(0,0,0,0.2);
+    flex-shrink: 0;
+  }
+  
+  .grade-badge[data-color]::before {
+    background-color: var(--grade-color);
+  }
+  
+  /* Classes pour les différents grades */
+  .grade-cap-jaune { background: rgba(255, 235, 59, 0.2); color: #f9a825; border: 1px solid #FFEB3B; }
+  .grade-cap-rouge { background: rgba(244, 67, 54, 0.2); color: #c62828; border: 1px solid #F44336; }
+  .grade-cap-blanc { background: rgba(245, 245, 245, 0.8); color: #495057; border: 1px solid #dee2e6; }
+  .grade-cap-bleu { background: rgba(33, 150, 243, 0.2); color: #0d47a1; border: 1px solid #2196F3; }
+  .grade-cap-violette { background: rgba(156, 39, 176, 0.2); color: #6a1b9a; border: 1px solid #9C27B0; }
+  .grade-cap-noir { background: rgba(33, 33, 33, 0.9); color: white; border: 1px solid #212121; }
+  .grade-cap-marron { background: rgba(121, 85, 72, 0.2); color: #3e2723; border: 1px solid #795548; }
+  .grade-cap-vert { background: rgba(76, 175, 80, 0.2); color: #2e7d32; border: 1px solid #4CAF50; }
+  .grade-cap-orange { background: rgba(255, 152, 0, 0.2); color: #ef6c00; border: 1px solid #FF9800; }
+  
+  /* Style spécial pour les grades blancs */
+  .grade-badge.grade-cap-blanc::before {
+    background-color: #ffffff;
+    border: 2px solid #dee2e6;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+  <!-- En-tête avec titre et contrôles -->
+  <div class="dashboard-header">
+    <div class="row align-items-center">
+      <div class="col-md-6">
+        <h1 class="h3 mb-0">
+          <i class="fas fa-tachometer-alt text-primary me-2"></i>
+          {% trans "Tableau de bord" %}
+          {% if club %}- {{ club.name }}{% endif %}
+        </h1>
+        <p class="text-muted mb-0">{% trans "Gestion complète sans scroll" %}</p>
+      </div>
+      <div class="col-md-6 text-end">
+        <div class="btn-group">
+          <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-outline-primary">
+            <i class="fas fa-list"></i> {% trans "Recharger" %}
+          </a>
+          <button class="btn btn-primary" disabled>
+            <i class="fas fa-th-large"></i> {% trans "Anti-scroll" %}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation par onglets -->
+    <div class="row mt-3">
+      <div class="col-12">
+        <ul class="nav nav-tabs" id="dashboardTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+              <i class="fas fa-chart-line"></i> {% trans "Vue d'ensemble" %}
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="sidebar-nav-tab" data-bs-toggle="tab" data-bs-target="#sidebar-nav" type="button" role="tab">
+              <i class="fas fa-bars"></i> {% trans "Navigation" %}
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="competitions-tab" data-bs-toggle="tab" data-bs-target="#competitions" type="button" role="tab">
+              <i class="fas fa-trophy"></i> {% trans "Compétitions" %}
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="members-tab" data-bs-toggle="tab" data-bs-target="#members" type="button" role="tab">
+              <i class="fas fa-users"></i> {% trans "Pratiquants" %}
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="finances-tab" data-bs-toggle="tab" data-bs-target="#finances" type="button" role="tab">
+              <i class="fas fa-euro-sign"></i> {% trans "Finances" %}
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="training-tab" data-bs-toggle="tab" data-bs-target="#training" type="button" role="tab">
+              <i class="fas fa-dumbbell"></i> {% trans "Entraînement" %}
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="events-tab" data-bs-toggle="tab" data-bs-target="#events" type="button" role="tab">
+              <i class="fas fa-calendar"></i> {% trans "Événements" %}
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="combats-tab" data-bs-toggle="tab" data-bs-target="#combats" type="button" role="tab">
+              <i class="fas fa-fist-raised"></i> {% trans "Combats" %}
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">
+              <i class="fas fa-file-alt"></i> {% trans "Documents" %}
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="shop-tab" data-bs-toggle="tab" data-bs-target="#shop" type="button" role="tab">
+              <i class="fas fa-shopping-cart"></i> {% trans "Boutique" %}
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="sites-tab" data-bs-toggle="tab" data-bs-target="#sites" type="button" role="tab">
+              <i class="fas fa-globe"></i> {% trans "Sites" %}
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="membership-tab" data-bs-toggle="tab" data-bs-target="#membership" type="button" role="tab">
+              <i class="fas fa-id-card"></i> {% trans "Adhésions" %}
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="roles-tab" data-bs-toggle="tab" data-bs-target="#roles" type="button" role="tab">
+              <i class="fas fa-user-shield"></i> {% trans "Rôles & Permissions" %}
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenu des onglets -->
+  <div class="tab-content" id="dashboardTabsContent">
+    
+    <!-- ONGLET VUE D'ENSEMBLE -->
+    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+      
+      <!-- Statistiques principales - CONSERVÉES INTÉGRALEMENT -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <i class="fas fa-users stat-icon"></i>
+          <div class="stat-number">{{ stats.total_practitioners|default:0 }}</div>
+          <div class="stat-label">{% trans "Pratiquants" %}</div>
+        </div>
+        
+        <div class="stat-card success">
+          <i class="fas fa-trophy stat-icon"></i>
+          <div class="stat-number">{{ stats.club_competitions|default:0 }}</div>
+          <div class="stat-label">{% trans "Compétitions organisées" %}</div>
+        </div>
+        
+        <div class="stat-card info">
+          <i class="fas fa-calendar-check stat-icon"></i>
+          <div class="stat-number">{{ stats.active_registrations|default:0 }}</div>
+          <div class="stat-label">{% trans "Inscriptions actives" %}</div>
+        </div>
+        
+        <div class="stat-card warning">
+          <i class="fas fa-gavel stat-icon"></i>
+          <div class="stat-number">{{ stats.judges_count|default:0 }}</div>
+          <div class="stat-label">{% trans "Juges/Arbitres" %}</div>
+        </div>
+      </div>
+
+      <!-- Actions rapides - CONSERVÉES INTÉGRALEMENT -->
+      <div class="card">
+        <div class="card-header">
+          <h5><i class="fas fa-bolt"></i> {% trans "Actions rapides" %}</h5>
+        </div>
+        <div class="card-body">
+          <div class="quick-actions-grid">
+            <a href="{% url 'competitions:club:practitioner_add' %}" class="action-card">
+              <i class="fas fa-user-plus action-icon"></i>
+              <div class="action-title">{% trans "Ajouter pratiquant" %}</div>
+              <div class="action-description">{% trans "Nouveau membre" %}</div>
+            </a>
+            
+            <a href="{% url 'competitions:competitions:create' %}" class="action-card">
+              <i class="fas fa-trophy action-icon"></i>
+              <div class="action-title">{% trans "Nouvelle compétition" %}</div>
+              <div class="action-description">{% trans "Organiser un événement" %}</div>
+            </a>
+            
+            <a href="{% url 'competitions:events:event_list' %}" class="action-card">
+              <i class="fas fa-calendar-plus action-icon"></i>
+              <div class="action-title">{% trans "Planifier événement" %}</div>
+              <div class="action-description">{% trans "Créer un planning" %}</div>
+            </a>
+            
+            <a href="{% url 'competitions:club:qr_dashboard' %}" class="action-card">
+              <i class="fas fa-qrcode action-icon"></i>
+              <div class="action-title">{% trans "Générer QR" %}</div>
+              <div class="action-description">{% trans "Codes d'accès" %}</div>
+            </a>
+            
+            <a href="{% url 'competitions:club:import_export' %}" class="action-card">
+              <i class="fas fa-file-import action-icon"></i>
+              <div class="action-title">{% trans "Import/Export" %}</div>
+              <div class="action-description">{% trans "Données Excel" %}</div>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Résumé des activités récentes -->
+      <div class="row">
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-clock"></i> {% trans "Activité récente" %}</h5>
+            </div>
+            <div class="card-body">
+              {% if recent_practitioners %}
+                {% for practitioner in recent_practitioners|slice:":5" %}
+                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                  <div>
+                    <strong>{{ practitioner.first_name }} {{ practitioner.last_name }}</strong><br>
+                    <small class="text-muted">{% trans "Nouveau pratiquant" %}</small>
+                  </div>
+                  <span class="badge badge-success">{% trans "Nouveau" %}</span>
+                </div>
+                {% endfor %}
+              {% else %}
+                <p class="text-muted text-center">{% trans "Aucune activité récente" %}</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-bell"></i> {% trans "Notifications" %}</h5>
+            </div>
+            <div class="card-body">
+              {% if recent_notifications %}
+                {% for notification in recent_notifications|slice:":5" %}
+                <div class="d-flex align-items-start mb-3">
+                  <div class="flex-grow-1">
+                    <div class="fw-bold">{{ notification.title }}</div>
+                    <small class="text-muted">{{ notification.created_at|timesince }}</small>
+                  </div>
+                </div>
+                {% endfor %}
+              {% else %}
+                <p class="text-muted text-center">{% trans "Aucune notification" %}</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ONGLET NAVIGATION (sidebar originale) -->
+    <div class="tab-pane fade" id="sidebar-nav" role="tabpanel">
+      <div class="card">
+        <div class="card-header">
+          <h3><i class="fas fa-bars"></i> {% trans "Navigation complète" %}</h3>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <!-- Colonne Principal -->
+            <div class="col-md-4">
+              <h5 class="text-primary mb-3">{% trans "Principal" %}</h5>
+              <div class="list-group list-group-flush">
+                <a href="{% url 'competitions:dashboard:club' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <i class="fas fa-tachometer-alt me-2 text-primary"></i>
+                  <span>{% trans "Tableau de bord" %}</span>
+                </a>
+                
+                <a href="{% url 'competitions:club:practitioners' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <i class="fas fa-users me-2 text-info"></i>
+                  <span>{% trans "Pratiquants" %}</span>
+                  {% if stats.total_practitioners %}
+                    <span class="badge bg-info ms-auto">{{ stats.total_practitioners }}</span>
+                  {% endif %}
+                  <small class="text-muted ms-2">{% trans "Vue améliorée" %}</small>
+                </a>
+                
+                <a href="{% url 'competitions:club:event_organizer' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <i class="fas fa-trophy me-2 text-warning"></i>
+                  <span>{% trans "Compétitions" %}</span>
+                  {% if competitions_to_manage_count %}
+                    <span class="badge bg-warning ms-auto">{{ competitions_to_manage_count }}</span>
+                  {% endif %}
+                </a>
+                
+                <a href="{% url 'grades:dashboard' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <i class="fas fa-graduation-cap me-2 text-success"></i>
+                  <span>{% trans "Grades et Examens" %}</span>
+                </a>
+              </div>
+            </div>
+            
+            <!-- Colonne Modules -->
+            <div class="col-md-4">
+              <h5 class="text-success mb-3">{% trans "Modules" %}</h5>
+              <div class="list-group list-group-flush">
+                <a href="{% url 'finances:dashboard' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <i class="fas fa-euro-sign me-2 text-success"></i>
+                  <span>{% trans "Finances" %}</span>
+                </a>
+                
+                <a href="{% url 'task_management:board_list' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <i class="fas fa-tasks me-2 text-primary"></i>
+                  <span>{% trans "Suivi projets" %}</span>
+                  {% if task_data.tasks_stats.todo_count %}
+                    <span class="badge bg-primary ms-auto">{{ task_data.tasks_stats.todo_count }}</span>
+                  {% endif %}
+                </a>
+                
+                <a href="{% url 'family_management:dashboard' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <i class="fas fa-people-roof me-2 text-info"></i>
+                  <span>{% trans "Espace Famille" %}</span>
+                  {% get_family_badge_count as family_badges %}
+                  {% if family_badges.total > 0 %}
+                    <span class="badge bg-danger ms-auto">{{ family_badges.total }}</span>
+                  {% endif %}
+                </a>
+              </div>
+            </div>
+            
+            <!-- Colonne Outils -->
+            <div class="col-md-4">
+              <h5 class="text-warning mb-3">{% trans "Outils" %}</h5>
+              <div class="list-group list-group-flush">
+                <a href="{% url 'competitions:club:qr_dashboard' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <i class="fas fa-qrcode me-2 text-dark"></i>
+                  <span>{% trans "Gestion QR" %}</span>
+                </a>
+                
+                <a href="{% url 'competitions:club:results' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <i class="fas fa-file-alt me-2 text-secondary"></i>
+                  <span>{% trans "Rapports" %}</span>
+                </a>
+                
+                <a href="{% url 'competitions:club:manage_roles' %}" class="list-group-item list-group-item-action d-flex align-items-center">
+                  <i class="fas fa-cog me-2 text-muted"></i>
+                  <span>{% trans "Configuration" %}</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ONGLET COMPÉTITIONS - CONSERVÉ INTÉGRALEMENT -->
+    <div class="tab-pane fade" id="competitions" role="tabpanel">
+      <!-- Guide de gestion complète -->
+      <div class="alert alert-info mb-4">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-info-circle me-3"></i>
+          <div class="flex-grow-1">
+            <h5 class="mb-1">{% trans "Gestion Complète des Compétitions" %}</h5>
+            <p class="mb-0">{% trans "Toutes les fonctionnalités de gestion sont accessibles depuis les menus déroulants de chaque compétition" %}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-trophy"></i> {% trans "Aperçu Compétitions" %}</h5>
+              <a href="{% url 'competitions:competitions:create' %}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus"></i> {% trans "Nouvelle" %}
+              </a>
+            </div>
+            <div class="card-body">
+              {% if competitions_to_manage %}
+                <div class="table-responsive">
+                  <table class="modern-table table">
+                    <thead>
+                      <tr>
+                        <th>{% trans "Compétition" %}</th>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for competition in competitions_to_manage %}
+                      <tr>
+                        <td>
+                          <a href="{% url 'competitions:club:competition_hub' competition.id %}" 
+                             class="text-decoration-none competition-title-link" 
+                             title="{% trans 'Cliquez pour gérer cette compétition' %}">
+                            <strong>{{ competition.title }}</strong><br>
+                            <small class="text-muted">{% if competition.discipline %}{{ competition.discipline.name }}{% else %}-{% endif %}</small>
+                          </a>
+                        </td>
+                        <td>{% if competition.start_date %}{{ competition.start_date|date:"d M Y" }}{% else %}-{% endif %}</td>
+                        <td>
+                          <span class="badge badge-success">{% trans "Active" %}</span>
+                        </td>
+                        <td>
+                          <div class="btn-group btn-group-sm" role="group">
+                            <a href="{% url 'competitions:club:competition_hub' competition.id %}" 
+                               class="btn btn-primary" 
+                               title="{% trans 'Hub de gestion' %}">
+                              <i class="fas fa-cog"></i> {% trans "Gérer" %}
+                            </a>
+                            <a href="{% url 'competitions:competitions:detail' pk=competition.id %}" 
+                               class="btn btn-outline-secondary" 
+                               title="{% trans 'Voir page publique' %}"
+                               target="_blank">
+                              <i class="fas fa-eye"></i>
+                            </a>
+                            <div class="btn-group btn-group-sm" role="group">
+                              <button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                                <span class="visually-hidden">{% trans "Plus d'options" %}</span>
+                              </button>
+                              <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="/{{ LANGUAGE_CODE|default:'fr' }}/competitions/club/competitions/{{ competition.id }}/manage/pro/">
+                                  <i class="fas fa-trophy"></i> {% trans "Gestion Pro" %}
+                                </a></li>
+                                <li><a class="dropdown-item" href="{% url 'competitions:competitions:manage_categories' competition.id %}">
+                                  <i class="fas fa-layer-group"></i> {% trans "Catégories" %}
+                                </a></li>
+                                <li><a class="dropdown-item" href="/{{ LANGUAGE_CODE|default:'fr' }}/competitions/competitions/{{ competition.id }}/schedule/overview/">
+                                  <i class="fas fa-calendar-alt"></i> {% trans "Planning" %}
+                                </a></li>
+                              </ul>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-trophy text-muted" style="font-size: 3rem;"></i>
+                  <h5 class="mt-3">{% trans "Aucune compétition à gérer" %}</h5>
+                  <p class="text-muted">{% trans "Organisez votre première compétition" %}</p>
+                  <a href="{% url 'competitions:competitions:create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> {% trans "Créer une compétition" %}
+                  </a>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-calendar-alt"></i> {% trans "Compétitions à venir" %}</h5>
+            </div>
+            <div class="card-body">
+              {% if upcoming_competitions %}
+                {% for competition in upcoming_competitions %}
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <h6 class="card-title">{{ competition.title }}</h6>
+                    <p class="card-text">{{ competition.description|truncatewords:20 }}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <small class="text-muted">
+                        <i class="fas fa-calendar"></i> {% if competition.start_date %}{{ competition.start_date|date:"d M Y" }}{% else %}Date non définie{% endif %}<br>
+                        <i class="fas fa-map-marker-alt"></i> {{ competition.location|default:"Non défini" }}
+                      </small>
+                      <a href="{% url 'competitions:club:competition_registration_form' competition_id=competition.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-users"></i> {% trans "S'inscrire" %}
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-calendar-alt text-muted" style="font-size: 3rem;"></i>
+                  <h5 class="mt-3">{% trans "Aucune compétition à venir" %}</h5>
+                  <p class="text-muted">{% trans "Consultez régulièrement les nouvelles compétitions" %}</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ONGLET PRATIQUANTS - CONSERVÉ INTÉGRALEMENT -->
+    <div class="tab-pane fade" id="members" role="tabpanel">
+      <div class="row">
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5><i class="fas fa-users"></i> {% trans "Gestion des pratiquants" %}</h5>
+              <div>
+                <button type="button" class="btn btn-success btn-sm me-2" onclick="goToImportExport();">
+                  <i class="fas fa-file-import"></i> {% trans "Import CSV" %}
+                </button>
+                <button type="button" class="btn btn-info btn-sm me-2" id="bulk-registration-btn" onclick="showBulkRegistrationModal(); return false;">
+                  <i class="fas fa-trophy"></i> {% trans "Inscription en masse" %}
+                </button>
+                <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-plus"></i> {% trans "Ajouter" %}
+                </a>
+              </div>
+            </div>
+            <div class="card-body">
+              {% if all_practitioners %}
+                {% comment %}
+                <!-- MESSAGE DÉVELOPPEMENT: Si vous voyez ce message, le club n'a pas d'organisation -->
+                <!-- En production, chaque club doit avoir une organisation associée -->
+                {% if not club.organization %}
+                  <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Mode développement:</strong> Ce club utilise des données de démonstration car il n'a pas d'organisation associée.
+                    <br><small>En production, créez une organisation pour ce club via l'admin Django.</small>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endif %}
+                {% endcomment %}
+                <div class="table-responsive">
+                  <table class="modern-table table table-sm">
+                    <thead>
+                      <tr>
+                        <th style="width: 40px;">
+                          <input type="checkbox" id="select-all-practitioners" class="form-check-input" onchange="toggleAllPractitioners(this)">
+                        </th>
+                        <th>{% trans "Nom" %}</th>
+                        <th class="d-none d-md-table-cell">{% trans "N° Licence" %}</th>
+                        <th class="d-none d-sm-table-cell">{% trans "Date naissance" %}</th>
+                        <th>{% trans "Âge" %}</th>
+                        <th class="d-none d-lg-table-cell">{% trans "Grade" %}</th>
+                        <th class="d-none d-sm-table-cell">{% trans "Statut" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for practitioner in all_practitioners %}
+                      <tr>
+                        <td>
+                          <input type="checkbox" class="form-check-input practitioner-checkbox" value="{{ practitioner.id }}" data-name="{{ practitioner.first_name }} {{ practitioner.last_name }}">
+                        </td>
+                        <td>
+                          <div class="d-flex align-items-center">
+                            {% if practitioner.photo %}
+                              <img src="{{ practitioner.photo.url }}" class="rounded-circle me-2" style="width: 32px; height: 32px; object-fit: cover;">
+                            {% else %}
+                              <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-size: 0.8rem;">
+                                {{ practitioner.first_name|first }}{{ practitioner.last_name|first }}
+                              </div>
+                            {% endif %}
+                            <div>
+                              <strong>{{ practitioner.first_name }} {{ practitioner.last_name }}</strong>
+                              {% if practitioner.email %}
+                                <div class="text-muted small">{{ practitioner.email }}</div>
+                              {% endif %}
+                            </div>
+                          </div>
+                        </td>
+                        <td class="d-none d-md-table-cell">
+                          {% if practitioner.license_number %}
+                            <code class="bg-light text-dark px-2 py-1 rounded">{{ practitioner.license_number }}</code>
+                          {% else %}
+                            <span class="text-muted">-</span>
+                          {% endif %}
+                        </td>
+                        <td class="d-none d-sm-table-cell">
+                          <small>{{ practitioner.birth_date|date:"d/m/Y"|default:"-" }}</small>
+                        </td>
+                        <td>
+                          {% if practitioner.birth_date %}
+                            <span class="text-info fw-bold">{{ practitioner.age }} ans</span>
+                          {% else %}
+                            <span class="text-muted">-</span>
+                          {% endif %}
+                        </td>
+                        <td class="d-none d-lg-table-cell">
+                          {% if practitioner.computed_grade_display %}
+                            <span class="grade-badge {{ practitioner.computed_grade_css_class|default:'grade-cap-blanc' }}"
+                                  data-color="{{ practitioner.computed_grade_color|default:'#6c757d' }}"
+                                  style="--grade-color: {{ practitioner.computed_grade_color|default:'#6c757d' }};">
+                              {{ practitioner.computed_grade_display }}
+                            </span>
+                          {% elif practitioner.grade %}
+                            <span class="badge bg-info">{{ practitioner.grade }}</span>
+                          {% elif practitioner.grade_text %}
+                            <span class="badge bg-secondary">{{ practitioner.grade_text }}</span>
+                          {% else %}
+                            <span class="text-muted">-</span>
+                          {% endif %}
+                        </td>
+                        <td class="d-none d-sm-table-cell">
+                          {% if practitioner.status == 'active' %}
+                            <span class="badge bg-success">{% trans "Actif" %}</span>
+                          {% elif practitioner.status == 'inactive' %}
+                            <span class="badge bg-secondary">{% trans "Inactif" %}</span>
+                          {% elif practitioner.status == 'suspended' %}
+                            <span class="badge bg-warning">{% trans "Suspendu" %}</span>
+                          {% elif practitioner.status == 'archived' %}
+                            <span class="badge bg-dark">{% trans "Archivé" %}</span>
+                          {% else %}
+                            <span class="badge bg-success">{% trans "Actif" %}</span>
+                          {% endif %}
+                        </td>
+                        <td>
+                          <div class="btn-group btn-group-sm">
+                            <a href="{% url 'competitions:club:practitioner_detail' pk=practitioner.pk %}" 
+                               class="btn btn-outline-primary btn-sm" 
+                               title="{% trans 'Voir le profil' %}">
+                              <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{% url 'competitions:club:practitioner_edit' pk=practitioner.pk %}" 
+                               class="btn btn-outline-secondary btn-sm"
+                               title="{% trans 'Modifier' %}">
+                              <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'competitions:club:practitioner_registrations' practitioner_id=practitioner.pk %}" 
+                               class="btn btn-outline-info btn-sm"
+                               title="{% trans 'Inscriptions' %}">
+                              <i class="fas fa-trophy"></i>
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                <div class="text-center mt-3">
+                  <a href="{% url 'competitions:club:practitioners' %}" class="btn btn-outline-primary">
+                    {% trans "Voir tous les pratiquants" %}
+                  </a>
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-users text-muted" style="font-size: 3rem;"></i>
+                  <h5 class="mt-3">{% trans "Aucun pratiquant" %}</h5>
+                  <p class="text-muted">{% trans "Commencez par ajouter vos premiers membres" %}</p>
+                  <a href="{% url 'competitions:club:practitioner_add' %}" class="btn btn-primary">
+                    <i class="fas fa-user-plus"></i> {% trans "Ajouter un pratiquant" %}
+                  </a>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-chart-bar"></i> {% trans "Statistiques membres" %}</h5>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Total" %}</span>
+                  <strong>{{ stats.total_practitioners|default:0 }}</strong>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Actifs ce mois" %}</span>
+                  <strong>{{ stats.active_this_month|default:0 }}</strong>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Nouveaux ce mois" %}</span>
+                  <strong>{{ stats.new_this_month|default:0 }}</strong>
+                </div>
+              </div>
+              
+              <!-- Graphique simple -->
+              <div class="mt-4">
+                <h6>{% trans "Répartition par grade" %}</h6>
+                <div class="mb-2">
+                  <div class="d-flex justify-content-between">
+                    <small>{% trans "Débutants" %}</small>
+                    <small>60%</small>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar bg-success" style="width: 60%"></div>
+                  </div>
+                </div>
+                <div class="mb-2">
+                  <div class="d-flex justify-content-between">
+                    <small>{% trans "Intermédiaires" %}</small>
+                    <small>30%</small>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar bg-warning" style="width: 30%"></div>
+                  </div>
+                </div>
+                <div class="mb-2">
+                  <div class="d-flex justify-content-between">
+                    <small>{% trans "Avancés" %}</small>
+                    <small>10%</small>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar bg-info" style="width: 10%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ONGLET FINANCES - CONSERVÉ INTÉGRALEMENT -->
+    <div class="tab-pane fade" id="finances" role="tabpanel">
+      <!-- Statistiques financières -->
+      <div class="stats-grid mb-4">
+        <div class="stat-card success">
+          <i class="fas fa-wallet stat-icon"></i>
+          <div class="stat-number">{{ financial_stats.balance|floatformat:0 }}{{ financial_stats.currency }}</div>
+          <div class="stat-label">{% trans "Solde actuel" %}</div>
+        </div>
+        
+        <div class="stat-card info">
+          <i class="fas fa-arrow-up stat-icon"></i>
+          <div class="stat-number">{{ financial_stats.income|floatformat:0 }}{{ financial_stats.currency }}</div>
+          <div class="stat-label">{% trans "Recettes" %}</div>
+        </div>
+        
+        <div class="stat-card danger">
+          <i class="fas fa-arrow-down stat-icon"></i>
+          <div class="stat-number">{{ financial_stats.expense|floatformat:0 }}{{ financial_stats.currency }}</div>
+          <div class="stat-label">{% trans "Dépenses" %}</div>
+        </div>
+        
+        <div class="stat-card warning">
+          <i class="fas fa-file-invoice-dollar stat-icon"></i>
+          <div class="stat-number">{{ financial_stats.pending_invoices|default:0 }}</div>
+          <div class="stat-label">{% trans "Factures en attente" %}</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-receipt"></i> {% translate "Derniers paiements" %}</h5>
+            </div>
+            <div class="card-body">
+              {% if recent_payments %}
+                <div class="table-responsive">
+                  <table class="modern-table table">
+                    <thead>
+                      <tr>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Description" %}</th>
+                        <th>{% trans "Montant" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for payment in recent_payments %}
+                      <tr>
+                        <td>{{ payment.initiated_at|date:"d M Y" }}</td>
+                        <td>{{ payment.transaction.category.name|default:"Transaction" }}</td>
+                        <td><strong>{{ payment.amount }}{{ financial_stats.currency }}</strong></td>
+                        <td><span class="badge badge-success">{{ payment.status|default:"Validé" }}</span></td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-receipt text-muted" style="font-size: 3rem;"></i>
+                  <h5 class="mt-3">{% trans "Aucun paiement récent" %}</h5>
+                  <p class="text-muted">{% trans "Les paiements apparaîtront ici" %}</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-chart-line"></i> {% trans "Évolution" %}</h5>
+            </div>
+            <div class="card-body">
+              <div class="text-center py-4">
+                <i class="fas fa-chart-line text-muted" style="font-size: 3rem;"></i>
+                <h6 class="mt-3">{% trans "Graphiques à venir" %}</h6>
+                <p class="text-muted">{% trans "Visualisation des tendances" %}</p>
+                <a href="{% url 'finances:dashboard' %}" class="btn btn-outline-primary btn-sm">
+                  {% trans "Module finances complet" %}
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ONGLET ENTRAÎNEMENT - AMÉLIORÉ -->
+    <div class="tab-pane fade" id="training" role="tabpanel">
+      <div class="row">
+        <!-- Actions rapides d'entraînement -->
+        <div class="col-12 mb-3">
+          <div class="card bg-primary text-white">
+            <div class="card-body">
+              <h5><i class="fas fa-dumbbell me-2"></i>{% trans "Gestion des entraînements" %}</h5>
+              <div class="row mt-3">
+                <div class="col-md-3">
+                  <a href="{% url 'competitions:club:create_training_program' %}" class="btn btn-light btn-sm w-100">
+                    <i class="fas fa-plus-circle me-1"></i>
+                    {% trans "Créer programme" %}
+                  </a>
+                </div>
+                <div class="col-md-3">
+                  <a href="{% url 'competitions:club:create_training_slot' %}" class="btn btn-light btn-sm w-100">
+                    <i class="fas fa-clock me-1"></i>
+                    {% trans "Créer créneau" %}
+                  </a>
+                </div>
+                <div class="col-md-3">
+                  <a href="{% url 'competitions:club:create_training_session' %}" class="btn btn-light btn-sm w-100">
+                    <i class="fas fa-calendar-plus me-1"></i>
+                    {% trans "Créer session" %}
+                  </a>
+                </div>
+                <div class="col-md-3">
+                  <a href="{% url 'competitions:club:training_programs' %}" class="btn btn-outline-light btn-sm w-100">
+                    <i class="fas fa-list me-1"></i>
+                    {% trans "Voir programmes" %}
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-dumbbell"></i> {% translate "Sessions récentes" %}</h5>
+              <a href="{% url 'competitions:club:training_sessions' %}" class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-eye"></i> {% trans "Voir toutes" %}
+              </a>
+            </div>
+            <div class="card-body">
+              {% if recent_sessions %}
+                <div class="table-responsive">
+                  <table class="modern-table table">
+                    <thead>
+                      <tr>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Discipline" %}</th>
+                        <th>{% trans "Instructeur" %}</th>
+                        <th>{% trans "Présents" %}</th>
+                        <th>{% trans "Taux" %}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for session in recent_sessions %}
+                      <tr>
+                        <td>{{ session.date|date:"d M Y" }}</td>
+                        <td>{{ session.training_slot.discipline.name }}</td>
+                        <td>{{ session.actual_instructor.first_name }} {{ session.actual_instructor.last_name }}</td>
+                        <td>{{ session.presents_count|default:0 }}/{{ session.total_count|default:0 }}</td>
+                        <td>
+                          {% if session.attendance_rate %}
+                            <span class="badge badge-success">{{ session.attendance_rate|floatformat:0 }}%</span>
+                          {% else %}
+                            <span class="badge badge-warning">0%</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-dumbbell text-muted" style="font-size: 3rem;"></i>
+                  <h5 class="mt-3">{% trans "Aucune session récente" %}</h5>
+                  <p class="text-muted">{% trans "Commencez par créer un programme ou un créneau d'entraînement" %}</p>
+                  <div class="mt-3">
+                    <a href="{% url 'competitions:club:create_training_program' %}" class="btn btn-primary btn-sm me-2">
+                      <i class="fas fa-plus"></i> {% trans "Créer un programme" %}
+                    </a>
+                    <a href="{% url 'competitions:club:create_training_slot' %}" class="btn btn-outline-primary btn-sm">
+                      <i class="fas fa-clock"></i> {% trans "Créer un créneau" %}
+                    </a>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <!-- Programmes d'entraînement disponibles -->
+          <div class="card mb-3">
+            <div class="card-header">
+              <h5><i class="fas fa-clipboard-list"></i> {% trans "Programmes disponibles" %}</h5>
+              <a href="{% url 'competitions:club:training_programs' %}" class="btn btn-outline-primary btn-sm">
+                {% trans "Voir tous" %} ({{ training_programs_count }})
+              </a>
+            </div>
+            <div class="card-body">
+              {% if training_programs %}
+                {% for program in training_programs %}
+                <div class="card border-0 bg-light mb-2">
+                  <div class="card-body p-2">
+                    <h6 class="card-title mb-1">{{ program.name }}</h6>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <small class="text-muted">
+                        {% if program.level == 'beginner' %}
+                          <span class="badge bg-success">{% trans "Débutant" %}</span>
+                        {% elif program.level == 'intermediate' %}
+                          <span class="badge bg-warning">{% trans "Intermédiaire" %}</span>
+                        {% else %}
+                          <span class="badge bg-danger">{% trans "Avancé" %}</span>
+                        {% endif %}
+                      </small>
+                      <small class="text-muted">{{ program.duration_weeks }}{% trans " sem" %}</small>
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-center py-3">
+                  <i class="fas fa-clipboard-list text-muted" style="font-size: 2rem;"></i>
+                  <p class="text-muted mt-2">{% trans "Aucun programme disponible" %}</p>
+                  <a href="{% url 'competitions:club:create_training_program' %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> {% trans "Créer" %}
+                  </a>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <!-- Top pratiquants assidus -->
+          <div class="card mb-3">
+            <div class="card-header">
+              <h5><i class="fas fa-medal"></i> {% trans "Top assidus" %}</h5>
+            </div>
+            <div class="card-body">
+              {% if top_attendees %}
+                {% for attendee in top_attendees %}
+                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                  <div>
+                    <strong>{{ attendee.practitioner.full_name }}</strong>
+                  </div>
+                  <span class="badge badge-success">{{ attendee.attendance_count }}</span>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-center py-3">
+                  <i class="fas fa-medal text-muted" style="font-size: 2rem;"></i>
+                  <p class="text-muted mt-2">{% trans "Pas de données disponibles" %}</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <!-- Statistiques globales -->
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-chart-bar"></i> {% translate "Statistiques globales" %}</h5>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Sessions ce mois" %}</span>
+                  <strong>{{ attendance_stats.month_sessions|default:0 }}</strong>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Présences totales" %}</span>
+                  <strong>{{ attendance_stats.total_attendances|default:0 }}</strong>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Taux moyen" %}</span>
+                  <strong>{{ attendance_stats.average_rate|floatformat:0|default:0 }}%</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ONGLET ÉVÉNEMENTS - CONSERVÉ INTÉGRALEMENT -->
+    <div class="tab-pane fade" id="events" role="tabpanel">
+      <div class="row">
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5><i class="fas fa-calendar"></i> {% translate "Événements à venir" %}</h5>
+              <div class="btn-group">
+                <a href="{% url 'competitions:events:create_event' %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-plus"></i> {% trans "Nouvel événement" %}
+                </a>
+                <a href="{% url 'competitions:events:event_list' %}" class="btn btn-outline-primary btn-sm">
+                  <i class="fas fa-list"></i> {% trans "Tous les événements" %}
+                </a>
+              </div>
+            </div>
+            <div class="card-body">
+              {% if upcoming_events %}
+                {% for event in upcoming_events %}
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div>
+                        <h6 class="card-title">{{ event.name }}</h6>
+                        <p class="card-text">{{ event.description|truncatewords:15 }}</p>
+                        <small class="text-muted">
+                          <i class="fas fa-calendar"></i> {% if event.start_date %}{{ event.start_date|date:"d M Y" }}{% else %}Date non définie{% endif %}<br>
+                          <i class="fas fa-map-marker-alt"></i> {{ event.location|default:"Non défini" }}
+                        </small>
+                      </div>
+                      <div class="btn-group btn-group-sm">
+                        <a href="{% url 'competitions:events:event_detail' event.id %}" class="btn btn-outline-primary btn-sm" title="{% trans 'Voir' %}">
+                          <i class="fas fa-eye"></i>
+                        </a>
+                        <a href="{% url 'competitions:events:edit_event' event.id %}" class="btn btn-outline-success btn-sm" title="{% trans 'Modifier' %}">
+                          <i class="fas fa-edit"></i>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-calendar text-muted" style="font-size: 3rem;"></i>
+                  <h5 class="mt-3">{% trans "Aucun événement à venir" %}</h5>
+                  <p class="text-muted">{% trans "Planifiez votre prochain événement" %}</p>
+                  <a href="{% url 'competitions:events:create_event' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> {% trans "Créer un événement" %}
+                  </a>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-poll"></i> {% translate "Sondages actifs" %}</h5>
+            </div>
+            <div class="card-body">
+              {% if active_polls %}
+                {% for poll in active_polls %}
+                <div class="card mb-2">
+                  <div class="card-body py-2">
+                    <h6 class="card-title mb-1">{{ poll.question }}</h6>
+                    <small class="text-muted">{{ poll.created_at|timesince }}</small>
+                  </div>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-center py-3">
+                  <i class="fas fa-poll text-muted" style="font-size: 2rem;"></i>
+                  <p class="text-muted mt-2">{% trans "Aucun sondage actif" %}</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ONGLET COMBATS -->
+    <div class="tab-pane fade" id="combats" role="tabpanel">
+      <div class="row">
+        <!-- Actions rapides pour combats -->
+        <div class="col-12 mb-3">
+          <div class="card bg-danger text-white">
+            <div class="card-body">
+              <h5><i class="fas fa-fist-raised me-2"></i>{% trans "Gestion des combats" %}</h5>
+              <div class="row mt-3">
+                <div class="col-md-3">
+                  <a href="{% url 'competitions:combat:creer_equipe' %}" class="btn btn-light btn-sm w-100">
+                    <i class="fas fa-users me-1"></i>
+                    {% trans "Créer équipe" %}
+                  </a>
+                </div>
+                <div class="col-md-3">
+                  <a href="{% url 'competitions:combat:liste_configurations' %}" class="btn btn-light btn-sm w-100">
+                    <i class="fas fa-cog me-1"></i>
+                    {% trans "Configurations" %}
+                  </a>
+                </div>
+                <div class="col-md-3">
+                  <a href="{% url 'competitions:combat:liste_combats' %}" class="btn btn-light btn-sm w-100">
+                    <i class="fas fa-trophy me-1"></i>
+                    {% trans "Voir combats" %}
+                  </a>
+                </div>
+                <div class="col-md-3">
+                  <a href="{% url 'competitions:combat:liste_equipes' %}" class="btn btn-outline-light btn-sm w-100">
+                    <i class="fas fa-list me-1"></i>
+                    {% trans "Toutes équipes" %}
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5><i class="fas fa-fist-raised"></i> {% trans "Combats récents" %}</h5>
+              <a href="{% url 'competitions:combat:creer_combat' %}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus"></i> {% trans "Nouveau combat" %}
+              </a>
+            </div>
+            <div class="card-body">
+              {% if recent_combats %}
+                <div class="table-responsive">
+                  <table class="modern-table table">
+                    <thead>
+                      <tr>
+                        <th>{% trans "Combat" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                        <th>{% trans "Score" %}</th>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for combat in recent_combats %}
+                      <tr>
+                        <td>
+                          <strong>{{ combat }}</strong><br>
+                          <small class="text-muted">{{ combat.competition.title }}</small>
+                        </td>
+                        <td>
+                          {% if combat.status == 'termine' %}
+                            <span class="badge badge-success">{% trans "Terminé" %}</span>
+                          {% elif combat.status == 'en_cours' %}
+                            <span class="badge badge-warning">{% trans "En cours" %}</span>
+                          {% elif combat.status == 'planifie' %}
+                            <span class="badge badge-info">{% trans "Planifié" %}</span>
+                          {% else %}
+                            <span class="badge badge-danger">{% trans "Annulé" %}</span>
+                          {% endif %}
+                        </td>
+                        <td>
+                          <span class="text-danger">{{ combat.score_rouge }}</span> - 
+                          <span class="text-primary">{{ combat.score_blanc }}</span>
+                        </td>
+                        <td>{{ combat.date_planifiee|date:"d M Y H:i"|default:"-" }}</td>
+                        <td>
+                          <div class="btn-group btn-group-sm">
+                            <a href="{% url 'competitions:combat:detail_combat' combat.id %}" class="btn btn-outline-primary btn-sm" title="{% trans 'Voir' %}">
+                              <i class="fas fa-eye"></i>
+                            </a>
+                            {% if combat.status == 'planifie' %}
+                            <a href="{% url 'competitions:combat:demarrer_combat' combat.id %}" class="btn btn-outline-success btn-sm" title="{% trans 'Démarrer' %}">
+                              <i class="fas fa-play"></i>
+                            </a>
+                            {% elif combat.status == 'en_cours' %}
+                            <a href="{% url 'competitions:combat:interface_combat' combat.id %}" class="btn btn-outline-warning btn-sm" title="{% trans 'Interface' %}">
+                              <i class="fas fa-desktop"></i>
+                            </a>
+                            {% endif %}
+                          </div>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-fist-raised text-muted" style="font-size: 3rem;"></i>
+                  <h5 class="mt-3">{% trans "Aucun combat récent" %}</h5>
+                  <p class="text-muted">{% trans "Créez votre premier combat ou organisez des équipes" %}</p>
+                  <div class="mt-3">
+                    <a href="{% url 'competitions:combat:creer_combat' %}" class="btn btn-primary btn-sm me-2">
+                      <i class="fas fa-plus"></i> {% trans "Créer un combat" %}
+                    </a>
+                    <a href="{% url 'competitions:combat:creer_equipe' %}" class="btn btn-outline-primary btn-sm">
+                      <i class="fas fa-users"></i> {% trans "Créer une équipe" %}
+                    </a>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card mb-3">
+            <div class="card-header">
+              <h5><i class="fas fa-users"></i> {% trans "Équipes" %}</h5>
+              <a href="{% url 'competitions:combat:creer_equipe' %}" class="btn btn-outline-primary btn-sm">
+                {% trans "Créer" %} ({{ club_teams_count|default:0 }})
+              </a>
+            </div>
+            <div class="card-body">
+              {% if club_teams %}
+                {% for team in club_teams %}
+                <div class="card border-0 bg-light mb-2">
+                  <div class="card-body p-2">
+                    <h6 class="card-title mb-1">{{ team.nom }}</h6>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <small class="text-muted">{{ team.competition.title }}</small>
+                      <small class="text-muted">{{ team.membres.count }} {% trans "membres" %}</small>
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-center py-3">
+                  <i class="fas fa-users text-muted" style="font-size: 2rem;"></i>
+                  <p class="text-muted mt-2">{% trans "Aucune équipe disponible" %}</p>
+                  <a href="{% url 'competitions:combat:creer_equipe' %}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> {% trans "Créer" %}
+                  </a>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-chart-bar"></i> {% trans "Statistiques combats" %}</h5>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Combats ce mois" %}</span>
+                  <strong>{{ combat_stats.month_combats|default:0 }}</strong>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Victoires" %}</span>
+                  <strong>{{ combat_stats.victories|default:0 }}</strong>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Défaites" %}</span>
+                  <strong>{{ combat_stats.defeats|default:0 }}</strong>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Taux de victoire" %}</span>
+                  <strong>{{ combat_stats.win_rate|floatformat:0|default:0 }}%</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ONGLET DOCUMENTS -->
+    <div class="tab-pane fade" id="documents" role="tabpanel">
+      <div class="row">
+        <!-- Actions rapides pour documents -->
+        <div class="col-12 mb-3">
+          <div class="card bg-info text-white">
+            <div class="card-body">
+              <h5><i class="fas fa-file-alt me-2"></i>{% trans "Gestion documentaire" %}</h5>
+              <div class="row mt-3">
+                <div class="col-md-3">
+                  <a href="{% url 'documents:upload' %}" class="btn btn-light btn-sm w-100">
+                    <i class="fas fa-upload me-1"></i>
+                    {% trans "Uploader" %}
+                  </a>
+                </div>
+                <div class="col-md-3">
+                  <a href="{% url 'documents:folder_root' %}" class="btn btn-light btn-sm w-100">
+                    <i class="fas fa-folder me-1"></i>
+                    {% trans "Parcourir" %}
+                  </a>
+                </div>
+                <div class="col-md-3">
+                  <a href="{% url 'documents:my_documents' %}" class="btn btn-light btn-sm w-100">
+                    <i class="fas fa-file me-1"></i>
+                    {% trans "Mes documents" %}
+                  </a>
+                </div>
+                <div class="col-md-3">
+                  <a href="{% url 'documents:shared_with_me' %}" class="btn btn-outline-light btn-sm w-100">
+                    <i class="fas fa-share-alt me-1"></i>
+                    {% trans "Partagés" %}
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5><i class="fas fa-file-alt"></i> {% trans "Documents récents" %}</h5>
+              <a href="{% url 'documents:upload' %}" class="btn btn-primary btn-sm">
+                <i class="fas fa-upload"></i> {% trans "Uploader document" %}
+              </a>
+            </div>
+            <div class="card-body">
+              {% if recent_documents %}
+                <div class="table-responsive">
+                  <table class="modern-table table">
+                    <thead>
+                      <tr>
+                        <th>{% trans "Nom" %}</th>
+                        <th>{% trans "Type" %}</th>
+                        <th>{% trans "Taille" %}</th>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for document in recent_documents %}
+                      <tr>
+                        <td>
+                          <div class="d-flex align-items-center">
+                            <i class="fas fa-file-{% if document.mime_type == 'application/pdf' %}pdf{% elif 'image' in document.mime_type %}image{% elif 'word' in document.mime_type %}word{% else %}alt{% endif %} me-2"></i>
+                            <div>
+                              <strong>{{ document.title }}</strong><br>
+                              <small class="text-muted">{{ document.description|truncatewords:8 }}</small>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          {% if document.document_type %}
+                            <span class="badge badge-info">{{ document.get_document_type_display }}</span>
+                          {% else %}
+                            <span class="badge badge-secondary">{% trans "Non défini" %}</span>
+                          {% endif %}
+                        </td>
+                        <td>{{ document.file_size|filesizeformat }}</td>
+                        <td>{{ document.created_at|date:"d M Y" }}</td>
+                        <td>
+                          <div class="btn-group btn-group-sm">
+                            <a href="{% url 'documents:detail' document.id %}" class="btn btn-outline-primary btn-sm" title="{% trans 'Voir' %}">
+                              <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{% url 'documents:download' document.id %}" class="btn btn-outline-success btn-sm" title="{% trans 'Télécharger' %}">
+                              <i class="fas fa-download"></i>
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                <div class="text-center mt-3">
+                  <a href="{% url 'documents:my_documents' %}" class="btn btn-outline-primary">
+                    {% trans "Voir tous mes documents" %}
+                  </a>
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-file-alt text-muted" style="font-size: 3rem;"></i>
+                  <h5 class="mt-3">{% trans "Aucun document" %}</h5>
+                  <p class="text-muted">{% trans "Commencez par uploader vos premiers documents" %}</p>
+                  <a href="{% url 'documents:upload' %}" class="btn btn-primary">
+                    <i class="fas fa-upload"></i> {% trans "Uploader un document" %}
+                  </a>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card mb-3">
+            <div class="card-header">
+              <h5><i class="fas fa-chart-pie"></i> {% trans "Statistiques documents" %}</h5>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Mes documents" %}</span>
+                  <strong>{{ document_stats.my_documents|default:0 }}</strong>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Partagés avec moi" %}</span>
+                  <strong>{{ document_stats.shared_with_me|default:0 }}</strong>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Espace utilisé" %}</span>
+                  <strong>{{ document_stats.total_size|filesizeformat|default:"0 B" }}</strong>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Cette semaine" %}</span>
+                  <strong>{{ document_stats.recent_uploads|default:0 }}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-folder"></i> {% trans "Types de documents" %}</h5>
+            </div>
+            <div class="card-body">
+              <div class="mb-2">
+                <div class="d-flex justify-content-between">
+                  <small>{% trans "Certificats" %}</small>
+                  <small>{{ document_stats.certificates|default:0 }}</small>
+                </div>
+                <div class="progress">
+                  <div class="progress-bar bg-success" style="width: {{ document_stats.certificates_percent|default:0 }}%"></div>
+                </div>
+              </div>
+              <div class="mb-2">
+                <div class="d-flex justify-content-between">
+                  <small>{% trans "Administratifs" %}</small>
+                  <small>{{ document_stats.administrative|default:0 }}</small>
+                </div>
+                <div class="progress">
+                  <div class="progress-bar bg-info" style="width: {{ document_stats.administrative_percent|default:0 }}%"></div>
+                </div>
+              </div>
+              <div class="mb-2">
+                <div class="d-flex justify-content-between">
+                  <small>{% trans "Techniques" %}</small>
+                  <small>{{ document_stats.technical|default:0 }}</small>
+                </div>
+                <div class="progress">
+                  <div class="progress-bar bg-warning" style="width: {{ document_stats.technical_percent|default:0 }}%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ONGLET BOUTIQUE - GESTION COMPLÈTE -->
+    <div class="tab-pane fade" id="shop" role="tabpanel">
+      <!-- Actions rapides boutique -->
+      <div class="col-12 mb-3">
+        <div class="card bg-success text-white">
+          <div class="card-body">
+            <h5><i class="fas fa-shopping-cart me-2"></i>{% trans "Gestion de la boutique" %}</h5>
+            <div class="row mt-3">
+              <div class="col-md-3">
+                <a href="{% url 'shop:dashboard:club_product_create' %}" class="btn btn-light btn-sm w-100">
+                  <i class="fas fa-plus me-1"></i>
+                  {% trans "Nouveau produit" %}
+                </a>
+              </div>
+              <div class="col-md-3">
+                <a href="{% url 'shop:dashboard:club_products' %}" class="btn btn-light btn-sm w-100">
+                  <i class="fas fa-boxes me-1"></i>
+                  {% trans "Gestion produits" %}
+                </a>
+              </div>
+              <div class="col-md-3">
+                <a href="{% url 'shop:dashboard:club_inventory' %}" class="btn btn-light btn-sm w-100">
+                  <i class="fas fa-warehouse me-1"></i>
+                  {% trans "Inventaire" %}
+                </a>
+              </div>
+              <div class="col-md-3">
+                <a href="{% url 'shop:dashboard:club_dashboard' %}" class="btn btn-outline-light btn-sm w-100">
+                  <i class="fas fa-chart-line me-1"></i>
+                  {% trans "Dashboard complet" %}
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <!-- Statistiques boutique -->
+        <div class="col-12 mb-3">
+          <div class="stats-grid">
+            <div class="stat-card info">
+              <i class="fas fa-shopping-bag stat-icon"></i>
+              <div class="stat-number">{{ shop_stats.total_orders|default:0 }}</div>
+              <div class="stat-label">{% trans "Commandes totales" %}</div>
+            </div>
+            
+            <div class="stat-card success">
+              <i class="fas fa-euro-sign stat-icon"></i>
+              <div class="stat-number">{{ shop_stats.total_revenue|floatformat:0|default:0 }}€</div>
+              <div class="stat-label">{% trans "Chiffre d'affaires" %}</div>
+            </div>
+            
+            <div class="stat-card warning">
+              <i class="fas fa-clock stat-icon"></i>
+              <div class="stat-number">{{ shop_stats.pending_orders|default:0 }}</div>
+              <div class="stat-label">{% trans "Commandes en attente" %}</div>
+            </div>
+            
+            <div class="stat-card danger">
+              <i class="fas fa-exclamation-triangle stat-icon"></i>
+              <div class="stat-number">{{ shop_stats.low_stock_products|default:0 }}</div>
+              <div class="stat-label">{% trans "Produits en rupture" %}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Commandes récentes -->
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5><i class="fas fa-shopping-cart"></i> {% trans "Commandes récentes" %}</h5>
+              <div class="btn-group">
+                <a href="{% url 'shop:dashboard:club_orders' %}" class="btn btn-outline-primary btn-sm">
+                  <i class="fas fa-list"></i> {% trans "Toutes les commandes" %}
+                </a>
+                <a href="{% url 'shop:dashboard:club_sales_report' %}" class="btn btn-outline-success btn-sm">
+                  <i class="fas fa-chart-bar"></i> {% trans "Rapports" %}
+                </a>
+              </div>
+            </div>
+            <div class="card-body">
+              {% if recent_orders %}
+                <div class="table-responsive">
+                  <table class="modern-table table">
+                    <thead>
+                      <tr>
+                        <th>{% trans "Commande" %}</th>
+                        <th>{% trans "Client" %}</th>
+                        <th>{% trans "Montant" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Actions" %}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for order in recent_orders %}
+                      <tr>
+                        <td><strong>#{{ order.order_number|default:order.id }}</strong></td>
+                        <td>{{ order.user.first_name }} {{ order.user.last_name }}</td>
+                        <td><strong>{{ order.total }}€</strong></td>
+                        <td>
+                          {% if order.status == 'delivered' %}
+                            <span class="badge badge-success">{% trans "Livré" %}</span>
+                          {% elif order.status == 'shipped' %}
+                            <span class="badge badge-info">{% trans "Expédié" %}</span>
+                          {% elif order.status == 'processing' %}
+                            <span class="badge badge-warning">{% trans "En préparation" %}</span>
+                          {% elif order.status == 'pending' %}
+                            <span class="badge badge-secondary">{% trans "En attente" %}</span>
+                          {% elif order.status == 'cancelled' %}
+                            <span class="badge badge-danger">{% trans "Annulée" %}</span>
+                          {% else %}
+                            <span class="badge badge-light">{{ order.get_status_display }}</span>
+                          {% endif %}
+                        </td>
+                        <td>{{ order.created_at|date:"d M Y H:i" }}</td>
+                        <td>
+                          <div class="btn-group btn-group-sm">
+                            <a href="{% url 'shop:dashboard:club_order_detail' order_id=order.id %}" class="btn btn-outline-primary btn-sm" title="{% trans 'Voir détails' %}">
+                              <i class="fas fa-eye"></i>
+                            </a>
+                            {% if order.can_cancel %}
+                            <a href="{% url 'shop:dashboard:club_order_update_status' order_id=order.id %}" class="btn btn-outline-warning btn-sm" title="{% trans 'Modifier statut' %}">
+                              <i class="fas fa-edit"></i>
+                            </a>
+                            {% endif %}
+                          </div>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-shopping-cart text-muted" style="font-size: 3rem;"></i>
+                  <h5 class="mt-3">{% trans "Aucune commande" %}</h5>
+                  <p class="text-muted">{% trans "Les commandes de la boutique apparaîtront ici" %}</p>
+                  <div class="mt-3">
+                    <a href="{% url 'shop:dashboard:club_products' %}" class="btn btn-primary btn-sm me-2">
+                      <i class="fas fa-boxes"></i> {% trans "Gérer les produits" %}
+                    </a>
+                    <a href="{% url 'shop:dashboard:club_product_create' %}" class="btn btn-outline-primary btn-sm">
+                      <i class="fas fa-plus"></i> {% trans "Ajouter un produit" %}
+                    </a>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Gestion rapide -->
+        <div class="col-md-4">
+          <!-- Produits populaires -->
+          <div class="card mb-3">
+            <div class="card-header">
+              <h5><i class="fas fa-star"></i> {% trans "Produits populaires" %}</h5>
+            </div>
+            <div class="card-body">
+              {% if popular_products %}
+                {% for product in popular_products %}
+                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                  <div>
+                    <strong>{{ product.product_name|truncatechars:25 }}</strong><br>
+                    <small class="text-muted">{{ product.total_sold }} {% trans "vendus" %}</small>
+                  </div>
+                  <span class="badge badge-info">{{ product.total_revenue|floatformat:0 }}€</span>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-center py-3">
+                  <i class="fas fa-chart-bar text-muted" style="font-size: 2rem;"></i>
+                  <p class="text-muted mt-2">{% trans "Pas de données de vente" %}</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Actions rapides -->
+          <div class="card mb-3">
+            <div class="card-header">
+              <h5><i class="fas fa-tools"></i> {% trans "Actions rapides" %}</h5>
+            </div>
+            <div class="card-body">
+              <div class="d-grid gap-2">
+                <a href="{% url 'shop:dashboard:club_product_create' %}" class="btn btn-success btn-sm">
+                  <i class="fas fa-plus me-1"></i>{% trans "Nouveau produit" %}
+                </a>
+                <a href="{% url 'shop:dashboard:club_inventory' %}" class="btn btn-warning btn-sm">
+                  <i class="fas fa-warehouse me-1"></i>{% trans "Gérer stock" %}
+                </a>
+                <a href="{% url 'shop:dashboard:club_orders' %}?status=pending" class="btn btn-info btn-sm">
+                  <i class="fas fa-clock me-1"></i>{% trans "Commandes en attente" %}
+                </a>
+                <a href="{% url 'shop:dashboard:club_sales_report' %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-chart-line me-1"></i>{% trans "Voir rapports" %}
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Statut du stock -->
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-boxes"></i> {% trans "État du stock" %}</h5>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Produits actifs" %}</span>
+                  <strong>{{ shop_stats.active_products|default:0 }}</strong>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Stock faible" %}</span>
+                  <strong class="text-warning">{{ shop_stats.low_stock_products|default:0 }}</strong>
+                </div>
+              </div>
+              <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                  <span>{% trans "Ruptures" %}</span>
+                  <strong class="text-danger">{{ shop_stats.out_of_stock|default:0 }}</strong>
+                </div>
+              </div>
+              
+              {% if shop_stats.low_stock_products > 0 or shop_stats.out_of_stock > 0 %}
+              <div class="alert alert-warning alert-sm mt-3">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                <small>{% trans "Des produits nécessitent une attention." %}</small>
+              </div>
+              {% endif %}
+              
+              <div class="mt-3">
+                <a href="{% url 'shop:dashboard:club_inventory' %}" class="btn btn-outline-primary btn-sm w-100">
+                  <i class="fas fa-warehouse"></i> {% trans "Gérer inventaire" %}
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOUVEL ONGLET SITES -->
+    <div class="tab-pane fade" id="sites" role="tabpanel">
+      <!-- Statistiques sites -->
+      <div class="stats-grid mb-4">
+        <div class="stat-card" style="background: linear-gradient(135deg, #4CAF50 0%, #8BC34A 100%);">
+          <i class="fas fa-globe stat-icon"></i>
+          <div class="stat-number">{{ site_stats.total_visits|default:0 }}</div>
+          <div class="stat-label">{% trans "Visites totales" %}</div>
+        </div>
+        
+        <div class="stat-card" style="background: linear-gradient(135deg, #2196F3 0%, #03A9F4 100%);">
+          <i class="fas fa-qrcode stat-icon"></i>
+          <div class="stat-number">{{ site_stats.qr_scans|default:0 }}</div>
+          <div class="stat-label">{% trans "QR codes scannés" %}</div>
+        </div>
+        
+        <div class="stat-card" style="background: linear-gradient(135deg, #FF9800 0%, #FFC107 100%);">
+          <i class="fas fa-user-plus stat-icon"></i>
+          <div class="stat-number">{{ site_stats.registrations_via_site|default:0 }}</div>
+          <div class="stat-label">{% trans "Inscriptions via site" %}</div>
+        </div>
+        
+        <div class="stat-card" style="background: linear-gradient(135deg, #9C27B0 0%, #E91E63 100%);">
+          <i class="fas fa-images stat-icon"></i>
+          <div class="stat-number">{{ site_stats.gallery_photos|default:0 }}</div>
+          <div class="stat-label">{% trans "Photos galerie" %}</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between">
+              <h5><i class="fas fa-cogs"></i> {% trans "Gestion des sites" %}</h5>
+              <div>
+                <a href="/org/{{ club.slug|default:club.id }}/" target="_blank" class="btn btn-success btn-sm me-2">
+                  <i class="fas fa-external-link-alt"></i> {% trans "Voir site public" %}
+                </a>
+                <a href="{% url 'organization_sites:public_admin' slug=club.slug|default:club.id %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-edit"></i> {% trans "Configurer" %}
+                </a>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <!-- Site public -->
+                <div class="col-md-6">
+                  <div class="card border-0 bg-light mb-3">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-globe text-success fa-2x me-3"></i>
+                        <div>
+                          <h6 class="card-title mb-1">{% trans "Site Public" %}</h6>
+                          <small class="text-muted">{% trans "Vitrine du club" %}</small>
+                        </div>
+                      </div>
+                      <p class="small text-muted mb-2">
+                        {% trans "Site web public pour présenter votre club aux visiteurs et recruter de nouveaux membres." %}
+                      </p>
+                      <div class="d-flex justify-content-between">
+                        <a href="/org/{{ club.slug|default:club.id }}/" target="_blank" class="btn btn-outline-success btn-sm">
+                          <i class="fas fa-eye"></i> {% trans "Voir" %}
+                        </a>
+                        <a href="{% url 'organization_sites:public_admin' slug=club.slug|default:club.id %}" class="btn btn-outline-primary btn-sm">
+                          <i class="fas fa-cog"></i> {% trans "Gérer" %}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Dashboard club -->
+                <div class="col-md-6">
+                  <div class="card border-0 bg-light mb-3">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-tachometer-alt text-primary fa-2x me-3"></i>
+                        <div>
+                          <h6 class="card-title mb-1">{% trans "Dashboard Club" %}</h6>
+                          <small class="text-muted">{% trans "Gestion interne" %}</small>
+                        </div>
+                      </div>
+                      <p class="small text-muted mb-2">
+                        {% trans "Interface de gestion pour les membres et l'administration du club." %}
+                      </p>
+                      <div class="d-flex justify-content-between">
+                        <span class="badge bg-success">{% trans "Actuel" %}</span>
+                        <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-outline-primary btn-sm">
+                          <i class="fas fa-home"></i> {% trans "Dashboard" %}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Actions rapides -->
+              <div class="row mt-3">
+                <div class="col-12">
+                  <h6 class="text-muted mb-3">{% trans "Actions rapides" %}</h6>
+                  
+                  <!-- Test direct simple -->
+                  <div class="alert alert-info mb-3">
+                    <h6>🔧 Actions de gestion du site</h6>
+                    <button class="btn btn-success btn-sm" onclick="alert('Test direct - Les fonctions JavaScript fonctionnent !'); window.open('/org/{{ club.slug|default:club.id }}/admin/site/', '_blank');">
+                      <i class="fas fa-external-link-alt"></i> Accéder à la gestion du site
+                    </button>
+                  </div>
+                  
+                  <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-outline-primary btn-sm" onclick="window.open('/org/{{ club.slug|default:club.id }}/admin/site/', '_blank')">
+                      <i class="fas fa-info-circle"></i> {% trans "Modifier infos" %}
+                    </button>
+                    <button class="btn btn-outline-success btn-sm" onclick="const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.onchange = (e) => alert('Photos sélectionnées: ' + e.target.files.length); input.click();">
+                      <i class="fas fa-camera"></i> {% trans "Ajouter photos" %}
+                    </button>
+                    <button class="btn btn-outline-warning btn-sm" onclick="window.open('/org/{{ club.slug|default:club.id }}/admin/site/#theme', '_blank')">
+                      <i class="fas fa-palette"></i> {% trans "Personnaliser thème" %}
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="window.open('/org/{{ club.slug|default:club.id }}/admin/site/#content', '_blank')">
+                      <i class="fas fa-edit"></i> {% trans "Gérer contenu" %}
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (e) => { if(e.target.files[0]) alert('Logo sélectionné: ' + e.target.files[0].name); }; input.click();">
+                      <i class="fas fa-image"></i> {% trans "Logo" %}
+                    </button>
+                    <button class="btn btn-outline-dark btn-sm" onclick="const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (e) => { if(e.target.files[0]) alert('Bannière sélectionnée: ' + e.target.files[0].name); }; input.click();">
+                      <i class="fas fa-panorama"></i> {% trans "Bannière" %}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Section Logo et Bannière -->
+              <div class="row mt-4">
+                <div class="col-md-6">
+                  <div class="card border-1">
+                    <div class="card-header bg-light">
+                      <h6 class="mb-0"><i class="fas fa-image me-2"></i>{% trans "Logo du Club" %}</h6>
+                    </div>
+                    <div class="card-body text-center">
+                      {% if club.logo %}
+                        <img src="{{ club.logo.url }}" alt="Logo" class="img-fluid rounded mb-2" style="max-height: 100px;">
+                        <br>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (e) => { if(e.target.files[0]) alert('Logo sélectionné: ' + e.target.files[0].name); }; input.click();">
+                          <i class="fas fa-upload"></i> {% trans "Modifier" %}
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="if(confirm('Supprimer le logo ?')) alert('Logo supprime (TODO: implementer)');">
+                          <i class="fas fa-trash"></i> {% trans "Supprimer" %}
+                        </button>
+                      {% else %}
+                        <div class="text-muted mb-3">
+                          <i class="fas fa-image fa-3x"></i>
+                          <p class="mt-2">{% trans "Aucun logo" %}</p>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (e) => { if(e.target.files[0]) alert('Logo sélectionné: ' + e.target.files[0].name); }; input.click();">
+                          <i class="fas fa-upload"></i> {% trans "Ajouter un Logo" %}
+                        </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="col-md-6">
+                  <div class="card border-1">
+                    <div class="card-header bg-light">
+                      <h6 class="mb-0"><i class="fas fa-panorama me-2"></i>{% trans "Bannière du Site" %}</h6>
+                    </div>
+                    <div class="card-body text-center">
+                      {% if club.banner %}
+                        <img src="{{ club.banner.url }}" alt="Bannière" class="img-fluid rounded mb-2" style="max-height: 60px; width: 100%; object-fit: cover;">
+                        <br>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (e) => { if(e.target.files[0]) alert('Bannière sélectionnée: ' + e.target.files[0].name); }; input.click();">
+                          <i class="fas fa-upload"></i> {% trans "Modifier" %}
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="if(confirm('Supprimer la banniere ?')) alert('Banniere supprimee (TODO: implementer)');">
+                          <i class="fas fa-trash"></i> {% trans "Supprimer" %}
+                        </button>
+                      {% else %}
+                        <div class="text-muted mb-3">
+                          <i class="fas fa-panorama fa-2x"></i>
+                          <p class="mt-2 small">{% trans "Aucune bannière" %}</p>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (e) => { if(e.target.files[0]) alert('Bannière sélectionnée: ' + e.target.files[0].name); }; input.click();">
+                          <i class="fas fa-upload"></i> {% trans "Ajouter une Bannière" %}
+                        </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- QR Codes et outils -->
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header">
+              <h6><i class="fas fa-qrcode"></i> {% trans "QR Codes" %}</h6>
+            </div>
+            <div class="card-body">
+              <div class="text-center">
+                <div class="mb-3">
+                  {% if club.organization.slug %}
+                  <img src="{% url 'public_org_qr_default' slug=club.organization.slug %}" 
+                       alt="QR Code Site" class="img-fluid" style="max-width: 150px;">
+                  {% elif club.slug %}
+                  <img src="{% url 'public_org_qr_default' slug=club.slug %}" 
+                       alt="QR Code Site" class="img-fluid" style="max-width: 150px;">
+                  {% else %}
+                  <img src="{% url 'public_org_qr_default' slug=club.id %}" 
+                       alt="QR Code Site" class="img-fluid" style="max-width: 150px;">
+                  {% endif %}
+                </div>
+                <h6 class="small">{% trans "QR Code Site Public" %}</h6>
+                <p class="small text-muted">{% trans "Scannez pour accéder directement au site" %}</p>
+                <button class="btn btn-outline-primary btn-sm" onclick="const link = document.createElement('a'); link.href = '{% if club.organization.slug %}{% url 'public_org_qr_default' slug=club.organization.slug %}{% elif club.slug %}{% url 'public_org_qr_default' slug=club.slug %}{% else %}{% url 'public_org_qr_default' slug=club.id %}{% endif %}'; link.download = 'qr-code-{{ club.name|slugify }}.png'; link.click();">
+                  <i class="fas fa-download"></i> {% trans "Télécharger" %}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Thèmes disponibles -->
+          <div class="card mt-3">
+            <div class="card-header">
+              <h6><i class="fas fa-palette"></i> {% trans "Thèmes" %}</h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-4">
+                  <div class="theme-preview bg-primary" onclick="alert('Thème Bleu sélectionné (TODO: implémenter sauvegarde)');" title="{% trans 'Thème Bleu' %}"></div>
+                </div>
+                <div class="col-4">
+                  <div class="theme-preview bg-success" onclick="alert('Thème Vert sélectionné (TODO: implémenter sauvegarde)');" title="{% trans 'Thème Vert' %}"></div>
+                </div>
+                <div class="col-4">
+                  <div class="theme-preview bg-danger" onclick="alert('Thème Rouge sélectionné (TODO: implémenter sauvegarde)');" title="{% trans 'Thème Rouge' %}"></div>
+                </div>
+                <div class="col-4 mt-2">
+                  <div class="theme-preview bg-warning" onclick="alert('Thème Orange sélectionné (TODO: implémenter sauvegarde)');" title="{% trans 'Thème Orange' %}"></div>
+                </div>
+                <div class="col-4 mt-2">
+                  <div class="theme-preview bg-info" onclick="alert('Thème Cyan sélectionné (TODO: implémenter sauvegarde)');" title="{% trans 'Thème Cyan' %}"></div>
+                </div>
+                <div class="col-4 mt-2">
+                  <div class="theme-preview bg-dark" onclick="alert('Thème Sombre sélectionné (TODO: implémenter sauvegarde)');" title="{% trans 'Thème Sombre' %}"></div>
+                </div>
+              </div>
+              <small class="text-muted mt-2 d-block">{% trans "Cliquez pour changer le thème" %}</small>
+            </div>
+          </div>
+
+          <!-- Analytics rapides -->
+          <div class="card mt-3">
+            <div class="card-header">
+              <h6><i class="fas fa-chart-line"></i> {% trans "Analytics" %}</h6>
+            </div>
+            <div class="card-body">
+              <div class="d-flex justify-content-between mb-2">
+                <span class="small">{% trans "Visiteurs aujourd'hui" %}</span>
+                <strong>{{ site_stats.visits_today|default:0 }}</strong>
+              </div>
+              <div class="d-flex justify-content-between mb-2">
+                <span class="small">{% trans "Visiteurs cette semaine" %}</span>
+                <strong>{{ site_stats.visits_this_week|default:0 }}</strong>
+              </div>
+              <div class="d-flex justify-content-between mb-2">
+                <span class="small">{% trans "Page la plus vue" %}</span>
+                <strong class="small">{{ site_stats.top_page|default:"Accueil" }}</strong>
+              </div>
+              <a href="#" class="btn btn-outline-primary btn-sm w-100 mt-2">
+                <i class="fas fa-chart-bar"></i> {% trans "Voir détails" %}
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ONGLET ADHÉSIONS V2.0 - CONSERVÉ INTÉGRALEMENT -->
+    <div class="tab-pane fade" id="membership" role="tabpanel">
+      <!-- Statistiques adhésions -->
+      <div class="stats-grid mb-4">
+        <div class="stat-card" style="background: linear-gradient(135deg, #9c27b0 0%, #e91e63 100%);">
+          <i class="fas fa-id-card stat-icon"></i>
+          <div class="stat-number">{{ membership_stats.total_active|default:0 }}</div>
+          <div class="stat-label">{% trans "Adhésions actives" %}</div>
+        </div>
+        
+        <div class="stat-card" style="background: linear-gradient(135deg, #673ab7 0%, #3f51b5 100%);">
+          <i class="fas fa-clock stat-icon"></i>
+          <div class="stat-number">{{ membership_stats.expiring_soon|default:0 }}</div>
+          <div class="stat-label">{% trans "Expirent bientôt" %}</div>
+        </div>
+        
+        <div class="stat-card" style="background: linear-gradient(135deg, #009688 0%, #4caf50 100%);">
+          <i class="fas fa-euro-sign stat-icon"></i>
+          <div class="stat-number">{{ membership_stats.revenue_this_month|default:0 }}€</div>
+          <div class="stat-label">{% trans "Recettes ce mois" %}</div>
+        </div>
+        
+        <div class="stat-card" style="background: linear-gradient(135deg, #ff5722 0%, #ff9800 100%);">
+          <i class="fas fa-user-plus stat-icon"></i>
+          <div class="stat-number">{{ membership_stats.new_this_month|default:0 }}</div>
+          <div class="stat-label">{% trans "Nouvelles ce mois" %}</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between">
+              <h5><i class="fas fa-list"></i> {% trans "Souscriptions récentes" %}</h5>
+              <div>
+                <a href="{% url 'membership:subscription_create' %}" class="btn btn-success btn-sm me-2">
+                  <i class="fas fa-plus"></i> {% trans "Nouvelle" %}
+                </a>
+                <a href="{% url 'membership:package_list' %}" class="btn btn-info btn-sm me-2">
+                  <i class="fas fa-tags"></i> {% trans "Packages" %}
+                </a>
+                <a href="{% url 'membership:dashboard' %}" class="btn btn-primary btn-sm">
+                  <i class="fas fa-cog"></i> {% trans "Gérer" %}
+                </a>
+              </div>
+            </div>
+            <div class="card-body">
+              {% if recent_subscriptions %}
+                <div class="table-responsive">
+                  <table class="modern-table table">
+                    <thead>
+                      <tr>
+                        <th>{% trans "Pratiquant" %}</th>
+                        <th>{% trans "Package" %}</th>
+                        <th>{% trans "Début" %}</th>
+                        <th>{% trans "Fin" %}</th>
+                        <th>{% trans "Statut" %}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for subscription in recent_subscriptions %}
+                      <tr>
+                        <td>{{ subscription.practitioner.first_name }} {{ subscription.practitioner.last_name }}</td>
+                        <td>{{ subscription.package.name }}</td>
+                        <td>{{ subscription.start_date|date:"d M Y" }}</td>
+                        <td>{{ subscription.end_date|date:"d M Y" }}</td>
+                        <td>
+                          {% if subscription.is_active %}
+                            <span class="badge badge-success">{% trans "Active" %}</span>
+                          {% else %}
+                            <span class="badge badge-warning">{% trans "Expirée" %}</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                <div class="text-center py-4">
+                  <i class="fas fa-id-card text-muted" style="font-size: 3rem;"></i>
+                  <h5 class="mt-3">{% trans "Aucune souscription" %}</h5>
+                  <p class="text-muted">{% trans "Créez votre première adhésion" %}</p>
+                  <a href="{% url 'membership:subscription_create' %}" class="btn btn-success">
+                    <i class="fas fa-plus"></i> {% trans "Créer adhésion" %}
+                  </a>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header">
+              <h5><i class="fas fa-exclamation-triangle"></i> {% trans "Alertes" %}</h5>
+            </div>
+            <div class="card-body">
+              {% if membership_alerts %}
+                {% for alert in membership_alerts %}
+                <div class="alert alert-warning alert-sm mb-2">
+                  <strong>{{ alert.alert_type }}</strong><br>
+                  <small>{{ alert.message }}</small>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-center py-3">
+                  <i class="fas fa-check-circle text-success" style="font-size: 2rem;"></i>
+                  <p class="text-muted mt-2">{% trans "Aucune alerte" %}</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <!-- Section nouvelle génération -->
+          <div class="membership-v2-section">
+            <h5><i class="fas fa-star"></i> {% trans "MartialComp Adhésions" %}</h5>
+            <p>{% trans "Système d'adhésions nouvelle génération avec gestion avancée des packages et renouvellements automatiques." %}</p>
+            <div class="row text-center">
+              <div class="col-6">
+                <div class="fw-bold">{{ membership_stats.total_packages|default:0 }}</div>
+                <small>{% trans "Packages" %}</small>
+              </div>
+              <div class="col-6">
+                <div class="fw-bold">{{ membership_stats.retention_rate.retention_rate|floatformat:0|default:0 }}%</div>
+                <small>{% trans "Rétention" %}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ONGLET RÔLES & PERMISSIONS -->
+    <div class="tab-pane fade" id="roles" role="tabpanel">
+      
+      <!-- Statistiques des rôles -->
+      <div class="stats-grid mb-4">
+        <div class="stat-card" style="background: linear-gradient(135deg, #8e24aa 0%, #d81b60 100%);">
+          <i class="fas fa-crown stat-icon"></i>
+          <div class="stat-number" id="admin-count">0</div>
+          <div class="stat-label">{% trans "Administrateurs" %}</div>
+        </div>
+        
+        <div class="stat-card" style="background: linear-gradient(135deg, #5e35b1 0%, #7b1fa2 100%);">
+          <i class="fas fa-users-cog stat-icon"></i>
+          <div class="stat-number" id="manager-count">0</div>
+          <div class="stat-label">{% trans "Gestionnaires" %}</div>
+        </div>
+        
+        <div class="stat-card" style="background: linear-gradient(135deg, #1e88e5 0%, #3949ab 100%);">
+          <i class="fas fa-chalkboard-teacher stat-icon"></i>
+          <div class="stat-number" id="coach-count">0</div>
+          <div class="stat-label">{% trans "Entraîneurs" %}</div>
+        </div>
+        
+        <div class="stat-card" style="background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);">
+          <i class="fas fa-users stat-icon"></i>
+          <div class="stat-number" id="member-count">0</div>
+          <div class="stat-label">{% trans "Membres" %}</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <!-- Liste des membres et leurs rôles -->
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5><i class="fas fa-user-shield"></i> {% trans "Gestion des rôles" %}</h5>
+              <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary btn-sm" onclick="refreshRolesList()">
+                  <i class="fas fa-sync"></i> {% trans "Actualiser" %}
+                </button>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+                  <i class="fas fa-user-plus"></i> {% trans "Inviter membre" %}
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              
+              <!-- Filtres et recherche -->
+              <div class="row mb-3">
+                <div class="col-md-6">
+                  <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control" id="member-search" placeholder="{% trans 'Rechercher un membre...' %}">
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select" id="role-filter">
+                    <option value="">{% trans "Tous les rôles" %}</option>
+                    <option value="owner">{% trans "Propriétaire" %}</option>
+                    <option value="admin">{% trans "Administrateur" %}</option>
+                    <option value="manager">{% trans "Gestionnaire" %}</option>
+                    <option value="coach">{% trans "Entraîneur" %}</option>
+                    <option value="judge">{% trans "Juge" %}</option>
+                    <option value="member">{% trans "Membre" %}</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select" id="status-filter">
+                    <option value="">{% trans "Tous les statuts" %}</option>
+                    <option value="active">{% trans "Actif" %}</option>
+                    <option value="inactive">{% trans "Inactif" %}</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Liste des membres -->
+              <div class="table-responsive">
+                <table class="table table-hover" id="members-roles-table">
+                  <thead>
+                    <tr>
+                      <th>{% trans "Membre" %}</th>
+                      <th>{% trans "Rôle actuel" %}</th>
+                      <th>{% trans "Permissions" %}</th>
+                      <th>{% trans "Statut" %}</th>
+                      <th>{% trans "Depuis" %}</th>
+                      <th>{% trans "Actions" %}</th>
+                    </tr>
+                  </thead>
+                  <tbody id="members-list">
+                    <!-- Les membres seront chargés via JavaScript -->
+                    <tr>
+                      <td colspan="6" class="text-center text-muted py-4">
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                        {% trans "Chargement des membres..." %}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Pagination -->
+              <nav aria-label="{% trans 'Navigation pages membres' %}">
+                <ul class="pagination pagination-sm justify-content-center" id="members-pagination">
+                  <!-- Pagination générée par JavaScript -->
+                </ul>
+              </nav>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel des détails et actions rapides -->
+        <div class="col-md-4">
+          
+          <!-- Rôles disponibles -->
+          <div class="card mb-3">
+            <div class="card-header">
+              <h6><i class="fas fa-info-circle"></i> {% trans "Rôles disponibles" %}</h6>
+            </div>
+            <div class="card-body">
+              <div class="role-info mb-3">
+                <div class="d-flex align-items-center mb-2">
+                  <div class="role-badge owner me-2"></div>
+                  <strong>{% trans "Propriétaire" %}</strong>
+                </div>
+                <small class="text-muted">{% trans "Tous les droits, peut transférer la propriété" %}</small>
+              </div>
+              
+              <div class="role-info mb-3">
+                <div class="d-flex align-items-center mb-2">
+                  <div class="role-badge admin me-2"></div>
+                  <strong>{% trans "Administrateur" %}</strong>
+                </div>
+                <small class="text-muted">{% trans "Gestion complète sauf transfert propriété" %}</small>
+              </div>
+              
+              <div class="role-info mb-3">
+                <div class="d-flex align-items-center mb-2">
+                  <div class="role-badge manager me-2"></div>
+                  <strong>{% trans "Gestionnaire" %}</strong>
+                </div>
+                <small class="text-muted">{% trans "Gestion membres et compétitions" %}</small>
+              </div>
+              
+              <div class="role-info mb-3">
+                <div class="d-flex align-items-center mb-2">
+                  <div class="role-badge coach me-2"></div>
+                  <strong>{% trans "Entraîneur" %}</strong>
+                </div>
+                <small class="text-muted">{% trans "Gestion cours et pratiquants" %}</small>
+              </div>
+              
+              <div class="role-info mb-3">
+                <div class="d-flex align-items-center mb-2">
+                  <div class="role-badge judge me-2"></div>
+                  <strong>{% trans "Juge" %}</strong>
+                </div>
+                <small class="text-muted">{% trans "Arbitrage compétitions" %}</small>
+              </div>
+              
+              <div class="role-info">
+                <div class="d-flex align-items-center mb-2">
+                  <div class="role-badge member me-2"></div>
+                  <strong>{% trans "Membre" %}</strong>
+                </div>
+                <small class="text-muted">{% trans "Accès basique au club" %}</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions rapides -->
+          <div class="card mb-3">
+            <div class="card-header">
+              <h6><i class="fas fa-bolt"></i> {% trans "Actions rapides" %}</h6>
+            </div>
+            <div class="card-body">
+              <button class="btn btn-outline-info btn-sm w-100 mb-2" onclick="exportMembersList()">
+                <i class="fas fa-download"></i> {% trans "Exporter la liste" %}
+              </button>
+              <button class="btn btn-outline-warning btn-sm w-100 mb-2" onclick="sendRoleNotifications()">
+                <i class="fas fa-envelope"></i> {% trans "Notifier changements" %}
+              </button>
+              <button class="btn btn-outline-danger btn-sm w-100" onclick="auditRoleChanges()">
+                <i class="fas fa-history"></i> {% trans "Historique modifications" %}
+              </button>
+            </div>
+          </div>
+
+          <!-- Permissions détaillées -->
+          <div class="card">
+            <div class="card-header">
+              <h6><i class="fas fa-key"></i> {% trans "Permissions par rôle" %}</h6>
+            </div>
+            <div class="card-body">
+              <div class="permission-matrix">
+                <div class="row text-center fw-bold small mb-2">
+                  <div class="col-4">{% trans "Permission" %}</div>
+                  <div class="col-2">{% trans "Admin" %}</div>
+                  <div class="col-2">{% trans "Mgr" %}</div>
+                  <div class="col-2">{% trans "Coach" %}</div>
+                  <div class="col-2">{% trans "Mbr" %}</div>
+                </div>
+                
+                <div class="row small mb-1">
+                  <div class="col-4">{% trans "Gérer membres" %}</div>
+                  <div class="col-2 text-center"><i class="fas fa-check text-success"></i></div>
+                  <div class="col-2 text-center"><i class="fas fa-check text-success"></i></div>
+                  <div class="col-2 text-center"><i class="fas fa-times text-muted"></i></div>
+                  <div class="col-2 text-center"><i class="fas fa-times text-muted"></i></div>
+                </div>
+                
+                <div class="row small mb-1">
+                  <div class="col-4">{% trans "Gérer compétitions" %}</div>
+                  <div class="col-2 text-center"><i class="fas fa-check text-success"></i></div>
+                  <div class="col-2 text-center"><i class="fas fa-check text-success"></i></div>
+                  <div class="col-2 text-center"><i class="fas fa-times text-muted"></i></div>
+                  <div class="col-2 text-center"><i class="fas fa-times text-muted"></i></div>
+                </div>
+                
+                <div class="row small mb-1">
+                  <div class="col-4">{% trans "Modifier org." %}</div>
+                  <div class="col-2 text-center"><i class="fas fa-check text-success"></i></div>
+                  <div class="col-2 text-center"><i class="fas fa-times text-muted"></i></div>
+                  <div class="col-2 text-center"><i class="fas fa-times text-muted"></i></div>
+                  <div class="col-2 text-center"><i class="fas fa-times text-muted"></i></div>
+                </div>
+                
+                <div class="row small">
+                  <div class="col-4">{% trans "Voir données" %}</div>
+                  <div class="col-2 text-center"><i class="fas fa-check text-success"></i></div>
+                  <div class="col-2 text-center"><i class="fas fa-check text-success"></i></div>
+                  <div class="col-2 text-center"><i class="fas fa-check text-success"></i></div>
+                  <div class="col-2 text-center"><i class="fas fa-check text-success"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal pour ajouter un membre -->
+<div class="modal fade" id="addMemberModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-user-plus"></i> {% trans "Inviter un nouveau membre" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="add-member-form">
+          <div class="mb-3">
+            <label for="member-email" class="form-label">{% trans "Email du membre" %}</label>
+            <input type="email" class="form-control" id="member-email" required>
+          </div>
+          <div class="mb-3">
+            <label for="member-role" class="form-label">{% trans "Rôle initial" %}</label>
+            <select class="form-select" id="member-role" required>
+              <option value="member">{% trans "Membre" %}</option>
+              <option value="coach">{% trans "Entraîneur" %}</option>
+              <option value="judge">{% trans "Juge" %}</option>
+              <option value="manager">{% trans "Gestionnaire" %}</option>
+              <option value="admin">{% trans "Administrateur" %}</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="member-message" class="form-label">{% trans "Message d'invitation (optionnel)" %}</label>
+            <textarea class="form-control" id="member-message" rows="3" placeholder="{% trans 'Bienvenue dans notre club...' %}"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+        <button type="button" class="btn btn-primary" onclick="inviteMember()">
+          <i class="fas fa-paper-plane"></i> {% trans "Envoyer invitation" %}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal pour modifier un rôle -->
+<div class="modal fade" id="editRoleModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-user-edit"></i> {% trans "Modifier le rôle" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">{% trans "Membre" %}</label>
+          <div class="d-flex align-items-center">
+            <div class="user-avatar me-2">
+              <i class="fas fa-user"></i>
+            </div>
+            <div>
+              <strong id="edit-member-name">-</strong>
+              <div class="text-muted small" id="edit-member-email">-</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="mb-3">
+          <label for="edit-member-role" class="form-label">{% trans "Nouveau rôle" %}</label>
+          <select class="form-select" id="edit-member-role">
+            <option value="member">{% trans "Membre" %}</option>
+            <option value="coach">{% trans "Entraîneur" %}</option>
+            <option value="judge">{% trans "Juge" %}</option>
+            <option value="manager">{% trans "Gestionnaire" %}</option>
+            <option value="admin">{% trans "Administrateur" %}</option>
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label class="form-label">{% trans "Permissions associées" %}</label>
+          <div class="border rounded p-3 bg-light">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="perm-manage-members">
+              <label class="form-check-label" for="perm-manage-members">{% trans "Gérer les membres" %}</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="perm-manage-competitions">
+              <label class="form-check-label" for="perm-manage-competitions">{% trans "Gérer les compétitions" %}</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="perm-edit-organization">
+              <label class="form-check-label" for="perm-edit-organization">{% trans "Modifier l'organisation" %}</label>
+            </div>
+          </div>
+        </div>
+        
+        <div class="mb-3">
+          <label for="role-change-reason" class="form-label">{% trans "Raison du changement" %}</label>
+          <textarea class="form-control" id="role-change-reason" rows="2" placeholder="{% trans 'Pourquoi ce changement de rôle...' %}"></textarea>
+        </div>
+        
+        <input type="hidden" id="edit-member-id">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+        <button type="button" class="btn btn-primary" onclick="saveRoleChange()">
+          <i class="fas fa-save"></i> {% trans "Sauvegarder" %}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Styles pour l'onglet Rôles */
+.role-badge {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.role-badge.owner { background: linear-gradient(135deg, #8e24aa, #d81b60); }
+.role-badge.admin { background: linear-gradient(135deg, #5e35b1, #7b1fa2); }
+.role-badge.manager { background: linear-gradient(135deg, #1e88e5, #3949ab); }
+.role-badge.coach { background: linear-gradient(135deg, #43a047, #2e7d32); }
+.role-badge.judge { background: linear-gradient(135deg, #ff8f00, #f57c00); }
+.role-badge.member { background: linear-gradient(135deg, #6c757d, #495057); }
+
+.permission-matrix {
+  font-size: 0.8rem;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.role-info {
+  border-left: 3px solid var(--primary-color);
+  padding-left: 10px;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(0,123,255,.05);
+}
+
+.btn-role {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+}
+</style>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Persistance de l'onglet actif
+    const tabs = document.querySelectorAll('[data-bs-toggle="tab"]');
+    const activeTab = localStorage.getItem('clubDashboardActiveTab') || 'overview';
+    
+    // Restaurer l'onglet actif
+    const activeTabElement = document.querySelector(`#${activeTab}-tab`);
+    if (activeTabElement) {
+        const tab = new bootstrap.Tab(activeTabElement);
+        tab.show();
+    }
+    
+    // Sauvegarder l'onglet sélectionné
+    tabs.forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function (event) {
+            const targetId = event.target.getAttribute('data-bs-target').substring(1);
+            localStorage.setItem('clubDashboardActiveTab', targetId);
+        });
+    });
+    
+    // Animation des cartes au survol
+    document.querySelectorAll('.card, .action-card, .stat-card').forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            if (!this.style.transform) {
+                this.style.transform = 'translateY(-2px)';
+            }
+        });
+        
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = '';
+        });
+    });
+    
+    // Initialisation des tooltips Bootstrap si disponible
+    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    }
+    
+    console.log('[OK] Dashboard club principal initialisé avec succès !');
+});
+
+// Fonctions updateClubInfo, uploadPhotos, customizeTheme et manageContent supprimées - définies au début du script
+
+// Variables globales pour l'import
+let selectedFile = null;
+let importModal = null;
+
+// Fonction directe pour upload CSV - VERSION TEMPLATE PRINCIPAL
+function directFileUpload() {
+    console.log('🚀 Direct file upload called - Version template principal');
+    console.log(' Browser info:', navigator.userAgent.split(' ').slice(-2).join(' '));
+    
+    // Vérifier que cette fonction n'est pas déjà en cours d'exécution
+    if (window.uploadInProgress) {
+        console.log('⚠️ Upload déjà en cours, abandon...');
+        return;
+    }
+    
+    window.uploadInProgress = true;
+    
+    // Créer un input file temporaire
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,.xlsx,.xls';
+    input.style.display = 'none';
+    
+    input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (!file) {
+            console.log('No file selected');
+            window.uploadInProgress = false;
+            return;
+        }
+        
+        console.log('File selected:', file.name, 'Size:', file.size);
+        
+        // Vérifier le format
+        const validExtensions = ['.csv', '.xlsx', '.xls'];
+        const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+        
+        if (!validExtensions.includes(fileExtension)) {
+            alert('Format non supporté. Utilisez CSV ou Excel.');
+            window.uploadInProgress = false;
+            return;
+        }
+        
+        // Confirmer l'upload
+        if (!confirm(`Voulez-vous importer le fichier "${file.name}" ?`)) {
+            window.uploadInProgress = false;
+            return;
+        }
+        
+        // Créer FormData
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        
+        // Afficher message de chargement
+        const loadingMsg = document.createElement('div');
+        loadingMsg.id = 'loading-import';
+        loadingMsg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:20px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.3);z-index:9999;text-align:center;';
+        loadingMsg.innerHTML = '<h4><i class="fas fa-spinner fa-spin me-2"></i>Import en cours...</h4><p>Veuillez patienter, traitement du fichier ' + file.name + '</p>';
+        document.body.appendChild(loadingMsg);
+        
+        // Désactiver tous les boutons
+        document.querySelectorAll('button').forEach(btn => btn.disabled = true);
+        
+        // Envoyer la requête
+        fetch('/fr/competitions/club/import-export/ajax/', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Import response:', data);
+            
+            // Supprimer le message de chargement
+            const loading = document.getElementById('loading-import');
+            if (loading) loading.remove();
+            
+            if (data.success) {
+                alert('[OK] Import réussi!
+
+' + data.message + '
+
+La page va se recharger.');
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                alert('[ERREUR] Erreur lors de l'import:
+
+' + (data.error || 'Erreur inconnue'));
+            }
+        })
+        .catch(error => {
+            console.error('Import error:', error);
+            
+            // Supprimer le message de chargement
+            const loading = document.getElementById('loading-import');
+            if (loading) loading.remove();
+            
+            alert('[ERREUR] Erreur de connexion:\n\n' + error.message);
+        })
+        .finally(() => {
+            // Réactiver tous les boutons
+            document.querySelectorAll('button').forEach(btn => btn.disabled = false);
+            
+            // IMPORTANT: Remettre uploadInProgress à false
+            window.uploadInProgress = false;
+        });
+    };
+    
+    // Gestionnaire d'erreur pour l'input
+    input.onerror = function() {
+        console.error('Error with file input');
+        window.uploadInProgress = false;
+    };
+    
+    // Ajouter à la page et déclencher
+    document.body.appendChild(input);
+    console.log('About to trigger file selector');
+    
+    // Déclencher le sélecteur de fichier avec plusieurs méthodes
+    try {
+        console.log(' Tentative 1: input.click()');
+        input.click();
+        
+        // Si ça ne marche pas, essayer avec un délai
+        setTimeout(() => {
+            if (!input.value) {
+                console.log(' Tentative 2: input.click() avec délai');
+                try {
+                    input.click();
+                } catch (e) {
+                    console.error('Tentative 2 échouée:', e);
+                }
+            }
+        }, 100);
+        
+    } catch (error) {
+        console.error('[ERREUR] Toutes les tentatives ont échoué:', error);
+        console.log(' Navigateur:', navigator.userAgent);
+        console.log(' Input element:', input);
+        
+        // Cleanup en cas d'erreur
+        window.uploadInProgress = false;
+        if (input.parentNode) {
+            document.body.removeChild(input);
+        }
+        
+        // Message d'erreur utilisateur
+        alert('[ERREUR] Impossible d'ouvrir le sélecteur de fichier.
+
+Ceci peut être dû aux restrictions de sécurité de votre navigateur.
+Essayez de refresher la page (F5) ou utilisez un autre navigateur.');
+        return;
+    }
+    
+    // Cleanup après un délai si aucun fichier n'est sélectionné
+    setTimeout(() => {
+        if (input.parentNode) {
+            try {
+                document.body.removeChild(input);
+            } catch (e) {
+                // Input déjà supprimé
+            }
+        }
+        if (window.uploadInProgress) {
+            console.log('Timeout cleanup - resetting uploadInProgress');
+            window.uploadInProgress = false;
+        }
+    }, 30000); // 30 secondes de timeout
+}
+
+// Fonction de compatibilité - garde l'ancien nom pour éviter les erreurs
+function goToImportExport() {
+    console.log('⚠️ goToImportExport appelé - redirection vers directFileUpload');
+    console.log(' Vérification: directFileUpload exists?', typeof directFileUpload);
+    
+    try {
+        directFileUpload();
+    } catch (error) {
+        console.error('[ERREUR] Erreur lors de l'appel directFileUpload:', error);
+        alert('Erreur: Impossible d'ouvrir le sélecteur de fichier. Détails dans la console.');
+    }
+}
+
+// Fonctions customizeTheme et manageContent supprimées - définies au début du script
+
+function selectTheme(theme) {
+    // Appliquer le thème sélectionné
+    console.log('Thème sélectionné:', theme);
+    
+    // Ajouter un feedback visuel
+    const themeElements = document.querySelectorAll('.theme-preview');
+    themeElements.forEach(el => el.style.border = '2px solid transparent');
+    
+    const selectedTheme = document.querySelector(`.bg-${theme}`);
+    if (selectedTheme) {
+        selectedTheme.style.border = '2px solid #fff';
+        selectedTheme.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+    }
+    
+    // Ici on pourrait envoyer une requête AJAX pour sauvegarder le thème
+    alert(`{% trans "Thème appliqué" %}: ${theme}`);
+}
+
+
+// Traductions pour JavaScript
+const TRANS = {
+    qrCodeNotFound: "{% trans 'QR Code non trouvé' %}",
+    fileTooLarge5MB: "{% trans 'Le fichier est trop volumineux (max 5MB)' %}",
+    fileTooLarge10MB: "{% trans 'Le fichier est trop volumineux (max 10MB)' %}",
+    pleaseSelectImage: "{% trans 'Veuillez sélectionner un fichier image' %}",
+    logoUploadedSuccess: "{% trans 'Logo uploadé avec succès!' %}",
+    bannerUploadedSuccess: "{% trans 'Bannière uploadée avec succès!' %}",
+    logoDeletedSuccess: "{% trans 'Logo supprimé avec succès!' %}",
+    bannerDeletedSuccess: "{% trans 'Bannière supprimée avec succès!' %}",
+    confirmDeleteLogo: "{% trans 'Êtes-vous sûr de vouloir supprimer le logo ?' %}",
+    confirmDeleteBanner: "{% trans 'Êtes-vous sûr de vouloir supprimer la bannière ?' %}",
+    error: "{% trans 'Erreur:' %}",
+    unknownError: TRANS.unknownError,
+    uploadError: "{% trans 'Erreur lors du téléchargement' %}",
+    deleteError: "{% trans 'Erreur lors de la suppression' %}",
+    pleaseSelectCompetition: "{% trans 'Veuillez sélectionner une compétition' %}"
+};
+
+function downloadQR() {
+    // Télécharger l'image QR code
+    const qrImage = document.querySelector('img[alt="QR Code Site"]');
+    if (qrImage) {
+        const link = document.createElement('a');
+        link.href = qrImage.src;
+        link.download = 'qr-code-site-club.png';
+        link.click();
+    } else {
+        alert(TRANS.qrCodeNotFound);
+    }
+}
+
+// ============== GESTION LOGO ET BANNIÈRE ==============
+
+function uploadLogo() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            // Vérifier la taille (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                alert(TRANS.fileTooLarge5MB);
+                return;
+            }
+            
+            // Vérifier le type
+            if (!file.type.startsWith('image/')) {
+                alert(TRANS.pleaseSelectImage);
+                return;
+            }
+            
+            // Créer FormData pour l'upload
+            const formData = new FormData();
+            formData.append('logo', file);
+            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+            
+            // Afficher un indicateur de chargement
+            const loadingMsg = document.createElement('div');
+            loadingMsg.id = 'loading-logo';
+            loadingMsg.innerHTML = '<div class="d-flex align-items-center"><div class="spinner-border spinner-border-sm me-2" role="status"></div>{% trans "Upload du logo en cours..." %}</div>';
+            loadingMsg.className = 'alert alert-info mt-2';
+            document.body.appendChild(loadingMsg);
+            
+            // Envoyer la requête
+            fetch('/fr/competitions/club/api/upload-logo/', {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Supprimer le message de chargement
+                const loading = document.getElementById('loading-logo');
+                if (loading) loading.remove();
+                
+                if (data.success) {
+                    alert(TRANS.logoUploadedSuccess);
+                    window.location.reload();
+                } else {
+                    alert(TRANS.error + " " + (data.error || TRANS.unknownError));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                const loading = document.getElementById('loading-logo');
+                if (loading) loading.remove();
+                alert(TRANS.uploadError);
+            });
+        }
+    };
+    input.click();
+}
+
+function uploadBanner() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            // Vérifier la taille (max 10MB pour bannière)
+            if (file.size > 10 * 1024 * 1024) {
+                alert(TRANS.fileTooLarge10MB);
+                return;
+            }
+            
+            // Vérifier le type
+            if (!file.type.startsWith('image/')) {
+                alert(TRANS.pleaseSelectImage);
+                return;
+            }
+            
+            // Créer FormData pour l'upload
+            const formData = new FormData();
+            formData.append('banner', file);
+            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+            
+            // Afficher un indicateur de chargement
+            const loadingMsg = document.createElement('div');
+            loadingMsg.id = 'loading-banner';
+            loadingMsg.innerHTML = '<div class="d-flex align-items-center"><div class="spinner-border spinner-border-sm me-2" role="status"></div>{% trans "Upload de la bannière en cours..." %}</div>';
+            loadingMsg.className = 'alert alert-info mt-2';
+            document.body.appendChild(loadingMsg);
+            
+            // Envoyer la requête
+            fetch('/fr/competitions/club/api/upload-banner/', {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Supprimer le message de chargement
+                const loading = document.getElementById('loading-banner');
+                if (loading) loading.remove();
+                
+                if (data.success) {
+                    alert(TRANS.bannerUploadedSuccess);
+                    window.location.reload();
+                } else {
+                    alert(TRANS.error + " " + (data.error || TRANS.unknownError));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                const loading = document.getElementById('loading-banner');
+                if (loading) loading.remove();
+                alert(TRANS.uploadError);
+            });
+        }
+    };
+    input.click();
+}
+
+function deleteLogo() {
+    if (!confirm(TRANS.confirmDeleteLogo)) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    
+    fetch('/fr/competitions/club/api/delete-logo/', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(TRANS.logoDeletedSuccess);
+            window.location.reload();
+        } else {
+            alert(TRANS.error + " " + (data.error || TRANS.unknownError));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert(TRANS.deleteError);
+    });
+}
+
+function deleteBanner() {
+    if (!confirm(TRANS.confirmDeleteBanner)) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    
+    fetch('/fr/competitions/club/api/delete-banner/', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(TRANS.bannerDeletedSuccess);
+            window.location.reload();
+        } else {
+            alert(TRANS.error + " " + (data.error || TRANS.unknownError));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert(TRANS.deleteError);
+    });
+}
+
+// Fonction pour calculer et afficher les âges - VERSION CORRIGÉE
+function calculateAges() {
+    const ageDisplays = document.querySelectorAll('.age-display');
+    
+    if (ageDisplays.length === 0) {
+        return;
+    }
+    
+    ageDisplays.forEach(function(element) {
+        // Éviter de recalculer si déjà calculé
+        if (element.getAttribute('data-calculated') === 'true') {
+            return;
+        }
+        
+        const birthDateStr = element.getAttribute('data-birth-date');
+        
+        if (birthDateStr && birthDateStr !== '') {
+            try {
+                const birthDate = new Date(birthDateStr);
+                
+                // Vérifier que la date est valide
+                if (isNaN(birthDate.getTime())) {
+                    element.innerHTML = '<span class="text-muted">-</span>';
+                    element.setAttribute('data-calculated', 'true');
+                    return;
+                }
+                
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                
+                // Vérifier que l'âge est raisonnable (entre 0 et 120 ans)
+                if (age >= 0 && age <= 120) {
+                    element.innerHTML = `<span class="text-info fw-bold">${age} ans</span>`;
+                } else {
+                    element.innerHTML = '<span class="text-muted">-</span>';
+                }
+                
+                // Marquer comme calculé pour éviter les recalculs
+                element.setAttribute('data-calculated', 'true');
+                
+            } catch (error) {
+                console.error('Error calculating age:', error);
+                element.innerHTML = '<span class="text-muted">-</span>';
+                element.setAttribute('data-calculated', 'true');
+            }
+        } else {
+            element.innerHTML = '<span class="text-muted">-</span>';
+            element.setAttribute('data-calculated', 'true');
+        }
+    });
+}
+
+// Recalculer les âges quand l'onglet Pratiquants est activé
+document.addEventListener('shown.bs.tab', function (event) {
+    if (event.target.getAttribute('data-bs-target') === '#members') {
+        // Réinitialiser les attributs calculated pour forcer le recalcul
+        document.querySelectorAll('.age-display').forEach(el => {
+            el.removeAttribute('data-calculated');
+        });
+        setTimeout(calculateAges, 100);
+    }
+});
+
+// Calculer les âges immédiatement si on est déjà sur l'onglet
+document.addEventListener('DOMContentLoaded', function() {
+    // Attendre que le DOM soit complètement chargé
+    setTimeout(function() {
+        const membersTab = document.querySelector('#members');
+        if (membersTab && membersTab.classList.contains('show')) {
+            calculateAges();
+        }
+    }, 500);
+});
+
+// ==== INSCRIPTION EN MASSE ====
+// ==== INSCRIPTION EN MASSE - VERSION OPTIMISÉE ====
+
+function toggleAllPractitioners(checkbox) {
+    const practitionerCheckboxes = document.querySelectorAll('.practitioner-checkbox');
+    practitionerCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+    updateBulkRegistrationButton();
+}
+
+function updateBulkRegistrationButton() {
+    const selectedPractitioners = document.querySelectorAll('.practitioner-checkbox:checked');
+    const bulkButton = document.getElementById('bulk-registration-btn');
+    
+    if (bulkButton) {
+        if (selectedPractitioners.length > 0) {
+            bulkButton.innerHTML = `<i class="fas fa-trophy"></i> Inscrire (${selectedPractitioners.length})`;
+            bulkButton.classList.remove('btn-info');
+            bulkButton.classList.add('btn-success');
+            bulkButton.disabled = false;
+        } else {
+            bulkButton.innerHTML = `<i class="fas fa-trophy"></i> Inscription en masse`;
+            bulkButton.classList.remove('btn-success');
+            bulkButton.classList.add('btn-info');
+            bulkButton.disabled = false;
+        }
+    }
+}
+
+// Écouter les changements de checkbox individuelles
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('practitioner-checkbox')) {
+        updateBulkRegistrationButton();
+        
+        // Mettre à jour le checkbox "tout sélectionner"
+        const allCheckboxes = document.querySelectorAll('.practitioner-checkbox');
+        const checkedBoxes = document.querySelectorAll('.practitioner-checkbox:checked');
+        const selectAllBox = document.getElementById('select-all-practitioners');
+        
+        if (selectAllBox) {
+            if (checkedBoxes.length === 0) {
+                selectAllBox.indeterminate = false;
+                selectAllBox.checked = false;
+            } else if (checkedBoxes.length === allCheckboxes.length) {
+                selectAllBox.indeterminate = false;
+                selectAllBox.checked = true;
+            } else {
+                selectAllBox.indeterminate = true;
+            }
+        }
+    }
+});
+
+// PROTECTION ANTI-DOUBLE INITIALISATION - VERSION CLUB
+(function() {
+    'use strict';
+    
+    // Vérifier si déjà initialisé
+    if (window.CLUB_MASS_REGISTRATION_INITIALIZED) {
+        console.log('📋 Système inscription en masse déjà initialisé, arrêt...');
+        return;
+    }
+    
+    // Marquer comme initialisé IMMÉDIATEMENT
+    window.CLUB_MASS_REGISTRATION_INITIALIZED = true;
+
+// Initialisation robuste du système d'inscription en masse
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📋 DOM loaded, initializing mass registration system (UNIQUE)...');
+    
+    // Fonction pour initialiser les événements
+    function initializeBulkRegistration() {
+        const bulkButton = document.getElementById('bulk-registration-btn');
+        
+        if (bulkButton) {
+            console.log(' Bulk button found:', bulkButton.textContent.trim());
+            
+            // Supprimer l'ancien onclick pour éviter les conflits
+            bulkButton.removeAttribute('onclick');
+            
+            // Ajouter l'événement click moderne
+            bulkButton.addEventListener('click', handleBulkRegistrationClick);
+            console.log('[OK] Event listener attached to bulk registration button');
+            
+            // Marquer comme initialisé
+            bulkButton.setAttribute('data-initialized', 'true');
+        } else {
+            console.warn('Bulk registration button not found!');
+        }
+        
+        const selectAllBox = document.getElementById('select-all-practitioners');
+        if (selectAllBox && !selectAllBox.hasAttribute('data-initialized')) {
+            selectAllBox.setAttribute('data-initialized', 'true');
+            selectAllBox.addEventListener('change', function() {
+                toggleAllPractitioners(this);
+            });
+            console.log('Select all checkbox initialized');
+        }
+        
+        updateBulkRegistrationButton();
+    }
+    
+    // Fonction de gestion du clic
+    function handleBulkRegistrationClick(e) {
+        e.preventDefault();
+        console.log('Bulk registration button clicked!');
+        showBulkRegistrationModal();
+    }
+    
+    // Initialiser UNE SEULE FOIS
+    initializeBulkRegistration();
+    
+    // Si l'onglet Pratiquants devient visible, réinitialiser si nécessaire
+    const membersTab = document.getElementById('members-tab');
+    if (membersTab) {
+        membersTab.addEventListener('shown.bs.tab', function() {
+            // Seulement si le bouton n'est pas déjà initialisé
+            const bulkButton = document.getElementById('bulk-registration-btn');
+            if (bulkButton && !bulkButton.hasAttribute('data-initialized')) {
+                console.log('🔄 Re-initialisation bulk registration pour onglet Pratiquants');
+                initializeBulkRegistration();
+            }
+        });
+    }
+});
+
+})(); // Fin IIFE - Protection anti-double initialisation club
+
+// Messages d'alerte pour éviter les problèmes d'échappement
+const BULK_MESSAGES = {
+    noPractitioners: "Aucun pratiquant disponible dans ce club. Ajoutez d'abord des membres pour utiliser l'inscription en masse.",
+    selectPractitioners: "Veuillez sélectionner au moins un pratiquant pour l'inscription en masse"
+};
+
+function showBulkRegistrationModal() {
+    console.log('showBulkRegistrationModal called');
+    
+    const allPractitioners = document.querySelectorAll('.practitioner-checkbox');
+    const selectedPractitioners = document.querySelectorAll('.practitioner-checkbox:checked');
+    
+    console.log('All practitioners found:', allPractitioners.length);
+    console.log('Selected practitioners:', selectedPractitioners.length);
+    
+    // Vérifier s'il y a des pratiquants dans le club
+    if (allPractitioners.length === 0) {
+        console.log('No practitioners found, showing alert');
+        alert(BULK_MESSAGES.noPractitioners);
+        return;
+    }
+    
+    if (selectedPractitioners.length === 0) {
+        console.log('No practitioners selected, showing alert');
+        alert(BULK_MESSAGES.selectPractitioners);
+        return;
+    }
+    
+    try {
+        // Créer le modal dynamiquement sans problèmes d'échappement
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = 'bulkRegistrationModal';
+        
+        const modalDialog = document.createElement('div');
+        modalDialog.className = 'modal-dialog modal-lg';
+        
+        const modalContent = document.createElement('div');
+        modalContent.className = 'modal-content';
+        
+        // Header
+        const header = document.createElement('div');
+        header.className = 'modal-header';
+        header.innerHTML = '<h5 class="modal-title"><i class="fas fa-trophy"></i> Inscription en masse</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button>';
+        
+        // Body
+        const body = document.createElement('div');
+        body.className = 'modal-body';
+        body.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                Pratiquants sélectionnés: <strong id="selectedCount">${selectedPractitioners.length}</strong>
+            </div>
+            <div class="mb-3">
+                <label for="competitionSelect" class="form-label">Sélectionner une compétition</label>
+                <select class="form-select" id="competitionSelect" required>
+                    <option value="">Chargement des compétitions...</option>
+                </select>
+            </div>
+            <div class="mb-3" id="competitionDetails" style="display: none;">
+                <div class="card">
+                    <div class="card-body" id="competitionInfo"></div>
+                </div>
+            </div>
+            <div id="selectedPractitionersList" class="mb-3">
+                <h6>Pratiquants à inscrire:</h6>
+                <div class="list-group"></div>
+            </div>
+        `;
+        
+        // Footer
+        const footer = document.createElement('div');
+        footer.className = 'modal-footer';
+        footer.innerHTML = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button><button type="button" class="btn btn-success" onclick="processBulkRegistration()" id="confirmRegistrationBtn" disabled><i class="fas fa-check"></i> Confirmer les inscriptions</button>';
+        
+        modalContent.appendChild(header);
+        modalContent.appendChild(body);
+        modalContent.appendChild(footer);
+        modalDialog.appendChild(modalContent);
+        modal.appendChild(modalDialog);
+    
+    document.body.appendChild(modal);
+    
+    // Afficher la liste des pratiquants sélectionnés
+    const practitionersList = modal.querySelector('#selectedPractitionersList .list-group');
+    selectedPractitioners.forEach(checkbox => {
+        const name = checkbox.getAttribute('data-name');
+        const item = document.createElement('div');
+        item.className = 'list-group-item d-flex justify-content-between align-items-center';
+        item.innerHTML = `
+            <span><i class="fas fa-user me-2"></i>${name}</span>
+            <span class="badge bg-primary">Prêt</span>
+        `;
+        practitionersList.appendChild(item);
+    });
+    
+    // Charger les compétitions disponibles
+    loadAvailableCompetitions();
+    
+    // Afficher le modal
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+    
+    // Nettoyer le modal après fermeture
+    modal.addEventListener('hidden.bs.modal', function() {
+        modal.remove();
+    });
+    
+    } catch (error) {
+        console.error('Error creating bulk registration modal:', error);
+        alert('Une erreur est survenue lors de l'ouverture du modal d'inscription en masse');
+    }
+}
+
+function loadAvailableCompetitions() {
+    const select = document.getElementById('competitionSelect');
+    
+    // Pour un environnement club vierge, pas de compétitions par défaut
+    // TODO: Remplacer par un appel AJAX réel filtré par organisation du club
+    try {
+        // Environnement vierge - aucune compétition disponible
+        const competitions = [];
+        
+        select.innerHTML = '<option value="">Aucune compétition disponible</option>';
+        
+        if (competitions.length > 0) {
+            select.innerHTML = '<option value="">Choisir une compétition...</option>';
+            competitions.forEach(comp => {
+                const option = document.createElement('option');
+                option.value = comp.id;
+                option.textContent = `${comp.title} - ${comp.city} (${comp.date})`;
+                option.setAttribute('data-title', comp.title);
+                option.setAttribute('data-date', comp.date);
+                option.setAttribute('data-city', comp.city);
+                select.appendChild(option);
+            });
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors du chargement des compétitions:', error);
+        select.innerHTML = '<option value="">Erreur de chargement</option>';
+    }
+}
+
+function onCompetitionSelect() {
+    const select = document.getElementById('competitionSelect');
+    const detailsDiv = document.getElementById('competitionDetails');
+    const infoDiv = document.getElementById('competitionInfo');
+    const confirmBtn = document.getElementById('confirmRegistrationBtn');
+    
+    if (select.value) {
+        const option = select.selectedOptions[0];
+        const title = option.getAttribute('data-title');
+        const date = option.getAttribute('data-date');
+        const city = option.getAttribute('data-city');
+        
+        infoDiv.innerHTML = `
+            <h6><i class="fas fa-trophy me-2"></i>${title}</h6>
+            <p class="mb-1"><i class="fas fa-calendar me-2"></i>Date: ${date}</p>
+            <p class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>Lieu: ${city}</p>
+        `;
+        
+        detailsDiv.style.display = 'block';
+        confirmBtn.disabled = false;
+    } else {
+        detailsDiv.style.display = 'none';
+        confirmBtn.disabled = true;
+    }
+}
+
+// Ajouter l'événement de changement pour la sélection de compétition
+document.addEventListener('change', function(e) {
+    if (e.target.id === 'competitionSelect') {
+        onCompetitionSelect();
+    }
+});
+
+function processBulkRegistration() {
+    const selectedPractitioners = document.querySelectorAll('.practitioner-checkbox:checked');
+    const competitionId = document.getElementById('competitionSelect').value;
+    const competitionTitle = document.getElementById('competitionSelect').selectedOptions[0].getAttribute('data-title');
+    
+    if (!competitionId) {
+        alert(TRANS.pleaseSelectCompetition);
+        return;
+    }
+    
+    // Créer les données à envoyer
+    const practitionerIds = Array.from(selectedPractitioners).map(cb => cb.value);
+    
+    const confirmBtn = document.getElementById('confirmRegistrationBtn');
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> {% trans "Inscription en cours..." %}';
+    confirmBtn.disabled = true;
+    
+    // Simuler le processus d'inscription (remplacer par un appel AJAX réel)
+    setTimeout(() => {
+        // Fermer le modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('bulkRegistrationModal'));
+        modal.hide();
+        
+        // Décocher toutes les cases
+        selectedPractitioners.forEach(cb => cb.checked = false);
+        document.getElementById('select-all-practitioners').checked = false;
+        updateBulkRegistrationButton();
+        
+        // Afficher un message de succès
+        const successAlert = document.createElement('div');
+        successAlert.className = 'alert alert-success alert-dismissible fade show';
+        successAlert.innerHTML = `
+            <i class="fas fa-check-circle me-2"></i>
+            <strong>Succès!</strong> ${practitionerIds.length} pratiquant(s) inscrit(s) à "${competitionTitle}"
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        // Insérer l'alerte en haut du contenu de l'onglet
+        const tabContent = document.querySelector('#members .card-body');
+        tabContent.insertBefore(successAlert, tabContent.firstChild);
+        
+        // Auto-masquer après 5 secondes
+        setTimeout(() => {
+            if (successAlert.parentNode) {
+                successAlert.remove();
+            }
+        }, 5000);
+    }, 2000);
+}
+
+// ============== CALCUL D'ÂGE ET GÉNÉRATION DE LICENCE ==============
+
+function calculateAge(birthDate) {
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+        age--;
+    }
+    
+    return age;
+}
+
+function generateLicenseNumber(practitionerId, birthDate) {
+    // Format: YYYY-MMDD-ID (ex: 2010-0315-00042)
+    const birth = new Date(birthDate);
+    const year = birth.getFullYear();
+    const month = String(birth.getMonth() + 1).padStart(2, '0');
+    const day = String(birth.getDate()).padStart(2, '0');
+    const id = String(practitionerId).padStart(5, '0');
+    
+    return `${year}-${month}${day}-${id}`;
+}
+
+function updateAgesAndLicenses() {
+    // Calculer et afficher les âges
+    const ageDisplays = document.querySelectorAll('.age-display');
+    console.log(` Trouvé ${ageDisplays.length} éléments .age-display`);
+    
+    ageDisplays.forEach((span, index) => {
+        const birthDate = span.getAttribute('data-birth-date');
+        console.log(`  [${index}] birth_date: ${birthDate}`);
+        
+        if (birthDate) {
+            const age = calculateAge(birthDate);
+            console.log(`  [${index}] Âge calculé: ${age} ans`);
+            span.innerHTML = `<span class="badge bg-info">${age} ans</span>`;
+        }
+    });
+    
+    // Générer les numéros de licence si nécessaire
+    const licenseDisplays = document.querySelectorAll('.license-display');
+    console.log(` Trouvé ${licenseDisplays.length} éléments .license-display`);
+    
+    licenseDisplays.forEach((span, index) => {
+        const practitionerId = span.getAttribute('data-practitioner-id');
+        const birthDate = span.getAttribute('data-birth-date');
+        const existingLicense = span.getAttribute('data-existing-license');
+        
+        console.log(`  [${index}] practitioner: ${practitionerId}, birth: ${birthDate}, existing: ${existingLicense}`);
+        
+        if (!existingLicense && practitionerId && birthDate) {
+            const license = generateLicenseNumber(practitionerId, birthDate);
+            console.log(`  [${index}] Licence générée: ${license}`);
+            span.innerHTML = `<code class="text-muted">${license}</code>`;
+        }
+    });
+}
+
+// Exécuter au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    console.log(' Calcul des âges - DOMContentLoaded');
+    updateAgesAndLicenses();
+    
+    // Réexécuter après un court délai pour les éléments chargés dynamiquement
+    setTimeout(function() {
+        console.log(' Calcul des âges - Delayed execution');
+        updateAgesAndLicenses();
+    }, 500);
+});
+
+// Exécuter aussi après le chargement des onglets
+document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(tab => {
+    tab.addEventListener('shown.bs.tab', function() {
+        console.log(' Calcul des âges - Tab changed');
+        setTimeout(updateAgesAndLicenses, 100);
+    });
+});
+
+// Observer pour détecter les nouveaux éléments .age-display ajoutés dynamiquement
+const ageObserver = new MutationObserver(function(mutations) {
+    let hasNewAgeDisplay = false;
+    mutations.forEach(function(mutation) {
+        mutation.addedNodes.forEach(function(node) {
+            if (node.nodeType === 1) { // Element node
+                if (node.classList && node.classList.contains('age-display')) {
+                    hasNewAgeDisplay = true;
+                } else if (node.querySelectorAll) {
+                    const ageDisplays = node.querySelectorAll('.age-display');
+                    if (ageDisplays.length > 0) {
+                        hasNewAgeDisplay = true;
+                    }
+                }
+            }
+        });
+    });
+    
+    if (hasNewAgeDisplay) {
+        console.log(' Calcul des âges - New elements detected');
+        updateAgesAndLicenses();
+    }
+});
+
+// Démarrer l'observation
+if (document.body) {
+    ageObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+}
+
+
+</script>
+{% endblock %}

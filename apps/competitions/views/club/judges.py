@@ -34,10 +34,20 @@ def judges_list(request):
     # Vérification simplifiée: l'utilisateur doit Ãªtre le propriétaire du club ou un administrateur
     is_authorized = (club.owner == request.user) or \
                    (hasattr(request.user, 'is_staff') and request.user.is_staff)
-                   
+
     # Si l'utilisateur n'est pas autorisé, vérifier s'il est administrateur du club
     if not is_authorized and hasattr(request.user, 'club_admin_roles'):
         is_authorized = request.user.club_admin_roles.filter(club=club).exists()
+
+    # Vérifier aussi via OrganizationMember (manager ou admin)
+    if not is_authorized and club.organization:
+        from apps.organizations.models import OrganizationMember
+        is_authorized = OrganizationMember.objects.filter(
+            user=request.user,
+            organization=club.organization,
+            role__in=['manager', 'admin', 'owner'],
+            is_active=True
+        ).exists()
         
     if not is_authorized:
         messages.error(request, _("Vous n'avez pas les permissions nécessaires pour gérer les juges."))
@@ -53,7 +63,7 @@ def judges_list(request):
         # Récupérer les pratiquants qui ont des qualifications de juge
         judges = Judge.objects.filter(
             practitioner__organization=club_organization
-        ).select_related('practitioner').prefetch_related('qualifications')
+        ).select_related('practitioner').prefetch_related('practitioner__qualifications')
     
     context = {
         'club': club,
@@ -79,10 +89,20 @@ def judge_assignments(request):
     # Vérification simplifiée: l'utilisateur doit Ãªtre le propriétaire du club ou un administrateur
     is_authorized = (club.owner == request.user) or \
                    (hasattr(request.user, 'is_staff') and request.user.is_staff)
-                   
+
     # Si l'utilisateur n'est pas autorisé, vérifier s'il est administrateur du club
     if not is_authorized and hasattr(request.user, 'club_admin_roles'):
         is_authorized = request.user.club_admin_roles.filter(club=club).exists()
+
+    # Vérifier aussi via OrganizationMember (manager ou admin)
+    if not is_authorized and club.organization:
+        from apps.organizations.models import OrganizationMember
+        is_authorized = OrganizationMember.objects.filter(
+            user=request.user,
+            organization=club.organization,
+            role__in=['manager', 'admin', 'owner'],
+            is_active=True
+        ).exists()
         
     if not is_authorized:
         messages.error(request, _("Vous n'avez pas les permissions nécessaires pour gérer les juges."))
@@ -167,10 +187,20 @@ def judge_add(request):
     # Vérification simplifiée: l'utilisateur doit Ãªtre le propriétaire du club ou un administrateur
     is_authorized = (club.owner == request.user) or \
                    (hasattr(request.user, 'is_staff') and request.user.is_staff)
-                   
+
     # Si l'utilisateur n'est pas autorisé, vérifier s'il est administrateur du club
     if not is_authorized and hasattr(request.user, 'club_admin_roles'):
         is_authorized = request.user.club_admin_roles.filter(club=club).exists()
+
+    # Vérifier aussi via OrganizationMember (manager ou admin)
+    if not is_authorized and club.organization:
+        from apps.organizations.models import OrganizationMember
+        is_authorized = OrganizationMember.objects.filter(
+            user=request.user,
+            organization=club.organization,
+            role__in=['manager', 'admin', 'owner'],
+            is_active=True
+        ).exists()
         
     if not is_authorized:
         messages.error(request, _("Vous n'avez pas les permissions nécessaires pour gérer les juges."))

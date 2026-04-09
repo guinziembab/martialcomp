@@ -614,60 +614,129 @@ class UserProfileView(APIView):
             except Exception as e:
                 print(f"DEBUG UserProfileView: Error getting medical certificate: {e}")
 
-        # Get achievements (palmarès)
+        # Get achievements (palmarès) - aligned with MobilePalmaresView logic
+        # Collect from ALL sources (not stopping at first hit)
         if practitioner:
-            # Method 1: Try CompetitionResult model
+            seen_ids = set()
+
+            def _add_achievement(aid, title, desc, date, category, place, comp_name):
+                if aid in seen_ids:
+                    return
+                seen_ids.add(aid)
+                achievements_data.append({
+                    'id': aid,
+                    'title': title,
+                    'description': desc,
+                    'date': date,
+                    'category': category,
+                    'place': place,
+                    'competition_name': comp_name,
+                    'competitionName': comp_name,
+                })
+
+            # Source 1: CompetitionResult
             try:
                 from apps.competitions.models.scoring_results import CompetitionResult
-                results = CompetitionResult.objects.filter(
+                for r in CompetitionResult.objects.filter(
                     practitioner=practitioner
-                ).select_related('competition', 'category').order_by('-competition__start_date')[:10]
-                for r in results:
-                    achievements_data.append({
-                        'id': r.id,
-                        'title': f"{r.rank}{'er' if r.rank == 1 else 'ème'} place" if r.rank else 'Participation',
-                        'description': getattr(r.category, 'name', '') if r.category else '',
-                        'date': r.competition.start_date.isoformat() if r.competition and r.competition.start_date else None,
-                        'category': getattr(r.category, 'name', ''),
-                        'place': r.rank,
-                        'competition_name': r.competition.name if r.competition else '',
-                        'competitionName': r.competition.name if r.competition else '',
-                    })
+                ).select_related('competition', 'category').order_by('-competition__start_date')[:10]:
+                    comp_name = r.competition.title if r.competition else ''
+                    _add_achievement(
+                        f'cr_{r.id}',
+                        f"{r.rank}{'er' if r.rank == 1 else 'ème'} place" if r.rank else 'Participation',
+                        getattr(r.category, 'name', '') if r.category else '',
+                        r.competition.start_date.isoformat() if r.competition and r.competition.start_date else None,
+                        getattr(r.category, 'name', '') if r.category else '',
+                        r.rank,
+                        comp_name,
+                    )
             except Exception as e:
-                print(f"DEBUG UserProfileView: Error getting achievements from CompetitionResult: {e}")
+                print(f"DEBUG achievements Source 1 (CompetitionResult): {e}")
 
-            # Method 2: Try CompetitionRegistration if no results found
-            if not achievements_data:
-                try:
-                    from apps.competitions.models.registrations import CompetitionRegistration
-                    registrations = CompetitionRegistration.objects.filter(
-                        practitioner=practitioner,
-                        status__in=['completed', 'validated', 'finished']
-                    ).select_related('competition', 'category').order_by('-competition__start_date')[:10]
+            # Source 2: CompetitionRanking (technical competitions - often the main source)
+            try:
+                from apps.competitions.models import CompetitionRanking
+                for cr in CompetitionRanking.objects.filter(
+                    practitioner=practitioner
+                ).select_related('competition').order_by('-competition__start_date')[:10]:
+                    place = getattr(cr, 'rank', None) or getattr(cr, 'position', None)
+                    comp_name = cr.competition.title if cr.competition else ''
+                    cat_name = cr.category.name if hasattr(cr, 'category') and cr.category else ''
+                    _add_achievement(
+                        f'ck_{cr.id}',
+                        f"{place}{'er' if place == 1 else 'ème'} place" if place else 'Participation',
+                        cat_name,
+                        cr.competition.start_date.isoformat() if cr.competition and cr.competition.start_date else None,
+                        cat_name,
+                        place,
+                        comp_name,
+                    )
+            except Exception as e:
+                print(f"DEBUG achievements Source 2 (CompetitionRanking): {e}")
 
-                    for reg in registrations:
-                        place = getattr(reg, 'place', None) or getattr(reg, 'ranking', None) or getattr(reg, 'final_rank', None)
-                        if place and place <= 5:  # Top 5 only
-                            achievements_data.append({
-                                'id': reg.id,
-                                'title': f"{place}{'er' if place == 1 else 'ème'} place",
-                                'description': reg.category.name if reg.category else '',
-                                'date': reg.competition.start_date.isoformat() if reg.competition and reg.competition.start_date else None,
-                                'category': reg.category.name if reg.category else '',
-                                'place': place,
-                                'competition_name': reg.competition.name if reg.competition else '',
-                                'competitionName': reg.competition.name if reg.competition else '',
-                            })
-                except Exception as e:
-                    print(f"DEBUG UserProfileView: Error getting achievements from CompetitionRegistration: {e}")
+            # Source 3: ScoringResult
+            try:
+                from apps.competitions.models.scoring_results import ScoringResult
+                for sr in ScoringResult.objects.filter(
+                    practitioner=practitioner
+                ).select_related('competition').order_by('-competition__start_date')[:10]:
+                    place = getattr(sr, 'final_rank', None) or getattr(sr, 'position', None)
+                    if place:
+                        comp_name = sr.competition.title if sr.competition else ''
+                        cat_name = sr.category.name if hasattr(sr, 'category') and sr.category else ''
+                        _add_achievement(
+                            f'sr_{sr.id}',
+                            f"{place}{'er' if place == 1 else 'ème'} place",
+                            cat_name,
+                            sr.competition.start_date.isoformat() if sr.competition and sr.competition.start_date else None,
+                            cat_name,
+                            place,
+                            comp_name,
+                        )
+            except Exception as e:
+                print(f"DEBUG achievements Source 3 (ScoringResult): {e}")
+
+            # Source 4: Combat wins
+            try:
+                from apps.competitions.models.combat import Combat
+                for combat in list(Combat.objects.filter(
+                    pratiquant_rouge=practitioner, vainqueur='rouge', status='termine'
+                ).select_related('competition')[:5]) + list(Combat.objects.filter(
+                    pratiquant_blanc=practitioner, vainqueur='blanc', status='termine'
+                ).select_related('competition')[:5]):
+                    if combat.competition:
+                        comp_name = combat.competition.title
+                        _add_achievement(
+                            f'cw_{combat.id}',
+                            '1er place',
+                            'Victoire en combat',
+                            combat.competition.start_date.isoformat() if combat.competition.start_date else None,
+                            '',
+                            1,
+                            comp_name,
+                        )
+            except Exception as e:
+                print(f"DEBUG achievements Source 4 (Combat): {e}")
+
+            # Sort by date descending, limit to 5
+            achievements_data.sort(key=lambda x: x.get('date') or '0000-01-01', reverse=True)
+            achievements_data = achievements_data[:5]
 
         # Build club data
         club_data = None
         if organization:
+            # Build absolute logo URL
+            logo_url = None
+            if hasattr(organization, 'logo') and organization.logo:
+                try:
+                    logo_url = request.build_absolute_uri(organization.logo.url)
+                except Exception:
+                    logo_url = None
+
             club_data = {
                 'id': str(organization.id),
                 'name': organization.name,
-                'logo_url': getattr(organization, 'logo', None).url if hasattr(organization, 'logo') and organization.logo else None,
+                'logo_url': logo_url,
                 'role': getattr(profile, 'role', None) if profile else None,
                 'join_date': getattr(profile, 'created_at', None).isoformat() if profile and hasattr(profile, 'created_at') and profile.created_at else None,
             }
@@ -863,6 +932,13 @@ class UserProfileView(APIView):
             # Medals count
             stats['medals'] = self._count_medals(practitioner)
 
+            # Participations (total competitions finished)
+            stats['participations'] = self._count_participations(practitioner)
+            stats['total_competitions'] = stats['participations']  # Alias for compatibility
+
+            # Pending registrations
+            stats['pending_registrations'] = self._count_pending_registrations(practitioner)
+
             # Pending payments/notifications
             stats['pending_payments'] = 0  # TODO: implement if needed
             stats['active_orders'] = 0  # TODO: implement if needed
@@ -951,27 +1027,109 @@ class UserProfileView(APIView):
         return stats
 
     def _count_upcoming_competitions(self, practitioner):
-        """Count upcoming competitions with registrations."""
+        """Count upcoming competitions in practitioner's discipline(s)."""
         try:
-            from apps.competitions.models.registrations import CompetitionRegistration
+            from apps.competitions.models import Competition, PractitionerDiscipline
             from django.utils import timezone
+            from django.db.models import Q
 
-            return CompetitionRegistration.objects.filter(
-                practitioner=practitioner,
-                competition__start_date__gte=timezone.now().date(),
-                status__in=['pending', 'confirmed', 'validated', 'registered']
-            ).count()
+            today = timezone.now().date()
+
+            # Collect discipline IDs from multiple sources
+            discipline_ids = set(
+                PractitionerDiscipline.objects.filter(
+                    practitioner=practitioner
+                ).values_list('discipline_id', flat=True)
+            )
+            if hasattr(practitioner, 'disciplines'):
+                discipline_ids.update(
+                    practitioner.disciplines.values_list('id', flat=True)
+                )
+            if hasattr(practitioner, 'primary_discipline_id') and practitioner.primary_discipline_id:
+                discipline_ids.add(practitioner.primary_discipline_id)
+            if not discipline_ids and practitioner.organization and hasattr(practitioner.organization, 'disciplines'):
+                discipline_ids.update(
+                    practitioner.organization.disciplines.values_list('id', flat=True)
+                )
+
+            qs = Competition.objects.filter(
+                start_date__gte=today,
+                status__in=['published', 'open', 'registration_open']
+            )
+            if discipline_ids:
+                qs = qs.filter(Q(discipline_id__in=list(discipline_ids)) | Q(discipline__isnull=True))
+
+            return qs.count()
         except Exception:
             return 0
 
     def _count_medals(self, practitioner):
-        """Count medals (podium finishes)."""
+        """Count medals (podium finishes) from multiple sources."""
         try:
-            from apps.competitions.models.scoring_results import CompetitionResult
+            medals_count = 0
 
-            return CompetitionResult.objects.filter(
+            # Source 1: CompetitionResult with rank <= 3
+            try:
+                from apps.competitions.models.scoring_results import CompetitionResult
+                medals_by_rank = CompetitionResult.objects.filter(
+                    practitioner=practitioner,
+                    rank__in=[1, 2, 3]
+                ).count()
+                # Also check medal field
+                medals_by_field = CompetitionResult.objects.filter(
+                    practitioner=practitioner,
+                    medal__in=['gold', 'silver', 'bronze']
+                ).count()
+                medals_count = max(medals_count, medals_by_rank, medals_by_field)
+            except Exception:
+                pass
+
+            # Source 2: RankingEntry with rank <= 3
+            try:
+                from apps.competitions.models import RankingEntry
+                ranking_medals = RankingEntry.objects.filter(
+                    practitioner=practitioner,
+                    rank__lte=3
+                ).count()
+                medals_count = max(medals_count, ranking_medals)
+            except Exception:
+                pass
+
+            # Source 3: CompetitionRanking with rank <= 3 (technical competitions)
+            try:
+                from apps.competitions.models import CompetitionRanking
+                competition_ranking_medals = CompetitionRanking.objects.filter(
+                    practitioner=practitioner,
+                    rank__lte=3
+                ).count()
+                medals_count = max(medals_count, competition_ranking_medals)
+            except Exception:
+                pass
+
+            return medals_count
+        except Exception:
+            return 0
+
+    def _count_participations(self, practitioner):
+        """Count total participations (finished competitions)."""
+        try:
+            from apps.competitions.models.registrations import CompetitionRegistration
+
+            return CompetitionRegistration.objects.filter(
                 practitioner=practitioner,
-                rank__in=[1, 2, 3]
+                status__in=['completed', 'validated', 'finished', 'confirmed', 'participated']
+            ).count()
+        except Exception:
+            return 0
+
+    def _count_pending_registrations(self, practitioner):
+        """Count pending registrations."""
+        try:
+            from apps.competitions.models.registrations import CompetitionRegistration
+
+            return CompetitionRegistration.objects.filter(
+                practitioner=practitioner,
+                status__in=['pending', 'registered']
             ).count()
         except Exception:
             return 0
@@ -1388,7 +1546,8 @@ class SSOGenerateTokenView(APIView):
 
     def post(self, request):
         user = request.user
-        redirect_url = request.data.get('redirect_url', '/fr/competitions/dashboard/club/')
+        language = request.data.get('language', 'fr')
+        redirect_url = request.data.get('redirect_url', f'/{language}/competitions/dashboard/club/')
 
         # Générer un token sécurisé
         token = secrets.token_urlsafe(48)
@@ -1407,6 +1566,7 @@ class SSOGenerateTokenView(APIView):
             expires_at=expires_at,
             ip_address=self.get_client_ip(request),
             user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            language=language,
             tenant=tenant
         )
 
@@ -1463,58 +1623,63 @@ class PasswordResetRequestView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        serializer = PasswordResetRequestSerializer(data=request.data)
-        if serializer.is_valid():
-            email = serializer.validated_data['email']
+        import logging
+        logger = logging.getLogger(__name__)
 
-            try:
-                user = User.objects.get(email__iexact=email)
+        try:
+            serializer = PasswordResetRequestSerializer(data=request.data)
+            if serializer.is_valid():
+                email = serializer.validated_data['email']
 
-                # Générer le token et l'uid
-                token = default_token_generator.make_token(user)
-                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                # filter().first() pour gérer les doublons d'email
+                user = User.objects.filter(email__iexact=email).first()
 
-                # Construire l'URL de réinitialisation
-                frontend_url = getattr(settings, 'FRONTEND_URL', 'https://martialcomp.com')
-                reset_url = f"{frontend_url}/reset-password/{uid}/{token}/"
+                if user:
+                    # Générer le token et l'uid
+                    token = default_token_generator.make_token(user)
+                    uid = urlsafe_base64_encode(force_bytes(user.pk))
 
-                # Envoyer l'email
-                subject = _("Réinitialisation de votre mot de passe MartialComp")
-                message = _(
-                    f"Bonjour {user.first_name or user.username},\n\n"
-                    f"Vous avez demandé la réinitialisation de votre mot de passe.\n"
-                    f"Cliquez sur le lien suivant pour définir un nouveau mot de passe :\n\n"
-                    f"{reset_url}\n\n"
-                    f"Ce lien est valable pendant 24 heures.\n\n"
-                    f"Si vous n'avez pas fait cette demande, ignorez cet email.\n\n"
-                    f"L'équipe MartialComp"
-                )
+                    # Construire l'URL de réinitialisation
+                    frontend_url = getattr(settings, 'FRONTEND_URL', 'https://martialcomp.com')
+                    reset_url = f"{frontend_url}/reset-password/{uid}/{token}/"
 
-                try:
-                    send_mail(
-                        subject,
-                        message,
-                        settings.DEFAULT_FROM_EMAIL,
-                        [user.email],
-                        fail_silently=False,
+                    # Envoyer l'email
+                    subject = str(_("Réinitialisation de votre mot de passe MartialComp"))
+                    message = (
+                        f"Bonjour {user.first_name or user.username},\n\n"
+                        f"Vous avez demandé la réinitialisation de votre mot de passe.\n"
+                        f"Cliquez sur le lien suivant pour définir un nouveau mot de passe :\n\n"
+                        f"{reset_url}\n\n"
+                        f"Ce lien est valable pendant 24 heures.\n\n"
+                        f"Si vous n'avez pas fait cette demande, ignorez cet email.\n\n"
+                        f"L'équipe MartialComp"
                     )
-                except Exception as e:
-                    # Log l'erreur mais ne pas révéler à l'utilisateur
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.error(f"Erreur envoi email reset password: {e}")
 
-            except User.DoesNotExist:
-                # Ne pas révéler si l'email existe ou non (sécurité)
-                pass
+                    try:
+                        send_mail(
+                            subject,
+                            message,
+                            settings.DEFAULT_FROM_EMAIL,
+                            [user.email],
+                            fail_silently=False,
+                        )
+                    except Exception as e:
+                        logger.error(f"Erreur envoi email reset password: {e}")
 
-            # Toujours retourner succès pour ne pas révéler si l'email existe
-            return Response({
-                'success': True,
-                'message': _("Si un compte existe avec cet email, un lien de réinitialisation a été envoyé.")
-            })
+                # Toujours retourner succès pour ne pas révéler si l'email existe
+                return Response({
+                    'success': True,
+                    'message': str(_("Si un compte existe avec cet email, un lien de réinitialisation a été envoyé."))
+                })
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            logger.error(f"PasswordResetRequestView error: {e}", exc_info=True)
+            return Response(
+                {'error': 'Internal server error', 'detail': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class PasswordResetConfirmView(APIView):

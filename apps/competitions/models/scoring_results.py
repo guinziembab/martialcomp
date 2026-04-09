@@ -644,6 +644,221 @@ class CompetitionResult(models.Model):
         return self.rank is not None and self.rank <= 3
 
 
+class PodiumEntry(models.Model):
+    """
+    Entrée manuelle au podium.
+    Permet à l'organisateur d'ajouter des participants au podium
+    sans passer par le système de notation (fusion de catégories,
+    participants en situation de handicap, etc.)
+    """
+    POSITION_CHOICES = [
+        (1, _('1er - Or')),
+        (2, _('2ème - Argent')),
+        (3, _('3ème - Bronze')),
+    ]
+
+    # Relations
+    category = models.ForeignKey(
+        'competitions.CompetitionCategory',
+        on_delete=models.CASCADE,
+        related_name='podium_entries',
+        verbose_name=_("Catégorie")
+    )
+    practitioner = models.ForeignKey(
+        'competitions.Practitioner',
+        on_delete=models.CASCADE,
+        related_name='podium_entries',
+        verbose_name=_("Pratiquant")
+    )
+
+    # Position au podium (1, 2 ou 3)
+    position = models.PositiveSmallIntegerField(
+        _("Position"),
+        choices=POSITION_CHOICES,
+        validators=[MinValueValidator(1), MaxValueValidator(3)]
+    )
+
+    # Indique si c'est un ajout manuel (vs calculé par le système)
+    is_manual = models.BooleanField(
+        _("Ajout manuel"),
+        default=True,
+        help_text=_("True si ajouté manuellement par l'organisateur")
+    )
+
+    # Titre honorifique optionnel (Mérite, Encouragement, etc.)
+    honorary_title = models.CharField(
+        _("Titre honorifique"),
+        max_length=100,
+        blank=True,
+        help_text=_("Ex: Mérite, Encouragement (affiché si show_title=True)")
+    )
+    show_title = models.BooleanField(
+        _("Afficher le titre"),
+        default=False
+    )
+
+    # Note interne (non visible publiquement)
+    internal_note = models.TextField(
+        _("Note interne"),
+        blank=True,
+        help_text=_("Note visible uniquement par les organisateurs")
+    )
+
+    # Métadonnées
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='added_podium_entries',
+        verbose_name=_("Ajouté par")
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Entrée au podium")
+        verbose_name_plural = _("Entrées au podium")
+        ordering = ['category', 'position', 'created_at']
+        # Un pratiquant ne peut être qu'une fois au podium par catégorie
+        unique_together = ['category', 'practitioner']
+
+    def __str__(self):
+        position_label = dict(self.POSITION_CHOICES).get(self.position, str(self.position))
+        return f"{position_label} - {self.practitioner.full_name} ({self.category.name})"
+
+    @property
+    def medal_icon(self):
+        """Retourne l'icône de médaille."""
+        icons = {1: '🥇', 2: '🥈', 3: '🥉'}
+        return icons.get(self.position, '')
+
+    @property
+    def medal_color(self):
+        """Retourne la couleur CSS de la médaille."""
+        colors = {
+            1: '#FFD700',  # Or
+            2: '#C0C0C0',  # Argent
+            3: '#CD7F32',  # Bronze
+        }
+        return colors.get(self.position, '#FFFFFF')
+
+    @property
+    def position_label(self):
+        """Retourne le label de position sans la médaille."""
+        labels = {1: '1er', 2: '2ème', 3: '3ème'}
+        return labels.get(self.position, str(self.position))
+
+    # Mapping pays (noms complets) vers codes ISO 2 lettres pour les drapeaux
+    COUNTRY_NAME_TO_CODE = {
+        'france': 'fr', 'belgique': 'be', 'bénin': 'bj', 'benin': 'bj',
+        'sénégal': 'sn', 'senegal': 'sn', 'cameroun': 'cm', 'gabon': 'ga',
+        'congo': 'cg', 'côte d\'ivoire': 'ci', 'cote d\'ivoire': 'ci',
+        'allemagne': 'de', 'italie': 'it', 'espagne': 'es', 'portugal': 'pt',
+        'suisse': 'ch', 'autriche': 'at', 'pays-bas': 'nl', 'luxembourg': 'lu',
+        'royaume-uni': 'gb', 'états-unis': 'us', 'etats-unis': 'us',
+        'canada': 'ca', 'brésil': 'br', 'bresil': 'br', 'japon': 'jp',
+        'chine': 'cn', 'corée': 'kr', 'coree': 'kr', 'vietnam': 'vn',
+        'thaïlande': 'th', 'thailande': 'th', 'inde': 'in', 'maroc': 'ma',
+        'tunisie': 'tn', 'algérie': 'dz', 'algerie': 'dz', 'roumanie': 'ro',
+        'pologne': 'pl', 'hongrie': 'hu', 'tchéquie': 'cz', 'tchequie': 'cz',
+    }
+
+    @classmethod
+    def _get_country_code(cls, country_value):
+        """Convertit une valeur pays en code ISO 2 lettres minuscules."""
+        if not country_value:
+            return ''
+        val = country_value.strip().lower()
+        if len(val) == 2 and val.isalpha():
+            return val
+        return cls.COUNTRY_NAME_TO_CODE.get(val, '')
+
+    @classmethod
+    def _build_entry(cls, practitioner, position, is_manual, honorary_title='', score=None):
+        """Construit un dict d'entrée podium enrichi avec photo, logo, drapeau."""
+        icons = {1: '🥇', 2: '🥈', 3: '🥉'}
+        colors = {1: '#FFD700', 2: '#C0C0C0', 3: '#CD7F32'}
+        org = practitioner.organization
+        country_code = cls._get_country_code(org.country) if org else ''
+        photo_url = None
+        if practitioner.photo:
+            try:
+                photo_url = practitioner.photo.url
+            except Exception:
+                pass
+        logo_url = None
+        if org and org.logo:
+            try:
+                logo_url = org.logo.url
+            except Exception:
+                pass
+        return {
+            'practitioner': practitioner,
+            'position': position,
+            'is_manual': is_manual,
+            'honorary_title': honorary_title,
+            'medal_icon': icons.get(position, ''),
+            'medal_color': colors.get(position, '#FFFFFF'),
+            'score': score,
+            'photo_url': photo_url,
+            'club_name': org.name if org else '',
+            'logo_url': logo_url,
+            'country_code': country_code,
+            'flag_url': ('https://flagcdn.com/w40/%s.png' % country_code) if country_code else '',
+        }
+
+    @classmethod
+    def get_podium_for_category(cls, category):
+        """
+        Retourne le podium complet pour une catégorie,
+        fusionnant les entrées calculées (CompetitionRanking) et manuelles (PodiumEntry).
+        Le 1er est toujours au centre visuellement.
+        """
+        from collections import defaultdict
+        from apps.competitions.models.technical_scoring import CompetitionRanking
+
+        podium = defaultdict(list)
+
+        # 1. Récupérer les entrées manuelles
+        manual_entries = cls.objects.filter(
+            category=category
+        ).select_related('practitioner', 'practitioner__organization')
+        for entry in manual_entries:
+            podium[entry.position].append(cls._build_entry(
+                practitioner=entry.practitioner,
+                position=entry.position,
+                is_manual=True,
+                honorary_title=entry.honorary_title if entry.show_title else '',
+            ))
+
+        # 2. Récupérer les entrées calculées (CompetitionRanking avec rang <= 3)
+        calculated_entries = CompetitionRanking.objects.filter(
+            category=category,
+            rank__lte=3
+        ).select_related('practitioner', 'practitioner__organization').order_by('rank')
+
+        for entry in calculated_entries:
+            # Ne pas ajouter si le pratiquant est déjà dans le podium manuel
+            practitioner_ids = [p['practitioner'].id for p in podium[entry.rank]]
+            if entry.practitioner.id not in practitioner_ids:
+                podium[entry.rank].append(cls._build_entry(
+                    practitioner=entry.practitioner,
+                    position=entry.rank,
+                    is_manual=False,
+                    score=entry.final_score,
+                ))
+
+        # 3. Structurer pour l'affichage (1er au centre)
+        return {
+            'gold': podium[1],      # Centre
+            'silver': podium[2],    # Gauche
+            'bronze': podium[3],    # Droite
+            'display_order': ['silver', 'gold', 'bronze'],  # Ordre visuel
+        }
+
+
 class JudgeSubmissionStatusResult(models.Model):
     """
     Suivi de l'état de soumission des notes par les juges.

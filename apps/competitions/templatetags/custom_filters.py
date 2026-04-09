@@ -2,8 +2,22 @@ from django import template
 from django.template.defaultfilters import stringfilter
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext as _
+import json
 
 register = template.Library()
+
+
+@register.filter(name='jsonify')
+def jsonify(value):
+    """
+    Convertit une valeur Python en JSON valide pour utilisation dans JavaScript.
+
+    Usage: {{ my_list|jsonify }}
+    """
+    try:
+        return mark_safe(json.dumps(value))
+    except (TypeError, ValueError):
+        return '[]'
 
 @register.filter
 def trans(text):
@@ -20,6 +34,10 @@ def get_item(dictionary, key):
     Retourne un dictionnaire vide si la clé n'existe pas ou si le dictionnaire est None
     """
     if dictionary is None:
+        return {}
+    
+    # Si ce n'est pas un dictionnaire (par exemple, une chaîne), retourner un dictionnaire vide
+    if not hasattr(dictionary, 'get'):
         return {}
     
     # Gestion des objets comme clés (conversion en ID si nécessaire)
@@ -42,8 +60,13 @@ def get_item(dictionary, key):
                 return {}
         return result
     
-    # Récupération avec get() pour éviter KeyError, retourne un dictionnaire vide par défaut
-    return dictionary.get(key_value, {})
+    # Récupération avec get() pour éviter KeyError
+    # Retourne None si la clé n'existe pas (plutôt qu'un dict vide) pour permettre de distinguer
+    # entre une clé absente et une valeur vide
+    result = dictionary.get(key_value)
+    if result is None:
+        return []
+    return result
 
 @register.filter
 def multiply(value, arg):
@@ -88,6 +111,24 @@ def abs_filter(value):
         return abs(float(value))
     except (ValueError, TypeError):
         return 0
+
+
+@register.filter(name='country_flag')
+@stringfilter
+def country_flag(country_code):
+    """Convertit un code pays ISO 2 lettres en image drapeau via flagcdn.com. Ex: FR -> <img src='.../fr.png'>"""
+    if not country_code or len(country_code) < 2:
+        return ''
+    code = country_code.strip().upper()[:2]
+    if not code.isalpha():
+        return ''
+    code_lower = code.lower()
+    return mark_safe(
+        f'<img src="https://flagcdn.com/w40/{code_lower}.png" '
+        f'srcset="https://flagcdn.com/w80/{code_lower}.png 2x" '
+        f'alt="{code}" '
+        f'style="width:24px;height:auto;vertical-align:middle;border-radius:2px;">'
+    )
 
 @register.simple_tag
 def setvar(val=None):
@@ -372,10 +413,45 @@ def placeholder(field, text):
 def field_type(field):
     """
     Retourne le type d'un champ de formulaire.
-    
+
     Usage: {% if form.field|field_type == 'CheckboxInput' %}...{% endif %}
     """
     if hasattr(field, 'field') and hasattr(field.field, 'widget'):
         return field.field.widget.__class__.__name__
     return ""
+
+
+@register.filter
+def dict_keys(dictionary, limit=None):
+    """
+    Retourne les clés d'un dictionnaire sous forme de liste.
+    Peut limiter le nombre de clés retournées.
+
+    Usage: {{ my_dict|dict_keys }} ou {{ my_dict|dict_keys:5 }}
+    """
+    if dictionary is None or not isinstance(dictionary, dict):
+        return []
+
+    keys = list(dictionary.keys())
+
+    if limit is not None:
+        try:
+            limit = int(limit)
+            return keys[:limit]
+        except (ValueError, TypeError):
+            pass
+
+    return keys
+
+
+@register.filter
+def in_list(value, the_list):
+    """
+    Vérifie si une valeur est dans une liste.
+
+    Usage: {% if judge_name|in_list:judges_list %}...{% endif %}
+    """
+    if the_list is None:
+        return False
+    return value in the_list
 

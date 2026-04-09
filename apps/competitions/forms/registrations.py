@@ -382,7 +382,7 @@ class BulkRegistrationApprovalForm(forms.Form):
             self.fields['registrations'].queryset = CompetitionRegistration.objects.filter(
                 competition=competition,
                 status='pending'
-            ).select_related('practitioner', 'practitioner__club')
+            ).select_related('practitioner', 'practitioner__organization')
     
     def clean(self):
         cleaned_data = super().clean()

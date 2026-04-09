@@ -213,7 +213,21 @@ class Practitioner(models.Model):
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
-    
+
+    @property
+    def photo_url(self):
+        """Retourne l'URL complète de la photo du pratiquant."""
+        if self.photo:
+            try:
+                return self.photo.url
+            except Exception:
+                pass
+        return None
+
+    def get_full_name(self):
+        """Méthode pour compatibilité avec les appels get_full_name()"""
+        return self.full_name
+
     def __str__(self):
         return f"{self.full_name} ({self.organization.name if self.organization else 'Sans organisation'})"
     
@@ -734,7 +748,109 @@ def get_all_current_grades(self):
         return {}
 
 
+class PractitionerTransfer(models.Model):
+    """
+    Demande de transfert d'un pratiquant d'un club vers un autre.
+    Initiable par un manager du club source OU par le pratiquant lui-même.
+    """
+    STATUS_CHOICES = [
+        ('pending', _('En attente')),
+        ('approved', _('Approuvé')),
+        ('rejected', _('Rejeté')),
+        ('cancelled', _('Annulé')),
+    ]
 
+    INITIATED_BY_CHOICES = [
+        ('manager', _('Responsable de club')),
+        ('practitioner', _('Pratiquant')),
+    ]
 
+    practitioner = models.ForeignKey(
+        Practitioner,
+        on_delete=models.CASCADE,
+        related_name='transfers',
+        verbose_name=_("Pratiquant")
+    )
+    source_organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='outgoing_transfers',
+        verbose_name=_("Club d'origine")
+    )
+    target_organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        related_name='incoming_transfers',
+        verbose_name=_("Club de destination")
+    )
+    status = models.CharField(
+        _("Statut"), max_length=20,
+        choices=STATUS_CHOICES, default='pending'
+    )
+    initiated_by = models.CharField(
+        _("Initié par"), max_length=20,
+        choices=INITIATED_BY_CHOICES, default='manager'
+    )
+    requested_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True,
+        related_name='transfer_requests',
+        verbose_name=_("Demandé par")
+    )
+    processed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='processed_transfers',
+        verbose_name=_("Traité par")
+    )
+    reason = models.TextField(_("Motif"), blank=True)
+    response_message = models.TextField(_("Message de réponse"), blank=True)
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    processed_at = models.DateTimeField(_("Traité le"), null=True, blank=True)
+
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Transfert de pratiquant")
+        verbose_name_plural = _("Transferts de pratiquants")
+        ordering = ['-created_at']
+
+    def __str__(self):
+        src = self.source_organization.name if self.source_organization else '—'
+        tgt = self.target_organization.name if self.target_organization else '—'
+        return f"{self.practitioner.full_name}: {src} → {tgt} ({self.get_status_display()})"
+
+    def approve(self, user):
+        """Exécute le transfert : déplace le pratiquant vers le club cible."""
+        self.status = 'approved'
+        self.processed_by = user
+        self.processed_at = timezone.now()
+        self.save()
+
+        # Déplacer le pratiquant
+        self.practitioner.organization = self.target_organization
+        self.practitioner.save(update_fields=['organization', 'updated_at'])
+
+        # Mettre à jour OrganizationMember si le pratiquant a un compte utilisateur
+        if self.practitioner.user:
+            # Désactiver l'ancien membership
+            if self.source_organization:
+                OrganizationMember.objects.filter(
+                    user=self.practitioner.user,
+                    organization=self.source_organization,
+                    is_active=True
+                ).update(is_active=False)
+            # Créer le nouveau membership
+            OrganizationMember.objects.get_or_create(
+                user=self.practitioner.user,
+                organization=self.target_organization,
+                defaults={'role': 'member', 'is_active': True}
+            )
+
+    def reject(self, user, message=''):
+        """Rejette la demande de transfert."""
+        self.status = 'rejected'
+        self.processed_by = user
+        self.processed_at = timezone.now()
+        self.response_message = message
+        self.save()
 
 

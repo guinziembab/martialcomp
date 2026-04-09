@@ -1,0 +1,1391 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load combat_filters %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/combat.css' %}">
+<style>
+  body {
+    background-color: #1a1a1a;
+    color: white;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: 'Arial Black', sans-serif;
+  }
+  
+  .combat-interface-v2 {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* En-tête avec chronomètre central */
+  .combat-header-v2 {
+    background-color: #000;
+    border-bottom: 3px solid #ffc107;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .timer-section {
+    text-align: center;
+    flex: 1;
+  }
+  
+  .main-timer {
+    font-size: 5rem;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    color: #ffc107;
+    text-shadow: 0 0 20px rgba(255, 193, 7, 0.5);
+  }
+  
+  .round-indicator {
+    font-size: 1.5rem;
+    color: #6c757d;
+    margin-top: -10px;
+  }
+  
+  /* Zone principale avec 2 colonnes */
+  .combat-main {
+    flex: 1;
+    display: flex;
+    padding: 2rem;
+    gap: 2rem;
+  }
+  
+  /* Colonnes pour chaque combattant */
+  .fighter-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-radius: 1rem;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .fighter-column.rouge {
+    background: linear-gradient(135deg, #dc3545 0%, #a02530 100%);
+    box-shadow: 0 0 50px rgba(220, 53, 69, 0.5);
+    color: #ffffff;
+  }
+  
+  .fighter-column.rouge * {
+    color: #ffffff;
+  }
+  
+  .fighter-column.blanc {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    color: #212529;
+    box-shadow: 0 0 50px rgba(248, 249, 250, 0.3);
+  }
+  
+  .fighter-column.blanc * {
+    color: #212529;
+  }
+  
+  /* Info combattant */
+  .fighter-info {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  
+  .fighter-name {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+  }
+  
+  .fighter-club {
+    font-size: 1.2rem;
+    opacity: 0.8;
+  }
+  
+  /* Score principal */
+  .score-display {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .score-number {
+    font-size: 15rem;
+    font-weight: 900;
+    line-height: 1;
+    transition: all 0.3s ease;
+  }
+  
+  .score-number.flash {
+    animation: scoreFlash 0.8s ease-out;
+  }
+  
+  @keyframes scoreFlash {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  
+  /* Panneau de contrôle des points */
+  .scoring-panel {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  
+  .score-button {
+    padding: 1.5rem;
+    font-size: 1.5rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .score-button div {
+    font-size: 1.2rem;
+    line-height: 1.2;
+    margin-bottom: 0.3rem;
+  }
+  
+  .score-button small {
+    font-size: 1rem;
+    font-weight: normal;
+    opacity: 0.9;
+  }
+  
+  .score-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  }
+  
+  .score-button:active {
+    transform: translateY(0);
+  }
+  
+  .score-button.point {
+    background-color: #28a745;
+    color: white;
+  }
+  
+  .score-button.point div,
+  .score-button.point small {
+    color: white !important;
+  }
+  
+  .score-button.penalty {
+    background-color: #ffc107;
+    color: #212529;
+  }
+  
+  .score-button.penalty div,
+  .score-button.penalty small {
+    color: #212529 !important;
+  }
+  
+  /* Dans la colonne rouge, adapter les boutons */
+  .fighter-column.rouge .score-button.point {
+    background-color: rgba(40, 167, 69, 0.9);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    backdrop-filter: blur(5px);
+  }
+  
+  .fighter-column.rouge .score-button.penalty {
+    background-color: rgba(255, 193, 7, 0.9);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    backdrop-filter: blur(5px);
+  }
+  
+  /* Style alternatif pour encore plus de visibilité */
+  .fighter-column.rouge .score-button small {
+    color: #1e90ff !important;
+    font-weight: 900;
+    text-shadow: 
+      0 0 3px #ffffff,
+      0 0 6px #ffffff,
+      0 0 9px #ffffff,
+      0 1px 0 #000;
+    font-size: 1.3rem;
+    display: inline-block;
+    background-color: rgba(255,255,255,0.9);
+    padding: 4px 10px;
+    border-radius: 6px;
+    margin-top: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  
+  /* Pour les pénalités, utiliser du rouge sur fond blanc pour le contraste */
+  .fighter-column.rouge .score-button.penalty small {
+    color: #dc3545 !important;
+    background-color: rgba(255,255,255,0.95);
+  }
+  
+  /* Zone des pénalités */
+  .penalties-display {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: auto;
+  }
+  
+  .penalty-indicator {
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 1.2rem;
+    background-color: rgba(0,0,0,0.3);
+  }
+  
+  /* Styles spécifiques pour la colonne rouge */
+  .fighter-column.rouge .penalty-indicator {
+    background-color: rgba(255,255,255,0.2);
+    color: #ffffff;
+  }
+  
+  .fighter-column.rouge .stat-label,
+  .fighter-column.rouge .stat-value {
+    color: #ffffff !important;
+  }
+  
+  .fighter-column.rouge .score-button {
+    border: 2px solid rgba(255,255,255,0.3);
+  }
+  
+  .fighter-column.rouge .score-button div {
+    color: #ffffff !important;
+  }
+  
+  
+  .fighter-column.rouge .score-number {
+    color: #00ccff !important;
+    text-shadow: 
+      0 0 5px #ffffff,
+      0 0 10px #ffffff,
+      0 0 20px #00ccff,
+      0 2px 4px rgba(0,0,0,0.5);
+    font-weight: 900;
+  }
+  
+  .fighter-column.rouge .fighter-name,
+  .fighter-column.rouge .fighter-club,
+  .fighter-column.rouge .team-members {
+    color: #ffffff !important;
+  }
+  
+  /* Styles spécifiques pour la colonne blanc */
+  .fighter-column.blanc .penalty-indicator {
+    background-color: rgba(0,0,0,0.1);
+    color: #212529;
+  }
+  
+  .fighter-column.blanc .score-button {
+    border: 2px solid rgba(0,0,0,0.1);
+  }
+  
+  /* Statistiques en temps réel */
+  .stats-row {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255,255,255,0.3);
+  }
+  
+  .stat-item {
+    text-align: center;
+  }
+  
+  .stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+  }
+  
+  .stat-label {
+    font-size: 0.9rem;
+    opacity: 0.7;
+    text-transform: uppercase;
+  }
+  
+  /* Zone centrale avec actions */
+  .center-column {
+    width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+  
+  /* Contrôles de match */
+  .match-controls {
+    background-color: rgba(255,255,255,0.1);
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+  }
+  
+  .control-button {
+    width: 100%;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    font-size: 1.2rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  /* Historique des actions */
+  .actions-history {
+    background-color: rgba(255,255,255,0.1);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    flex: 1;
+    overflow-y: auto;
+  }
+  
+  .action-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    background-color: rgba(255,255,255,0.05);
+    border-radius: 0.3rem;
+  }
+  
+  .action-time {
+    font-family: monospace;
+    margin-right: 1rem;
+    color: #6c757d;
+  }
+  
+  .action-fighter {
+    margin-right: 0.5rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.2rem;
+    font-size: 0.8rem;
+  }
+  
+  .action-fighter.rouge {
+    background-color: #dc3545;
+    color: white;
+  }
+  
+  .action-fighter.blanc {
+    background-color: #f8f9fa;
+    color: #212529;
+  }
+  
+  .action-description {
+    flex: 1;
+  }
+  
+  .action-points {
+    font-weight: bold;
+    margin-left: auto;
+  }
+  
+  .action-points.positive {
+    color: #28a745;
+  }
+  
+  .action-points.negative {
+    color: #dc3545;
+  }
+  
+  /* Mode simulation */
+  .simulation-banner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-25deg);
+    font-size: 8rem;
+    font-weight: bold;
+    color: rgba(255, 193, 7, 0.2);
+    pointer-events: none;
+    z-index: 100;
+    text-transform: uppercase;
+    letter-spacing: 2rem;
+    user-select: none;
+  }
+  
+  /* Raccourcis clavier */
+  .keyboard-shortcuts {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    background-color: rgba(0,0,0,0.8);
+    padding: 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.8rem;
+    max-width: 250px;
+  }
+  
+  .shortcut-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.3rem;
+  }
+  
+  .shortcut-key {
+    background-color: #6c757d;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.2rem;
+    font-family: monospace;
+  }
+  
+  /* Responsive pour petits écrans */
+  @media (max-width: 1600px) {
+    .score-number {
+      font-size: 10rem;
+    }
+    
+    .main-timer {
+      font-size: 4rem;
+    }
+    
+    .center-column {
+      width: 300px;
+    }
+  }
+  
+  /* Animation de victoire */
+  @keyframes victory {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+  
+  .winner {
+    animation: victory 1s infinite;
+    box-shadow: 0 0 100px rgba(255, 215, 0, 0.8);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="combat-interface-v2">
+  <!-- Bannière mode simulation -->
+  {% if simulation_mode %}
+  <div class="simulation-banner">SIMULATION</div>
+  {% endif %}
+  
+  <!-- En-tête avec timer central -->
+  <div class="combat-header-v2">
+    <div class="header-left">
+      <h4>{{ combat.competition.name|default:"Compétition" }}</h4>
+      <div class="text-muted">{{ combat.poule.nom|default:"" }}</div>
+    </div>
+    
+    <div class="timer-section">
+      <div class="main-timer" id="mainTimer">{{ combat.duree_combat|default:"120" }}s</div>
+      <div class="round-indicator">
+        <span id="timerStatus">Prêt</span>
+        {% if combat.duree_prolongation %}
+        <br><small class="text-warning">Prolongation: {{ combat.duree_prolongation }}s</small>
+        {% endif %}
+      </div>
+    </div>
+    
+    <div class="header-right">
+      <div class="btn-group">
+        <!-- Menu déroulant pour les options -->
+        <div class="dropdown d-inline-block">
+          <button class="btn btn-outline-primary dropdown-toggle" type="button" id="menuOptions" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-cog"></i> Options
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="menuOptions">
+            {% if combat.configuration %}
+            <li>
+              <a class="dropdown-item" href="{% url 'competitions:combat:modifier_configuration' config_id=combat.configuration.id %}">
+                <i class="fas fa-sliders-h"></i> Configuration du combat
+              </a>
+            </li>
+            {% endif %}
+            <li>
+              <a class="dropdown-item" href="#" onclick="openTimerSettings()">
+                <i class="fas fa-clock"></i> Paramètres de durée
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item" href="{% url 'competitions:combat:creer_combat_competition' competition_id=combat.competition.id %}">
+                <i class="fas fa-plus-circle"></i> Créer un nouveau combat
+              </a>
+            </li>
+            <li>
+              {% if combat.poule %}
+              <a class="dropdown-item" href="{% url 'competitions:combat:suivi_poule' poule_id=combat.poule.id %}">
+                <i class="fas fa-list-ol"></i> Suivi de la poule
+              </a>
+              {% endif %}
+            </li>
+            <li>
+              <a class="dropdown-item" href="{% url 'competitions:combat:classement_live' competition_id=combat.competition.id %}">
+                <i class="fas fa-trophy"></i> Classement en direct
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item" href="{% url 'competitions:combat:liste_combats_competition' competition_id=combat.competition.id %}">
+                <i class="fas fa-th-list"></i> Tous les combats
+              </a>
+            </li>
+          </ul>
+        </div>
+        
+        <button class="btn btn-outline-warning" onclick="toggleFullscreen()">
+          <i class="fas fa-expand"></i> Plein écran
+        </button>
+        <a href="{% url 'competitions:combat:detail_combat' combat_id=combat.id %}" class="btn btn-outline-light">
+          <i class="fas fa-arrow-left"></i> Retour
+        </a>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Zone principale -->
+  <div class="combat-main">
+    <!-- Colonne Rouge -->
+    <div class="fighter-column rouge" id="redColumn">
+      <div class="fighter-info">
+        <div class="fighter-name">
+          {% if combat.type_combat == 'individuel' %}
+            {{ combat.pratiquant_rouge.full_name|default:"ROUGE" }}
+          {% else %}
+            {{ combat.equipe_rouge.nom|default:"ÉQUIPE ROUGE" }}
+          {% endif %}
+        </div>
+        <div class="fighter-club">
+          {% if combat.type_combat == 'individuel' and combat.pratiquant_rouge.organization %}
+            {{ combat.pratiquant_rouge.organization.name }}
+          {% elif combat.type_combat == 'equipe' and combat.equipe_rouge.club %}
+            {{ combat.equipe_rouge.club.name }}
+          {% else %}
+            {% if combat.type_combat == 'individuel' %}
+              {% if combat.pratiquant_rouge.club %}{{ combat.pratiquant_rouge.club.name }}{% endif %}
+            {% else %}
+              Équipe Rouge
+            {% endif %}
+          {% endif %}
+        </div>
+        {% if combat.type_combat == 'equipe' and combat.equipe_rouge %}
+        <div class="team-members small mt-1">
+          <i class="fas fa-users"></i>
+          {% for membre in combat.equipe_rouge.membres.all|slice:":5" %}
+            {{ membre.full_name }}{% if not forloop.last %}, {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      
+      <div class="score-display">
+        <div class="score-number" id="scoreRouge">0.0</div>
+      </div>
+      
+      {% if combat.status == 'en_cours' or combat.status == 'planifie' or simulation_mode %}
+      <div class="scoring-panel">
+        {% if combat.configuration %}
+          {% for point in combat.configuration.valeurs_points %}
+          <button class="score-button point" data-action="point" data-value="{{ point }}" data-color="rouge">
+            <div>
+              {% if combat.configuration.labels_points %}
+                {{ combat.configuration.labels_points|get_item:point|default:"Point" }}
+              {% else %}
+                {% if point == 0.25 %}¼ pt
+                {% elif point == 0.5 %}½ pt
+                {% elif point == 1 %}1 pt
+                {% elif point == 1.5 %}1½ pt
+                {% elif point == 2 %}2 pts
+                {% else %}{{ point }} pt{% endif %}
+              {% endif %}
+            </div>
+            <small>+{{ point }}</small>
+          </button>
+          {% endfor %}
+          
+          {% for penalite in combat.configuration.valeurs_penalites %}
+          <button class="score-button penalty" data-action="penalite" data-value="{{ penalite }}" data-color="rouge">
+            <div>
+              {% if combat.configuration.labels_penalites %}
+                {{ combat.configuration.labels_penalites|get_item:penalite|default:"Retrait" }}
+              {% else %}
+                {% if penalite == -0.25 %}Avert.
+                {% elif penalite == -0.5 %}Retrait
+                {% elif penalite == -1 %}Faute
+                {% elif penalite == -2 %}Faute grave
+                {% else %}{{ penalite }}{% endif %}
+              {% endif %}
+            </div>
+            <small>{{ penalite }}</small>
+          </button>
+          {% endfor %}
+        {% else %}
+          <!-- Configuration par défaut si pas de config -->
+          <button class="score-button point" data-action="point" data-value="0.25" data-color="rouge">
+            <div>¼ pt</div>
+            <small>+0.25</small>
+          </button>
+          <button class="score-button point" data-action="point" data-value="0.5" data-color="rouge">
+            <div>½ pt</div>
+            <small>+0.5</small>
+          </button>
+          <button class="score-button point" data-action="point" data-value="1" data-color="rouge">
+            <div>1 pt</div>
+            <small>+1</small>
+          </button>
+          <button class="score-button point" data-action="point" data-value="1.5" data-color="rouge">
+            <div>1½ pt</div>
+            <small>+1.5</small>
+          </button>
+          <button class="score-button point" data-action="point" data-value="2" data-color="rouge">
+            <div>2 pts</div>
+            <small>+2</small>
+          </button>
+          <button class="score-button penalty" data-action="penalite" data-value="-0.5" data-color="rouge">
+            <div>Retrait</div>
+            <small>-0.5</small>
+          </button>
+        {% endif %}
+      </div>
+      {% endif %}
+      
+      <div class="penalties-display">
+        <div class="penalty-indicator">
+          <i class="fas fa-exclamation-triangle"></i> Avertissements: <span id="kyongGoRouge">0</span>
+        </div>
+        <div class="penalty-indicator">
+          <i class="fas fa-times-circle"></i> Pénalités: <span id="gamJeomRouge">0</span>
+        </div>
+      </div>
+      
+      <div class="stats-row">
+        <div class="stat-item">
+          <div class="stat-value">66%</div>
+          <div class="stat-label">Précision</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">12</div>
+          <div class="stat-label">Actions</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">3</div>
+          <div class="stat-label">Tête</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Zone centrale -->
+    <div class="center-column">
+      <div class="match-controls">
+        <button class="control-button btn btn-warning" id="pauseBtn">
+          <i class="fas fa-pause"></i> PAUSE
+        </button>
+        <button class="control-button btn btn-secondary" id="resetBtn">
+          <i class="fas fa-redo"></i> Réinitialiser Timer
+        </button>
+        <button class="control-button btn btn-info" id="endRoundBtn">
+          <i class="fas fa-bell"></i> Fin du Round
+        </button>
+        <button class="control-button btn btn-danger" id="stopMatchBtn">
+          <i class="fas fa-stop"></i> Arrêt Médical
+        </button>
+        {% if combat.status == 'en_cours' %}
+        <a href="{% url 'competitions:combat:terminer_combat' combat_id=combat.id %}" class="control-button btn btn-success">
+          <i class="fas fa-flag-checkered"></i> Terminer Combat
+        </a>
+        {% endif %}
+        {% if can_edit %}
+        <a href="{% url 'competitions:combat:supprimer_combat' combat_id=combat.id %}" 
+           class="control-button btn btn-danger" 
+           onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce combat ? Cette action est irréversible.');">
+          <i class="fas fa-trash"></i> Supprimer Combat
+        </a>
+        {% endif %}
+      </div>
+      
+      <div class="actions-history">
+        <h5 class="text-center mb-3">Historique des Actions</h5>
+        <div id="actionsList">
+          <!-- Exemple d'actions -->
+          <div class="action-item">
+            <span class="action-time">01:35</span>
+            <span class="action-fighter rouge">ROUGE</span>
+            <span class="action-description">Coup de pied retourné tête</span>
+            <span class="action-points positive">+5</span>
+          </div>
+          <div class="action-item">
+            <span class="action-time">01:20</span>
+            <span class="action-fighter blanc">BLANC</span>
+            <span class="action-description">Coup de pied crochet tête</span>
+            <span class="action-points positive">+3</span>
+          </div>
+          <div class="action-item">
+            <span class="action-time">00:55</span>
+            <span class="action-fighter rouge">ROUGE</span>
+            <span class="action-description">Coup de pied latéral tronc</span>
+            <span class="action-points positive">+2</span>
+          </div>
+          <div class="action-item">
+            <span class="action-time">00:20</span>
+            <span class="action-fighter blanc">BLANC</span>
+            <span class="action-description">Pénalité (Faute)</span>
+            <span class="action-points negative">-1</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Colonne Blanc -->
+    <div class="fighter-column blanc" id="whiteColumn">
+      <div class="fighter-info">
+        <div class="fighter-name">
+          {% if combat.type_combat == 'individuel' %}
+            {{ combat.pratiquant_blanc.full_name|default:"BLANC" }}
+          {% else %}
+            {{ combat.equipe_blanc.nom|default:"ÉQUIPE BLANCHE" }}
+          {% endif %}
+        </div>
+        <div class="fighter-club">
+          {% if combat.type_combat == 'individuel' and combat.pratiquant_blanc.organization %}
+            {{ combat.pratiquant_blanc.organization.name }}
+          {% elif combat.type_combat == 'equipe' and combat.equipe_blanc.club %}
+            {{ combat.equipe_blanc.club.name }}
+          {% else %}
+            {% if combat.type_combat == 'individuel' %}
+              {% if combat.pratiquant_blanc.club %}{{ combat.pratiquant_blanc.club.name }}{% endif %}
+            {% else %}
+              Équipe Blanc
+            {% endif %}
+          {% endif %}
+        </div>
+        {% if combat.type_combat == 'equipe' and combat.equipe_blanc %}
+        <div class="team-members small mt-1">
+          <i class="fas fa-users"></i>
+          {% for membre in combat.equipe_blanc.membres.all|slice:":5" %}
+            {{ membre.full_name }}{% if not forloop.last %}, {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      
+      <div class="score-display">
+        <div class="score-number" id="scoreBlanc">0.0</div>
+      </div>
+      
+      {% if combat.status == 'en_cours' or combat.status == 'planifie' or simulation_mode %}
+      <div class="scoring-panel">
+        {% if combat.configuration %}
+          {% for point in combat.configuration.valeurs_points %}
+          <button class="score-button point" data-action="point" data-value="{{ point }}" data-color="blanc">
+            <div>
+              {% if combat.configuration.labels_points %}
+                {{ combat.configuration.labels_points|get_item:point|default:"Point" }}
+              {% else %}
+                {% if point == 0.25 %}¼ pt
+                {% elif point == 0.5 %}½ pt
+                {% elif point == 1 %}1 pt
+                {% elif point == 1.5 %}1½ pt
+                {% elif point == 2 %}2 pts
+                {% else %}{{ point }} pt{% endif %}
+              {% endif %}
+            </div>
+            <small>+{{ point }}</small>
+          </button>
+          {% endfor %}
+          
+          {% for penalite in combat.configuration.valeurs_penalites %}
+          <button class="score-button penalty" data-action="penalite" data-value="{{ penalite }}" data-color="blanc">
+            <div>
+              {% if combat.configuration.labels_penalites %}
+                {{ combat.configuration.labels_penalites|get_item:penalite|default:"Retrait" }}
+              {% else %}
+                {% if penalite == -0.25 %}Avert.
+                {% elif penalite == -0.5 %}Retrait
+                {% elif penalite == -1 %}Faute
+                {% elif penalite == -2 %}Faute grave
+                {% else %}{{ penalite }}{% endif %}
+              {% endif %}
+            </div>
+            <small>{{ penalite }}</small>
+          </button>
+          {% endfor %}
+        {% else %}
+          <!-- Configuration par défaut si pas de config -->
+          <button class="score-button point" data-action="point" data-value="0.25" data-color="blanc">
+            <div>¼ pt</div>
+            <small>+0.25</small>
+          </button>
+          <button class="score-button point" data-action="point" data-value="0.5" data-color="blanc">
+            <div>½ pt</div>
+            <small>+0.5</small>
+          </button>
+          <button class="score-button point" data-action="point" data-value="1" data-color="blanc">
+            <div>1 pt</div>
+            <small>+1</small>
+          </button>
+          <button class="score-button point" data-action="point" data-value="1.5" data-color="blanc">
+            <div>1½ pt</div>
+            <small>+1.5</small>
+          </button>
+          <button class="score-button point" data-action="point" data-value="2" data-color="blanc">
+            <div>2 pts</div>
+            <small>+2</small>
+          </button>
+          <button class="score-button penalty" data-action="penalite" data-value="-0.5" data-color="blanc">
+            <div>Retrait</div>
+            <small>-0.5</small>
+          </button>
+        {% endif %}
+      </div>
+      {% endif %}
+      
+      <div class="penalties-display">
+        <div class="penalty-indicator">
+          <i class="fas fa-exclamation-triangle"></i> Avertissements: <span id="kyongGoBlanc">0</span>
+        </div>
+        <div class="penalty-indicator">
+          <i class="fas fa-times-circle"></i> Pénalités: <span id="gamJeomBlanc">0</span>
+        </div>
+      </div>
+      
+      <div class="stats-row">
+        <div class="stat-item">
+          <div class="stat-value">50%</div>
+          <div class="stat-label">Précision</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">10</div>
+          <div class="stat-label">Actions</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">3</div>
+          <div class="stat-label">Tête</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Raccourcis clavier -->
+  <div class="keyboard-shortcuts">
+    <h6 class="text-warning mb-2">Raccourcis Clavier</h6>
+    <div class="shortcut-item">
+      <span>Rouge +1</span>
+      <span class="shortcut-key">Q</span>
+    </div>
+    <div class="shortcut-item">
+      <span>Rouge +2</span>
+      <span class="shortcut-key">W</span>
+    </div>
+    <div class="shortcut-item">
+      <span>Rouge +3</span>
+      <span class="shortcut-key">E</span>
+    </div>
+    <div class="shortcut-item">
+      <span>Blanc +1</span>
+      <span class="shortcut-key">U</span>
+    </div>
+    <div class="shortcut-item">
+      <span>Blanc +2</span>
+      <span class="shortcut-key">I</span>
+    </div>
+    <div class="shortcut-item">
+      <span>Blanc +3</span>
+      <span class="shortcut-key">O</span>
+    </div>
+    <div class="shortcut-item">
+      <span>Pause/Reprise</span>
+      <span class="shortcut-key">SPACE</span>
+    </div>
+  </div>
+</div>
+
+<!-- Modal pour confirmation -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-white">
+      <div class="modal-header">
+        <h5 class="modal-title" id="confirmModalTitle">Confirmation</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="confirmModalBody">
+        Êtes-vous sûr ?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-primary" id="confirmModalAction">Confirmer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal pour les paramètres de durée -->
+<div class="modal fade" id="timerSettingsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-white">
+      <div class="modal-header">
+        <h5 class="modal-title">Paramètres de durée</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="timerSettingsForm">
+          <div class="mb-3">
+            <label class="form-label">Durée du combat</label>
+            <select class="form-select" id="dureeCombat" name="duree_combat">
+              <option value="60" {% if combat.duree_combat == 60 %}selected{% endif %}>1 minute</option>
+              <option value="90" {% if combat.duree_combat == 90 %}selected{% endif %}>1 min 30s</option>
+              <option value="120" {% if combat.duree_combat == 120 %}selected{% endif %}>2 minutes</option>
+              <option value="180" {% if combat.duree_combat == 180 %}selected{% endif %}>3 minutes</option>
+              <option value="240" {% if combat.duree_combat == 240 %}selected{% endif %}>4 minutes</option>
+            </select>
+            <small class="form-text text-muted">Enfants: 1-2 min | Adultes: 2-3 min</small>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Durée de prolongation</label>
+            <select class="form-select" id="dureeProlongation" name="duree_prolongation">
+              <option value="">Pas de prolongation</option>
+              <option value="30" {% if combat.duree_prolongation == 30 %}selected{% endif %}>30 secondes</option>
+              <option value="60" {% if combat.duree_prolongation == 60 %}selected{% endif %}>1 minute</option>
+              <option value="90" {% if combat.duree_prolongation == 90 %}selected{% endif %}>1 min 30s</option>
+              <option value="120" {% if combat.duree_prolongation == 120 %}selected{% endif %}>2 minutes</option>
+            </select>
+          </div>
+          
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> Ces paramètres s'appliquent uniquement à ce combat.
+            Pour modifier la configuration globale, utilisez le menu Configuration du combat.
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-warning" onclick="saveTimerSettings()">
+          <i class="fas fa-save"></i> Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Mode simulation (depuis le contexte Django)
+const SIMULATION_MODE = {{ simulation_mode|yesno:"true,false" }};
+
+// État du combat (valeurs réelles depuis la base de données)
+let combatState = {
+  scoreRouge: {{ combat.score_rouge|default:0 }},
+  scoreBlanc: {{ combat.score_blanc|default:0 }},
+  kyongGoRouge: 0,
+  gamJeomRouge: 0,
+  kyongGoBlanc: 0,
+  gamJeomBlanc: 0,
+  currentRound: 1,
+  timeRemaining: {{ combat.duree_combat|default:120 }}, // secondes
+  isPaused: {% if combat.status == 'planifie' %}true{% else %}false{% endif %},
+  timerInterval: null
+};
+
+// Initialisation
+document.addEventListener('DOMContentLoaded', function() {
+  initializeInterface();
+  setupEventHandlers();
+  setupKeyboardShortcuts();
+  if (SIMULATION_MODE) {
+    startTimer();
+    simulateActions();
+  }
+});
+
+// Ouvrir les paramètres de durée
+function openTimerSettings() {
+  const modal = new bootstrap.Modal(document.getElementById('timerSettingsModal'));
+  modal.show();
+}
+
+// Sauvegarder les paramètres de durée
+function saveTimerSettings() {
+  const formData = new FormData(document.getElementById('timerSettingsForm'));
+  const combatId = {{ combat.id }};
+  
+  // Créer l'objet de données
+  const data = {
+    duree_combat: formData.get('duree_combat'),
+    duree_prolongation: formData.get('duree_prolongation') || null
+  };
+  
+  // Envoyer la requête AJAX
+  fetch(`/competitions/combat/combats/${combatId}/update-duree/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify(data)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Mettre à jour l'affichage
+      document.getElementById('mainTimer').textContent = formatTime(data.duree_combat);
+      
+      // Fermer la modal
+      const modal = bootstrap.Modal.getInstance(document.getElementById('timerSettingsModal'));
+      modal.hide();
+      
+      // Afficher un message de succès
+      showNotification('Durées mises à jour avec succès', 'success');
+    } else {
+      showNotification('Erreur lors de la mise à jour', 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Erreur:', error);
+    showNotification('Erreur de connexion', 'error');
+  });
+}
+
+// Initialiser l'interface
+function initializeInterface() {
+  updateScoreDisplay();
+  updatePenaltiesDisplay();
+}
+
+// Mettre à jour l'affichage des scores
+function updateScoreDisplay() {
+  // Formater les scores pour TOUJOURS afficher au moins 1 décimale
+  // Exemples: 0 → "0.0", 0.5 → "0.5", 1.25 → "1.25", 5.5 → "5.5", -0.5 → "-0.5"
+  function formatScore(score) {
+    // Convertir en nombre et formater avec 2 décimales max
+    const num = Number(score).toFixed(2);
+    // Si le nombre se termine par .00, afficher .0
+    // Si le nombre se termine par .X0, afficher .X
+    // Sinon afficher .XX
+    if (num.endsWith('00')) {
+      return num.slice(0, -1); // "1.00" → "1.0"
+    } else if (num.endsWith('0')) {
+      return num.slice(0, -1); // "1.50" → "1.5"
+    } else {
+      return num; // "1.25" → "1.25"
+    }
+  }
+  
+  document.getElementById('scoreRouge').textContent = formatScore(combatState.scoreRouge);
+  document.getElementById('scoreBlanc').textContent = formatScore(combatState.scoreBlanc);
+}
+
+// Mettre à jour l'affichage des pénalités
+function updatePenaltiesDisplay() {
+  document.getElementById('kyongGoRouge').textContent = combatState.kyongGoRouge;
+  document.getElementById('gamJeomRouge').textContent = combatState.gamJeomRouge;
+  document.getElementById('kyongGoBlanc').textContent = combatState.kyongGoBlanc;
+  document.getElementById('gamJeomBlanc').textContent = combatState.gamJeomBlanc;
+}
+
+// Configuration des gestionnaires d'événements
+function setupEventHandlers() {
+  // Boutons de score
+  document.querySelectorAll('.score-button').forEach(button => {
+    button.addEventListener('click', function(e) {
+      e.preventDefault();
+      const action = this.dataset.action;
+      const value = parseFloat(this.dataset.value);
+      const color = this.dataset.color;
+      
+      console.log('Bouton cliqué:', {action, value, color}); // Debug
+      
+      if (!isNaN(value) && color) {
+        addScore(color, value, this.querySelector('div').textContent);
+      } else {
+        console.error('Valeurs invalides:', {action, value, color});
+      }
+    });
+  });
+  
+  // Contrôles
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const endRoundBtn = document.getElementById('endRoundBtn');
+  const stopMatchBtn = document.getElementById('stopMatchBtn');
+  
+  if (pauseBtn) pauseBtn.addEventListener('click', togglePause);
+  if (resetBtn) resetBtn.addEventListener('click', resetTimer);
+  if (endRoundBtn) endRoundBtn.addEventListener('click', endRound);
+  if (stopMatchBtn) stopMatchBtn.addEventListener('click', medicalStop);
+}
+
+// Ajouter un score
+function addScore(color, value, description) {
+  if (color === 'rouge') {
+    // Utiliser Math.round pour éviter les problèmes de précision avec les décimales
+    combatState.scoreRouge = Math.round((combatState.scoreRouge + value) * 100) / 100;
+    if (value < 0) {
+      combatState.kyongGoRouge += 1;
+    }
+  } else {
+    // Utiliser Math.round pour éviter les problèmes de précision avec les décimales
+    combatState.scoreBlanc = Math.round((combatState.scoreBlanc + value) * 100) / 100;
+    if (value < 0) {
+      combatState.kyongGoBlanc += 1;
+    }
+  }
+  
+  // Animation flash
+  const scoreElement = document.getElementById(color === 'rouge' ? 'scoreRouge' : 'scoreBlanc');
+  scoreElement.classList.add('flash');
+  setTimeout(() => scoreElement.classList.remove('flash'), 800);
+  
+  // Mettre à jour l'affichage
+  updateScoreDisplay();
+  updatePenaltiesDisplay();
+  
+  // Ajouter à l'historique
+  addActionToHistory(color, description, value);
+  
+  // Vérifier les conditions de victoire
+  checkVictoryConditions();
+}
+
+// Ajouter une action à l'historique
+function addActionToHistory(color, description, value) {
+  const actionsList = document.getElementById('actionsList');
+  const actionItem = document.createElement('div');
+  actionItem.className = 'action-item';
+  
+  const time = formatTime(combatState.timeRemaining);
+  const colorClass = color === 'rouge' ? 'rouge' : 'blanc';
+  const pointsClass = value >= 0 ? 'positive' : 'negative';
+  const pointsText = value >= 0 ? `+${value}` : `${value}`;
+  
+  actionItem.innerHTML = `
+    <span class="action-time">${time}</span>
+    <span class="action-fighter ${colorClass}">${color.toUpperCase()}</span>
+    <span class="action-description">${description}</span>
+    <span class="action-points ${pointsClass}">${pointsText}</span>
+  `;
+  
+  actionsList.insertBefore(actionItem, actionsList.firstChild);
+  
+  // Limiter l'historique à 10 actions
+  while (actionsList.children.length > 10) {
+    actionsList.removeChild(actionsList.lastChild);
+  }
+}
+
+// Timer
+function startTimer() {
+  if (!combatState.timerInterval) {
+    combatState.timerInterval = setInterval(updateTimer, 1000);
+  }
+}
+
+function updateTimer() {
+  if (!combatState.isPaused && combatState.timeRemaining > 0) {
+    combatState.timeRemaining--;
+    document.getElementById('mainTimer').textContent = formatTime(combatState.timeRemaining);
+    
+    if (combatState.timeRemaining === 10) {
+      playSound('countdown');
+    } else if (combatState.timeRemaining === 0) {
+      endRound();
+    }
+  }
+}
+
+function formatTime(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+function togglePause() {
+  combatState.isPaused = !combatState.isPaused;
+  const pauseBtn = document.getElementById('pauseBtn');
+  if (combatState.isPaused) {
+    pauseBtn.innerHTML = '<i class="fas fa-play"></i> REPRENDRE';
+    pauseBtn.classList.replace('btn-warning', 'btn-success');
+  } else {
+    pauseBtn.innerHTML = '<i class="fas fa-pause"></i> PAUSE';
+    pauseBtn.classList.replace('btn-success', 'btn-warning');
+  }
+}
+
+function resetTimer() {
+  if (confirm('Réinitialiser le chronomètre à 2:00 ?')) {
+    combatState.timeRemaining = 120;
+    document.getElementById('mainTimer').textContent = '02:00';
+  }
+}
+
+function endRound() {
+  playSound('gong');
+  alert(`Fin du round ${combatState.currentRound} !`);
+  if (combatState.currentRound < 3) {
+    combatState.currentRound++;
+    combatState.timeRemaining = 120;
+    document.getElementById('currentRound').textContent = combatState.currentRound;
+  } else {
+    endMatch();
+  }
+}
+
+function medicalStop() {
+  combatState.isPaused = true;
+  alert('Arrêt médical en cours...');
+}
+
+// Vérifier les conditions de victoire
+function checkVictoryConditions() {
+  // Victoire par écart de 20 points
+  if (Math.abs(combatState.scoreRouge - combatState.scoreBlanc) >= 20) {
+    const winner = combatState.scoreRouge > combatState.scoreBlanc ? 'rouge' : 'blanc';
+    declareWinner(winner, 'Victoire par écart de points');
+  }
+  
+  // Disqualification pour pénalités
+  if (combatState.kyongGoRouge >= 10 || combatState.gamJeomRouge >= 5) {
+    declareWinner('blanc', 'Disqualification Rouge');
+  }
+  if (combatState.kyongGoBlanc >= 10 || combatState.gamJeomBlanc >= 5) {
+    declareWinner('rouge', 'Disqualification Blanc');
+  }
+}
+
+function declareWinner(winner, reason) {
+  clearInterval(combatState.timerInterval);
+  playSound('victory');
+  
+  const winnerColumn = document.getElementById(winner === 'rouge' ? 'redColumn' : 'whiteColumn');
+  winnerColumn.classList.add('winner');
+  
+  setTimeout(() => {
+    alert(`Victoire ${winner.toUpperCase()} ! ${reason}`);
+  }, 500);
+}
+
+function endMatch() {
+  clearInterval(combatState.timerInterval);
+  const winner = combatState.scoreRouge > combatState.scoreBlanc ? 'rouge' : 
+                 combatState.scoreBlanc > combatState.scoreRouge ? 'blanc' : 'egalite';
+  
+  if (winner === 'egalite') {
+    alert('Match nul !');
+  } else {
+    declareWinner(winner, 'Victoire aux points');
+  }
+}
+
+// Raccourcis clavier
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    
+    switch(e.key.toUpperCase()) {
+      // Rouge
+      case 'Q': addScore('rouge', 1, 'Poing'); break;
+      case 'W': addScore('rouge', 2, 'Pied Corps'); break;
+      case 'E': addScore('rouge', 3, 'Pied Tête'); break;
+      case 'R': addScore('rouge', 4, 'Retourné Corps'); break;
+      case 'T': addScore('rouge', 5, 'Retourné Tête'); break;
+      case 'A': addScore('rouge', -0.5, 'Avertissement'); break;
+      
+      // Blanc
+      case 'U': addScore('blanc', 1, 'Poing'); break;
+      case 'I': addScore('blanc', 2, 'Pied Corps'); break;
+      case 'O': addScore('blanc', 3, 'Pied Tête'); break;
+      case 'P': addScore('blanc', 4, 'Retourné Corps'); break;
+      case '[': addScore('blanc', 5, 'Retourné Tête'); break;
+      case 'J': addScore('blanc', -0.5, 'Avertissement'); break;
+      
+      // Contrôles
+      case ' ': 
+        e.preventDefault();
+        togglePause(); 
+        break;
+      case 'ESCAPE': resetTimer(); break;
+      case 'ENTER': endRound(); break;
+    }
+  });
+}
+
+// Simulation d'actions (pour démo)
+function simulateActions() {
+  if (!SIMULATION_MODE) return;
+  
+  // Simuler des actions aléatoires toutes les 5-10 secondes
+  setInterval(() => {
+    if (!combatState.isPaused && Math.random() > 0.5) {
+      const actions = [
+        {color: 'rouge', value: 2, desc: 'Pied Corps'},
+        {color: 'blanc', value: 3, desc: 'Pied Tête'},
+        {color: 'rouge', value: 1, desc: 'Poing'},
+        {color: 'blanc', value: 2, desc: 'Pied Corps'},
+      ];
+      
+      const action = actions[Math.floor(Math.random() * actions.length)];
+      addScore(action.color, action.value, action.desc);
+    }
+  }, 7000);
+}
+
+// Sons (simulation)
+function playSound(type) {
+  console.log(`Son joué : ${type}`);
+  // Dans une vraie implémentation, utilisez l'API Web Audio
+}
+
+// Plein écran
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    }
+  }
+}
+
+// Fonction pour récupérer le cookie CSRF
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// Fonction pour afficher les notifications
+function showNotification(message, type = 'info') {
+  // Créer un élément de notification
+  const notification = document.createElement('div');
+  notification.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+  notification.style.zIndex = '9999';
+  notification.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Supprimer après 3 secondes
+  setTimeout(() => {
+    notification.remove();
+  }, 3000);
+}
+</script>
+{% endblock %}

@@ -215,3 +215,57 @@ class PKCESession(models.Model):
     def is_valid(self):
         """Vérifie si la session est valide (non expirée et non utilisée)"""
         return not self.used and not self.is_expired
+
+
+class SSOToken(models.Model):
+    """
+    Token SSO à usage unique pour permettre la transition mobile -> web
+    sans re-authentification.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='sso_tokens',
+        verbose_name=_("Utilisateur")
+    )
+    token = models.CharField(_("Token SSO"), max_length=128, unique=True)
+    redirect_url = models.CharField(_("URL de redirection"), max_length=500, blank=True, null=True)
+    created_at = models.DateTimeField(_("Date de création"), auto_now_add=True)
+    expires_at = models.DateTimeField(_("Date d'expiration"))
+    used = models.BooleanField(_("Utilisé"), default=False)
+    used_at = models.DateTimeField(_("Date d'utilisation"), null=True, blank=True)
+    ip_address = models.GenericIPAddressField(_("Adresse IP"), blank=True, null=True)
+    user_agent = models.TextField(_("User Agent"), blank=True, null=True)
+    language = models.CharField(_("Langue"), max_length=10, blank=True, null=True,
+        help_text=_("Code langue sélectionné dans l'app mobile (ex: fr, en, de)"))
+
+    # Multi-tenant information
+    tenant = _tenant_field(
+        verbose_name="Tenant",
+        help_text="Le tenant auquel ce token SSO est associé",
+    )
+
+    class Meta:
+        verbose_name = _("Token SSO")
+        verbose_name_plural = _("Tokens SSO")
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"SSO Token pour {self.user.username} ({self.id})"
+
+    @property
+    def is_expired(self):
+        """Vérifie si le token est expiré"""
+        return self.expires_at < timezone.now()
+
+    @property
+    def is_valid(self):
+        """Vérifie si le token est valide (non expiré et non utilisé)"""
+        return not self.used and not self.is_expired
+
+    def consume(self):
+        """Marque le token comme utilisé"""
+        self.used = True
+        self.used_at = timezone.now()
+        self.save(update_fields=['used', 'used_at'])

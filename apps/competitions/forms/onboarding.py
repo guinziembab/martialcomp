@@ -39,12 +39,12 @@ class ParticipantProfileForm(forms.ModelForm):
         }
 
 # Formulaire de sélection du rôle
+# Note: Les profils Juge/Arbitre et Participant/Compétiteur ont été retirés car
+# ils sont créés directement par le responsable de club et reçoivent le bon template
 ROLE_CHOICES = [
     ('federation_admin', _('Administrateur de fédération')),
     ('club_manager', _('Responsable de club')),
-    ('judge', _('Juge/Arbitre')),
     ('coach', _('Coach / Enseignant')),
-    ('participant', _('Participant/Compétiteur')),
     ('spectator', _('Spectateur')),
     ('external_organizer', _('Organisateur non-membre')),
 ]
@@ -93,36 +93,36 @@ class FederationCreationForm(forms.ModelForm):
         label=_("Logo"),
         required=False,
         validators=[
-            FileExtensionValidator(allowed_extensions=['jpeg', 'png', 'svg'])
+            FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'svg'])
         ],
         help_text=_("Formats acceptés: JPG, JPEG, PNG, SVG. Taille max: 2 Mo")
     )
-    
+
     # Ajout de champs pour adresse complète
     address = forms.CharField(
         label=_("Adresse"),
         required=False,
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Adresse')})
     )
-    
+
     city = forms.CharField(
         label=_("Ville"),
         required=False,
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Ville')})
     )
-    
+
     postal_code = forms.CharField(
         label=_("Code postal"),
         required=False,
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Code postal')})
     )
-    
+
     founding_date = forms.DateField(
         label=_("Date de fondation"),
         required=False,
     )
-    
-    
+
+
     # Champ pour les disciplines
     disciplines = forms.ModelMultipleChoiceField(
         queryset=Discipline.objects.filter(is_active=True),
@@ -228,35 +228,35 @@ class ClubCreationForm(forms.ModelForm):
         label=_("Logo"),
         required=False,
         validators=[
-            FileExtensionValidator(allowed_extensions=['jpeg', 'png', 'svg'])
+            FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'svg'])
         ],
         help_text=_("Formats acceptés: JPG, JPEG, PNG, SVG. Taille max: 2 Mo")
     )
-    
+
     # Ajout de champs pour adresse complète
     address = forms.CharField(
         label=_("Adresse"),
         required=False,
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Adresse')})
     )
-    
+
     city = forms.CharField(
         label=_("Ville"),
         required=False,
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Ville')})
     )
-    
+
     postal_code = forms.CharField(
         label=_("Code postal"),
         required=False,
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Code postal')})
     )
-    
+
     founding_date = forms.DateField(
         label=_("Date de fondation"),
         required=False,
     )
-    
+
     class Meta:
         model = Club
         fields = ['name', 'country', 'description', 'logo', 'website', 'contact_email', 'contact_phone', 'address', 'city', 'postal_code', 'founding_date']

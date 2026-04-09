@@ -26,7 +26,7 @@ def log_document_creation(sender, instance, created, **kwargs):
             user=instance.created_by,
             action=DocumentAccessLog.ACTION_EDIT,
             details={
-                'action_details': _("Création du document"),
+                'action_details': str(_("Création du document")),
                 'document_title': instance.title,
                 'document_type': instance.document_type,
             }
@@ -43,16 +43,16 @@ def log_document_share(sender, instance, created, **kwargs):
         elif instance.group_object:
             shared_with = f"Group: {instance.group_content_type.model}: {instance.group_object}"
         else:
-            shared_with = _("Inconnu")
-        
+            shared_with = str(_("Inconnu"))
+
         DocumentAccessLog.objects.create(
             document=instance.document,
             user=instance.created_by,
             action=DocumentAccessLog.ACTION_SHARE,
             details={
-                'action_details': _("Partage du document"),
+                'action_details': str(_("Partage du document")),
                 'shared_with': shared_with,
-                'access_level': instance.get_access_level_display(),
+                'access_level': str(instance.get_access_level_display()),
                 'expires_at': instance.expires_at.isoformat() if instance.expires_at else None,
             }
         )
@@ -92,7 +92,7 @@ def log_document_deletion(sender, instance, **kwargs):
         user=user,
         action=DocumentAccessLog.ACTION_DELETE,
         details={
-            'action_details': _("Suppression du document"),
+            'action_details': str(_("Suppression du document")),
             'document_title': instance.title,
             'document_type': instance.document_type,
         }

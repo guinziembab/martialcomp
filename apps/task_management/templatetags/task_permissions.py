@@ -119,16 +119,12 @@ def show_subscription_badge(user, organization=None):
     
     # Determine tier based on limits
     if limits['max_boards'] == 0:
-        tier = 'dojo_essentials'
-        tier_display = str(_('Dojo Essentials'))
+        tier = 'free'
+        tier_display = str(_('Gratuit'))
         tier_class = 'secondary'
-    elif limits['max_boards'] <= 3:
-        tier = 'master_circle'
-        tier_display = str(_("Master's Circle"))
-        tier_class = 'primary'
     else:
-        tier = 'grand_champion'
-        tier_display = str(_('Grand Champion'))
+        tier = 'premium'
+        tier_display = str(_('Premium'))
         tier_class = 'success'
     
     return {

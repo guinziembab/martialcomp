@@ -30,11 +30,10 @@ class ProductVariationInline(admin.StackedInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'main_category', 'price_display', 'stock_status', 'is_active', 'is_featured', 'created_at')
-    list_filter = ('is_active', 'is_featured', 'is_new', 'is_certified', 'categories', 'brand')
+    list_display = ('name', 'main_category', 'price_display', 'stock_status', 'organization', 'is_public', 'is_active', 'is_featured', 'created_at')
+    list_filter = ('is_active', 'is_featured', 'is_new', 'is_certified', 'is_public', 'organization', 'categories', 'brand')
     search_fields = ('name', 'description', 'short_description', 'sku')
     prepopulated_fields = {'slug': ('name',)}
-    list_editable = ('is_active', 'is_featured')
     date_hierarchy = 'created_at'
     
     fieldsets = (
@@ -58,6 +57,9 @@ class ProductAdmin(admin.ModelAdmin):
         (_("Métadonnées SEO"), {
             'fields': ('meta_title', 'meta_description', 'tags'),
             'classes': ('collapse',),
+        }),
+        (_("Organisation et visibilité"), {
+            'fields': ('organization', 'is_public'),
         }),
         (_("Statut et affichage"), {
             'fields': ('is_active', 'is_featured', 'is_new'),
@@ -91,8 +93,21 @@ class ProductAdmin(admin.ModelAdmin):
         return category.name if category else "-"
     main_category.short_description = _("Catégorie principale")
     
+    list_editable = ('is_active', 'is_featured', 'is_public')
+
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('brand').prefetch_related('categories')
+        qs = super().get_queryset(request).select_related(
+            'brand', 'organization'
+        ).prefetch_related('categories')
+        if not request.user.is_superuser:
+            from apps.competitions.models.users import UserProfile
+            try:
+                profile = UserProfile.objects.get(user=request.user)
+                if profile.organization:
+                    return qs.filter(organization=profile.organization)
+            except UserProfile.DoesNotExist:
+                pass
+        return qs
 
 
 @admin.register(ProductVariation)

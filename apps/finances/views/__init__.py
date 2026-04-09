@@ -4,4 +4,6 @@ from .payments import *
 from .invoices import *
 from .accounts import *
 from .dashboard import *
+from . import banking
+from . import stripe_views
 from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset

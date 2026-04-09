@@ -182,21 +182,22 @@ class GradeHistoryForm(forms.ModelForm):
         # Initialiser les querysets pour l'édition
         if self.instance and self.instance.pk:
             try:
-                if (hasattr(self.instance, 'grade') and 
-                    hasattr(self.instance.grade, 'category') and 
-                    hasattr(self.instance.grade.category, 'system')):
-                    
-                    # Initialiser discipline
-                    discipline = self.instance.grade.category.system.discipline
+                if hasattr(self.instance, 'grade') and self.instance.grade:
+                    # Initialiser discipline à partir du grade directement
+                    discipline = self.instance.grade.discipline
                     self.fields['discipline'].initial = discipline
                     
-                    # Initialiser grade_system
-                    system = self.instance.grade.category.system
-                    self.fields['grade_system'].queryset = GradeSystem.objects.filter(discipline=discipline)
-                    self.fields['grade_system'].initial = system
+                    # Pour grade_system, on peut le cacher s'il n'est pas utilisé
+                    if 'grade_system' in self.fields:
+                        # Utiliser la discipline pour filtrer les systèmes s'ils existent
+                        self.fields['grade_system'].queryset = GradeSystem.objects.filter(discipline=discipline)
+                        # Si pas de système, cacher le champ
+                        if not self.fields['grade_system'].queryset.exists():
+                            self.fields['grade_system'].widget = forms.HiddenInput()
+                            self.fields['grade_system'].required = False
                     
-                    # Initialiser grade
-                    self.fields['grade'].queryset = Grade.objects.filter(category__system=system)
+                    # Initialiser grade avec la discipline
+                    self.fields['grade'].queryset = Grade.objects.filter(discipline=discipline)
             except Exception as e:
                 # Continuer sans erreur en cas d'échec d'initialisation
                 pass
@@ -213,13 +214,17 @@ class GradeHistoryForm(forms.ModelForm):
                 except (ValueError, TypeError):
                     pass
             
-            # Si un système de grades est sélectionné, filtrer les grades
+            # Si un système de grades est sélectionné, filtrer les grades par discipline
+            # Note: Comme le modèle Grade n'a pas de relation avec system, on filtre par discipline
             if 'grade_system' in self.data and self.data['grade_system']:
                 try:
                     system_id = int(self.data['grade_system'])
-                    self.fields['grade'].queryset = Grade.objects.filter(
-                        category__system_id=system_id
-                    )
+                    # Récupérer la discipline du système pour filtrer les grades
+                    system = GradeSystem.objects.filter(id=system_id).first()
+                    if system:
+                        self.fields['grade'].queryset = Grade.objects.filter(
+                            discipline=system.discipline
+                        )
                 except (ValueError, TypeError):
                     pass
         
@@ -243,9 +248,11 @@ class GradeHistoryForm(forms.ModelForm):
         grade = cleaned_data.get('grade')
         grade_system = cleaned_data.get('grade_system')
         
-        if grade and grade_system and hasattr(grade, 'category') and hasattr(grade.category, 'system'):
-            if grade.category.system != grade_system:
-                self.add_error('grade', _("Ce grade n'appartient pas au système de grades sélectionné"))
+        # Vérification de cohérence entre grade et discipline
+        if grade and hasattr(grade, 'discipline'):
+            discipline = cleaned_data.get('discipline')
+            if discipline and grade.discipline_id != discipline.id:
+                self.add_error('grade', _("Ce grade n'appartient pas à la discipline sélectionnée"))
         
         return cleaned_data
 

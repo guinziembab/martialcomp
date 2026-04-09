@@ -19,7 +19,6 @@ import logging
 from apps.competitions.utils.permission_helpers import manual_check_competition_permission
 
 from apps.competitions.models.combat import (
-from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
     CombatConfiguration, 
     Poule, 
     Combat, 

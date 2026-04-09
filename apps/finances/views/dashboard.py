@@ -42,7 +42,25 @@ class FinancialDashboardView(LoginRequiredMixin, TemplateView):
             allowed_roles = ['federation_admin', 'club_admin', 'club_owner', 'club_manager', 'coach']
             if request.user.userprofile.role in allowed_roles:
                 return super().dispatch(request, *args, **kwargs)
-        
+
+        # Vérifier via OrganizationMember (rôle principal ou additionnel)
+        try:
+            from apps.organizations.models import OrganizationMember, MembershipStatus
+            finance_roles = {'owner', 'admin', 'manager', 'treasurer', 'accountant'}
+            members = OrganizationMember.objects.filter(
+                user=request.user,
+                is_active=True,
+                membership_status=MembershipStatus.APPROVED
+            )
+            for m in members:
+                if m.role in finance_roles:
+                    return super().dispatch(request, *args, **kwargs)
+                additional = getattr(m, 'additional_roles', None) or []
+                if finance_roles.intersection(additional):
+                    return super().dispatch(request, *args, **kwargs)
+        except Exception:
+            pass
+
         # Rediriger vers la page d'accueil si aucune permission
         from django.contrib import messages
         from django.utils.translation import gettext_lazy as _
@@ -55,8 +73,15 @@ class FinancialDashboardView(LoginRequiredMixin, TemplateView):
         # Récupérer les permissions de l'utilisateur
         permissions = get_financial_permissions(self.request.user)
         context['permissions'] = permissions
-        # Devise affichage
-        context['currency'] = getattr(self.request, 'currency', 'EUR')
+
+        # Devise affichage - utiliser le service multi-devise
+        try:
+            from ..currency_service import get_preferred_currency_for_request
+            currency_code, _ = get_preferred_currency_for_request(self.request)
+        except Exception:
+            currency_code = 'EUR'
+        context['currency_code'] = currency_code
+        context['currency'] = currency_code  # Compatibilite
         
         # Détecter le rôle utilisateur pour adapter l'interface
         user_role = None
@@ -67,15 +92,19 @@ class FinancialDashboardView(LoginRequiredMixin, TemplateView):
         
         # Périodes pour les statistiques
         today = timezone.now().date()
-        
-        # Période par défaut: 30 derniers jours
-        start_date = today - timedelta(days=30)
+
+        # Période par défaut: toutes les transactions (cohérence avec dashboard club)
+        start_date = None
         end_date = today
-        
+
         # Changer la période selon les paramètres
-        period = self.request.GET.get('period', '30days')
-        if period == '7days':
+        period = self.request.GET.get('period', 'all')
+        if period == 'all':
+            start_date = None  # Pas de filtre de date
+        elif period == '7days':
             start_date = today - timedelta(days=7)
+        elif period == '30days':
+            start_date = today - timedelta(days=30)
         elif period == '90days':
             start_date = today - timedelta(days=90)
         elif period == 'ytd':
@@ -103,12 +132,16 @@ class FinancialDashboardView(LoginRequiredMixin, TemplateView):
         context['start_date'] = start_date
         context['end_date'] = end_date
         context['period'] = period
-        
+
         # Statistiques des transactions
-        transactions = Transaction.objects.filter(
-            date__gte=start_date,
-            date__lte=end_date
-        )
+        if start_date:
+            transactions = Transaction.objects.filter(
+                date__gte=start_date,
+                date__lte=end_date
+            )
+        else:
+            # Pas de filtre de date - toutes les transactions
+            transactions = Transaction.objects.all()
 
         # Détecter l'organisation (club/fédération) et limiter aux comptes de l'organisation
         organization = None
@@ -156,10 +189,14 @@ class FinancialDashboardView(LoginRequiredMixin, TemplateView):
         context['recent_transactions'] = transactions.order_by('-date', '-date_created')[:10]
         
         # Statistiques des factures
-        invoices = Invoice.objects.filter(
-            issued_date__gte=start_date,
-            issued_date__lte=end_date
-        )
+        if start_date:
+            invoices = Invoice.objects.filter(
+                issued_date__gte=start_date,
+                issued_date__lte=end_date
+            )
+        else:
+            # Pas de filtre de date - toutes les factures
+            invoices = Invoice.objects.all()
         if organization:
             ct = ContentType.objects.get_for_model(organization.__class__)
             org_id = str(getattr(organization, 'id', ''))
@@ -187,8 +224,8 @@ class FinancialDashboardView(LoginRequiredMixin, TemplateView):
             context['total_balance'] = sum(account.current_balance for account in accounts)
         
         # Données pour les graphiques
-        if permissions.get('can_view_reports', False):
-            # Graphique des revenus vs dépenses par jour
+        if permissions.get('can_view_reports', False) and start_date:
+            # Graphique des revenus vs dépenses par jour (seulement si une période est définie)
             time_series_data = self._get_time_series_data(start_date, end_date)
             context['time_series_data'] = time_series_data
             

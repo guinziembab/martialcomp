@@ -41,9 +41,7 @@ from apps.grades.views.systems import (
 
 # Importer les vues API
 from apps.grades.views.api import (
-    get_grades_by_disciplines,
-    create_grade_for_discipline,
-    search_grades
+    categories_by_discipline
 )
 from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
 
@@ -66,9 +64,6 @@ __all__ = [
     'edit_grade',
     'delete_grade',
     'reorder_grades',
-    'get_grades_by_disciplines',
-    'get_grades_by_disciplines',
-    'create_grade_for_discipline',
-    'search_grades'
+    'categories_by_discipline'
 ]
 

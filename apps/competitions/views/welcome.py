@@ -6,11 +6,35 @@ from django.urls import NoReverseMatch
 from django.contrib import messages
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from django.conf import settings
 from datetime import datetime, timedelta
 from ..models.users import UserProfile
 from ..models.competitions import Competition
 from ..models.discipline import Discipline
 from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
+
+# =============================================================================
+# CONFIGURATION DES STATISTIQUES ET MODE FESTIF
+# =============================================================================
+
+# Valeurs de base pour les statistiques (pour ne pas afficher 0)
+# Ces valeurs représentent l'historique avant le système de comptage actuel
+STATS_BASE_VALUES = {
+    'competitions': 50,    # 50 compétitions organisées avant le système
+    'practitioners': 2500, # 2500 pratiquants enregistrés historiquement
+    'clubs': 75,           # 75 clubs partenaires historiques
+    'federations': 12,     # 12 fédérations partenaires
+}
+
+# Mode Festif (Noël, Nouvel An, etc.)
+# Pour activer: WELCOME_FESTIVE_MODE = True dans settings
+# Ou définir FESTIVE_MODE_START et FESTIVE_MODE_END pour activation automatique
+FESTIVE_MODE_CONFIG = {
+    'enabled': getattr(settings, 'WELCOME_FESTIVE_MODE', None),  # None = auto-detect
+    'auto_start': getattr(settings, 'FESTIVE_MODE_START', '12-15'),  # Format: MM-DD
+    'auto_end': getattr(settings, 'FESTIVE_MODE_END', '01-05'),      # Format: MM-DD
+    'theme': getattr(settings, 'FESTIVE_THEME', 'christmas'),  # christmas, new_year, etc.
+}
 
 def welcome(request):
     # =========================================================
@@ -96,13 +120,145 @@ def welcome(request):
     # Utilisateurs non connectés
     return render(request, 'competitions/welcome.html', get_welcome_context(request))
 
+def is_festive_mode_active():
+    """
+    Détermine si le mode festif doit être actif.
+    Retourne (is_active, theme_name)
+    """
+    # Mode forcé via settings
+    if FESTIVE_MODE_CONFIG['enabled'] is True:
+        return True, FESTIVE_MODE_CONFIG['theme']
+    elif FESTIVE_MODE_CONFIG['enabled'] is False:
+        return False, None
+
+    # Auto-détection basée sur les dates
+    today = timezone.now()
+    current_month_day = f"{today.month:02d}-{today.day:02d}"
+
+    start = FESTIVE_MODE_CONFIG['auto_start']  # Ex: "12-15"
+    end = FESTIVE_MODE_CONFIG['auto_end']      # Ex: "01-05"
+
+    # Gestion du passage d'année (ex: 15 décembre au 5 janvier)
+    if start > end:
+        # Période à cheval sur le nouvel an
+        is_active = current_month_day >= start or current_month_day <= end
+    else:
+        is_active = start <= current_month_day <= end
+
+    return is_active, FESTIVE_MODE_CONFIG['theme'] if is_active else None
+
+
+def get_welcome_statistics():
+    """
+    Calcule les statistiques pour la page d'accueil.
+    Retourne les valeurs de base + les valeurs réelles de la base de données.
+    """
+    stats = {
+        'total_competitions': STATS_BASE_VALUES['competitions'],
+        'total_practitioners': STATS_BASE_VALUES['practitioners'],
+        'total_clubs': STATS_BASE_VALUES['clubs'],
+        'total_federations': STATS_BASE_VALUES['federations'],
+    }
+
+    try:
+        # Compter les compétitions réelles
+        real_competitions = Competition.objects.count()
+        stats['total_competitions'] += real_competitions
+    except Exception:
+        pass
+
+    try:
+        # Compter les pratiquants réels
+        from ..models.practitioners import Practitioner
+        real_practitioners = Practitioner.objects.count()
+        stats['total_practitioners'] += real_practitioners
+    except Exception:
+        pass
+
+    try:
+        # Compter les clubs réels
+        from apps.organizations.models import Organization
+        real_clubs = Organization.objects.filter(
+            organization_type__in=['club', 'dojo', 'gym', 'academy']
+        ).count()
+        stats['total_clubs'] += real_clubs
+    except Exception:
+        pass
+
+    try:
+        # Compter les fédérations réelles
+        from apps.organizations.models import Organization
+        real_federations = Organization.objects.filter(
+            organization_type__in=['federation', 'league', 'association']
+        ).count()
+        stats['total_federations'] += real_federations
+    except Exception:
+        pass
+
+    return stats
+
+
 def get_welcome_context(request):
     """Récupère toutes les données nécessaires pour la page d'accueil"""
     context = {
         'page_title': _('Bienvenue sur MartialComp'),
-        'meta_description': _('Plateforme de gestion des compétitions d\'arts martiaux'),
+        'meta_description': _(
+            'Plateforme de gestion des compétitions d\'arts martiaux'
+        ),
     }
-    
+
+    # =========================================================
+    # TARIFICATION 2 TIERS (Free / Premium)
+    # =========================================================
+    try:
+        from apps.finances.pricing_tiers import (
+            PRICING, FREE_TIER_MAX_MEMBERS,
+            MARKET_TIER_MATURE, MARKET_TIER_EMERGENT,
+        )
+        from apps.finances.currency_service import (
+            get_preferred_currency_for_request,
+            format_currency,
+            convert_amount,
+        )
+        currency_code, currency_source = get_preferred_currency_for_request(request)
+        context['currency_code'] = currency_code
+        context['currency_source'] = currency_source
+
+        # Prix EUR depuis pricing_tiers
+        price_mature = float(PRICING[MARKET_TIER_MATURE]['yearly_per_member'])
+        price_emergent = float(PRICING[MARKET_TIER_EMERGENT]['yearly_per_member'])
+
+        if currency_code != 'EUR':
+            converted_mature, _rate = convert_amount(price_mature, 'EUR', currency_code)
+            converted_emergent, _rate = convert_amount(price_emergent, 'EUR', currency_code)
+            context['price_premium_mature'] = format_currency(converted_mature, currency_code)
+            context['price_premium_emergent'] = format_currency(converted_emergent, currency_code)
+        else:
+            context['price_premium_mature'] = format_currency(price_mature, 'EUR')
+            context['price_premium_emergent'] = format_currency(price_emergent, 'EUR')
+
+        context['free_max_members'] = FREE_TIER_MAX_MEMBERS
+
+    except Exception as e:
+        # Fallback: prix en EUR hardcodés
+        context['currency_code'] = 'EUR'
+        context['price_premium_mature'] = '9,99 €'
+        context['price_premium_emergent'] = '4,99 €'
+        context['free_max_members'] = 10
+
+    # =========================================================
+    # STATISTIQUES (base + réelles)
+    # =========================================================
+    stats = get_welcome_statistics()
+    context.update(stats)
+
+    # =========================================================
+    # MODE FESTIF
+    # =========================================================
+    festive_active, festive_theme = is_festive_mode_active()
+    context['festive_mode'] = festive_active
+    context['festive_theme'] = festive_theme
+
     # Ajouter les compétitions publiques récentes
     try:
         recent_competitions = Competition.objects.filter(
@@ -113,7 +269,7 @@ def get_welcome_context(request):
     except Exception as e:
         print(f"Erreur lors de la récupération des compétitions: {e}")
         context['recent_competitions'] = []
-    
+
     # Ajouter les disciplines populaires
     try:
         popular_disciplines = Discipline.objects.filter(
@@ -123,7 +279,7 @@ def get_welcome_context(request):
     except Exception as e:
         print(f"Erreur lors de la récupération des disciplines: {e}")
         context['popular_disciplines'] = []
-    
+
     return context
 
 def home(request):

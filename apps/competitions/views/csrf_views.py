@@ -1,8 +1,8 @@
-from django.core.exceptions import PermissionDenied
 """
 Vues pour la gestion des erreurs CSRF et le rafraîchissement des jetons.
 """
 import logging
+from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.middleware.csrf import get_token

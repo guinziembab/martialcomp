@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils.translation import gettext_lazy as _
 from apps.competitions.models import Organization
 from decimal import Decimal
 from django.utils import timezone
@@ -8,12 +9,15 @@ class PricingRegion(models.Model):
     """Régions géographiques avec tarification spécifique"""
     
     REGION_CHOICES = [
-        ('africa', 'Afrique'),
-        ('southeast_asia', 'Asie du Sud-Est'),
-        ('south_central_america', 'Amérique du Sud/Centrale'),
-        ('eastern_europe', 'Europe de l\'Est'),
-        ('western_europe_north_america_oceania', 'Europe de l\'Ouest/Amérique du Nord/Océanie'),
-        ('middle_east', 'Moyen-Orient'),
+        ('mature', _('Marchés matures')),
+        ('emergent', _('Marchés émergents')),
+        # Anciennes régions (désactivées, conservées pour compatibilité)
+        ('africa', _('Afrique')),
+        ('southeast_asia', _('Asie du Sud-Est')),
+        ('south_central_america', _('Amérique du Sud/Centrale')),
+        ('eastern_europe', _('Europe de l\'Est')),
+        ('western_europe_north_america_oceania', _('Europe de l\'Ouest/Amérique du Nord/Océanie')),
+        ('middle_east', _('Moyen-Orient')),
     ]
     
     name = models.CharField(max_length=100, choices=REGION_CHOICES, unique=True)
@@ -21,6 +25,12 @@ class PricingRegion(models.Model):
         max_digits=6, 
         decimal_places=2,
         help_text='Prix de base par membre (facturation annuelle)'
+    )
+    monthly_price_per_member = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Prix mensuel par membre'
     )
     currency = models.CharField(max_length=3, default='EUR')
     is_active = models.BooleanField(default=True)
@@ -35,14 +45,16 @@ class PricingRegion(models.Model):
     
     @classmethod
     def get_default_pricing(cls):
-        """Retourne la tarification par défaut selon la directive"""
+        """Retourne la tarification par defaut (2 tiers)"""
         return {
-            'africa': Decimal('2.99'),
-            'southeast_asia': Decimal('3.99'),
-            'south_central_america': Decimal('4.99'),
-            'eastern_europe': Decimal('5.99'),
-            'western_europe_north_america_oceania': Decimal('6.99'),
-            'middle_east': Decimal('5.99'),
+            'mature': {
+                'yearly': Decimal('9.99'),
+                'monthly': Decimal('0.99'),
+            },
+            'emergent': {
+                'yearly': Decimal('4.99'),
+                'monthly': Decimal('0.49'),
+            },
         }
 
 class VolumeDiscount(models.Model):
@@ -132,12 +144,12 @@ class Wallet(models.Model):
 
 class WalletTransaction(models.Model):
     """Transactions du portefeuille"""
-    
+
     TRANSACTION_TYPES = [
-        ('CREDIT', 'Crédit'),
-        ('DEBIT', 'Débit'),
-        ('COMMISSION', 'Commission'),
-        ('REFUND', 'Remboursement'),
+        ('CREDIT', _('Crédit')),
+        ('DEBIT', _('Débit')),
+        ('COMMISSION', _('Commission')),
+        ('REFUND', _('Remboursement')),
     ]
     
     wallet = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name='wallet_transactions')
@@ -158,11 +170,11 @@ class WalletTransaction(models.Model):
 
 class ReferralCommission(models.Model):
     """Commission de parrainage pour les fédérations"""
-    
+
     STATUS_CHOICES = [
-        ('PENDING', 'En attente'),
-        ('PROCESSED', 'Traité'),
-        ('CANCELLED', 'Annulé'),
+        ('PENDING', _('En attente')),
+        ('PROCESSED', _('Traité')),
+        ('CANCELLED', _('Annulé')),
     ]
     
     referring_organization = models.ForeignKey(
@@ -212,12 +224,12 @@ class ReferralCommission(models.Model):
 
 class TemporaryAccess(models.Model):
     """Accès temporaire pour utilisateurs non-abonnés"""
-    
+
     ACCESS_TYPES = [
-        ('competitor_essential', 'Compétiteur Essential'),
-        ('live_results', 'Résultats Live'),
-        ('guest_judge', 'Juge invité'),
-        ('event_shop', 'Boutique événement'),
+        ('competitor_essential', _('Compétiteur Essential')),
+        ('live_results', _('Résultats Live')),
+        ('guest_judge', _('Juge invité')),
+        ('event_shop', _('Boutique événement')),
     ]
     
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE)

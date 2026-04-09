@@ -3,7 +3,7 @@ Services pour la gestion familiale centralisée.
 Contient la logique métier pour les inscriptions groupées, paiements familiaux, etc.
 """
 
-from django.db import transaction
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User

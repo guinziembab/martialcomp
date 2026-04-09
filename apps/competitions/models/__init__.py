@@ -11,7 +11,7 @@ from .federations import Federation
 
 # 2. Ensuite les modèles liés aux utilisateurs
 from .users import UserProfile
-from .practitioners import Practitioner, create_user_for_practitioner
+from .practitioners import Practitioner, PractitionerTransfer, create_user_for_practitioner
 from .qualifications import PractitionerQualification, PractitionerDiscipline
 from .medical import MedicalRecord, MedicalCertificate
 from .membership import Membership, License
@@ -58,6 +58,12 @@ except ImportError:
         JudgeTechnicalApplication = None
         JudgeAssignment = None
 
+# 7.1 Modèle de juges ad-hoc (temporaires/bénévoles)
+try:
+    from .adhoc_judges import AdHocJudge
+except ImportError:
+    AdHocJudge = None
+
 # 8. Import du modèle JudgeTraining pour les formations
 # Note: Ces modèles semblent Ãªtre dans un autre fichier
 try:
@@ -68,26 +74,51 @@ except ImportError:
 
 from .administrators import FederationAdministrator, ClubAdministrator
 
+# 8.1 Nouveaux modèles de rôles organisationnels (système de permissions granulaires)
+try:
+    from .organizational_roles import OrganizationalRole, ClubMember, FederationMember, MemberRoleHistory
+except ImportError:
+    OrganizationalRole = None
+    ClubMember = None
+    FederationMember = None
+    MemberRoleHistory = None
+
 # 9. Les modèles de match
 from .match import Match
 
 # 9.1 Les modèles de combat
 try:
     from .combat import (
+        TeamConfiguration,  # Sprint 1: Config équipes (N+M titulaires/remplaçants)
         CombatConfiguration,
         Equipe,
         MembreEquipe,
         Poule,
         Combat,
-        ActionCombat
+        ActionCombat,
+        Entente,     # Sprint 2: Prêt de joueurs (REQ-06)
+        TeamMerge,   # Sprint 2: Fusion d'équipes (REQ-07)
+        PhaseFinale,        # Sprint 3: Phase finale (REQ-05)
+        CombatPhaseFinale,  # Sprint 3: Combat de phase finale
+        PodiumEquipe,       # Sprint 3: Podium équipe complet
+        AireCombat,         # Mode Kiosque: Aires de combat multi-tatami
+        AireCombatSession,  # Mode Kiosque: Sessions d'aires
     )
 except ImportError:
+    TeamConfiguration = None
     CombatConfiguration = None
     Equipe = None
     MembreEquipe = None
     Poule = None
     Combat = None
     ActionCombat = None
+    Entente = None
+    TeamMerge = None
+    PhaseFinale = None
+    CombatPhaseFinale = None
+    PodiumEquipe = None
+    AireCombat = None
+    AireCombatSession = None
 
 # 10. Les modèles de notation technique
 try:
@@ -107,13 +138,14 @@ try:
     # Import des modèles renommés de scoring_results pour éviter les conflits
     try:
         from .scoring_results import (
-            TechnicalPerformanceResult, 
-            TechnicalScoreResult, 
+            TechnicalPerformanceResult,
+            TechnicalScoreResult,
             JudgeSubmissionStatusResult,
             CompetitionResult,
             PerformanceResult,
             CategoryRanking,
-            RankingEntry
+            RankingEntry,
+            PodiumEntry
         )
     except ImportError:
         TechnicalPerformanceResult = None
@@ -123,6 +155,7 @@ try:
         PerformanceResult = None
         CategoryRanking = None
         RankingEntry = None
+        PodiumEntry = None
 except ImportError:
     try:
         from .technical_scoring import (
@@ -153,6 +186,19 @@ except ImportError:
         TechnicalScore = None
         CompetitionRanking = None
 
+# 10b. Session de notation (workflow juge principal)
+try:
+    from .session_workflow import CategorySession
+except ImportError:
+    CategorySession = None
+
+# 10c. Placateur (appel des compétiteurs — accès bénévole sans compte)
+try:
+    from .placateur import PlacateurAccess, CompetitorCallStatus
+except ImportError:
+    PlacateurAccess = None
+    CompetitorCallStatus = None
+
 # 11. Les modèles de notification
 try:
     from .notifications import Notification, NotificationPreference
@@ -170,7 +216,19 @@ except ImportError:
 
 # 13. Les modèles d'événements
 try:
-    from .event import Event, EventParticipant
+    from .event import (
+        Event,
+        EventParticipant,
+        # Modèles de récurrence
+        EventOccurrence,
+        EventOccurrenceAttendance,
+        # Enums de récurrence
+        EventFormat,
+        RecurrenceFrequency,
+        Weekday,
+        OccurrenceStatus,
+        AttendanceStatus,
+    )
     # Importer le modèle de feedback d'événement
     try:
         from .event_feedback import EventFeedback
@@ -179,6 +237,13 @@ try:
 except ImportError:
     Event = None
     EventParticipant = None
+    EventOccurrence = None
+    EventOccurrenceAttendance = None
+    EventFormat = None
+    RecurrenceFrequency = None
+    Weekday = None
+    OccurrenceStatus = None
+    AttendanceStatus = None
 
 # 14. Les modèles de planification d'événements
 try:
@@ -197,12 +262,23 @@ GradeHistory = PractitionerGrade if 'PractitionerGrade' in locals() else None  #
 
 # 13. La gestion des certifications et examens
 try:
-    from .certifications import JudgeCertification, CertificationRegistration, Exam, ExamRegistration
+    from .certifications import (
+        JudgeCertification,
+        CertificationRegistration,
+        Exam,
+        ExamRegistration,
+        CertificateTemplate,
+        IssuedCertificate,
+        CertificationRequest
+    )
 except ImportError:
     JudgeCertification = None
     CertificationRegistration = None
     Exam = None
     ExamRegistration = None
+    CertificateTemplate = None
+    IssuedCertificate = None
+    CertificationRequest = None
 
 try:
     from .categories import CategoryGrade
@@ -241,6 +317,9 @@ __all__ = [
     
     # Modèles d'administration
     'FederationAdministrator', 'ClubAdministrator',
+
+    # Nouveaux modèles de rôles organisationnels
+    'OrganizationalRole', 'ClubMember', 'FederationMember', 'MemberRoleHistory',
     
     # Modèles de match
     'Match',
@@ -282,6 +361,9 @@ if JudgeTechnicalApplication is not None:
 
 if JudgeAssignment is not None:
     __all__.append('JudgeAssignment')
+
+if AdHocJudge is not None:
+    __all__.append('AdHocJudge')
 
 # Ajout des modèles de formation
 if JudgeTraining is not None:
@@ -330,6 +412,9 @@ if 'CategoryRanking' in locals():
 if 'RankingEntry' in locals():
     __all__.append('RankingEntry')
 
+if 'PodiumEntry' in locals() and PodiumEntry is not None:
+    __all__.append('PodiumEntry')
+
 if Notification is not None:
     __all__.append('Notification')
     
@@ -349,12 +434,23 @@ if FAQ is not None:
 # Ajout des modèles d'événements
 if Event is not None:
     __all__.append('Event')
-    
+
 if EventParticipant is not None:
     __all__.append('EventParticipant')
 
 if EventFeedback is not None:
     __all__.append('EventFeedback')
+
+# Ajout des modèles de récurrence d'événements
+if EventOccurrence is not None:
+    __all__.append('EventOccurrence')
+
+if EventOccurrenceAttendance is not None:
+    __all__.append('EventOccurrenceAttendance')
+
+# Ajout des enums de récurrence
+if EventFormat is not None:
+    __all__.extend(['EventFormat', 'RecurrenceFrequency', 'Weekday', 'OccurrenceStatus', 'AttendanceStatus'])
 
 # Ajout des modèles de planification d'événements
 if EventPoll is not None:
@@ -373,6 +469,9 @@ if EventStatistics is not None:
     __all__.append('EventStatistics')
 
 # Ajout des modèles de combat
+if TeamConfiguration is not None:
+    __all__.append('TeamConfiguration')
+
 if CombatConfiguration is not None:
     __all__.append('CombatConfiguration')
 
@@ -381,15 +480,39 @@ if Equipe is not None:
 
 if MembreEquipe is not None:
     __all__.append('MembreEquipe')
-    
+
 if Poule is not None:
     __all__.append('Poule')
-    
+
 if Combat is not None:
     __all__.append('Combat')
-    
+
 if ActionCombat is not None:
     __all__.append('ActionCombat')
+
+# Sprint 2: Ententes et Fusions (REQ-06, REQ-07)
+if Entente is not None:
+    __all__.append('Entente')
+
+if TeamMerge is not None:
+    __all__.append('TeamMerge')
+
+# Sprint 3: Phase Finale et Podium (REQ-05)
+if PhaseFinale is not None:
+    __all__.append('PhaseFinale')
+
+if CombatPhaseFinale is not None:
+    __all__.append('CombatPhaseFinale')
+
+if PodiumEquipe is not None:
+    __all__.append('PodiumEquipe')
+
+# Mode Kiosque: Aires de combat
+if AireCombat is not None:
+    __all__.append('AireCombat')
+
+if AireCombatSession is not None:
+    __all__.append('AireCombatSession')
 
 # 14. Les modèles d'entraÃ®nement et formation
 try:
@@ -403,7 +526,8 @@ try:
         TrainingExercise,
         PractitionerProgress,
         ProgramEnrollment,
-        PersonalGoal
+        PersonalGoal,
+        AbsenceDeclaration
     )
 except ImportError:
     TrainingSlot = None
@@ -416,6 +540,7 @@ except ImportError:
     PractitionerProgress = None
     ProgramEnrollment = None
     PersonalGoal = None
+    AbsenceDeclaration = None
 
 # 15. Les modèles de communication
 try:
@@ -438,7 +563,7 @@ Document = None
 DocumentAccess = None
 DocumentShare = None
 
-# Ajout des modèles d'entraÃ®nement
+# Ajout des modèles d'entraînement
 if TrainingSlot is not None:
     __all__.extend([
         'TrainingSlot',
@@ -452,6 +577,10 @@ if TrainingSlot is not None:
         'ProgramEnrollment',
         'PersonalGoal'
     ])
+
+# Ajout du modèle de déclaration d'absence
+if AbsenceDeclaration is not None:
+    __all__.append('AbsenceDeclaration')
 
 # Ajout des modèles de communication
 if Conversation is not None:
@@ -507,3 +636,30 @@ try:
     patch_notification_model()
 except ImportError:
     pass
+
+# 19. Modèles de diffusion (Broadcast Groups)
+try:
+    from .broadcast import BroadcastGroup, BroadcastMessage, BroadcastReceipt
+    __all__.extend([
+        'BroadcastGroup',
+        'BroadcastMessage',
+        'BroadcastReceipt'
+    ])
+except ImportError:
+    BroadcastGroup = None
+    BroadcastMessage = None
+    BroadcastReceipt = None
+
+# 20. Contact submissions
+from .contact import ContactSubmission
+__all__.append('ContactSubmission')
+
+# 21. Tutoriels
+try:
+    from .tutorials import TutorialSection, Tutorial
+except ImportError:
+    TutorialSection = None
+    Tutorial = None
+
+if TutorialSection is not None:
+    __all__.extend(['TutorialSection', 'Tutorial'])

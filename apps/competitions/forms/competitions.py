@@ -4,7 +4,16 @@ from apps.competitions.models import Competition, Discipline, Club, CompetitionT
 from django.core.validators import FileExtensionValidator, MinValueValidator
 from ..models import Competition, CompetitionCategory
 from apps.competitions.models import Match, CompetitionCategory
-# Références par chaÃ®ne pour éviter l'importation circulaire
+import logging
+
+# PHASE 2 SECURITY: Import helpers de filtrage par discipline
+from apps.competitions.utils.permission_helpers import (
+    get_user_disciplines,
+)
+
+logger = logging.getLogger('discipline_isolation')
+
+# References par chaine pour eviter l'importation circulaire
 def get_models():
     from ..models import Competition, Discipline, CompetitionCategory
     from ..models import CompetitionRegistration, ParticipantCategoryRegistration, CompetitionType
@@ -33,6 +42,20 @@ class CompetitionForm(forms.ModelForm):
         required=False,
         initial=True,
         help_text=_("Si non cochée, la compétition sera enregistrée comme brouillon")
+    )
+
+    # Champ statut pour l'édition (permet de changer manuellement le statut)
+    status = forms.ChoiceField(
+        label=_("Statut"),
+        choices=[
+            ('draft', _('Brouillon')),
+            ('published', _('Publiée')),
+            ('ongoing', _('En cours')),
+            ('completed', _('Terminée')),
+            ('cancelled', _('Annulée')),
+        ],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
     )
     
     # Sélection des types de compétition (ManyToMany)
@@ -65,7 +88,7 @@ class CompetitionForm(forms.ModelForm):
             FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'gif'])
         ],
         widget=forms.FileInput(attrs={'class': 'custom-file-input'}),
-        help_text=_("Formats acceptés: JPG, JPEG, PNG, GIF. Taille max: 2 Mo")
+        help_text=_("Formats acceptés: JPG, JPEG, PNG, GIF. Taille max: 5 Mo")
     )
     
     # Nombre max de participants
@@ -93,70 +116,95 @@ class CompetitionForm(forms.ModelForm):
         ]
         widgets = {
             'title': forms.TextInput(attrs={
-                'class': 'form-control', 
+                'class': 'form-control',
                 'placeholder': _('Ex: Championnat National de Qwan Ki Do 2025')
             }),
             'description': forms.Textarea(attrs={
-                'class': 'form-control', 
-                'rows': '4', 
+                'class': 'form-control',
+                'rows': '4',
                 'placeholder': _('Description détaillée de la compétition...')
             }),
-            'start_date': forms.DateInput(attrs={
+            'start_date': forms.DateInput(format='%Y-%m-%d', attrs={
                 'class': 'form-control',
                 'type': 'date'
             }),
-            'end_date': forms.DateInput(attrs={
+            'end_date': forms.DateInput(format='%Y-%m-%d', attrs={
                 'class': 'form-control',
                 'type': 'date'
             }),
             'address': forms.TextInput(attrs={
-                'class': 'form-control', 
+                'class': 'form-control',
                 'placeholder': _('Ex: Gymnase Jean Bouin, 5 Rue des Sports')
             }),
             'city': forms.TextInput(attrs={
-                'class': 'form-control', 
+                'class': 'form-control',
                 'placeholder': _('Ex: Paris')
             }),
             'discipline': forms.Select(attrs={
                 'class': 'form-control'
             }),
-            'registration_deadline': forms.DateInput(attrs={
+            'registration_deadline': forms.DateInput(format='%Y-%m-%d', attrs={
                 'class': 'form-control',
                 'type': 'date'
             }),
         }
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
         # Rendre certains champs obligatoires
         self.fields['title'].required = True
         self.fields['start_date'].required = True
         self.fields['end_date'].required = True
         self.fields['address'].required = True
-        
+
         # Rendre la discipline obligatoire
         self.fields['discipline'].required = True
-        
-        # Définir des aides contextuelles
+
+        # Definir des aides contextuelles
         self.fields['registration_deadline'].help_text = _("Date limite pour l'inscription des participants")
-        
-        # Filtrer les disciplines actives
-        self.fields['discipline'].queryset = Discipline.objects.filter(is_active=True)
+
+        # PHASE 2 SECURITY: Filtrer les disciplines par acces utilisateur
+        if user:
+            if user.is_superuser:
+                self.fields['discipline'].queryset = Discipline.objects.filter(is_active=True)
+            else:
+                user_disciplines = get_user_disciplines(user)
+                # In edit mode, always include the current discipline so it stays selected
+                if self.instance and self.instance.pk and self.instance.discipline_id:
+                    self.fields['discipline'].queryset = (
+                        user_disciplines | Discipline.objects.filter(pk=self.instance.discipline_id)
+                    ).distinct()
+                else:
+                    self.fields['discipline'].queryset = user_disciplines
+        else:
+            # PHASE 2 SECURITY: Sans user, aucune discipline disponible
+            self.fields['discipline'].queryset = Discipline.objects.none()
+            logger.warning("CompetitionForm: No user provided - disciplines empty")
         
         # Si nous sommes en mode édition (instance existante)
         if self.instance and self.instance.pk:
             # Initialiser la sélection des types de compétition
             self.fields['competition_types'].initial = self.instance.competition_types.all()
-            
-            # Populer le queryset des types de compétition basé sur la discipline de l'instance
-            if self.instance.discipline:
-                self.fields['competition_types'].queryset = CompetitionType.objects.filter(
-                    discipline=self.instance.discipline
-                )
-            
+
+            # Include ALL competition types so JS can dynamically show/hide
+            # options when the user changes the discipline
+            self.fields['competition_types'].queryset = CompetitionType.objects.all()
+
             # Marquer comme "publié" si c'est le cas
             self.fields['is_published'].initial = self.instance.status == 'published'
+            # Initialiser le champ statut avec la valeur actuelle
+            self.fields['status'].initial = self.instance.status
+
+            # Initialiser les champs extra depuis l'instance
+            if self.instance.start_time:
+                self.fields['start_time'].initial = self.instance.start_time
+            if self.instance.end_time:
+                self.fields['end_time'].initial = self.instance.end_time
+            if self.instance.max_participants:
+                self.fields['max_participants'].initial = self.instance.max_participants
+            if self.instance.min_age is not None:
+                self.fields['min_age'].initial = self.instance.min_age
         else:
             # Pour les nouveaux formulaires, initialiser avec tous les types disponibles
             # Cela permet au JavaScript de fonctionner correctement
@@ -181,8 +229,8 @@ class CompetitionForm(forms.ModelForm):
         
         # Vérifier la taille du logo
         logo = cleaned_data.get('logo')
-        if logo and hasattr(logo, 'size') and logo.size > 2 * 1024 * 1024:  # 2 MB
-            self.add_error('logo', _("La taille du fichier ne doit pas dépasser 2 Mo."))
+        if logo and hasattr(logo, 'size') and logo.size > 5 * 1024 * 1024:  # 5 MB
+            self.add_error('logo', _("La taille du fichier ne doit pas dépasser 5 Mo."))
         
         # Validation des types de compétition
         discipline = cleaned_data.get('discipline')

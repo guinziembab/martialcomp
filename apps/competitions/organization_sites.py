@@ -10,13 +10,21 @@ from apps.competitions.views.organization_sites import (
     public_organization_qr_code_view,
     public_organization_admin_view,
     public_organization_payment_view,
-    organization_register_view, 
+    organization_register_view,
     organization_qr_code_view,
     organization_admin_view,
     organization_contact_view,
     organization_check_in_view,
     create_organization_site,
-    organization_site_status
+    organization_site_status,
+    # API endpoints pour galerie et bannière
+    api_upload_gallery_image,
+    api_delete_gallery_image,
+    api_update_gallery_description,
+    api_upload_banner,
+    api_delete_banner,
+    # API pour le contenu du site
+    api_update_site_content,
 )
 
 app_name = 'organization_sites'
@@ -71,6 +79,15 @@ urlpatterns = [
     path('org/<slug:slug>/qr/<str:qr_type>/', public_organization_qr_code_view, name='public_qr'),
     path('org/<slug:slug>/admin/site/', public_organization_admin_view, name='public_admin'),
     path('org/<slug:slug>/payment/', public_organization_payment_view, name='public_payment'),
+
+    # API endpoints pour galerie et bannière
+    path('org/<slug:slug>/api/gallery/upload/', api_upload_gallery_image, name='api_gallery_upload'),
+    path('org/<slug:slug>/api/gallery/<int:image_id>/delete/', api_delete_gallery_image, name='api_gallery_delete'),
+    path('org/<slug:slug>/api/gallery/<int:image_id>/description/', api_update_gallery_description, name='api_gallery_description'),
+    path('org/<slug:slug>/api/banner/upload/', api_upload_banner, name='api_banner_upload'),
+    path('org/<slug:slug>/api/banner/delete/', api_delete_banner, name='api_banner_delete'),
+    # API pour le contenu du site
+    path('org/<slug:slug>/api/content/update/', api_update_site_content, name='api_content_update'),
 ]
 
 # URLs pour l'administration des sites (Ã  inclure dans le projet principal)

@@ -94,3 +94,272 @@ def handle_exam_registration_status_change(sender, instance, created, **kwargs):
             # Mettre à jour le statut du certificat
             instance.certificate_issued = True
             instance.save(update_fields=['certificate_issued'])
+
+
+# ===== INVALIDATION DU CACHE D'ELIGIBILITE (Grade Tracking - Prompt 5) =====
+
+import logging
+logger = logging.getLogger(__name__)
+
+
+@receiver(post_save, sender=PractitionerGrade)
+def invalidate_eligibility_cache_on_grade_save(sender, instance, created, **kwargs):
+    """
+    Invalide le cache d'eligibilite lors de l'ajout/modification d'un grade.
+    """
+    try:
+        from apps.competitions.services.grade_eligibility import GradeEligibilityService
+        GradeEligibilityService.invalidate_cache(
+            practitioner_id=instance.practitioner_id,
+            discipline_id=instance.discipline_id
+        )
+        logger.debug(f"Cache eligibilite invalide pour practitioner {instance.practitioner_id}")
+    except ImportError:
+        pass  # Service pas encore disponible
+    except Exception as e:
+        logger.error(f"Erreur invalidation cache eligibilite (save): {e}")
+
+
+@receiver(post_delete, sender=PractitionerGrade)
+def invalidate_eligibility_cache_on_grade_delete(sender, instance, **kwargs):
+    """
+    Invalide le cache d'eligibilite lors de la suppression d'un grade.
+    """
+    try:
+        from apps.competitions.services.grade_eligibility import GradeEligibilityService
+        GradeEligibilityService.invalidate_cache(
+            practitioner_id=instance.practitioner_id,
+            discipline_id=instance.discipline_id
+        )
+        logger.debug(f"Cache eligibilite invalide apres suppression pour practitioner {instance.practitioner_id}")
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.error(f"Erreur invalidation cache eligibilite (delete): {e}")
+
+
+@receiver(post_save, sender=GradeExamRegistration)
+def invalidate_eligibility_cache_on_exam_result(sender, instance, created, **kwargs):
+    """
+    Invalide le cache lors du resultat d'un examen (reussi ou echoue).
+    """
+    if not created and instance.status in ['passed', 'failed']:
+        try:
+            from apps.competitions.services.grade_eligibility import GradeEligibilityService
+            GradeEligibilityService.invalidate_cache(
+                practitioner_id=instance.practitioner_id,
+                discipline_id=instance.target_grade.discipline_id if instance.target_grade else None
+            )
+            logger.debug(f"Cache eligibilite invalide apres examen pour practitioner {instance.practitioner_id}")
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.error(f"Erreur invalidation cache eligibilite (exam): {e}")
+
+
+# ===== NOTIFICATIONS DE GRADE (Prompt 2) =====
+
+from apps.grades.models import GradeExam
+
+
+@receiver(post_save, sender=GradeExam)
+def notify_eligible_practitioners_new_exam(sender, instance, created, **kwargs):
+    """
+    Notifie les pratiquants eligibles lors de la creation d'un nouvel examen.
+    """
+    if not created or instance.status != 'scheduled':
+        return
+
+    try:
+        from apps.competitions.models.notifications import Notification, NotificationPreference
+        from apps.competitions.services.grade_eligibility import GradeEligibilityService
+        from django.urls import reverse
+
+        notifications_created = 0
+
+        # Pour chaque grade disponible a l'examen
+        for grade in instance.available_grades.all():
+            # Trouver le grade precedent
+            previous_grade = grade.previous_grade
+            if not previous_grade:
+                continue
+
+            # Trouver les pratiquants avec ce grade
+            practitioner_grades = PractitionerGrade.objects.filter(
+                grade=previous_grade,
+                is_current=True
+            ).select_related('practitioner__user')
+
+            for pg in practitioner_grades:
+                if not pg.practitioner.user:
+                    continue
+
+                # Verifier les preferences
+                prefs, _ = NotificationPreference.objects.get_or_create(
+                    user=pg.practitioner.user,
+                    defaults={'grade_notifications': True}
+                )
+
+                if not prefs.grade_notifications:
+                    continue
+
+                # Verifier eligibilite
+                result = GradeEligibilityService.check_eligibility(
+                    pg.practitioner, instance.discipline
+                )
+
+                if not result.is_eligible:
+                    continue
+
+                # Creer la notification
+                try:
+                    action_url = reverse('grades:exam_register', kwargs={'exam_id': instance.id})
+                except Exception:
+                    action_url = f'/grades/exams/{instance.id}/register/'
+
+                Notification.objects.create(
+                    user=pg.practitioner.user,
+                    title=f"Nouvel examen de grade disponible",
+                    message=(
+                        f"Un examen pour le grade {grade.name} est programme le "
+                        f"{instance.date.strftime('%d/%m/%Y')} a {instance.location or 'voir details'}. "
+                        f"Inscriptions ouvertes jusqu'au {instance.registration_deadline.strftime('%d/%m/%Y')}."
+                    ),
+                    notification_type='info',
+                    priority='standard',
+                    action_url=action_url,
+                    action_text="S'inscrire"
+                )
+                notifications_created += 1
+
+        if notifications_created > 0:
+            logger.info(f"{notifications_created} notifications creees pour nouvel examen {instance.id}")
+
+    except Exception as e:
+        logger.error(f"Erreur notification nouvel examen: {e}")
+
+
+@receiver(post_save, sender=GradeExamRegistration)
+def notify_exam_result(sender, instance, created, **kwargs):
+    """
+    Notifie le pratiquant du resultat de son examen.
+    """
+    if created:
+        return
+
+    # Seulement lors d'un changement vers passed ou failed
+    if instance.status not in ['passed', 'failed']:
+        return
+
+    try:
+        from apps.competitions.models.notifications import Notification, NotificationPreference
+        from django.urls import reverse
+
+        user = instance.practitioner.user
+        if not user:
+            return
+
+        # Verifier preferences
+        prefs, _ = NotificationPreference.objects.get_or_create(
+            user=user,
+            defaults={'grade_notifications': True}
+        )
+
+        if not prefs.grade_notifications:
+            return
+
+        grade_name = instance.target_grade.name if instance.target_grade else "grade"
+
+        if instance.status == 'passed':
+            title = f"Felicitations ! Grade {grade_name} obtenu"
+            message = (
+                f"Vous avez reussi votre examen de passage au grade {grade_name}. "
+                f"Votre nouveau grade a ete enregistre dans votre profil."
+            )
+            notification_type = 'success'
+            priority = 'important'
+            action_text = "Voir mon profil"
+            try:
+                action_url = reverse('competitions:dashboard:participant')
+            except Exception:
+                action_url = '/competitions/dashboard/participant/'
+
+        else:  # failed
+            title = f"Resultat examen de grade"
+            message = (
+                f"Vous n'avez pas obtenu le grade {grade_name} cette fois-ci. "
+                f"Continuez vos efforts !"
+            )
+            notification_type = 'info'
+            priority = 'standard'
+            action_text = "Voir les prochains examens"
+            try:
+                action_url = reverse('grades:exam_list')
+            except Exception:
+                action_url = '/grades/exams/'
+
+        Notification.objects.create(
+            user=user,
+            title=title,
+            message=message,
+            notification_type=notification_type,
+            priority=priority,
+            action_url=action_url,
+            action_text=action_text
+        )
+
+        logger.info(f"Notification resultat examen creee pour {user.username}: {instance.status}")
+
+    except Exception as e:
+        logger.error(f"Erreur notification resultat examen: {e}")
+
+
+@receiver(post_save, sender=PractitionerGrade)
+def notify_grade_obtained(sender, instance, created, **kwargs):
+    """
+    Notification lors de l'obtention d'un nouveau grade.
+    """
+    if not created:
+        return
+
+    try:
+        from apps.competitions.models.notifications import Notification, NotificationPreference
+        from django.urls import reverse
+
+        user = instance.practitioner.user
+        if not user:
+            return
+
+        # Verifier preferences
+        prefs, _ = NotificationPreference.objects.get_or_create(
+            user=user,
+            defaults={'grade_notifications': True}
+        )
+
+        if not prefs.grade_notifications:
+            return
+
+        grade_name = instance.grade.name
+
+        try:
+            action_url = reverse('competitions:dashboard:participant')
+        except Exception:
+            action_url = '/competitions/dashboard/participant/'
+
+        Notification.objects.create(
+            user=user,
+            title=f"Nouveau grade enregistre : {grade_name}",
+            message=(
+                f"Votre grade {grade_name} a ete enregistre dans votre profil. "
+                f"Felicitations pour votre progression !"
+            ),
+            notification_type='success',
+            priority='important',
+            action_url=action_url,
+            action_text="Voir ma progression"
+        )
+
+        logger.info(f"Notification nouveau grade creee pour {user.username}: {grade_name}")
+
+    except Exception as e:
+        logger.error(f"Erreur notification nouveau grade: {e}")

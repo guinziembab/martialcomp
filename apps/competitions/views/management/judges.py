@@ -11,14 +11,25 @@ from django.utils import timezone
 
 from apps.competitions.models import (
     Competition, CompetitionCategory, JudgeAssignment,
-    CompetitionRegistration, Judge, JudgeQualification
+    CompetitionRegistration, Judge, Discipline
 )
+# Importer JudgeQualification depuis le bon module
+try:
+    from apps.competitions.models.judging import JudgeQualification
+except ImportError:
+    try:
+        from apps.competitions.models.judges import JudgeQualification
+    except ImportError:
+        JudgeQualification = None
 from apps.competitions.models.schedule import TatamiSchedule
 from apps.competitions.utils.decorators import competition_management_permission_required
 from apps.competitions.forms.judges import (
-from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
     JudgeQualificationForm, JudgeAssignmentForm, JudgeProfileForm
 )
+from apps.competitions.utils.organization_discipline_filtering import (
+    get_organization_disciplines
+)
+from django.db.models import Count, Q
 
 
 @login_required
@@ -60,26 +71,348 @@ def judges_list(request, competition_id):
         competition=competition
     ).order_by('name')
     
-    # Pagination
+    # Grouper les assignations par catégorie pour l'onglet "Assignments"
+    assignments_by_category = {}
+    # Évaluer le QuerySet avant l'itération pour éviter les problèmes
+    assignments_list = list(assignments)
+    for assignment in assignments_list:
+        category_id = assignment.category_id
+        if category_id not in assignments_by_category:
+            assignments_by_category[category_id] = []
+        assignments_by_category[category_id].append(assignment)
+    
+    # Pagination - utiliser le queryset original pour la pagination
     paginator = Paginator(assignments.order_by('category', 'user__last_name'), 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
-    # Récupérer les juges déjÃ  inscrits Ã  la compétition
+    # Récupérer les juges: inscrits comme juges OU ayant des assignations
+    assigned_user_ids_for_comp = set(
+        JudgeAssignment.objects.filter(
+            category__competition=competition
+        ).values_list('registration_id', flat=True)
+    )
     registered_judges = CompetitionRegistration.objects.filter(
-        competition=competition,
-        is_technical_judge=True
-    ).select_related('practitioner').order_by('practitioner__last_name')
+        competition=competition
+    ).filter(
+        Q(is_technical_judge=True) | Q(is_combat_referee=True) | Q(id__in=assigned_user_ids_for_comp)
+    ).select_related('practitioner', 'practitioner__user').order_by('practitioner__last_name')
+
+    # Créer deux listes séparées:
+    # - assigned_judges_list: juges avec au moins une assignation à une catégorie
+    # - registered_judges_list: juges inscrits mais SANS assignation (disponibles)
+    assigned_judges_list = []
+    registered_judges_list = []
+    confirmed_count = 0
+    pending_count = 0
+
+    for registration in registered_judges:
+        practitioner = registration.practitioner
+        user = getattr(practitioner, 'user', None)
+
+        # Récupérer toutes les assignations de ce juge pour cette compétition
+        user_assignments = None
+        has_assignments = False
+        if user:
+            user_assignments = JudgeAssignment.objects.filter(
+                category__competition=competition,
+                user=user
+            ).select_related('category', 'user')
+            has_assignments = user_assignments.exists()
+
+        # Déterminer les catégories assignées
+        categories = []
+        if has_assignments:
+            categories = [ass.category.name for ass in user_assignments]
+
+        # Déterminer le rôle principal basé sur l'inscription ou les assignations
+        if has_assignments:
+            assignment_types = [ass.assignment_type for ass in user_assignments]
+            main_type = max(set(assignment_types), key=assignment_types.count) if assignment_types else 'technical_judge'
+        elif registration.is_combat_referee:
+            main_type = 'combat_referee'
+        else:
+            main_type = 'technical_judge'
+
+        # Récupérer le niveau de qualification
+        qualification_level = 'novice'
+        if JudgeQualification:
+            qual = JudgeQualification.objects.filter(
+                practitioner=practitioner
+            ).order_by('-level' if hasattr(JudgeQualification, 'level') else '-qualification_level').first()
+            if qual:
+                qualification_level = qual.level if hasattr(qual, 'level') else getattr(qual, 'qualification_level', 'novice')
+
+        # Déterminer le statut de confirmation
+        is_confirmed = False
+        if has_assignments:
+            is_confirmed = any(ass.status == 'confirmed' for ass in user_assignments)
+        else:
+            # Si pas d'assignations, utiliser le statut de l'inscription
+            is_confirmed = registration.status == 'approved'
+
+        # Construire les données du juge
+        judge_data = {
+            'user': user,
+            'practitioner': practitioner,
+            'registration': registration,
+            'full_name': practitioner.full_name,
+            'email': user.email if user else getattr(practitioner, 'email', ''),
+            'categories': categories,
+            'assignment_type': main_type,
+            'qualification_level': qualification_level,
+            'is_confirmed': is_confirmed,
+            'assignments': user_assignments if user_assignments else [],
+            'first_assignment_id': user_assignments.first().id if has_assignments else None,
+        }
+
+        # Séparer les juges assignés des juges disponibles (inscrits sans assignation)
+        if has_assignments:
+            # Comptabiliser les confirmés et en attente seulement pour les juges assignés
+            if is_confirmed:
+                confirmed_count += 1
+            else:
+                pending_count += 1
+            assigned_judges_list.append(judge_data)
+        else:
+            # Juge inscrit mais pas encore assigné à une catégorie
+            registered_judges_list.append(judge_data)
     
+    # Calculer les statistiques de qualifications par discipline (uniquement disciplines de l'organisation)
+    qualification_summary = {}
+    qualification_levels = ['international', 'national', 'regional', 'novice']
+    qualification_types = ['technical', 'combat', 'chief', 'assistant']
+    
+    # Récupérer l'organisation de la compétition
+    org = getattr(competition, 'organizing_organization', None)
+    if org and JudgeQualification:
+        # Récupérer uniquement les disciplines de l'organisation
+        org_disciplines = get_organization_disciplines(org)
+        
+        # S'assurer qu'on ne traite que les disciplines de l'organisation
+        org_discipline_ids = set(org_disciplines.values_list('id', flat=True))
+        
+        # Pour chaque discipline de l'organisation, calculer les statistiques
+        for discipline in org_disciplines:
+            # Double vérification : s'assurer que la discipline appartient bien à l'organisation
+            if discipline.id not in org_discipline_ids:
+                continue
+            # Récupérer les qualifications pour cette discipline (actives uniquement)
+            qualifications = JudgeQualification.objects.filter(
+                discipline=discipline
+            )
+            
+            # Vérifier si le modèle a is_active
+            if hasattr(JudgeQualification, 'is_active'):
+                qualifications = qualifications.filter(is_active=True)
+            
+            # Compter par niveau - vérifier quel champ est utilisé
+            level_counts = {}
+            for level in qualification_levels:
+                # Essayer qualification_level d'abord (modèle judging.py), puis level (modèle judges.py)
+                if hasattr(JudgeQualification, 'qualification_level'):
+                    count = qualifications.filter(qualification_level=level).count()
+                elif hasattr(JudgeQualification, 'level'):
+                    count = qualifications.filter(level=level).count()
+                else:
+                    count = 0
+                level_counts[level] = count
+            
+            # Compter par type
+            type_counts = {}
+            for qtype in qualification_types:
+                # Mapper les types selon le modèle utilisé
+                if qtype == 'assistant':
+                    # Pour assistant, essayer 'assistant' ou 'timekeeper'
+                    count = qualifications.filter(
+                        Q(qualification_type='assistant') | Q(qualification_type='timekeeper')
+                    ).count()
+                else:
+                    # Essayer le type direct ou avec _judge
+                    count = qualifications.filter(
+                        Q(qualification_type=qtype) | Q(qualification_type=f'{qtype}_judge')
+                    ).count()
+                type_counts[qtype] = count
+            
+            qualification_summary[discipline] = {
+                'level_counts': level_counts,
+                'type_counts': type_counts,
+                'total': qualifications.count()
+            }
+    
+    # Fallback: si aucune qualification formelle, calculer depuis les assignations
+    if not qualification_summary or all(s['total'] == 0 for s in qualification_summary.values()):
+        # Compter les types depuis les assignations de cette compétition
+        from apps.competitions.models import Judge as JudgeModel
+        all_judges_active = JudgeModel.objects.filter(active=True, user__isnull=False)
+        type_from_assignments = {}
+        for at in JudgeAssignment.objects.filter(category__competition=competition):
+            atype = at.assignment_type or 'technical_judge'
+            mapped = 'technical' if 'technical' in atype else 'combat' if 'combat' in atype else 'chief' if 'chief' in atype else 'assistant'
+            type_from_assignments[mapped] = type_from_assignments.get(mapped, 0) + 1
+
+        # Compter les niveaux depuis le modèle Judge
+        level_from_judges = {}
+        for j in all_judges_active:
+            lvl = getattr(j, 'qualification_level', 'novice') or 'novice'
+            level_from_judges[lvl] = level_from_judges.get(lvl, 0) + 1
+
+        # Injecter comme si c'était une discipline unique
+        from apps.competitions.models.competitions import Competition as Comp
+        disc_name = str(competition.discipline) if competition.discipline else 'General'
+        qualification_summary = {
+            competition.discipline or type('D', (), {'id': 0, 'name': disc_name}): {
+                'level_counts': {l: level_from_judges.get(l, 0) for l in qualification_levels},
+                'type_counts': {t: type_from_assignments.get(t, 0) for t in qualification_types},
+                'total': all_judges_active.count()
+            }
+        }
+
+    # Calculer les totaux globaux
+    total_levels = {level: 0 for level in qualification_levels}
+    total_types = {qtype: 0 for qtype in qualification_types}
+    grand_total = 0
+    
+    # Vérifier que toutes les disciplines dans qualification_summary appartiennent à l'organisation
+    if org:
+        org_discipline_ids = set(get_organization_disciplines(org).values_list('id', flat=True))
+        filtered_summary = {
+            disc: stats for disc, stats in qualification_summary.items()
+            if disc.id in org_discipline_ids
+        }
+        qualification_summary = filtered_summary
+    
+    for discipline, stats in qualification_summary.items():
+        for level, count in stats['level_counts'].items():
+            total_levels[level] = total_levels.get(level, 0) + count
+        for qtype, count in stats['type_counts'].items():
+            total_types[qtype] = total_types.get(qtype, 0) + count
+        grand_total += stats['total']
+    
+    # Récupérer les juges disponibles (filtrés par les disciplines de l'organisation)
+    available_judges = []
+    if org and JudgeQualification:
+        # Récupérer les disciplines de l'organisation
+        org_disciplines = get_organization_disciplines(org)
+        
+        if org_disciplines.exists():
+            # Récupérer les IDs des utilisateurs déjà assignés à cette compétition
+            assigned_user_ids = set(
+                JudgeAssignment.objects.filter(
+                    category__competition=competition
+                ).values_list('user_id', flat=True)
+            )
+            
+            # Récupérer les qualifications dans les disciplines de l'organisation
+            discipline_ids = list(org_disciplines.values_list('id', flat=True))
+            qualifications = JudgeQualification.objects.filter(
+                discipline_id__in=discipline_ids
+            ).select_related('practitioner', 'practitioner__user', 'discipline')
+            
+            # Grouper par praticien et construire la liste des juges disponibles
+            judges_dict = {}
+            for qual in qualifications:
+                practitioner = qual.practitioner
+                user = getattr(practitioner, 'user', None)
+                
+                # Ignorer si l'utilisateur est déjà assigné
+                if user and user.id in assigned_user_ids:
+                    continue
+                
+                # Créer ou mettre à jour l'entrée pour ce praticien
+                if practitioner.id not in judges_dict:
+                    judges_dict[practitioner.id] = {
+                        'practitioner': practitioner,
+                        'user': user,
+                        'qualifications': [],
+                        'disciplines': set(),
+                        'highest_level': 'novice',
+                        'years_experience': 0,
+                    }
+                
+                # Ajouter la qualification
+                judges_dict[practitioner.id]['qualifications'].append(qual)
+                if qual.discipline:
+                    judges_dict[practitioner.id]['disciplines'].add(qual.discipline)
+                
+                # Mettre à jour le niveau le plus élevé
+                level_order = {'novice': 0, 'regional': 1, 'national': 2, 'international': 3}
+                current_level = qual.level if hasattr(qual, 'level') else getattr(qual, 'qualification_level', 'novice')
+                if level_order.get(current_level, 0) > level_order.get(judges_dict[practitioner.id]['highest_level'], 0):
+                    judges_dict[practitioner.id]['highest_level'] = current_level
+            
+            # Convertir en liste et calculer les années d'expérience
+            from apps.competitions.models import Judge
+            for judge_data in judges_dict.values():
+                practitioner = judge_data['practitioner']
+                # Essayer de récupérer les années d'expérience depuis le modèle Judge
+                try:
+                    judge = Judge.objects.get(practitioner=practitioner)
+                    judge_data['years_experience'] = judge.years_experience
+                except Judge.DoesNotExist:
+                    judge_data['years_experience'] = 0
+                
+                available_judges.append(judge_data)
+            
+            # Trier par niveau de qualification (international en premier) puis par nom
+            level_order = {'international': 0, 'national': 1, 'regional': 2, 'novice': 3}
+            available_judges.sort(
+                key=lambda x: (
+                    level_order.get(x['highest_level'], 3),
+                    x['practitioner'].last_name or '',
+                    x['practitioner'].first_name or ''
+                )
+            )
+    
+    # Fallback: si aucun juge trouvé via qualifications, montrer tous les juges actifs
+    if not available_judges:
+        from apps.competitions.models import Judge as JudgeModel
+        assigned_user_ids = set(
+            JudgeAssignment.objects.filter(
+                category__competition=competition
+            ).values_list('user_id', flat=True)
+        )
+        all_active_judges = JudgeModel.objects.filter(
+            active=True, user__isnull=False
+        ).select_related('user', 'practitioner').exclude(user_id__in=assigned_user_ids)
+        for j in all_active_judges:
+            available_judges.append({
+                'practitioner': j.practitioner,
+                'user': j.user,
+                'qualifications': [],
+                'disciplines': set(),
+                'highest_level': j.qualification_level if hasattr(j, 'qualification_level') else 'novice',
+                'years_experience': j.years_experience or 0,
+            })
+
+    # Calculer le total des juges disponibles (inscrits sans assignation + qualifiés disponibles)
+    total_available = len(registered_judges_list) + len(available_judges)
+
     context = {
         'competition': competition,
         'page_obj': page_obj,
         'categories': categories,
+        'categories_with_assignments_ids': set(assignments_by_category.keys()),
         'registered_judges': registered_judges,
+        'assigned_judges': assigned_judges_list,
+        'registered_judges_list': registered_judges_list,  # Juges inscrits sans assignation
+        'confirmed_count': confirmed_count,
+        'pending_count': pending_count,
+        'available_judges': available_judges,
+        'total_available': total_available,  # Total des juges disponibles
+        'assignments_by_category': assignments_by_category,
+        'all_assignments': assignments,  # Pour l'onglet Assignments
+        'org_disciplines': list(get_organization_disciplines(org)) if org else [],
         'category_filter': category_id,
         'type_filter': assignment_type,
         'search_query': search_query,
         'assignment_types': dict(JudgeAssignment.ASSIGNMENT_TYPES),
+        'qualification_summary': qualification_summary,
+        'qualification_levels': qualification_levels,
+        'qualification_types': qualification_types,
+        'total_levels': total_levels,
+        'total_types': total_types,
+        'grand_total': grand_total,
     }
     
     return render(request, 'competitions/management/judges.html', context)
@@ -104,7 +437,7 @@ def judge_detail(request, competition_id, assignment_id):
         if form.is_valid():
             form.save()
             messages.success(request, _("L'assignation du juge a été mise Ã  jour avec succès."))
-            return redirect('competitions:management:judges_list', competition_id=competition_id)
+            return redirect('competitions:management:judges', competition_id=competition_id)
     else:
         form = JudgeAssignmentForm(instance=assignment, competition=competition)
     
@@ -160,7 +493,7 @@ def add_judge_assignment(request, competition_id):
             
             assignment.save()
             messages.success(request, _("L'assignation du juge a été créée avec succès."))
-            return redirect('competitions:management:judges_list', competition_id=competition_id)
+            return redirect('competitions:management:judges', competition_id=competition_id)
     else:
         form = JudgeAssignmentForm(competition=competition)
     
@@ -189,7 +522,81 @@ def delete_judge_assignment(request, competition_id, assignment_id):
     
     assignment.delete()
     messages.success(request, _("L'assignation du juge a été supprimée."))
-    return redirect('competitions:management:judges_list', competition_id=competition_id)
+    return redirect('competitions:management:judges', competition_id=competition_id)
+
+
+@login_required
+@competition_management_permission_required
+@require_POST
+def remove_judge_from_competition(request, competition_id, user_id):
+    """
+    Supprime toutes les assignations d'un juge pour une compétition.
+    """
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    
+    # Récupérer la compétition et l'utilisateur
+    competition = get_object_or_404(Competition, pk=competition_id)
+    user = get_object_or_404(User, pk=user_id)
+    
+    # Récupérer toutes les assignations de ce juge pour cette compétition
+    assignments = JudgeAssignment.objects.filter(
+        category__competition=competition,
+        user=user
+    )
+    
+    count = assignments.count()
+    assignments.delete()
+    
+    if count > 0:
+        messages.success(request, _("Le juge a été retiré de la compétition ({} assignation(s) supprimée(s)).").format(count))
+    else:
+        messages.info(request, _("Aucune assignation trouvée pour ce juge."))
+
+    return redirect('competitions:management:judges', competition_id=competition_id)
+
+
+@login_required
+@competition_management_permission_required
+@require_POST
+def remove_judge_registration(request, competition_id, registration_id):
+    """
+    Retire un juge de la compétition via son inscription.
+    Supprime le flag is_technical_judge et is_combat_referee de l'inscription.
+    """
+    # Récupérer la compétition et l'inscription
+    competition = get_object_or_404(Competition, pk=competition_id)
+    registration = get_object_or_404(
+        CompetitionRegistration,
+        pk=registration_id,
+        competition=competition
+    )
+
+    # Récupérer le nom du juge pour le message
+    judge_name = registration.practitioner.full_name if registration.practitioner else "Juge inconnu"
+
+    # Supprimer les assignations de juge associées si un user est lié
+    user = getattr(registration.practitioner, 'user', None)
+    assignments_deleted = 0
+    if user:
+        assignments = JudgeAssignment.objects.filter(
+            category__competition=competition,
+            user=user
+        )
+        assignments_deleted = assignments.count()
+        assignments.delete()
+
+    # Retirer les rôles de juge de l'inscription
+    registration.is_technical_judge = False
+    registration.is_combat_referee = False
+    registration.save()
+
+    if assignments_deleted > 0:
+        messages.success(request, _("{} a été retiré de la liste des juges ({} assignation(s) supprimée(s)).").format(judge_name, assignments_deleted))
+    else:
+        messages.success(request, _("{} a été retiré de la liste des juges.").format(judge_name))
+
+    return redirect('competitions:management:judges', competition_id=competition_id)
 
 
 @login_required
@@ -252,7 +659,7 @@ def bulk_judge_assignment(request, competition_id):
             else:
                 messages.info(request, _("Aucune nouvelle assignation n'a été créée. Les juges sélectionnés étaient peut-Ãªtre déjÃ  assignés."))
             
-            return redirect('competitions:management:judges_list', competition_id=competition_id)
+            return redirect('competitions:management:judges', competition_id=competition_id)
     else:
         form = BulkJudgeAssignmentForm(competition=competition)
     

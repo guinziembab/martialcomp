@@ -76,30 +76,36 @@ class FinanceDashboardView(CurrencyAwareAPIView):
                 )
                 balance = float(agg['total'] or 0)
             else:
-                agg = FinancialAccount.objects.aggregate(total=Sum('current_balance'))
-                balance = float(agg['total'] or 0)
+                # No organization - return 0 for data isolation
+                balance = 0.0
         except Exception:
             balance = 0.0
 
         # Revenue/Expenses from Transaction (validated sums)
         try:
             from apps.finances.models.transactions import Transaction  # type: ignore
-            tx = Transaction.objects.filter(status='validated')
-            # If transactions relate to organization via financial_account owner, limit by org accounts when possible
-            if organization and hasattr(Transaction, 'financial_account'):
-                from apps.finances.models.accounts import FinancialAccount  # type: ignore
-                ct = ContentType.objects.get_for_model(organization.__class__)
-                owner_id = str(getattr(organization, 'id', ''))
-                org_accounts = FinancialAccount.objects.filter(owner_content_type=ct, owner_id=owner_id).values('pk')
-                tx = tx.filter(Q(financial_account__in=org_accounts))
+            # Only show data if organization is set - data isolation
+            if organization:
+                tx = Transaction.objects.filter(status='validated')
+                # If transactions relate to organization via financial_account owner, limit by org accounts
+                if hasattr(Transaction, 'financial_account'):
+                    from apps.finances.models.accounts import FinancialAccount  # type: ignore
+                    ct = ContentType.objects.get_for_model(organization.__class__)
+                    owner_id = str(getattr(organization, 'id', ''))
+                    org_accounts = FinancialAccount.objects.filter(owner_content_type=ct, owner_id=owner_id).values('pk')
+                    tx = tx.filter(Q(financial_account__in=org_accounts))
 
-            rev = tx.filter(type='income').aggregate(s=Sum('amount'))['s'] or 0
-            exp = tx.filter(type='expense').aggregate(s=Sum('amount'))['s'] or 0
-            revenue = float(rev)
-            expenses = float(exp)
+                rev = tx.filter(type='income').aggregate(s=Sum('amount'))['s'] or 0
+                exp = tx.filter(type='expense').aggregate(s=Sum('amount'))['s'] or 0
+                revenue = float(rev)
+                expenses = float(exp)
+            else:
+                # No organization - return 0 for data isolation
+                revenue = 0.0
+                expenses = 0.0
         except Exception:
-            revenue = revenue or 0.0
-            expenses = expenses or 0.0
+            revenue = 0.0
+            expenses = 0.0
 
         # Convert numeric KPIs to preferred currency if they are denominated in a different base (assumed EUR)
         # We assume stored values are in the account/transaction currency; for now convert from EUR for display.
@@ -180,6 +186,287 @@ urlpatterns += [
     path('currency/preferred/', CurrencyPreferredView.as_view(), name='currency_preferred_api'),
     path('currency/rates/',     CurrencyRatesView.as_view(),     name='currency_rates_api'),
     path('currency/convert/',   CurrencyConvertView.as_view(),   name='currency_convert_api'),
+]
+
+
+# =============================================================================
+# EXTENDED CURRENCY API ENDPOINTS (Multi-devise Phase 4)
+# =============================================================================
+
+from decimal import Decimal, InvalidOperation  # noqa: E402
+from rest_framework.permissions import AllowAny  # noqa: E402
+from rest_framework import status as http_status  # noqa: E402
+from django.utils import timezone  # noqa: E402
+
+from .currency_service import (  # noqa: E402
+    format_currency as fmt_currency,
+    is_currency_supported,
+    get_available_currencies as get_all_currencies,
+)
+
+
+class CurrencyListView(APIView):
+    """
+    Liste des devises disponibles.
+
+    GET /api/finances/currencies/
+    GET /api/v1/finances/currencies/
+
+    Retourne la liste des devises actives avec leurs informations.
+    Accessible sans authentification pour permettre l'affichage public.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            from apps.finances.models import Currency
+
+            currencies = Currency.objects.filter(is_active=True).order_by('code')
+
+            data = []
+            for currency in currencies:
+                data.append({
+                    'code': currency.code,
+                    'name': currency.name,
+                    'symbol': currency.symbol,
+                    'decimal_places': currency.decimal_places,
+                    'symbol_position': getattr(currency, 'symbol_position', 'after'),
+                })
+
+            return Response({
+                'success': True,
+                'count': len(data),
+                'currencies': data,
+            })
+
+        except Exception:
+            # Fallback: devises statiques
+            static_currencies = get_all_currencies()
+            return Response({
+                'success': True,
+                'count': len(static_currencies),
+                'currencies': [
+                    {'code': c, 'name': c, 'symbol': c, 'decimal_places': 2}
+                    for c in static_currencies
+                ],
+                'fallback': True,
+            })
+
+
+class CurrencyFormatView(APIView):
+    """
+    Formatage de montants selon les conventions de devise.
+
+    GET /api/finances/format/?amount=1234.56&currency=EUR
+    POST /api/finances/format/
+    {
+        "amount": 1234.56,
+        "currency": "EUR",
+        "include_symbol": true
+    }
+
+    Retourne le montant formate selon les conventions de la devise.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        """Formatage via parametres GET."""
+        amount = request.GET.get('amount')
+        currency = request.GET.get('currency', 'EUR').upper()
+        include_symbol = request.GET.get('include_symbol', 'true').lower() == 'true'
+
+        return self._format(amount, currency, include_symbol)
+
+    def post(self, request):
+        """Formatage via body JSON."""
+        amount = request.data.get('amount')
+        currency = request.data.get('currency', 'EUR').upper()
+        include_symbol = request.data.get('include_symbol', True)
+
+        return self._format(amount, currency, include_symbol)
+
+    def _format(self, amount, currency, include_symbol):
+        """Logique de formatage commune."""
+        if amount is None:
+            return Response({
+                'success': False,
+                'error': 'Le parametre "amount" est requis',
+            }, status=http_status.HTTP_400_BAD_REQUEST)
+
+        try:
+            decimal_amount = Decimal(str(amount))
+        except (InvalidOperation, ValueError):
+            return Response({
+                'success': False,
+                'error': f'Montant invalide: {amount}',
+            }, status=http_status.HTTP_400_BAD_REQUEST)
+
+        try:
+            formatted = fmt_currency(decimal_amount, currency, include_symbol)
+
+            return Response({
+                'success': True,
+                'amount': float(decimal_amount),
+                'currency': currency,
+                'formatted': formatted,
+                'include_symbol': include_symbol,
+            })
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e),
+            }, status=http_status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class BulkConvertView(APIView):
+    """
+    Conversion en lot de plusieurs montants.
+
+    POST /api/finances/bulk-convert/
+    {
+        "amounts": [100, 200, 300],
+        "from_currency": "USD",
+        "to_currency": "EUR"
+    }
+
+    Convertit plusieurs montants en une seule requete.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        amounts = request.data.get('amounts', [])
+        from_currency = request.data.get('from_currency', 'EUR').upper()
+        to_currency = request.data.get('to_currency', 'EUR').upper()
+
+        if not amounts:
+            return Response({
+                'success': False,
+                'error': 'Le parametre "amounts" est requis et doit etre une liste',
+            }, status=http_status.HTTP_400_BAD_REQUEST)
+
+        if not isinstance(amounts, list):
+            return Response({
+                'success': False,
+                'error': '"amounts" doit etre une liste de nombres',
+            }, status=http_status.HTTP_400_BAD_REQUEST)
+
+        try:
+            if not is_currency_supported(from_currency):
+                return Response({
+                    'success': False,
+                    'error': f'Devise source non supportee: {from_currency}',
+                }, status=http_status.HTTP_400_BAD_REQUEST)
+
+            if not is_currency_supported(to_currency):
+                return Response({
+                    'success': False,
+                    'error': f'Devise cible non supportee: {to_currency}',
+                }, status=http_status.HTTP_400_BAD_REQUEST)
+
+            results = []
+            rate_used = None
+
+            for i, amount in enumerate(amounts):
+                try:
+                    decimal_amount = Decimal(str(amount))
+                    converted, rate = convert_amount(decimal_amount, from_currency, to_currency)
+                    rate_used = rate
+
+                    results.append({
+                        'index': i,
+                        'original': float(decimal_amount),
+                        'converted': float(converted),
+                        'formatted': fmt_currency(converted, to_currency),
+                    })
+                except (InvalidOperation, ValueError):
+                    results.append({
+                        'index': i,
+                        'error': f'Montant invalide: {amount}',
+                    })
+
+            return Response({
+                'success': True,
+                'from_currency': from_currency,
+                'to_currency': to_currency,
+                'rate': float(rate_used) if rate_used else None,
+                'count': len(results),
+                'results': results,
+                'timestamp': timezone.now().isoformat(),
+            })
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e),
+            }, status=http_status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CurrencyPreferenceUpdateView(APIView):
+    """
+    Mise a jour de la preference de devise utilisateur.
+
+    POST /api/finances/currency/set-preferred/
+    {
+        "currency": "USD"
+    }
+
+    Definit la devise preferee de l'utilisateur authentifie.
+    """
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+
+    def post(self, request):
+        """Definit la devise preferee de l'utilisateur."""
+        currency = request.data.get('currency', '').upper()
+
+        if not currency:
+            return Response({
+                'success': False,
+                'error': 'Le parametre "currency" est requis',
+            }, status=http_status.HTTP_400_BAD_REQUEST)
+
+        try:
+            if not is_currency_supported(currency):
+                return Response({
+                    'success': False,
+                    'error': f'Devise non supportee: {currency}',
+                }, status=http_status.HTTP_400_BAD_REQUEST)
+
+            # Stocker en session
+            request.session['preferred_currency'] = currency
+
+            # Stocker dans le profil utilisateur si disponible
+            if hasattr(request.user, 'profile') and hasattr(request.user.profile, 'preferred_currency'):
+                request.user.profile.preferred_currency = currency
+                request.user.profile.save(update_fields=['preferred_currency'])
+
+            return Response({
+                'success': True,
+                'currency': currency,
+                'message': f'Devise preferee mise a jour: {currency}',
+            })
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e),
+            }, status=http_status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Register extended currency endpoints
+urlpatterns += [
+    # Liste des devises disponibles
+    path('currencies/', CurrencyListView.as_view(), name='currency_list_api'),
+
+    # Formatage de montants
+    path('format/', CurrencyFormatView.as_view(), name='currency_format_api'),
+
+    # Conversion en lot
+    path('bulk-convert/', BulkConvertView.as_view(), name='bulk_convert_api'),
+
+    # Mise a jour preference de devise
+    path('currency/set-preferred/', CurrencyPreferenceUpdateView.as_view(), name='currency_set_preferred_api'),
 ]
 
 

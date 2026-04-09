@@ -79,13 +79,16 @@ def generate_qr_code_url(entity_type, entity_id, action='register', data=None, u
     elif action == 'payment':
         url = f"{base_url}/payment/?qr={unique_id}&type={entity_type}&id={entity_id}"
     elif action == 'referral' and data and 'referrer_id' in data:
-        url = f"{base_url}/signup/?ref={data['referrer_id']}&type={entity_type}&id={entity_id}"
+        url = f"{base_url}/referral/?ref={data['referrer_id']}&type={entity_type}&id={entity_id}"
     elif action == 'check_in':
         # QR code pour le check-in rapide aux cours/événements
         url = f"{base_url}/check-in/?qr={unique_id}&type={entity_type}&id={entity_id}"
     elif action == 'profile':
         # QR code personnel du pratiquant
         url = f"{base_url}/profile/?qr={unique_id}&type={entity_type}&id={entity_id}"
+    elif action == 'shop':
+        # QR code pour la boutique du club
+        url = f"{base_url}/shop/?qr={unique_id}&type={entity_type}&id={entity_id}"
     else:
         url = f"{base_url}/?qr={unique_id}&type={entity_type}&id={entity_id}"
         
@@ -396,7 +399,12 @@ def generate_organization_qr_codes_set(organization):
     qr_codes['referral'] = generate_qr_code_for_entity(
         organization, entity_type, 'referral', referral_data, use_subdomain=True, with_logo=True
     )
-    
+
+    # QR code pour la boutique du club
+    qr_codes['shop'] = generate_qr_code_for_entity(
+        organization, entity_type, 'shop', use_subdomain=True, with_logo=True
+    )
+
     return qr_codes
 
 def generate_temporary_qr_code(entity, entity_type, expiry_days=7, action='register'):

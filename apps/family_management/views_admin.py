@@ -34,8 +34,9 @@ def family_group_registration(request, family_id):
     
     # Récupérer les compétitions disponibles
     available_competitions = Competition.objects.filter(
-        is_open_for_registration=True,
-        registration_end_date__gte=timezone.now().date()
+        is_published=True,
+        status__in=['published', 'ongoing'],
+        registration_deadline__gte=timezone.now().date()
     ).order_by('start_date')
     
     # Récupérer les membres pratiquants de la famille
@@ -44,7 +45,7 @@ def family_group_registration(request, family_id):
     # Statistiques des inscriptions
     recent_registrations = CompetitionRegistration.objects.filter(
         practitioner__in=family_practitioners,
-        created_at__gte=timezone.now() - timedelta(days=30)
+        registration_date__gte=timezone.now() - timedelta(days=30)
     ).select_related('competition', 'practitioner')
     
     context = {
@@ -390,7 +391,7 @@ def family_statistics(request, family_id):
         practitioner__in=practitioners
     ).aggregate(
         total_competitions=Count('id'),
-        this_year=Count('id', filter=Q(created_at__year=timezone.now().year))
+        this_year=Count('id', filter=Q(registration_date__year=timezone.now().year))
     )
     
     # Statistiques financières

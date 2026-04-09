@@ -1,0 +1,501 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{{ competition.title }} - {% trans "Hub de Gestion" %} | {{ club.name }}{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Gestion de la mémoire des onglets
+  const hubTabs = document.getElementById('hubTabs');
+  const activeTab = localStorage.getItem('hubActiveTab');
+  
+  // Restaurer l'onglet actif
+  if (activeTab) {
+    const tab = document.querySelector(`#${activeTab}-tab`);
+    if (tab) {
+      const bsTab = new bootstrap.Tab(tab);
+      bsTab.show();
+    }
+  }
+  
+  // Sauvegarder l'onglet actif lors du changement
+  hubTabs.addEventListener('shown.bs.tab', function(event) {
+    const tabId = event.target.id.replace('-tab', '');
+    localStorage.setItem('hubActiveTab', tabId);
+  });
+});
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .competition-hub-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem 0;
+    margin-bottom: 1rem;
+    border-radius: 0 0 12px 12px;
+  }
+  
+  /* Onglets */
+  .hub-tabs {
+    border-bottom: 2px solid #e9ecef;
+    margin-bottom: 1.5rem;
+  }
+  
+  .hub-tabs .nav-link {
+    border: none;
+    color: #6c757d;
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    margin-right: 0.5rem;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+  }
+  
+  .hub-tabs .nav-link:hover {
+    color: #667eea;
+    background-color: #f8f9fa;
+  }
+  
+  .hub-tabs .nav-link.active {
+    color: #667eea;
+    background-color: transparent;
+    border-bottom-color: #667eea;
+  }
+  
+  .hub-tabs .nav-link i {
+    margin-right: 0.5rem;
+  }
+  
+  .tab-content {
+    min-height: 60vh;
+  }
+  
+  .competition-hub-header .btn-back {
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+  }
+  
+  .competition-hub-header .btn-back:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateX(-3px);
+  }
+  
+  .breadcrumb {
+    background: transparent;
+    padding: 0;
+    margin-bottom: 1rem;
+  }
+  
+  .breadcrumb-item a {
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+  }
+  
+  .breadcrumb-item.active {
+    color: white;
+  }
+  
+  .breadcrumb-item + .breadcrumb-item::before {
+    color: rgba(255, 255, 255, 0.5);
+  }
+  
+  .hub-category {
+    margin-bottom: 2rem;
+  }
+  
+  .hub-category-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #2c3e50;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .hub-category-title i {
+    font-size: 1.5rem;
+    color: #667eea;
+  }
+  
+  .hub-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.75rem;
+  }
+  
+  /* Disposition en 2 colonnes pour les sections */
+  .hub-sections-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+  
+  @media (max-width: 1200px) {
+    .hub-sections-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  .hub-card {
+    background: white;
+    border-radius: 10px;
+    padding: 1.2rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    height: 100%;
+  }
+  
+  .hub-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    border-color: #667eea;
+    text-decoration: none;
+    color: inherit;
+  }
+  
+  .hub-card-icon {
+    font-size: 2rem;
+    color: #667eea;
+    margin-bottom: 0.75rem;
+  }
+  
+  .hub-card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    color: #2c3e50;
+  }
+  
+  .hub-card-description {
+    font-size: 0.85rem;
+    color: #6c757d;
+    line-height: 1.4;
+    margin-bottom: 0.5rem;
+  }
+  
+  .hub-card-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  
+  .badge-success {
+    background: #d4edda;
+    color: #155724;
+  }
+  
+  .badge-warning {
+    background: #fff3cd;
+    color: #856404;
+  }
+  
+  .badge-info {
+    background: #d1ecf1;
+    color: #0c5460;
+  }
+  
+  /* Optimisation globale pour éviter le scroll */
+  body {
+    overflow-x: hidden;
+  }
+  
+  .container-fluid {
+    max-width: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .competition-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .stat-card {
+    background: white;
+    border-radius: 6px;
+    padding: 0.75rem;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  
+  .stat-card-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #667eea;
+    margin-bottom: 0.2rem;
+  }
+  
+  .stat-card-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  
+  /* Optimiser l'affichage pour les petits écrans */
+  @media (max-height: 800px) {
+    .hub-category {
+      margin-bottom: 1.5rem;
+    }
+    
+    .hub-card {
+      padding: 1rem;
+    }
+    
+    .hub-card-description {
+      font-size: 0.8rem;
+      line-height: 1.3;
+    }
+    
+    .competition-hub-header {
+      padding: 1rem 0;
+      margin-bottom: 1rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Gestion de la mémoire des onglets
+  const hubTabs = document.getElementById('hubTabs');
+  const activeTab = localStorage.getItem('hubActiveTab');
+  
+  // Restaurer l'onglet actif
+  if (activeTab) {
+    const tab = document.querySelector(`#${activeTab}-tab`);
+    if (tab) {
+      const bsTab = new bootstrap.Tab(tab);
+      bsTab.show();
+    }
+  }
+  
+  // Sauvegarder l'onglet actif lors du changement
+  hubTabs.addEventListener('shown.bs.tab', function(event) {
+    const tabId = event.target.id.replace('-tab', '');
+    localStorage.setItem('hubActiveTab', tabId);
+  });
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+  <!-- En-tête avec bouton retour et breadcrumb -->
+  <div class="competition-hub-header">
+    <div class="container">
+      
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="mb-1 h3">{{ competition.title }}</h1>
+          <div class="d-flex gap-3 text-white-50 small">
+            <span><i class="fas fa-calendar-alt me-1"></i>{{ competition.start_date|date:"d M Y"|default:"--" }}</span>
+            <span><i class="fas fa-trophy me-1"></i>{{ competition.discipline.name|default:"--" }}</span>
+            {% if is_ongoing %}
+              <span class="badge bg-success">{% trans "EN COURS" %}</span>
+            {% elif is_published %}
+              <span class="badge bg-primary">{% trans "PUBLIÉE" %}</span>
+            {% else %}
+              <span class="badge bg-warning">{% trans "BROUILLON" %}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div>
+          <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-outline-light btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>{% trans "Dashboard" %}
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="container">
+    <!-- Statistiques rapides -->
+    <div class="competition-stats">
+      <div class="stat-card">
+        <div class="stat-card-value">{{ stats.total_registrations }}</div>
+        <div class="stat-card-label">{% trans "Inscriptions" %}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-value">{{ stats.confirmed_registrations }}</div>
+        <div class="stat-card-label">{% trans "Confirmées" %}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-value">{{ stats.total_categories }}</div>
+        <div class="stat-card-label">{% trans "Catégories" %}</div>
+      </div>
+    </div>
+    
+    <!-- Navigation par onglets -->
+    <ul class="nav nav-tabs hub-tabs" id="hubTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="gestion-tab" data-bs-toggle="tab" data-bs-target="#gestion" type="button" role="tab">
+          <i class="fas fa-trophy"></i>
+          {% trans "Gestion" %}
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="organisation-tab" data-bs-toggle="tab" data-bs-target="#organisation" type="button" role="tab">
+          <i class="fas fa-calendar-alt"></i>
+          {% trans "Organisation" %}
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="notation-tab" data-bs-toggle="tab" data-bs-target="#notation" type="button" role="tab">
+          <i class="fas fa-clipboard-list"></i>
+          {% trans "Notation" %}
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="combat-tab" data-bs-toggle="tab" data-bs-target="#combat" type="button" role="tab">
+          <i class="fas fa-fist-raised"></i>
+          {% trans "Combat" %}
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="publication-tab" data-bs-toggle="tab" data-bs-target="#publication" type="button" role="tab">
+          <i class="fas fa-rocket"></i>
+          {% trans "Publication" %}
+        </button>
+      </li>
+    </ul>
+    
+    <!-- Contenu des onglets -->
+    <div class="tab-content" id="hubTabContent">
+      <!-- Onglet Gestion -->
+      <div class="tab-pane fade show active" id="gestion" role="tabpanel">
+        <div class="hub-cards-grid">
+          <a href="{% url 'competitions:club:competition_management_pro' competition.id %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-trophy"></i></div>
+            <div class="hub-card-title">{% trans "Gestion Pro Complète" %}</div>
+            <div class="hub-card-description">{% trans "Interface avancée pour organisateurs expérimentés" %}</div>
+          </a>
+          <a href="{% url 'competitions:club:competition_management_detail' competition.id %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-list"></i></div>
+            <div class="hub-card-title">{% trans "Dashboard de Gestion" %}</div>
+            <div class="hub-card-description">{% trans "Vue d'ensemble avec statistiques en temps réel" %}</div>
+          </a>
+          <a href="{% url 'competitions:club:competition_detail' competition.id %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-chart-line"></i></div>
+            <div class="hub-card-title">{% trans "Vue d'Ensemble" %}</div>
+            <div class="hub-card-description">{% trans "Tableau de bord complet de la compétition" %}</div>
+          </a>
+          <a href="{% url 'competitions:competitions:manage_categories' competition.id %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-layer-group"></i></div>
+            <div class="hub-card-title">{% trans "Catégories" %}</div>
+            <div class="hub-card-description">{% trans "Gérer les catégories de compétition" %}</div>
+          </a>
+          <a href="{% url 'competitions:club:judges_list' %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-gavel"></i></div>
+            <div class="hub-card-title">{% trans "Juges & Arbitres" %}</div>
+            <div class="hub-card-description">{% trans "Gestion des officiels et qualifications" %}</div>
+          </a>
+          <a href="{% url 'competitions:management:schedule_overview' competition.id %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-clock"></i></div>
+            <div class="hub-card-title">{% trans "Suivi Temps Réel" %}</div>
+            <div class="hub-card-description">{% trans "Monitoring live de la compétition" %}</div>
+          </a>
+        </div>
+      </div>
+      
+      <!-- Onglet Organisation -->
+      <div class="tab-pane fade" id="organisation" role="tabpanel">
+        <div class="hub-cards-grid">
+          <a href="{% url 'competitions:management:schedule_overview' competition.id %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-calendar-alt"></i></div>
+            <div class="hub-card-title">{% trans "Planning & Tatamis" %}</div>
+            <div class="hub-card-description">{% trans "Organisation temporelle et spatiale" %}</div>
+          </a>
+          <a href="{% url 'competitions:management:schedule_edit' competition.id %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-edit"></i></div>
+            <div class="hub-card-title">{% trans "Ordre de Passage" %}</div>
+            <div class="hub-card-description">{% trans "Séquencement et ordre des épreuves" %}</div>
+          </a>
+          <a href="{% url 'competitions:management:judges' competition.id %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-user-tie"></i></div>
+            <div class="hub-card-title">{% trans "Affecter Juges" %}</div>
+            <div class="hub-card-description">{% trans "Attribution des juges aux tatamis" %}</div>
+          </a>
+        </div>
+      </div>
+      
+      <!-- Onglet Notation -->
+      <div class="tab-pane fade" id="notation" role="tabpanel">
+        {% include "competitions/club/hub/partials/scoring_section.html" %}
+      </div>
+      
+      <!-- Onglet Combat -->
+      <div class="tab-pane fade" id="combat" role="tabpanel">
+        {% include "competitions/club/hub/partials/combat_section.html" %}
+      </div>
+      
+      <!-- Onglet Publication -->
+      <div class="tab-pane fade" id="publication" role="tabpanel">
+        <div class="hub-cards-grid">
+          <a href="{% url 'competitions:management:schedule_publish' competition.id %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-rocket"></i></div>
+            <div class="hub-card-title">{% trans "Publier Planning" %}</div>
+            <div class="hub-card-description">{% trans "Rendre le planning public et accessible" %}</div>
+          </a>
+          <a href="{% url 'competitions:club:api_publish_competition' competition.id %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-share-alt"></i></div>
+            <div class="hub-card-title">{% trans "Lien Public" %}</div>
+            <div class="hub-card-description">{% trans "Générer et partager l'URL publique" %}</div>
+          </a>
+          <a href="{% url 'competitions:competitions:detail' pk=competition.id %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-eye"></i></div>
+            <div class="hub-card-title">{% trans "Vue Spectateur" %}</div>
+            <div class="hub-card-description">{% trans "Aperçu de la page publique" %}</div>
+          </a>
+          <a href="{% url 'competitions:management:judges' competition.id %}" class="hub-card">
+            <div class="hub-card-icon"><i class="fas fa-file-alt"></i></div>
+            <div class="hub-card-title">{% trans "Fiches Notation" %}</div>
+            <div class="hub-card-description">{% trans "Distribution des fiches aux juges" %}</div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Gestion de la mémoire des onglets
+  const hubTabs = document.getElementById('hubTabs');
+  const activeTab = localStorage.getItem('hubActiveTab');
+  
+  // Restaurer l'onglet actif
+  if (activeTab) {
+    const tab = document.querySelector(`#${activeTab}-tab`);
+    if (tab) {
+      const bsTab = new bootstrap.Tab(tab);
+      bsTab.show();
+    }
+  }
+  
+  // Sauvegarder l'onglet actif lors du changement
+  hubTabs.addEventListener('shown.bs.tab', function(event) {
+    const tabId = event.target.id.replace('-tab', '');
+    localStorage.setItem('hubActiveTab', tabId);
+  });
+});
+</script>
+{% endblock %}

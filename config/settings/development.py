@@ -147,6 +147,11 @@ CSRF_EXEMPT_URLS = [
 import logging
 logging.getLogger('django.security.csrf').setLevel(logging.DEBUG)
 
+# ✅ Configuration des fichiers statiques pour développement
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
+
 # Email Configuration for Development
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
@@ -157,7 +162,9 @@ BASE_URL = 'http://localhost:8000'
 LOGIN_REDIRECT_URL = '/competitions/dashboard/'
 ACCOUNT_LOGIN_REDIRECT_URL = '/competitions/dashboard/'
 ACCOUNT_SIGNUP_REDIRECT_URL = '/competitions/onboarding/role/'
-LOGOUT_REDIRECT_URL = '/fr/'
+# Redirection après logout vers la page d'accueil avec paramètre pour éviter les boucles
+LOGOUT_REDIRECT_URL = '/fr/?no_redirect=1'
+ACCOUNT_LOGOUT_REDIRECT_URL = '/fr/?no_redirect=1'
 
 # Configuration django-allauth
 ACCOUNT_EMAIL_VERIFICATION = 'optional'
@@ -236,13 +243,9 @@ if DEBUG:
 #     },
 # }
 
-# Cache Redis configuration (optionnel, mais recommandé)
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',
-    }
-}
+# Cache configuration - LocMemCache pour développement (pas besoin de Redis)
+# Note: La configuration CACHES est déjà définie en haut du fichier (ligne 87-92)
+# avec LocMemCache. Ne pas la redéfinir ici avec Redis.
 
 # ✅ AMÉLIORATION: Logging plus détaillé pour debug mobile
 LOGGING = {

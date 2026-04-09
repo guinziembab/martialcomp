@@ -88,9 +88,9 @@ class MartialCompAccountAdapter(DefaultAccountAdapter):
                             'coach': 'competitions:dashboard:coach',
                             'club_manager': 'competitions:dashboard:club',
                             'participant': 'competitions:dashboard:participant',
-                            'federation_admin': 'competitions:dashboard:federation',
+                            # federation_admin est géré séparément car il nécessite federation_id
                             'referee': 'competitions:dashboard:referee',
-                            'judge': 'competitions:dashboard:judge',
+                            'judge': 'competitions:dashboard:judge_technical',
                             'pro': 'competitions:dashboard:pro',
                             'manager': 'competitions:dashboard:manager',
                             'spectator': 'competitions:dashboard:spectator',
@@ -101,15 +101,21 @@ class MartialCompAccountAdapter(DefaultAccountAdapter):
                             # Import dynamique pour éviter les imports circulaires
                             try:
                                 from apps.competitions.models import Federation
-                                federation = Federation.objects.filter(owner=request.user).first() or Federation.objects.filter(administrators__user=request.user).first()
+                                federation = Federation.objects.filter(owner=request.user).first()
+                                if not federation:
+                                    # Essayer via administrators
+                                    federation = Federation.objects.filter(administrators__user=request.user).first()
+
                                 if federation:
-                                    return reverse('competitions:federations:federation_dashboard', kwargs={'federation_id': federation.id})
+                                    # Utiliser le namespace dashboard (URL unifiée)
+                                    return reverse('competitions:dashboard:federation', kwargs={'federation_id': federation.id})
                                 else:
+                                    # Rediriger vers la liste qui gère le cas sans fédération
                                     return reverse('competitions:dashboard:federations')
                             except Exception as fed_error:
                                 logger.error(f"Erreur lors de l'accès à Federation: {str(fed_error)}")
-                                return reverse('competitions:dashboard:spectator')
-                        
+                                return reverse('competitions:dashboard:federations')
+
                         if role_key in role_map:
                             return reverse(role_map[role_key])
                         # Fallback
@@ -149,18 +155,40 @@ class MartialCompAccountAdapter(DefaultAccountAdapter):
                 super().login(request, user)
             except Exception as e2:
                 logger.error(f"Erreur lors du fallback de connexion: {str(e2)}")
+    
+    def get_logout_redirect_url(self, request):
+        """
+        Redirection après déconnexion.
+        Assure que l'utilisateur est redirigé vers la page d'accueil avec un paramètre
+        pour éviter les redirections automatiques.
+        """
+        try:
+            from django.utils.translation import get_language
+            # Obtenir la langue courante
+            current_language = get_language() or 'fr'
+            
+            # Toujours rediriger vers la page d'accueil avec un paramètre no_redirect
+            # pour éviter que la vue welcome redirige automatiquement
+            logger.info(f"Redirection après déconnexion vers la page d'accueil ({current_language})")
+            
+            # Construire l'URL avec le préfixe de langue correct
+            return f'/{current_language}/?no_redirect=1'
+        except Exception as e:
+            logger.error(f"Erreur lors de la redirection après déconnexion: {str(e)}")
+            # Fallback vers l'URL de base avec préfixe de langue
+            return '/fr/?no_redirect=1'
 
 class MartialCompSocialAccountAdapter(DefaultSocialAccountAdapter):
     """
     Adaptateur personnalisé pour les comptes sociaux.
     """
-    
+
     def save_user(self, request, sociallogin, form=None):
         """
         Sauvegarde d'un utilisateur connecté via un compte social.
         """
         user = super().save_user(request, sociallogin, form)
-        
+
         try:
             # Créer ou mettre à jour le profil utilisateur
             profile, created = UserProfile.objects.get_or_create(
@@ -171,17 +199,27 @@ class MartialCompSocialAccountAdapter(DefaultSocialAccountAdapter):
                     'onboarding_completed': False
                 }
             )
-            
+
             if not created and not profile.onboarding_completed:
                 # S'assurer que l'onboarding est configuré
                 profile.onboarding_step = 'role_selection'
                 profile.save()
-            
+
             logger.info(f"Compte social configuré pour {user.username}")
-            
+
+            # Envoyer un email de bienvenue si c'est une nouvelle inscription
+            if created:
+                try:
+                    from apps.competitions.services.email_service import EmailService
+                    provider = sociallogin.account.provider if sociallogin and sociallogin.account else None
+                    EmailService.send_welcome_email(user, provider=provider)
+                    logger.info(f"Email de bienvenue envoyé à {user.email} (provider: {provider})")
+                except Exception as email_error:
+                    logger.warning(f"Impossible d'envoyer l'email de bienvenue: {email_error}")
+
         except Exception as e:
             logger.error(f"Erreur lors de la configuration du compte social pour {user.username}: {str(e)}")
-        
+
         return user
     
     def get_connect_redirect_url(self, request, socialaccount):

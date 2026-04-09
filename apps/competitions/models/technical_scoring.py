@@ -46,10 +46,19 @@ class Performance(models.Model):
         ('cancelled', _('Annulée')),
     ]
     
-    practitioner = models.ForeignKey('Practitioner', on_delete=models.CASCADE, 
+    practitioner = models.ForeignKey('Practitioner', on_delete=models.CASCADE,
                                     related_name='performances')
-    category = models.ForeignKey('CompetitionCategory', on_delete=models.CASCADE, 
+    category = models.ForeignKey('CompetitionCategory', on_delete=models.CASCADE,
                                 related_name='performances')
+    equipe = models.ForeignKey(
+        'competitions.Equipe',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='performances_technique',
+        verbose_name=_("Equipe"),
+        help_text=_("Pour les compétitions en équipe: l'équipe notée")
+    )
     status = models.CharField(_("Statut"), max_length=20, choices=STATUS_CHOICES, 
                              default='scheduled')
     scheduled_time = models.DateTimeField(_("Heure planifiée"), null=True, blank=True)
@@ -61,6 +70,8 @@ class Performance(models.Model):
     notes = models.TextField(_("Notes"), blank=True)
     
     def __str__(self):
+        if self.equipe:
+            return f"{self.equipe.nom} - {self.category}"
         return f"{self.practitioner} - {self.category}"
     
     def calculate_total_score(self):
@@ -131,15 +142,68 @@ class JudgeSubmissionStatus(models.Model):
     performance = models.ForeignKey(Performance, on_delete=models.CASCADE)
     submitted = models.BooleanField(_("Soumis"), default=False)
     submission_time = models.DateTimeField(_("Heure de soumission"), null=True, blank=True)
-    
+
     def __str__(self):
         return f"{self.judge} - {self.performance} - {'Soumis' if self.submitted else 'Non soumis'}"
-    
+
     class Meta:
         app_label = 'competitions'
         verbose_name = _("Statut de soumission")
         verbose_name_plural = _("Statuts de soumission")
         unique_together = ['judge', 'performance']
+
+
+class JudgeCategoryLock(models.Model):
+    """
+    PROMPT 10: Verrouillage des notes d'un juge pour une catégorie/round.
+    Une fois verrouillé, le juge ne peut plus modifier ses notes pour ce round.
+    """
+    judge = models.ForeignKey('Judge', on_delete=models.CASCADE,
+                             related_name='category_locks',
+                             verbose_name=_("Juge"))
+    category = models.ForeignKey('CompetitionCategory', on_delete=models.CASCADE,
+                                related_name='judge_locks',
+                                verbose_name=_("Catégorie"))
+    round_number = models.PositiveIntegerField(_("Numéro de round"), default=1)
+    is_locked = models.BooleanField(_("Verrouillé"), default=False)
+    locked_at = models.DateTimeField(_("Verrouillé le"), null=True, blank=True)
+
+    # Statistiques au moment du verrouillage
+    scores_count = models.PositiveIntegerField(_("Nombre de notes"), default=0)
+    average_score = models.DecimalField(_("Moyenne des notes"), max_digits=5, decimal_places=2,
+                                       null=True, blank=True)
+    min_score = models.DecimalField(_("Note minimale"), max_digits=5, decimal_places=2,
+                                   null=True, blank=True)
+    max_score = models.DecimalField(_("Note maximale"), max_digits=5, decimal_places=2,
+                                   null=True, blank=True)
+
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Verrouillage juge par catégorie")
+        verbose_name_plural = _("Verrouillages juges par catégorie")
+        unique_together = ['judge', 'category', 'round_number']
+        ordering = ['category', 'round_number', 'judge']
+
+    def __str__(self):
+        status = "🔒" if self.is_locked else "🔓"
+        return f"{status} {self.judge} - {self.category} (Round {self.round_number})"
+
+    def lock(self):
+        """Verrouille les notes du juge pour cette catégorie/round."""
+        if not self.is_locked:
+            self.is_locked = True
+            self.locked_at = timezone.now()
+            self.save()
+
+    @classmethod
+    def is_judge_locked(cls, judge, category, round_number=1):
+        """Vérifie si un juge a verrouillé ses notes pour une catégorie/round."""
+        return cls.objects.filter(
+            judge=judge,
+            category=category,
+            round_number=round_number,
+            is_locked=True
+        ).exists()
 
 class JudgeSettings(models.Model):
     """Paramètres personnalisés pour l'interface de notation d'un juge."""
@@ -220,7 +284,17 @@ class TechnicalPerformance(models.Model):
     is_completed = models.BooleanField(_("Terminé"), default=False)
     notes = models.TextField(_("Notes"), blank=True)
     created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
-    
+
+    # Champs d'absence (gérés par le Placateur)
+    is_absent = models.BooleanField(_("Absent"), default=False)
+    absence_noted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='noted_absences',
+        verbose_name=_("Absence notée par")
+    )
+    absence_noted_at = models.DateTimeField(_("Absence notée le"), null=True, blank=True)
+
     STATUS_CHOICES = [
         ('pending', _('En attente')),
         ('in_progress', _('En cours')),
@@ -259,52 +333,74 @@ class TechnicalPerformance(models.Model):
             return (self.end_time - self.start_time).total_seconds()
         return None
     
-    def calculate_final_score(self):
-        """Calcule le score final en fonction des notes des juges"""
+    def calculate_final_score(self, round_number=None):
+        """Calcule le score final en fonction des notes des juges.
+
+        BUG #2 FIX: Prend en compte le round_number pour les barrages.
+        Si round_number est None, utilise les notes actives pour le classement.
+        """
         from django.db.models import Avg, Max, Min
-        
-        # Récupérer toutes les notes pour cette prestation
-        scores = TechnicalScore.objects.filter(performance=self)
-        
-        # Vérifier si les notes extrÃªmes doivent Ãªtre exclues
-        scoring_config = self.category.scoring_config
-        if scoring_config and scoring_config.get('exclude_extreme_scores', False):
+
+        # BUG #2 FIX: Filtrer par round_number ou par is_active_for_ranking
+        if round_number is not None:
+            scores = TechnicalScore.objects.filter(performance=self, round_number=round_number)
+        else:
+            scores = TechnicalScore.objects.filter(performance=self, is_active_for_ranking=True)
+
+        # Vérifier si les notes extremes doivent être exclues
+        try:
+            scoring_config = ScoringConfiguration.objects.get(category=self.category)
+            exclude_extreme = scoring_config.exclude_extreme_scores
+        except ScoringConfiguration.DoesNotExist:
+            exclude_extreme = False
+
+        if exclude_extreme:
             # Calculer le score final en excluant la note la plus haute et la plus basse
             judges_count = scores.values('judge').distinct().count()
-            if judges_count >= 3:  # Besoin d'au moins 3 juges pour exclure les extrÃªmes
+            if judges_count >= 3:  # Besoin d'au moins 3 juges pour exclure les extremes
                 final_scores = []
-                
-                # Pour chaque critère
+
+                # Pour chaque critere
                 for criterion in ScoringCriterion.objects.filter(category=self.category, is_active=True):
                     criterion_scores = scores.filter(criterion=criterion)
-                    
-                    # Exclure la note max et min pour ce critère
+
+                    # Exclure la note max et min pour ce critere
                     max_score = criterion_scores.order_by('-value').first()
                     min_score = criterion_scores.order_by('value').first()
-                    
+
                     if max_score and min_score:
                         avg_score = criterion_scores.exclude(
                             id__in=[max_score.id, min_score.id]
                         ).aggregate(avg=Avg('value'))['avg'] or 0
-                        
-                        # Pondérer la note moyenne
+
+                        # Ponderer la note moyenne
                         weighted_score = avg_score * criterion.weight
                         final_scores.append(weighted_score)
-                
+
                 return sum(final_scores)
-        
-        # Méthode standard: moyenne pondérée de toutes les notes
-        total_score = 0
-        total_weight = 0
-        
+
+        # Methode standard: moyenne ponderee de toutes les notes
+        total_score = 0.0
+        total_weight = 0.0
+
         for criterion in ScoringCriterion.objects.filter(category=self.category, is_active=True):
-            avg_score = scores.filter(criterion=criterion).aggregate(avg=Avg('value'))['avg'] or 0
-            total_score += avg_score * criterion.weight
-            total_weight += criterion.weight
-        
+            avg_score = scores.filter(criterion=criterion).aggregate(avg=Avg('value'))['avg']
+            if avg_score is not None:
+                # Convertir en float pour eviter les erreurs Decimal * float
+                total_score += float(avg_score) * float(criterion.weight)
+                total_weight += float(criterion.weight)
+
         if total_weight > 0:
             return total_score / total_weight
-        return 0
+        return 0.0
+
+    def get_current_round(self):
+        """BUG #2 FIX: Retourne le round actuel (le plus élevé avec des notes)."""
+        from django.db.models import Max
+        max_round = TechnicalScore.objects.filter(
+            performance=self
+        ).aggregate(max_round=Max('round_number'))['max_round']
+        return max_round or 1
 
 
 class ScoringConfiguration(models.Model):
@@ -332,27 +428,87 @@ class ScoringConfiguration(models.Model):
     def __str__(self):
         return f"Configuration pour {self.category}"
 
+
+class ScoringPreset(models.Model):
+    """Preset de configuration de notation réutilisable, lié à une discipline."""
+    name = models.CharField(_("Nom du preset"), max_length=100)
+    discipline = models.ForeignKey(
+        'competitions.Discipline',
+        on_delete=models.CASCADE,
+        related_name='scoring_presets',
+        verbose_name=_("Discipline")
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        verbose_name=_("Créé par")
+    )
+    config_data = models.JSONField(
+        _("Données de configuration"),
+        help_text=_("Paramètres de notation, critères et configuration Tour 2")
+    )
+    created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
+
+    class Meta:
+        app_label = 'competitions'
+        verbose_name = _("Preset de notation")
+        verbose_name_plural = _("Presets de notation")
+        ordering = ['-updated_at']
+        unique_together = ['name', 'discipline']
+
+    def __str__(self):
+        return f"{self.name} ({self.discipline.name})"
+
+
 class TechnicalScore(models.Model):
     """Note technique attribuée par un juge"""
-    performance = models.ForeignKey(TechnicalPerformance, on_delete=models.CASCADE, 
+
+    ROUND_TYPES = [
+        (1, _('Tour initial')),
+        (2, _('Barrage 1')),
+        (3, _('Barrage 2')),
+        (4, _('Barrage 3')),
+    ]
+
+    performance = models.ForeignKey(TechnicalPerformance, on_delete=models.CASCADE,
                                   related_name='scores',
                                   verbose_name=_("Prestation"))
-    judge = models.ForeignKey(User, on_delete=models.CASCADE, 
+    judge = models.ForeignKey(User, on_delete=models.CASCADE,
                            related_name='technical_scores',
                            verbose_name=_("Juge"))
-    criterion = models.ForeignKey(ScoringCriterion, on_delete=models.CASCADE, 
-                                related_name='technical_scores',  # Ajout de la virgule ici
+    criterion = models.ForeignKey(ScoringCriterion, on_delete=models.CASCADE,
+                                related_name='technical_scores',
                                 verbose_name=_("Critère"))
     value = models.DecimalField(_("Note"), max_digits=4, decimal_places=2)
+
+    # BUG #2 FIX: Ajouter round_number pour supporter les barrages en cas d'égalité
+    round_number = models.PositiveSmallIntegerField(
+        _("Tour de notation"),
+        choices=ROUND_TYPES,
+        default=1,
+        help_text=_("1 = Tour initial, 2+ = Barrages")
+    )
+
     submitted_at = models.DateTimeField(_("Soumis le"), auto_now_add=True)
     is_locked = models.BooleanField(_("Verrouillé"), default=False)
     is_training_score = models.BooleanField(_("Note de formation"), default=False)
-    
+
+    # BUG #2 FIX: Flag pour indiquer si c'est la note active pour le classement
+    is_active_for_ranking = models.BooleanField(
+        _("Active pour le classement"),
+        default=True,
+        help_text=_("Si False, cette note n'est pas comptée dans le classement final")
+    )
+
     class Meta:
         app_label = 'competitions'
         verbose_name = _("Note technique")
         verbose_name_plural = _("Notes techniques")
-        unique_together = ['performance', 'judge', 'criterion']
+        # BUG #2 FIX: Ajouter round_number à unique_together pour permettre plusieurs notes
+        unique_together = ['performance', 'judge', 'criterion', 'round_number']
+        ordering = ['performance', 'round_number', 'judge']
     
     def __str__(self):
         return f"{self.judge.username}: {self.value} - {self.criterion.name}"

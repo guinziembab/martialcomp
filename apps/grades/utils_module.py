@@ -14,31 +14,60 @@ from apps.grades.models import Grade  # Correction ici
 logger = logging.getLogger(__name__)
 
 def get_user_club(request):
-    """Récupère le club associé Ã  l'utilisateur."""
+    """Récupère le club ou l'organisation associée à l'utilisateur."""
+    
+    # Si l'organisation est déjà dans la requête (via le middleware)
+    if hasattr(request, 'user_organization') and request.user_organization:
+        return request.user_organization
+    
+    # Vérifier via UserProfile (comme le middleware)
+    try:
+        from apps.competitions.models.users import UserProfile
+        profile = UserProfile.objects.get(user=request.user)
+        if profile.organization:
+            return profile.organization
+    except:
+        pass
+    
+    # Vérifier via MembershipSubscription actif
+    try:
+        from apps.membership.models import MembershipSubscription
+        subscription = MembershipSubscription.objects.filter(
+            practitioner__user=request.user,
+            status='active'
+        ).select_related('package__organization').first()
+        
+        if subscription and subscription.package.organization:
+            return subscription.package.organization
+    except:
+        pass
+    
+    # Ancienne logique comme fallback
     if hasattr(request.user, 'club') and request.user.club:
         return request.user.club
-    
-    # Essayer les autres modèles possibles
-    club = None
     
     # Vérifier le profil de l'utilisateur
     if hasattr(request.user, 'profile') and hasattr(request.user.profile, 'club'):
         club = request.user.profile.club
+        if club:
+            return club
     
     # Vérifier si l'utilisateur est propriétaire d'un club
-    if not club and hasattr(request.user, 'owned_clubs'):
+    if hasattr(request.user, 'owned_clubs'):
         club = request.user.owned_clubs.first()
+        if club:
+            return club
     
     # Dernière tentative - chercher dans les clubs administrés
-    if not club and hasattr(request.user, 'club_admin_roles'):
+    if hasattr(request.user, 'club_admin_roles'):
         club_admin = request.user.club_admin_roles.first()
         if club_admin:
-            club = club_admin.club
+            return club_admin.club
     
-    return club
+    return None
 
 def get_user_federation(request):
-    """Récupère la fédération associée Ã  l'utilisateur."""
+    """Récupère la fédération associée à l'utilisateur."""
     if hasattr(request.user, 'federation') and request.user.federation:
         return request.user.federation
     
@@ -105,4 +134,3 @@ def check_grade_eligibility(current_grade, min_grade, max_grade):
             return False
     
     return True
-

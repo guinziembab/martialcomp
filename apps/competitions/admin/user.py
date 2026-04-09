@@ -86,7 +86,7 @@ class CustomUserAdmin(UserAdmin):
             return role_display.get(profile.role, profile.role)
         except Exception as e:
             print(f"ERREUR dans get_role_display pour {instance.username}: {str(e)}")
-            return "Erreur"
+            return _("Erreur")
     
     get_role_display.short_description = _('Rôle')
     get_role_display.admin_order_field = 'profile__role'
@@ -145,9 +145,9 @@ class CustomUserAdmin(UserAdmin):
                 return format_html('<a href="{}" target="_blank">?? Éditer Profil</a>', url)
             else:
                 # Proposer de créer le profil
-                return format_html('<span style="color: red;">[ERREUR] Pas de profil</span>')
+                return format_html('<span style="color: red;">{}</span>', _('[ERREUR] Pas de profil'))
         except Exception:
-            return "Erreur"
+            return _("Erreur")
     
     edit_profile_link.short_description = _('Profil')
     edit_profile_link.allow_tags = True
@@ -512,7 +512,7 @@ class UserProfileAdmin(admin.ModelAdmin):
             url = reverse('admin:auth_user_change', args=[obj.user.pk])
             return format_html('<a href="{}" target="_blank">?? Éditer Utilisateur</a>', url)
         except Exception:
-            return "Erreur"
+            return _("Erreur")
     
     edit_user_link.short_description = _('Utilisateur')
     edit_user_link.allow_tags = True

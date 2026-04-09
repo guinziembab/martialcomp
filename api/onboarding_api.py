@@ -204,9 +204,68 @@ class CreateClubView(APIView):
             # Récupérer les données
             name = request.data.get('name')
             discipline_id = request.data.get('discipline_id')
+            discipline_ids = request.data.get('discipline_ids', [])
             city = request.data.get('city', '')
-            country = request.data.get('country', 'France')
+            country_raw = request.data.get('country', 'France')
             description = request.data.get('description', '')
+
+            # Convertir le nom de pays en code ISO 2 lettres si nécessaire
+            country = country_raw
+            if country_raw and len(country_raw) > 2:
+                COUNTRY_NAME_TO_CODE = {
+                    'afghanistan': 'AF', 'afrique du sud': 'ZA', 'albanie': 'AL', 'algérie': 'DZ',
+                    'allemagne': 'DE', 'andorre': 'AD', 'angola': 'AO', 'antigua-et-barbuda': 'AG',
+                    'arabie saoudite': 'SA', 'argentine': 'AR', 'arménie': 'AM', 'australie': 'AU',
+                    'autriche': 'AT', 'azerbaïdjan': 'AZ', 'bahamas': 'BS', 'bahreïn': 'BH',
+                    'bangladesh': 'BD', 'barbade': 'BB', 'belgique': 'BE', 'belize': 'BZ',
+                    'bénin': 'BJ', 'bhoutan': 'BT', 'biélorussie': 'BY', 'birmanie': 'MM',
+                    'bolivie': 'BO', 'bosnie-herzégovine': 'BA', 'botswana': 'BW', 'brésil': 'BR',
+                    'brunei': 'BN', 'bulgarie': 'BG', 'burkina faso': 'BF', 'burundi': 'BI',
+                    'cambodge': 'KH', 'cameroun': 'CM', 'canada': 'CA', 'cap-vert': 'CV',
+                    'centrafrique': 'CF', 'chili': 'CL', 'chine': 'CN', 'chypre': 'CY',
+                    'colombie': 'CO', 'comores': 'KM', 'corée du nord': 'KP', 'corée du sud': 'KR',
+                    'costa rica': 'CR', "côte d'ivoire": 'CI', 'croatie': 'HR', 'cuba': 'CU',
+                    'danemark': 'DK', 'djibouti': 'DJ', 'dominique': 'DM', 'égypte': 'EG',
+                    'émirats arabes unis': 'AE', 'équateur': 'EC', 'érythrée': 'ER', 'espagne': 'ES',
+                    'estonie': 'EE', 'eswatini': 'SZ', 'états-unis': 'US', 'éthiopie': 'ET',
+                    'fidji': 'FJ', 'finlande': 'FI', 'france': 'FR', 'gabon': 'GA', 'gambie': 'GM',
+                    'géorgie': 'GE', 'ghana': 'GH', 'grèce': 'GR', 'grenade': 'GD',
+                    'guatemala': 'GT', 'guinée': 'GN', 'guinée équatoriale': 'GQ',
+                    'guinée-bissau': 'GW', 'guyana': 'GY', 'haïti': 'HT', 'honduras': 'HN',
+                    'hongrie': 'HU', 'inde': 'IN', 'indonésie': 'ID', 'irak': 'IQ', 'iran': 'IR',
+                    'irlande': 'IE', 'islande': 'IS', 'israël': 'IL', 'italie': 'IT',
+                    'jamaïque': 'JM', 'japon': 'JP', 'jordanie': 'JO', 'kazakhstan': 'KZ',
+                    'kenya': 'KE', 'kirghizistan': 'KG', 'kiribati': 'KI', 'koweït': 'KW',
+                    'laos': 'LA', 'lesotho': 'LS', 'lettonie': 'LV', 'liban': 'LB',
+                    'liberia': 'LR', 'libye': 'LY', 'liechtenstein': 'LI', 'lituanie': 'LT',
+                    'luxembourg': 'LU', 'macédoine du nord': 'MK', 'madagascar': 'MG',
+                    'malaisie': 'MY', 'malawi': 'MW', 'maldives': 'MV', 'mali': 'ML',
+                    'malte': 'MT', 'maroc': 'MA', 'maurice': 'MU', 'mauritanie': 'MR',
+                    'mexique': 'MX', 'micronésie': 'FM', 'moldavie': 'MD', 'monaco': 'MC',
+                    'mongolie': 'MN', 'monténégro': 'ME', 'mozambique': 'MZ', 'namibie': 'NA',
+                    'nauru': 'NR', 'népal': 'NP', 'nicaragua': 'NI', 'niger': 'NE',
+                    'nigeria': 'NG', 'norvège': 'NO', 'nouvelle-zélande': 'NZ', 'oman': 'OM',
+                    'ouganda': 'UG', 'ouzbékistan': 'UZ', 'pakistan': 'PK', 'palaos': 'PW',
+                    'palestine': 'PS', 'panama': 'PA', 'papouasie-nouvelle-guinée': 'PG',
+                    'paraguay': 'PY', 'pays-bas': 'NL', 'pérou': 'PE', 'philippines': 'PH',
+                    'pologne': 'PL', 'portugal': 'PT', 'qatar': 'QA',
+                    'république démocratique du congo': 'CD', 'république dominicaine': 'DO',
+                    'république du congo': 'CG', 'république tchèque': 'CZ', 'roumanie': 'RO',
+                    'royaume-uni': 'GB', 'russie': 'RU', 'rwanda': 'RW',
+                    'saint-kitts-et-nevis': 'KN', 'saint-vincent-et-les-grenadines': 'VC',
+                    'sainte-lucie': 'LC', 'salomon': 'SB', 'salvador': 'SV', 'samoa': 'WS',
+                    'são tomé-et-príncipe': 'ST', 'sénégal': 'SN', 'serbie': 'RS',
+                    'seychelles': 'SC', 'sierra leone': 'SL', 'singapour': 'SG', 'slovaquie': 'SK',
+                    'slovénie': 'SI', 'somalie': 'SO', 'soudan': 'SD', 'soudan du sud': 'SS',
+                    'sri lanka': 'LK', 'suède': 'SE', 'suisse': 'CH', 'suriname': 'SR',
+                    'syrie': 'SY', 'tadjikistan': 'TJ', 'tanzanie': 'TZ', 'tchad': 'TD',
+                    'thaïlande': 'TH', 'timor oriental': 'TL', 'togo': 'TG', 'tonga': 'TO',
+                    'trinité-et-tobago': 'TT', 'tunisie': 'TN', 'turkménistan': 'TM',
+                    'turquie': 'TR', 'tuvalu': 'TV', 'ukraine': 'UA', 'uruguay': 'UY',
+                    'vanuatu': 'VU', 'vatican': 'VA', 'venezuela': 'VE', 'viêt nam': 'VN',
+                    'yémen': 'YE', 'zambie': 'ZM', 'zimbabwe': 'ZW',
+                }
+                country = COUNTRY_NAME_TO_CODE.get(country_raw.lower().strip(), country_raw[:2].upper())
 
             if not name:
                 return Response({
@@ -214,19 +273,28 @@ class CreateClubView(APIView):
                     'message': _("Nom du club requis")
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            # Récupérer la discipline (OBLIGATOIRE)
-            if not discipline_id:
+            # Récupérer les disciplines (au moins une requise)
+            # Support ancien format (discipline_id) et nouveau (discipline_ids)
+            selected_discipline_ids = []
+            if discipline_ids and isinstance(discipline_ids, list):
+                selected_discipline_ids = [int(d) for d in discipline_ids if d]
+            elif discipline_id:
+                selected_discipline_ids = [int(discipline_id)]
+
+            if not selected_discipline_ids:
                 return Response({
                     'success': False,
-                    'message': _("Discipline principale requise")
+                    'message': _("Au moins une discipline est requise")
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            discipline = Discipline.objects.filter(id=discipline_id).first()
-            if not discipline:
+            selected_disciplines = Discipline.objects.filter(id__in=selected_discipline_ids)
+            if not selected_disciplines.exists():
                 return Response({
                     'success': False,
                     'message': _("Discipline non trouvée")
                 }, status=status.HTTP_400_BAD_REQUEST)
+
+            discipline = selected_disciplines.first()
 
             # Créer l'organisation
             organization = Organization.objects.create(
@@ -249,10 +317,10 @@ class CreateClubView(APIView):
                 owner=request.user,
             )
 
-            # Associer la discipline si fournie
-            if discipline:
-                club.disciplines.add(discipline)
-                organization.disciplines.add(discipline)
+            # Associer les disciplines
+            for disc in selected_disciplines:
+                club.disciplines.add(disc)
+                organization.disciplines.add(disc)
 
             # Créer le membre de l'organisation (propriétaire)
             from apps.organizations.models import OrganizationMember, OrganizationRole
@@ -269,7 +337,9 @@ class CreateClubView(APIView):
 
             # Mettre à jour le profil
             profile.organization = organization
-            profile.onboarding_step = 'final_setup'
+            if hasattr(profile, 'club'):
+                profile.club = club
+            profile.onboarding_step = 'completed'
             profile.onboarding_completed = True
             profile.save()
 
@@ -378,7 +448,7 @@ class CreateFederationView(APIView):
 
             # Mettre à jour le profil
             profile.organization = organization
-            profile.onboarding_step = 'final_setup'
+            profile.onboarding_step = 'completed'
             profile.onboarding_completed = True
             profile.save()
 

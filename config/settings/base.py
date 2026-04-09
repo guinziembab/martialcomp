@@ -92,9 +92,12 @@ INSTALLED_APPS = [
     'apps.payment',
     'apps.task_management',  # Gestion des tâches Kanban
     'apps.membership',  # Système d'adhésion MartialComp v2.0
+    'apps.chat',  # PROMPT 11 - Système de messagerie interne
+    'apps.superadmin',  # Interface Super Admin avancée
     'accounts',
     'apps.security',
     'api_auth',
+    'apps.core',  # PHASE 3: Module core avec DisciplineAccessLog
 ]
 
 # Solution de secours avec chemin d'importation correct
@@ -122,6 +125,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.competitions.middleware.OrganizationalContextMiddleware',  # Contexte organisationnel (club/federation actif)
     'apps.core.isolation.OrganizationSecurityMiddleware',  # APRÈS l'authentification - Middleware d'isolation organisationnelle
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -148,7 +152,9 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'apps.finances.context_processors.financial_stats',
                 'apps.competitions.context_processors.language_context',
+                'apps.competitions.context_processors.judge_context',  # PROMPT 7
                 'apps.payment.context_processors.subscription_context',
+                'apps.competitions.views.role_switch.active_context_processor',  # Social Auth - Contexte actif
             ],
         },
     },
@@ -191,7 +197,7 @@ LANGUAGES = [
 
 # Configuration django-modeltranslation
 MODELTRANSLATION_DEFAULT_LANGUAGE = 'fr'
-MODELTRANSLATION_LANGUAGES = ('fr', 'en')
+MODELTRANSLATION_LANGUAGES = ('fr', 'en', 'it', 'es', 'pt', 'de', 'ar', 'zh', 'ja', 'vi', 'ko', 'ru', 'no', 'hi', 'sw', 'am', 'zu', 'yo')
 MODELTRANSLATION_FALLBACK_LANGUAGES = ('fr', 'en')
 
 # Chemins des fichiers de traduction
@@ -207,21 +213,32 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Email Configuration
+# ================================================================
+# CONFIGURATION DES EMAILS
+# ================================================================
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.ionos.fr')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='MartialComp <noreply@martialcomp.com>')
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=30, cast=int)
 
-# Email addresses for different services
+# Adresses email par défaut
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='MartialComp <noreply@martialcomp.com>')
+SERVER_EMAIL = config('SERVER_EMAIL', default='noreply@martialcomp.com')
+
+# Emails de service
 ACCOUNTING_EMAIL = config('ACCOUNTING_EMAIL', default='finance@martialcomp.com')
 CUSTOMER_SERVICE_EMAIL = config('CUSTOMER_SERVICE_EMAIL', default='support@martialcomp.com')
 SUPPORT_EMAIL = config('SUPPORT_EMAIL', default='support@martialcomp.com')
 
-# Site URL for email links
+# Administrateurs pour les notifications d'erreurs (développement)
+ADMINS = []
+MANAGERS = ADMINS
+
+# URL du site pour les liens dans les emails
 SITE_URL = config('SITE_URL', default='http://localhost:8000')
 
 # Default primary key field type
@@ -256,6 +273,8 @@ ACCOUNT_USER_MODEL_USERNAME_FIELD = 'username'
 # Configuration des sessions et redirections
 ACCOUNT_LOGOUT_ON_GET = False
 ACCOUNT_SESSION_REMEMBER = True
+# S'assurer que la session est complètement effacée lors du logout
+ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE = False
 
 # Adaptateurs personnalisés pour l'onboarding
 ACCOUNT_ADAPTER = 'apps.competitions.adapters.MartialCompAccountAdapter'
@@ -265,7 +284,9 @@ SOCIALACCOUNT_ADAPTER = 'apps.competitions.adapters.MartialCompSocialAccountAdap
 LOGIN_REDIRECT_URL = '/competitions/onboarding/role/'
 ACCOUNT_LOGIN_REDIRECT_URL = '/competitions/onboarding/role/'
 ACCOUNT_SIGNUP_REDIRECT_URL = '/competitions/onboarding/role/'
-LOGOUT_REDIRECT_URL = '/fr/'
+# Redirection après logout vers la page d'accueil avec paramètre pour éviter les boucles
+LOGOUT_REDIRECT_URL = '/fr/?no_redirect=1'
+ACCOUNT_LOGOUT_REDIRECT_URL = '/fr/?no_redirect=1'
 LOGIN_URL = '/accounts/login/'
 
 # Configuration d'authentification sociale
@@ -276,22 +297,16 @@ SOCIALACCOUNT_QUERY_EMAIL = True
 SOCIALACCOUNT_STORE_TOKENS = True
 
 # Fournisseurs d'authentification sociale
+# Note: Les credentials (client_id, secret) sont stockés dans la table SocialApp
+# Ne pas définir 'APP' ici pour éviter les conflits MultipleObjectsReturned
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
-        'APP': {
-            'client_id': os.getenv('GOOGLE_CLIENT_ID', ''),
-            'secret': os.getenv('GOOGLE_CLIENT_SECRET', ''),
-        },
         'SCOPE': ['profile', 'email'],
         'AUTH_PARAMS': {'access_type': 'online'},
         'OAUTH_PKCE_ENABLED': True,
         'VERIFIED_EMAIL': True,
     },
     'facebook': {
-        'APP': {
-            'client_id': os.getenv('FACEBOOK_APP_ID', ''),
-            'secret': os.getenv('FACEBOOK_APP_SECRET', ''),
-        },
         'METHOD': 'oauth2',
         'SDK_URL': '//connect.facebook.net/{locale}/sdk.js',
         'SCOPE': ['email', 'public_profile'],
@@ -520,3 +535,80 @@ LOGGING = {
 
 # Créer le répertoire des logs s'il n'existe pas
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
+
+# ================================================================
+# CONTENT SECURITY POLICY - STREAMING IFRAMES
+# ================================================================
+# Configuration CSP pour autoriser les iframes des plateformes de streaming
+# Ces domaines sont nécessaires pour l'intégration du streaming hybride
+
+CSP_FRAME_SRC = [
+    "'self'",
+    # YouTube
+    "https://www.youtube.com",
+    "https://youtube.com",
+    "https://www.youtube-nocookie.com",
+    # Twitch
+    "https://player.twitch.tv",
+    "https://www.twitch.tv",
+    "https://embed.twitch.tv",
+    # Vimeo
+    "https://player.vimeo.com",
+    "https://vimeo.com",
+    # Facebook Live
+    "https://www.facebook.com",
+    "https://facebook.com",
+    # Dailymotion
+    "https://www.dailymotion.com",
+    "https://dailymotion.com",
+    "https://geo.dailymotion.com",
+]
+
+# Pour le chat intégré (Twitch uniquement pour l'instant)
+CSP_CHILD_SRC = CSP_FRAME_SRC
+
+# X-Frame-Options: permet l'embedding dans le même domaine
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+# ================================================================
+# SIMPLE JWT CONFIGURATION (Mobile Social Auth)
+# ================================================================
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+}
+
+# ================================================================
+# STRIPE PAYMENT CONFIGURATION
+# ================================================================
+# Phase 1: Platform-level Stripe integration (single merchant)
+# Keys are loaded from environment variables via python-decouple
+# Phase 3 will add per-organization Stripe Connect
+
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
+STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
+STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
+STRIPE_API_VERSION = '2023-10-16'
+STRIPE_LIVE_MODE = STRIPE_SECRET_KEY.startswith('sk_live_')
+
+# Stripe Subscription Price IDs (per-seat annual billing)
+# Created via: python manage.py setup_stripe_prices
+# Mature markets: 9.99 EUR/member/year, Emergent: 4.99 EUR/member/year
+STRIPE_PRICE_MATURE_YEARLY = config('STRIPE_PRICE_MATURE_YEARLY', default='')
+STRIPE_PRICE_EMERGENT_YEARLY = config('STRIPE_PRICE_EMERGENT_YEARLY', default='')

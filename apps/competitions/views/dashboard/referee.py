@@ -9,12 +9,57 @@ from django.db.models import Q
 from ...models import UserProfile, Competition, JudgeCompetitionAssignment, CompetitionRegistration
 from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
 
+# Import pour les juges ad-hoc
+try:
+    from ...models.adhoc_judges import AdHocJudge
+except ImportError:
+    AdHocJudge = None
+
 @login_required
 def referee_dashboard(request):
     """Dashboard pour les juges/arbitres."""
     try:
         profile = UserProfile.objects.get(user=request.user)
-        if profile.role not in ['referee', 'judge']:
+        
+        # Vérifier si l'utilisateur a accès au dashboard juge
+        has_judge_access = False
+        
+        # 1. Vérifier si le rôle principal est judge/referee
+        if profile.role in ['referee', 'judge']:
+            has_judge_access = True
+        
+        # 2. Vérifier si c'est un pratiquant avec un profil juge
+        elif profile.role == 'participant':
+            from ...models import Practitioner, Judge
+
+            # Vérifier d'abord s'il y a un profil Judge directement lié à l'utilisateur
+            try:
+                judge = Judge.objects.get(user=request.user)
+                has_judge_access = True
+            except Judge.DoesNotExist:
+                # Sinon, vérifier via le profil pratiquant
+                try:
+                    practitioner = Practitioner.objects.get(user=request.user)
+                    judge = Judge.objects.get(practitioner=practitioner)
+                    has_judge_access = True
+                except (Practitioner.DoesNotExist, Judge.DoesNotExist):
+                    pass
+
+        # 3. Vérifier si c'est un juge ad-hoc actif
+        is_adhoc_judge = False
+        adhoc_assignments = []
+        if AdHocJudge is not None:
+            try:
+                from ...models import Practitioner
+                practitioner = Practitioner.objects.get(user=request.user)
+                adhoc_assignments = AdHocJudge.get_active_for_practitioner(practitioner)
+                if adhoc_assignments.exists():
+                    has_judge_access = True
+                    is_adhoc_judge = True
+            except (Practitioner.DoesNotExist, Exception):
+                pass
+
+        if not has_judge_access:
             messages.error(request, _("Vous n'avez pas les droits d'accès à cette page."))
             return redirect('competitions:dashboard')
         
@@ -101,14 +146,33 @@ def referee_dashboard(request):
         except Practitioner.DoesNotExist:
             pass
         
+        # Vérifier si l'utilisateur a un profil pratiquant
+        has_practitioner_profile = False
+        try:
+            from ...models import Practitioner
+            has_practitioner_profile = Practitioner.objects.filter(user=request.user).exists()
+        except ImportError:
+            pass
+        
+        # Ajouter les compétitions des assignations ad-hoc aux compétitions à venir
+        adhoc_competitions = []
+        if is_adhoc_judge and adhoc_assignments:
+            for adhoc in adhoc_assignments:
+                if adhoc.competition not in upcoming_competitions:
+                    adhoc_competitions.append(adhoc.competition)
+
         context = {
-            'upcoming_competitions': upcoming_competitions,
+            'upcoming_competitions': upcoming_competitions + adhoc_competitions,
             'past_competitions': past_competitions,
             'available_competitions': available_competitions,
             'stats': stats,
-            'judge_assignments': judge_assignments
+            'judge_assignments': judge_assignments,
+            'has_practitioner_profile': has_practitioner_profile,
+            # Informations sur les juges ad-hoc
+            'is_adhoc_judge': is_adhoc_judge,
+            'adhoc_assignments': adhoc_assignments if is_adhoc_judge else [],
         }
-        
+
         return render(request, 'competitions/dashboard/referee.html', context)
         
     except UserProfile.DoesNotExist:

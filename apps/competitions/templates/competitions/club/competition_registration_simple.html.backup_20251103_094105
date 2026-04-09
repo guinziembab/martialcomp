@@ -1,0 +1,1169 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% trans "Inscription à" %} {{ competition.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .registration-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .registration-card {
+        background: white;
+        border-radius: 10px;
+        padding: 30px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 25px;
+    }
+    
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #e9ecef;
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #2c3e50;
+        display: block;
+    }
+    
+    .form-select,
+    .form-control {
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #dee2e6;
+        font-size: 1rem;
+    }
+    
+    .form-select:focus,
+    .form-control:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        outline: none;
+    }
+    
+    .practitioners-list {
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 15px;
+        background: #f8f9fa;
+    }
+    
+    .practitioner-item {
+        background: white;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+        border: 2px solid #dee2e6;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+    
+    .practitioner-item:hover {
+        border-color: #0d6efd;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .practitioner-item.selected {
+        background: #e7f3ff;
+        border-color: #0d6efd;
+    }
+    
+    .practitioner-item input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        margin-right: 10px;
+    }
+    
+    .practitioner-info {
+        display: flex;
+        align-items: center;
+    }
+    
+    .practitioner-details {
+        flex: 1;
+    }
+    
+    .practitioner-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #2c3e50;
+    }
+    
+    .practitioner-meta {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-top: 5px;
+    }
+    
+    .practitioners-filters {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+    }
+    
+    .practitioners-filters .form-control-sm,
+    .practitioners-filters .form-select-sm {
+        border-radius: 6px;
+    }
+    
+    #practitionersCount {
+        font-weight: 600;
+        color: #0d6efd;
+    }
+    
+    .summary-card {
+        background: #e7f3ff;
+        border: 2px solid #0d6efd;
+        border-radius: 10px;
+        padding: 20px;
+        position: sticky;
+        top: 20px;
+    }
+    
+    .summary-item {
+        padding: 10px 0;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .summary-item:last-child {
+        border-bottom: none;
+    }
+    
+    .summary-label {
+        font-weight: 600;
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    
+    .summary-value {
+        font-size: 1.1rem;
+        color: #2c3e50;
+        font-weight: 600;
+        margin-top: 5px;
+    }
+    
+    .btn-register {
+        width: 100%;
+        padding: 15px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-top: 20px;
+    }
+    
+    .alert-fixed {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+        animation: slideIn 0.3s ease-out;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    .badge {
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 0.85rem;
+        margin-right: 5px;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: #6c757d;
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 15px;
+        opacity: 0.5;
+    }
+    
+    /* Pratiquants inscrits */
+    .practitioner-item.registered {
+        background: #d4edda;
+        border-color: #28a745;
+        position: relative;
+    }
+    
+    .practitioner-item.registered::before {
+        content: "\f00c";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        color: #28a745;
+        font-size: 1.5rem;
+    }
+    
+    .badge-registered {
+        background: #28a745;
+        color: white;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-left: 10px;
+    }
+    
+    /* Statistiques */
+    .stats-container {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 25px;
+    }
+    
+    .stat-card {
+        flex: 1;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+        padding: 20px;
+        color: white;
+        text-align: center;
+    }
+    
+    .stat-card.success {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+    
+    .stat-card.warning {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    
+    .stat-card.info {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+    
+    .stat-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+    
+    /* Onglets */
+    .tabs-container {
+        border-bottom: 2px solid #dee2e6;
+        margin-bottom: 20px;
+    }
+    
+    .tab-button {
+        background: none;
+        border: none;
+        padding: 12px 24px;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+        color: #6c757d;
+        font-weight: 500;
+        transition: all 0.3s;
+    }
+    
+    .tab-button.active {
+        color: #0d6efd;
+        border-bottom-color: #0d6efd;
+    }
+    
+    .tab-button:hover {
+        color: #0d6efd;
+    }
+    
+    .tab-content {
+        display: none;
+    }
+    
+    .tab-content.active {
+        display: block;
+        animation: fadeIn 0.3s;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Liste des inscrits */
+    .registered-list-item {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .registered-practitioner-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #2c3e50;
+    }
+    
+    .registered-details {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-top: 5px;
+    }
+    
+    /* Bouton désinscrire */
+    .btn-unregister {
+        background: rgba(255, 255, 255, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 50%;
+        color: #fff;
+        padding: 2px 5px;
+        margin-left: 8px;
+        cursor: pointer;
+        font-size: 0.75rem;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+    }
+    
+    .btn-unregister:hover {
+        background: #dc3545;
+        border-color: #dc3545;
+        color: white;
+        transform: scale(1.1);
+    }
+    
+    .btn-unregister i {
+        font-size: 0.65rem;
+    }
+    
+    .badge.position-relative {
+        padding-right: 28px;
+        display: inline-flex;
+        align-items: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="registration-container">
+    <!-- En-tête -->
+    <div class="registration-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h1 class="mb-2">
+                    <i class="fas fa-user-plus text-primary me-2"></i>
+                    {% trans "Inscription à la compétition" %}
+                </h1>
+                <h3 class="text-muted">{{ competition.title }}</h3>
+            </div>
+            <a href="{% url 'competitions:club:competition_management_simple' competition.id %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>
+                {% trans "Retour" %}
+            </a>
+        </div>
+        
+        {% if competition.start_date %}
+        <p class="text-muted mb-0">
+            <i class="fas fa-calendar me-2"></i>
+            {{ competition.start_date|date:"d/m/Y" }}
+            {% if competition.location %}
+            <i class="fas fa-map-marker-alt ms-3 me-2"></i>
+            {{ competition.location }}
+            {% endif %}
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Statistiques -->
+    <div class="stats-container">
+        <div class="stat-card success">
+            <div class="stat-number">{{ total_registered|default:0 }}</div>
+            <div class="stat-label">{% trans "Pratiquants inscrits" %}</div>
+        </div>
+        <div class="stat-card info">
+            <div class="stat-number">{{ practitioners|length }}</div>
+            <div class="stat-label">{% trans "Pratiquants du club" %}</div>
+        </div>
+        <div class="stat-card warning">
+            <div class="stat-number" id="stat-remaining">{{ practitioners|length }}</div>
+            <div class="stat-label">{% trans "Restants à inscrire" %}</div>
+        </div>
+    </div>
+
+    <!-- Onglets -->
+    <div class="tabs-container">
+        <button class="tab-button active" data-tab="inscription-tab">
+            <i class="fas fa-user-plus me-2"></i>
+            {% trans "Nouvelle inscription" %}
+        </button>
+        <button class="tab-button" data-tab="liste-tab">
+            <i class="fas fa-list-check me-2"></i>
+            {% trans "Déjà inscrits" %} ({{ total_registered|default:0 }})
+        </button>
+    </div>
+
+    <div class="row">
+        <!-- Onglet: Nouvelle inscription -->
+        <div id="inscription-tab" class="tab-content active">
+            <div class="col-lg-8">
+                <div class="registration-card">
+                    <h2 class="section-title">
+                        <i class="fas fa-clipboard-list me-2"></i>
+                        {% trans "Sélection" %}
+                    </h2>
+                
+                <form id="registrationForm">
+                    {% csrf_token %}
+                    
+                    <!-- Sélection du type -->
+                    <div class="form-group">
+                        <label for="competitionType" class="form-label">
+                            <i class="fas fa-tag me-2"></i>
+                            {% trans "Type de compétition" %} *
+                        </label>
+                        <select class="form-select" id="competitionType" required>
+                            <option value="">{% trans "-- Sélectionnez un type --" %}</option>
+                            {% for type in competition.competition_types.all %}
+                            <option value="{{ type.id }}">{{ type.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <!-- Sélection de la catégorie -->
+                    <div class="form-group">
+                        <label for="category" class="form-label">
+                            <i class="fas fa-list me-2"></i>
+                            {% trans "Catégorie" %} *
+                        </label>
+                        <select class="form-select" id="category" required disabled>
+                            <option value="">{% trans "-- Sélectionnez d'abord un type --" %}</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Liste des pratiquants -->
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-users me-2"></i>
+                            {% trans "Pratiquants à inscrire" %} *
+                        </label>
+                        
+                        {% if practitioners %}
+                        <!-- Filtres des pratiquants -->
+                        <div class="practitioners-filters mb-3">
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <input type="text" 
+                                           id="practitionerSearch" 
+                                           class="form-control form-control-sm" 
+                                           placeholder="{% trans 'Rechercher par nom...' %}">
+                                </div>
+                                <div class="col-md-2">
+                                    <select id="filterGender" class="form-select form-select-sm">
+                                        <option value="">{% trans "Tous genres" %}</option>
+                                        <option value="M">{% trans "Homme" %}</option>
+                                        <option value="F">{% trans "Femme" %}</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <select id="filterAge" class="form-select form-select-sm">
+                                        <option value="">{% trans "Tous âges" %}</option>
+                                        <option value="0-8">0-8 {% trans "ans" %}</option>
+                                        <option value="9-12">9-12 {% trans "ans" %}</option>
+                                        <option value="13-17">13-17 {% trans "ans" %}</option>
+                                        <option value="18-39">18-39 {% trans "ans" %}</option>
+                                        <option value="40+">40+ {% trans "ans" %}</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <button type="button" id="resetFilters" class="btn btn-sm btn-outline-secondary w-100">
+                                        <i class="fas fa-redo me-1"></i>
+                                        {% trans "Réinitialiser" %}
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <span id="practitionersCount">{{ practitioners|length }}</span> {% trans "pratiquant(s) affiché(s)" %}
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <div class="practitioners-list">
+                            {% for practitioner in practitioners %}
+                            <div class="practitioner-item" 
+                                 data-practitioner-id="{{ practitioner.id }}"
+                                 data-name="{{ practitioner.first_name|lower }} {{ practitioner.last_name|lower }}"
+                                 data-gender="{{ practitioner.gender|default:'' }}"
+                                 data-age="{{ practitioner.age|default:'0' }}"
+                                 data-grade="{{ practitioner.current_grade|default:'' }}"
+                                 data-registered="{% if practitioner.id in registered_practitioners %}true{% else %}false{% endif %}">
+                                <div class="practitioner-info">
+                                    <input type="checkbox" 
+                                           name="practitioners" 
+                                           value="{{ practitioner.id }}"
+                                           id="prac-{{ practitioner.id }}">
+                                    <label for="prac-{{ practitioner.id }}" class="practitioner-details mb-0">
+                                        <div class="practitioner-name">
+                                            {{ practitioner.first_name }} {{ practitioner.last_name }}
+                                            {% if practitioner.id in registered_practitioners %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-trophy me-1"></i>
+                                                {% trans "Inscrit" %}
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="practitioner-meta">
+                                            {% if practitioner.gender %}
+                                            <span class="badge bg-secondary">
+                                                <i class="fas fa-venus-mars me-1"></i>
+                                                {% if practitioner.gender == 'M' %}{% trans "Homme" %}
+                                                {% elif practitioner.gender == 'F' %}{% trans "Femme" %}
+                                                {% else %}{{ practitioner.gender }}{% endif %}
+                                            </span>
+                                            {% endif %}
+                                            {% if practitioner.age %}
+                                            <span class="badge bg-info">
+                                                <i class="fas fa-birthday-cake me-1"></i>
+                                                {{ practitioner.age }} {% trans "ans" %}
+                                            </span>
+                                            {% endif %}
+                                            {% if practitioner.current_grade %}
+                                            <span class="badge bg-warning text-dark">
+                                                <i class="fas fa-medal me-1"></i>
+                                                {{ practitioner.current_grade }}
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-users-slash"></i>
+                            <p>{% trans "Aucun pratiquant disponible dans votre club" %}</p>
+                            <a href="{% url 'competitions:club:practitioners' %}" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>
+                                {% trans "Ajouter des pratiquants" %}
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Résumé -->
+        <div class="col-lg-4">
+            <div class="summary-card">
+                <h3 class="mb-3">
+                    <i class="fas fa-clipboard-check me-2"></i>
+                    {% trans "Résumé" %}
+                </h3>
+                
+                <div class="summary-item">
+                    <div class="summary-label">{% trans "Type sélectionné" %}</div>
+                    <div class="summary-value" id="summary-type">
+                        <span class="text-muted">{% trans "Aucun" %}</span>
+                    </div>
+                </div>
+                
+                <div class="summary-item">
+                    <div class="summary-label">{% trans "Catégorie sélectionnée" %}</div>
+                    <div class="summary-value" id="summary-category">
+                        <span class="text-muted">{% trans "Aucune" %}</span>
+                    </div>
+                </div>
+                
+                <div class="summary-item">
+                    <div class="summary-label">{% trans "Déjà inscrits dans cette catégorie" %}</div>
+                    <div class="summary-value" id="summary-registered">
+                        <span class="text-muted">-</span>
+                    </div>
+                </div>
+                
+                <div class="summary-item">
+                    <div class="summary-label">{% trans "Pratiquants à inscrire maintenant" %}</div>
+                    <div class="summary-value" id="summary-count">
+                        <span class="text-primary">0</span>
+                    </div>
+                </div>
+                
+                <button type="submit" form="registrationForm" class="btn btn-success btn-register" id="btnSubmit" disabled>
+                    <i class="fas fa-check me-2"></i>
+                    {% trans "Inscrire" %}
+                </button>
+            </div>
+        </div>
+        </div>
+        
+        <!-- Onglet: Déjà inscrits -->
+        <div id="liste-tab" class="tab-content">
+            <div class="col-12">
+                <div class="registration-card">
+                    <h2 class="section-title">
+                        <i class="fas fa-list-check me-2"></i>
+                        {% trans "Pratiquants déjà inscrits" %}
+                    </h2>
+                    
+                    {% if registered_practitioners %}
+                    <div class="row">
+                        {% for practitioner_id, data in registered_practitioners.items %}
+                        <div class="col-md-6 mb-3">
+                            <div class="registered-list-item">
+                                <div>
+                                    <div class="registered-practitioner-name">
+                                        <i class="fas fa-user-check text-success me-2"></i>
+                                        {{ data.registration.practitioner.first_name }} {{ data.registration.practitioner.last_name }}
+                                    </div>
+                                    <div class="registered-details">
+                                        {% if data.types %}
+                                        <div class="mt-2">
+                                            <i class="fas fa-tag me-1"></i>
+                                            <strong>{% trans "Types:" %}</strong>
+                                            {% for type in data.types %}
+                                            <span class="badge bg-primary">{{ type.name }}</span>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                        {% if data.categories %}
+                                        <div class="mt-2">
+                                            <i class="fas fa-layer-group me-1"></i>
+                                            <strong>{% trans "Catégories:" %}</strong>
+                                            {% for cat in data.categories %}
+                                            <span class="badge bg-info position-relative">
+                                                {{ cat.name }}
+                                                <button class="btn-unregister" 
+                                                        data-practitioner-id="{{ practitioner_id }}"
+                                                        data-category-id="{{ cat.id }}"
+                                                        data-category-name="{{ cat.name }}"
+                                                        title="{% trans 'Désinscrire de cette catégorie' %}">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </span>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                        <div class="mt-2">
+                                            <i class="fas fa-calendar me-1"></i>
+                                            {% trans "Inscrit le" %} {{ data.registration.registration_date|date:"d/m/Y" }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle"></i>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-users-slash"></i>
+                        <p>{% trans "Aucun pratiquant inscrit pour le moment" %}</p>
+                        <button class="btn btn-primary tab-button" data-tab="inscription-tab">
+                            <i class="fas fa-plus me-2"></i>
+                            {% trans "Inscrire des pratiquants" %}
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Zone d'alerte -->
+<div id="alertContainer"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Configuration
+const CONFIG = {
+    competitionId: {{ competition.id }},
+    csrfToken: '{{ csrf_token }}',
+    lang: '{{ LANGUAGE_CODE|default:"fr" }}'
+};
+
+// État
+let selectedPractitioners = [];
+let selectedType = null;
+let selectedCategory = null;
+let categoriesData = {}; // Stocker les données des catégories
+
+// Utilitaires
+function showAlert(message, type = 'success') {
+    const container = document.getElementById('alertContainer');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show alert-fixed`;
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    container.appendChild(alert);
+    
+    setTimeout(() => {
+        alert.classList.remove('show');
+        setTimeout(() => alert.remove(), 300);
+    }, 5000);
+}
+
+// Gestion de la sélection du type
+console.log('🚀 Initialisation du formulaire d\'inscription');
+console.log('📋 Competition ID:', CONFIG.competitionId);
+
+const competitionTypeSelect = document.getElementById('competitionType');
+if (!competitionTypeSelect) {
+    console.error('❌ Élément competitionType non trouvé !');
+} else {
+    console.log('✅ Élément competitionType trouvé');
+    
+    competitionTypeSelect.addEventListener('change', function() {
+        const typeId = this.value;
+        const typeName = this.options[this.selectedIndex].text;
+        
+        console.log('🎯 Type sélectionné:', typeId, typeName);
+        
+        if (typeId) {
+            selectedType = typeId;
+            const summaryType = document.getElementById('summary-type');
+            if (summaryType) {
+                summaryType.innerHTML = `<span class="text-primary">${typeName}</span>`;
+            }
+            loadCategories(typeId);
+        } else {
+            selectedType = null;
+            const summaryType = document.getElementById('summary-type');
+            if (summaryType) {
+                summaryType.innerHTML = '<span class="text-muted">{% trans "Aucun" %}</span>';
+            }
+            const categorySelect = document.getElementById('category');
+            if (categorySelect) {
+                categorySelect.disabled = true;
+                categorySelect.innerHTML = "<option value=\"\">{% trans '-- Sélectionnez d\'abord un type --' %}</option>";
+            }
+        }
+        
+        updateSubmitButton();
+    });
+}
+
+// Charger les catégories pour un type
+function loadCategories(typeId) {
+    const categorySelect = document.getElementById('category');
+    if (!categorySelect) {
+        console.error('❌ Élément category non trouvé !');
+        return;
+    }
+    
+    categorySelect.disabled = true;
+    categorySelect.innerHTML = "<option value=\"\">{% trans 'Chargement...' %}</option>";
+    
+    const apiUrl = `/{{ LANGUAGE_CODE|default:"fr" }}/competitions/competitions/${CONFIG.competitionId}/api/categories/${typeId}/`;
+    console.log('🔍 Chargement catégories depuis:', apiUrl);
+    console.log('🔍 Type ID:', typeId);
+    console.log('🔍 Competition ID:', CONFIG.competitionId);
+    
+    fetch(apiUrl)
+        .then(response => {
+            console.log('📡 Réponse API:', response.status, response.statusText);
+            console.log('📡 URL finale:', response.url);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('✅ Données reçues:', data);
+            categorySelect.innerHTML = "<option value=\"\">{% trans '-- Sélectionnez une catégorie --' %}</option>";
+            
+            if (data.success && data.categories && data.categories.length > 0) {
+                console.log(`📋 ${data.categories.length} catégories trouvées`);
+                
+                // Réinitialiser les données des catégories
+                categoriesData = {};
+                
+                data.categories.forEach(cat => {
+                    // Stocker les données de la catégorie
+                    categoriesData[cat.id] = cat;
+                    
+                    const option = document.createElement('option');
+                    option.value = cat.id;
+                    
+                    let label = cat.name;
+                    if (cat.gender) {
+                        const genderLabel = cat.gender === 'male' ? '{% trans "Homme" %}' : 
+                                          cat.gender === 'female' ? '{% trans "Femme" %}' : 
+                                          cat.gender;
+                        label += ` (${genderLabel})`;
+                    }
+                    if (cat.min_age || cat.max_age) {
+                        label += ` - ${cat.min_age || ''}${cat.min_age && cat.max_age ? '-' : ''}${cat.max_age || ''} ans`;
+                    }
+                    
+                    // Ajouter le nombre d'inscrits
+                    label += ` - ${cat.registrations_count} inscrits`;
+                    
+                    option.text = label;
+                    categorySelect.appendChild(option);
+                });
+                categorySelect.disabled = false;
+                console.log('✅ Catégories chargées avec succès');
+            } else {
+                console.warn('⚠️ Aucune catégorie disponible');
+                categorySelect.innerHTML = "<option value=\"\">{% trans 'Aucune catégorie disponible' %}</option>";
+            }
+        })
+        .catch(error => {
+            console.error('❌ Erreur chargement catégories:', error);
+            console.error('❌ Détails:', error.message);
+            categorySelect.innerHTML = "<option value=\"\">{% trans 'Erreur de chargement' %}</option>";
+            showAlert('{% trans "Erreur lors du chargement des catégories" %}', 'danger');
+        });
+}
+
+// Gestion de la sélection de la catégorie
+document.getElementById('category').addEventListener('change', function() {
+    const categoryId = this.value;
+    const categoryName = this.options[this.selectedIndex].text;
+    
+    if (categoryId) {
+        selectedCategory = categoryId;
+        document.getElementById('summary-category').innerHTML = `<span class="text-primary">${categoryName}</span>`;
+        
+        // Afficher le nombre d'inscrits dans cette catégorie
+        if (categoriesData[categoryId]) {
+            const registeredCount = categoriesData[categoryId].registrations_count || 0;
+            document.getElementById('summary-registered').innerHTML = `<span class="text-info"><strong>${registeredCount}</strong> inscrit(s)</span>`;
+            console.log(`📊 Catégorie sélectionnée: ${registeredCount} déjà inscrit(s)`);
+        }
+    } else {
+        selectedCategory = null;
+        document.getElementById('summary-category').innerHTML = '<span class="text-muted">{% trans "Aucune" %}</span>';
+        document.getElementById('summary-registered').innerHTML = '<span class="text-muted">-</span>';
+    }
+    
+    updateSubmitButton();
+});
+
+// Gestion de la sélection des pratiquants
+setTimeout(() => {
+    document.querySelectorAll('input[name="practitioners"]').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const practitionerItem = this.closest('.practitioner-item');
+            
+            if (this.checked) {
+                practitionerItem.classList.add('selected');
+                selectedPractitioners.push(this.value);
+            } else {
+                practitionerItem.classList.remove('selected');
+                selectedPractitioners = selectedPractitioners.filter(id => id !== this.value);
+            }
+            
+            updateSummary();
+            updateSubmitButton();
+        });
+        
+        // Clic sur la carte entière
+        checkbox.closest('.practitioner-item').addEventListener('click', function(e) {
+            if (e.target.type !== 'checkbox' && e.target.tagName !== 'LABEL') {
+                const checkbox = this.querySelector('input[type="checkbox"]');
+                checkbox.click();
+            }
+        });
+    });
+    console.log('✅ Event listeners des pratiquants attachés');
+}, 100);
+
+// Fonction de filtrage des pratiquants
+function filterPractitioners() {
+    const searchInput = document.getElementById('practitionerSearch');
+    const genderSelect = document.getElementById('filterGender');
+    const ageSelect = document.getElementById('filterAge');
+    const countSpan = document.getElementById('practitionersCount');
+    
+    if (!searchInput || !genderSelect || !ageSelect || !countSpan) {
+        console.warn('⚠️ Éléments de filtrage non trouvés');
+        return;
+    }
+    
+    const searchTerm = searchInput.value.toLowerCase();
+    const genderFilter = genderSelect.value;
+    const ageFilter = ageSelect.value;
+    
+    const practitionerItems = document.querySelectorAll('.practitioner-item');
+    let visibleCount = 0;
+    
+    practitionerItems.forEach(item => {
+        const name = item.dataset.name || '';
+        const gender = item.dataset.gender || '';
+        const age = parseInt(item.dataset.age) || 0;
+        
+        let show = true;
+        
+        // Filtre par nom
+        if (searchTerm && !name.includes(searchTerm)) {
+            show = false;
+        }
+        
+        // Filtre par genre
+        if (genderFilter && gender !== genderFilter) {
+            show = false;
+        }
+        
+        // Filtre par âge
+        if (ageFilter && age > 0) {
+            const [minAge, maxAge] = ageFilter.split('-').map(a => a.replace('+', ''));
+            const min = parseInt(minAge);
+            const max = maxAge ? parseInt(maxAge) : 999;
+            
+            if (age < min || age > max) {
+                show = false;
+            }
+        }
+        
+        // Afficher/masquer l'élément
+        if (show) {
+            item.style.display = '';
+            visibleCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+    
+    // Mettre à jour le compteur
+    countSpan.textContent = visibleCount;
+    
+    console.log(`🔍 Filtrage: ${visibleCount}/${practitionerItems.length} pratiquants affichés`);
+}
+
+// Réinitialiser les filtres
+function resetFilters() {
+    document.getElementById('practitionerSearch').value = '';
+    document.getElementById('filterGender').value = '';
+    document.getElementById('filterAge').value = '';
+    filterPractitioners();
+    console.log('🔄 Filtres réinitialisés');
+}
+
+// Attacher les événements de filtrage (après le DOM)
+setTimeout(() => {
+    const searchInput = document.getElementById('practitionerSearch');
+    const genderFilter = document.getElementById('filterGender');
+    const ageFilter = document.getElementById('filterAge');
+    const resetBtn = document.getElementById('resetFilters');
+    
+    if (searchInput && genderFilter && ageFilter && resetBtn) {
+        searchInput.addEventListener('input', filterPractitioners);
+        genderFilter.addEventListener('change', filterPractitioners);
+        ageFilter.addEventListener('change', filterPractitioners);
+        resetBtn.addEventListener('click', resetFilters);
+        console.log('✅ Filtres des pratiquants initialisés');
+    } else {
+        console.warn('⚠️ Éléments de filtrage non trouvés');
+    }
+}, 100);
+
+// Mise à jour du résumé
+function updateSummary() {
+    document.getElementById('summary-count').innerHTML = `<span class="text-primary">${selectedPractitioners.length}</span>`;
+}
+
+// Mise à jour du bouton de soumission
+function updateSubmitButton() {
+    const btn = document.getElementById('btnSubmit');
+    btn.disabled = !(selectedType && selectedCategory && selectedPractitioners.length > 0);
+}
+
+// Soumission du formulaire
+document.getElementById('registrationForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (!selectedType || !selectedCategory || selectedPractitioners.length === 0) {
+        showAlert('{% trans "Veuillez remplir tous les champs obligatoires" %}', 'warning');
+        return;
+    }
+    
+    const btn = document.getElementById('btnSubmit');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>{% trans "Inscription en cours..." %}';
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', CONFIG.csrfToken);
+    formData.append('competition_type_id', selectedType);
+    formData.append('category_id', selectedCategory);
+    selectedPractitioners.forEach(id => {
+        formData.append('practitioner_ids[]', id);
+    });
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': CONFIG.csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message || '{% trans "Inscriptions créées avec succès" %}', 'success');
+            
+            // Réinitialiser le formulaire
+            setTimeout(() => {
+                selectedPractitioners = [];
+                document.querySelectorAll('input[name="practitioners"]:checked').forEach(cb => {
+                    cb.checked = false;
+                    cb.closest('.practitioner-item').classList.remove('selected');
+                });
+                updateSummary();
+                updateSubmitButton();
+                btn.innerHTML = '<i class="fas fa-check me-2"></i>{% trans "Inscrire" %}';
+            }, 2000);
+        } else {
+            throw new Error(data.message || "{% trans 'Erreur lors de l inscription' %}");
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        showAlert(error.message || "{% trans 'Erreur lors de l inscription' %}", 'danger');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check me-2"></i>{% trans "Inscrire" %}';
+    });
+});
+
+// Gestion des onglets
+document.querySelectorAll('.tab-button').forEach(button => {
+    button.addEventListener('click', function() {
+        const targetTab = this.dataset.tab;
+        
+        // Désactiver tous les onglets
+        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        // Activer l'onglet sélectionné
+        this.classList.add('active');
+        document.getElementById(targetTab).classList.add('active');
+        
+        console.log('📑 Onglet changé:', targetTab);
+    });
+});
+
+// Recharger la page après inscription réussie pour mettre à jour les stats
+const originalShowAlert = showAlert;
+showAlert = function(message, type = 'success') {
+    originalShowAlert(message, type);
+    
+    // Si c'est un succès d'inscription, recharger après 2 secondes
+    if (type === 'success' && message.includes('inscription')) {
+        setTimeout(() => {
+            console.log('🔄 Rechargement de la page...');
+            window.location.reload();
+        }, 2000);
+    }
+};
+
+// Calculer le nombre de pratiquants restants à inscrire
+function updateStats() {
+    const totalPractitioners = {{ practitioners|length }};
+    const totalRegistered = {{ total_registered|default:0 }};
+    const remaining = totalPractitioners - totalRegistered;
+    
+    document.getElementById('stat-remaining').textContent = remaining;
+    console.log(`📊 Stats: ${totalRegistered} inscrits / ${totalPractitioners} total = ${remaining} restants`);
+}
+
+// Mettre à jour les stats au chargement
+updateStats();
+
+// Gestion de la désinscription
+document.querySelectorAll('.btn-unregister').forEach(button => {
+    button.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const practitionerId = this.dataset.practitionerId;
+        const categoryId = this.dataset.categoryId;
+        const categoryName = this.dataset.categoryName;
+        
+        if (!confirm(`{% trans "Êtes-vous sûr de vouloir désinscrire ce pratiquant de la catégorie" %} "${categoryName}" ?`)) {
+            return;
+        }
+        
+        console.log('🗑️ Désinscription:', practitionerId, 'de la catégorie', categoryId);
+        
+        const formData = new FormData();
+        formData.append('practitioner_id', practitionerId);
+        formData.append('category_id', categoryId);
+        formData.append('csrfmiddlewaretoken', CONFIG.csrfToken);
+        
+        fetch(`/{{ LANGUAGE_CODE|default:"fr" }}/competitions/club/unregister/${CONFIG.competitionId}/`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert(data.message, 'success');
+                console.log('✅ Désinscription réussie');
+                
+                // Recharger la page après 1 seconde
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                throw new Error(data.message || '{% trans "Erreur lors de la désinscription" %}');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Erreur désinscription:', error);
+            showAlert(error.message || '{% trans "Erreur lors de la désinscription" %}', 'danger');
+        });
+    });
+});
+
+console.log('✅ Formulaire d\'inscription simplifié chargé');
+console.log('✅ Gestion des onglets activée');
+console.log('📊 Statistiques initialisées');
+console.log('🗑️ Boutons de désinscription activés');
+</script>
+{% endblock %}

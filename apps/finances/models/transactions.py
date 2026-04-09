@@ -107,7 +107,18 @@ class Transaction(models.Model):
     financial_account = models.ForeignKey('finances.FinancialAccount', on_delete=models.CASCADE, null=True, blank=True, verbose_name=_('Compte financier'))
     invoice = models.ForeignKey('finances.Invoice', on_delete=models.SET_NULL, null=True, blank=True, verbose_name=_('Facture associée'))
     
-    # Liens vers entités du système
+    # Lien direct vers un pratiquant (membre du club)
+    practitioner = models.ForeignKey(
+        'competitions.Practitioner',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='transactions',
+        verbose_name=_('Membre associé'),
+        help_text=_('Pratiquant/membre du club associé à cette transaction')
+    )
+
+    # Liens vers entités du système (générique pour autres associations)
     source_content_type = models.ForeignKey('contenttypes.ContentType', on_delete=models.SET_NULL, null=True, blank=True, related_name='source_transactions', verbose_name=_('Type d\'entité source'))
     source_object_id = models.CharField(max_length=50, null=True, blank=True, verbose_name=_('ID de l\'entité source'))
     

@@ -180,13 +180,8 @@ def check_subscription_tier_access(user, feature_name):
             if hasattr(org, 'subscription') and org.subscription:
                 tier_name = getattr(org.subscription.tier, 'name', '').lower()
                 
-                # Task management is available in master_circle and grand_champion tiers
-                if feature_name == 'task_management':
-                    return tier_name in ['master_circle', 'grand_champion']
-                
-                # Advanced features only in grand_champion
-                if feature_name in ['task_templates', 'advanced_reporting', 'api_access']:
-                    return tier_name == 'grand_champion'
+                # All features are available for all tiers (free + premium)
+                return True
         
         return False
         
@@ -230,22 +225,15 @@ def get_subscription_limits(user, organization=None):
             if hasattr(org, 'subscription') and org.subscription:
                 tier_name = getattr(org.subscription.tier, 'name', '').lower()
                 
-                if tier_name == 'master_circle':
-                    limits.update({
-                        'max_boards': 3,
-                        'max_tasks_per_board': 50,
-                        'enable_time_tracking': True,
-                        'enable_export': True,
-                    })
-                elif tier_name == 'grand_champion':
-                    limits.update({
-                        'max_boards': 999,
-                        'max_tasks_per_board': 999,
-                        'enable_time_tracking': True,
-                        'enable_templates': True,
-                        'enable_api': True,
-                        'enable_export': True,
-                    })
+                # All tiers (free + premium) get full access
+                limits.update({
+                    'max_boards': 999,
+                    'max_tasks_per_board': 999,
+                    'enable_time_tracking': True,
+                    'enable_templates': True,
+                    'enable_api': True,
+                    'enable_export': True,
+                })
                 
                 break  # Use the first organization's limits
         

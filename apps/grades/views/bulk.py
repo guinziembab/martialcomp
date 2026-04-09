@@ -1,6 +1,7 @@
 from django.core.exceptions import PermissionDenied
 """
 Module pour les opérations en masse sur les grades des pratiquants.
+PHASE 2 SECURITY: Filtrage par disciplines accessibles.
 """
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
@@ -16,8 +17,13 @@ from apps.grades.utils_module import get_user_club
 from apps.grades.models import Grade, PractitionerGrade
 from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
 
-# Création du logger
-logger = logging.getLogger(__name__)
+# PHASE 2 SECURITY: Import helpers de filtrage par discipline
+from apps.competitions.utils.permission_helpers import (
+    get_user_disciplines,
+    check_discipline_access
+)
+
+logger = logging.getLogger('discipline_isolation')
 
 @login_required
 def bulk_grade_assignment_form(request):
@@ -32,16 +38,24 @@ def bulk_grade_assignment_form(request):
         return redirect('competitions:dashboard:index')
     
     # Récupérer l'organisation associée au club
-    organization = club.organization or club.as_organization
+    # Si club est déjà une Organization, l'utiliser directement
+    if hasattr(club, '__class__') and club.__class__.__name__ == 'Organization':
+        organization = club
+    else:
+        # Sinon, récupérer l'organisation du club
+        organization = getattr(club, 'organization', None) or getattr(club, 'as_organization', None)
+    
     if not organization:
         messages.error(request, _("Aucune organisation associée trouvée pour ce club."))
         return redirect('competitions:dashboard:index')
     
     # Récupérer tous les pratiquants du club via l'organisation
-    practitioners = Practitioner.objects.filter(organization=organization).order_by('last_name', 'first_name')
-    
-    # Récupérer les disciplines disponibles
-    disciplines = Discipline.objects.filter(is_active=True).order_by('name')
+    practitioners = Practitioner.objects.filter(
+        organization=organization
+    ).order_by('last_name', 'first_name')
+
+    # PHASE 2 SECURITY: Récupérer les disciplines accessibles
+    disciplines = get_user_disciplines(request.user)
     
     # Filtrer par discipline si demandé
     discipline_id = request.GET.get('discipline')
@@ -105,14 +119,21 @@ def batch_update_grades(request):
         
         # Récupérer le grade et la discipline
         grade = get_object_or_404(Grade, id=grade_id)
-        
+
+        # PHASE 2 SECURITY: Verifier l'acces a la discipline du grade
+        if not request.user.is_superuser:
+            if not check_discipline_access(request.user, grade.discipline):
+                logger.warning(f"batch_update_grades: User {request.user} denied")
+                messages.error(request, _("Acces refuse a cette discipline."))
+                return redirect('grades:bulk_assignment')
+
         discipline = None
         if discipline_id:
             try:
                 discipline = get_object_or_404(Discipline, id=discipline_id)
             except Discipline.DoesNotExist:
-                messages.warning(request, _("La discipline sélectionnée n'existe pas."))
-        
+                pass
+
         # Récupérer l'organisation associée au club
         organization = club.organization or club.as_organization
         if not organization:

@@ -1,0 +1,536 @@
+"""
+Module pour la gestion des inscriptions aux compétitions.
+"""
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+from django.db import transaction
+from django.db.models import Q
+from django.views.decorators.http import require_POST
+from django.core.exceptions import PermissionDenied
+from django.http import JsonResponse
+
+# Importation de notre helper de permission personnalisé
+from apps.competitions.utils.permission_helpers import manual_permission_check, get_user_club
+
+from apps.competitions.utils.decorators import club_required, federation_or_club_required
+from apps.competitions.models import (
+    Practitioner, 
+    CompetitionRegistration, 
+    Competition, 
+    Club, 
+    Federation,
+    Discipline
+)
+from apps.competitions.forms import CompetitionRegistrationForm
+from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
+
+import logging
+logger = logging.getLogger(__name__)
+
+@login_required
+def registrations_list(request):
+    """Liste des inscriptions aux compétitions pour le club."""
+    # Récupérer le club de l'utilisateur
+    club = get_user_club(request)
+    
+    if not club:
+        messages.error(request, _("Vous devez être responsable de club pour accéder à cette page."))
+        return redirect('competitions:dashboard:index')
+    
+    # Vérifier si le club a une organisation associée
+    club_organization = club.organization or getattr(club, 'as_organization', None)
+    
+    if not club_organization:
+        messages.warning(request, _("Aucune organisation associée trouvée pour ce club."))
+        practitioners = Practitioner.objects.none()
+    else:
+        # Récupérer tous les pratiquants du club
+        practitioners = Practitioner.objects.filter(organization=club_organization)
+    
+    # Récupérer les inscriptions des pratiquants du club
+    registrations = CompetitionRegistration.objects.filter(
+        practitioner__in=practitioners
+    ).select_related('practitioner', 'competition').order_by('-registration_date')
+    
+    context = {
+        'registrations': registrations,
+        'practitioners': practitioners,
+        'club': club,
+    }
+    
+    return render(request, 'competitions/club/registrations/list.html', context)
+
+@login_required
+def available_competitions(request):
+    """API pour récupérer les compétitions disponibles."""
+    club = get_user_club(request)
+    
+    if not club:
+        return JsonResponse({'competitions': []})
+    
+    # Récupérer les compétitions disponibles
+    now = timezone.now().date()
+    competitions = Competition.objects.filter(
+        end_date__gte=now,
+        is_published=True
+    ).order_by('start_date')
+    
+    competitions_data = []
+    for comp in competitions:
+        competitions_data.append({
+            'id': comp.id,
+            'title': comp.title,
+            'start_date': comp.start_date.strftime('%d/%m/%Y'),
+            'end_date': comp.end_date.strftime('%d/%m/%Y'),
+            'city': comp.city,
+            'discipline': comp.discipline.name if comp.discipline else '',
+        })
+    
+    return JsonResponse({'competitions': competitions_data})
+
+@login_required
+def club_bulk_registration(request):
+    """Inscription en masse de pratiquants à une compétition."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Méthode non autorisée'})
+    
+    try:
+        club = get_user_club(request)
+        if not club:
+            return JsonResponse({'success': False, 'message': 'Club non trouvé'})
+        
+        practitioner_ids = request.POST.getlist('practitioner_ids[]')
+        competition_id = request.POST.get('competition_id')
+        
+        if not practitioner_ids or not competition_id:
+            return JsonResponse({'success': False, 'message': 'Données manquantes'})
+        
+        competition = get_object_or_404(Competition, id=competition_id)
+        
+        # Vérifier que le club a une organisation
+        club_organization = club.organization or getattr(club, 'as_organization', None)
+        if not club_organization:
+            return JsonResponse({'success': False, 'message': 'Organisation du club non trouvée'})
+        
+        # Récupérer les pratiquants du club
+        practitioners = Practitioner.objects.filter(
+            id__in=practitioner_ids,
+            organization=club_organization
+        )
+        
+        created_count = 0
+        for practitioner in practitioners:
+            # Vérifier si l'inscription existe déjà
+            if not CompetitionRegistration.objects.filter(
+                practitioner=practitioner,
+                competition=competition
+            ).exists():
+                CompetitionRegistration.objects.create(
+                    practitioner=practitioner,
+                    competition=competition,
+                    registration_date=timezone.now().date()
+                )
+                created_count += 1
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'{created_count} inscription(s) créée(s) avec succès'
+        })
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de l'inscription en masse: {str(e)}", exc_info=True)
+        return JsonResponse({'success': False, 'message': str(e)})
+
+@login_required
+def competition_registration_form(request, competition_id):
+    """Formulaire d'inscription à une compétition."""
+    competition = get_object_or_404(Competition, id=competition_id)
+    club = get_user_club(request)
+    
+    if not club:
+        messages.error(request, _("Vous devez être responsable de club pour accéder à cette page."))
+        return redirect('competitions:dashboard:index')
+    
+    # Vérifier si le club a une organisation
+    club_organization = club.organization or getattr(club, 'as_organization', None)
+    if not club_organization:
+        messages.warning(request, _("Aucune organisation associée trouvée pour ce club."))
+        practitioners = Practitioner.objects.none()
+    else:
+        # Récupérer tous les pratiquants du club avec leurs informations
+        practitioners = Practitioner.objects.filter(
+            organization=club_organization
+        ).select_related('organization')
+    
+    if request.method == 'POST':
+        # Traiter l'inscription en masse
+        practitioner_ids = request.POST.getlist('practitioner_ids[]')
+        competition_type_id = request.POST.get('competition_type_id')
+        category_id = request.POST.get('category_id')
+        
+        # Vérifier si c'est une requête AJAX
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        
+        if practitioner_ids and competition_type_id and category_id:
+            try:
+                from ...models import CompetitionType, CompetitionCategory
+                
+                competition_type = get_object_or_404(CompetitionType, id=competition_type_id)
+                category = get_object_or_404(CompetitionCategory, id=category_id)
+                
+                created_count = 0
+                updated_count = 0
+                already_in_category = 0
+                
+                for practitioner_id in practitioner_ids:
+                    practitioner = get_object_or_404(Practitioner, id=practitioner_id, organization=club_organization)
+                    
+                    # Récupérer ou créer l'inscription
+                    registration, created = CompetitionRegistration.objects.get_or_create(
+                        practitioner=practitioner,
+                        competition=competition,
+                        defaults={'registration_date': timezone.now().date()}
+                    )
+                    
+                    # Vérifier si déjà inscrit dans cette catégorie
+                    if category in registration.categories.all():
+                        already_in_category += 1
+                    else:
+                        # Ajouter le type de compétition et la catégorie
+                        registration.competition_types.add(competition_type)
+                        registration.categories.add(category)
+                        
+                        if created:
+                            created_count += 1
+                        else:
+                            updated_count += 1
+                
+                # Construire le message de réponse
+                total_success = created_count + updated_count
+                message_parts = []
+                
+                if created_count > 0:
+                    message_parts.append(_("{} nouvelle(s) inscription(s)").format(created_count))
+                if updated_count > 0:
+                    message_parts.append(_("{} inscription(s) mise(s) à jour").format(updated_count))
+                if already_in_category > 0:
+                    message_parts.append(_("{} déjà inscrit(s) dans cette catégorie").format(already_in_category))
+                
+                message = " | ".join(message_parts) if message_parts else _("Aucune modification")
+                
+                if is_ajax:
+                    return JsonResponse({
+                        'success': True,
+                        'message': message,
+                        'created_count': created_count,
+                        'updated_count': updated_count,
+                        'already_count': already_in_category,
+                        'total_success': total_success
+                    })
+                else:
+                    messages.success(request, message)
+                    return redirect('competitions:club:registrations_list')
+                
+            except Exception as e:
+                logger.error(f"Erreur lors de l'inscription: {str(e)}", exc_info=True)
+                if is_ajax:
+                    return JsonResponse({
+                        'success': False,
+                        'message': _("Erreur lors de l'inscription: {}").format(str(e))
+                    }, status=400)
+                else:
+                    messages.error(request, _("Erreur lors de l'inscription: {}").format(str(e)))
+    
+    # Récupérer les inscriptions existantes pour cette compétition
+    existing_registrations = CompetitionRegistration.objects.filter(
+        competition=competition,
+        practitioner__organization=club_organization
+    ).select_related('practitioner').prefetch_related('categories', 'competition_types')
+    
+    # Créer un dictionnaire des pratiquants inscrits avec leurs catégories
+    registered_practitioners = {}
+    for reg in existing_registrations:
+        if reg.practitioner_id not in registered_practitioners:
+            registered_practitioners[reg.practitioner_id] = {
+                'registration': reg,
+                'categories': list(reg.categories.all()),
+                'types': list(reg.competition_types.all())
+            }
+    
+    context = {
+        'competition': competition,
+        'practitioners': practitioners,
+        'club': club,
+        'registered_practitioners': registered_practitioners,
+        'total_registered': len(registered_practitioners),
+    }
+    
+    # Utiliser le nouveau template par défaut (simplifié et professionnel)
+    # L'ancien template n'est accessible qu'avec ?old=1
+    template = 'competitions/club/competition_registration_form.html' if request.GET.get('old') else 'competitions/club/competition_registration_simple.html'
+    return render(request, template, context)
+
+@login_required
+@require_POST
+def unregister_from_category(request, competition_id):
+    """Désinscrire un pratiquant d'une catégorie spécifique."""
+    competition = get_object_or_404(Competition, id=competition_id)
+    club = get_user_club(request)
+    
+    if not club:
+        return JsonResponse({
+            'success': False,
+            'message': _("Vous devez être responsable de club.")
+        }, status=403)
+    
+    club_organization = club.organization or getattr(club, 'as_organization', None)
+    if not club_organization:
+        return JsonResponse({
+            'success': False,
+            'message': _("Aucune organisation associée trouvée.")
+        }, status=400)
+    
+    practitioner_id = request.POST.get('practitioner_id')
+    category_id = request.POST.get('category_id')
+    
+    if not practitioner_id or not category_id:
+        return JsonResponse({
+            'success': False,
+            'message': _("Paramètres manquants.")
+        }, status=400)
+    
+    try:
+        from ...models import CompetitionCategory
+        
+        practitioner = get_object_or_404(Practitioner, id=practitioner_id, organization=club_organization)
+        category = get_object_or_404(CompetitionCategory, id=category_id)
+        
+        # Récupérer l'inscription
+        registration = CompetitionRegistration.objects.filter(
+            practitioner=practitioner,
+            competition=competition
+        ).first()
+        
+        if not registration:
+            return JsonResponse({
+                'success': False,
+                'message': _("Aucune inscription trouvée pour ce pratiquant.")
+            }, status=404)
+        
+        # Retirer la catégorie
+        if category in registration.categories.all():
+            registration.categories.remove(category)
+            
+            # Si plus aucune catégorie, supprimer l'inscription complète
+            if registration.categories.count() == 0:
+                registration.delete()
+                message = _("Pratiquant désinscrit complètement (plus aucune catégorie).")
+            else:
+                message = _("Pratiquant désinscrit de la catégorie '{}'.").format(category.name)
+            
+            return JsonResponse({
+                'success': True,
+                'message': message,
+                'fully_removed': registration.categories.count() == 0 if registration.id else True
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': _("Le pratiquant n'est pas inscrit dans cette catégorie.")
+            }, status=400)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la désinscription: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'message': _("Erreur lors de la désinscription: {}").format(str(e))
+        }, status=500)
+
+@login_required
+def register_practitioner(request, competition_id, practitioner_id=None):
+    """Inscrire un pratiquant à une compétition."""
+    competition = get_object_or_404(Competition, id=competition_id)
+    club = get_user_club(request)
+    
+    if not club:
+        messages.error(request, _("Vous devez être responsable de club pour accéder à cette page."))
+        return redirect('competitions:dashboard:index')
+    
+    # Vérifier si le club a une organisation
+    club_organization = club.organization or getattr(club, 'as_organization', None)
+    if not club_organization:
+        messages.warning(request, _("Aucune organisation associée trouvée pour ce club."))
+        return redirect('competitions:club:registrations_list')
+    
+    if practitioner_id:
+        practitioner = get_object_or_404(Practitioner, id=practitioner_id, organization=club_organization)
+        
+        # Vérifier si l'inscription existe déjà
+        if CompetitionRegistration.objects.filter(
+            practitioner=practitioner,
+            competition=competition
+        ).exists():
+            messages.warning(request, _("Ce pratiquant est déjà inscrit à cette compétition."))
+        else:
+            CompetitionRegistration.objects.create(
+                practitioner=practitioner,
+                competition=competition,
+                registration_date=timezone.now().date()
+            )
+            messages.success(request, _("Pratiquant inscrit avec succès."))
+    
+    return redirect('competitions:club:competition_registration_form', competition_id=competition_id)
+
+@login_required
+@require_POST
+def edit_registration(request, registration_id):
+    """Modifier une inscription existante."""
+    try:
+        club = get_user_club(request)
+        if not club:
+            messages.error(request, _("Club non trouvé."))
+            return redirect('competitions:dashboard')
+        
+        club_organization = club.organization or getattr(club, 'as_organization', None)
+        if not club_organization:
+            messages.error(request, _("Organisation du club non trouvée."))
+            return redirect('competitions:dashboard')
+        
+        # Récupérer l'inscription
+        registration = get_object_or_404(
+            CompetitionRegistration,
+            id=registration_id,
+            practitioner__organization=club_organization
+        )
+        
+        # Créer le formulaire avec les données de l'inscription
+        form = CompetitionRegistrationForm(request.POST, instance=registration)
+        
+        if form.is_valid():
+            form.save()
+            messages.success(request, _("Inscription modifiée avec succès."))
+        else:
+            messages.error(request, _("Erreur lors de la modification de l'inscription."))
+        
+        # Rediriger vers la page de gestion de la compétition
+        return redirect('competitions:club:competition_management_detail', competition_id=registration.competition.id)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la modification de l'inscription {registration_id}: {str(e)}", exc_info=True)
+        messages.error(request, _("Une erreur est survenue lors de la modification: {}").format(str(e)))
+        return redirect('competitions:dashboard')
+
+@login_required
+@require_POST
+def delete_registration(request, registration_id):
+    """Supprimer une inscription."""
+    try:
+        club = get_user_club(request)
+        if not club:
+            messages.error(request, _("Club non trouvé."))
+            return redirect('competitions:dashboard')
+        
+        club_organization = club.organization or getattr(club, 'as_organization', None)
+        if not club_organization:
+            messages.error(request, _("Organisation du club non trouvée."))
+            return redirect('competitions:dashboard')
+        
+        # Récupérer l'inscription
+        registration = get_object_or_404(
+            CompetitionRegistration,
+            id=registration_id,
+            practitioner__organization=club_organization
+        )
+        
+        practitioner_name = registration.practitioner.full_name
+        competition_name = registration.competition.title
+        competition_id = registration.competition.id
+        
+        registration.delete()
+        
+        messages.success(request, _("L'inscription de {} à {} a été supprimée.").format(
+            practitioner_name, competition_name
+        ))
+        
+        # Rediriger vers la page de gestion de la compétition
+        return redirect('competitions:club:competition_management_detail', competition_id=competition_id)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la suppression de l'inscription {registration_id}: {str(e)}", exc_info=True)
+        messages.error(request, _("Une erreur est survenue lors de la suppression: {}").format(str(e)))
+        return redirect('competitions:dashboard')
+
+@login_required
+def register_multiple_practitioners(request, competition_id):
+    """Inscrire plusieurs pratiquants à une compétition."""
+    # Redirection vers la fonction d'inscription en masse
+    return club_bulk_registration(request)
+
+@login_required
+def select_practitioner_for_registration(request, competition_id):
+    """Sélectionner un pratiquant pour l'inscription."""
+    competition = get_object_or_404(Competition, id=competition_id)
+    club = get_user_club(request)
+    
+    if not club:
+        messages.error(request, _("Vous devez être responsable de club pour accéder à cette page."))
+        return redirect('competitions:dashboard:index')
+    
+    # Vérifier si le club a une organisation
+    club_organization = club.organization or getattr(club, 'as_organization', None)
+    if not club_organization:
+        messages.warning(request, _("Aucune organisation associée trouvée pour ce club."))
+        practitioners = Practitioner.objects.none()
+    else:
+        practitioners = Practitioner.objects.filter(organization=club_organization)
+    
+    context = {
+        'competition': competition,
+        'practitioners': practitioners,
+        'club': club,
+    }
+    
+    return render(request, 'competitions/club/registrations/select_practitioner.html', context)
+
+@login_required
+@require_POST
+def cancel_registration(request, registration_id):
+    """Annuler une inscription."""
+    try:
+        club = get_user_club(request)
+        if not club:
+            messages.error(request, _("Club non trouvé."))
+            return redirect('competitions:dashboard')
+        
+        club_organization = club.organization or getattr(club, 'as_organization', None)
+        if not club_organization:
+            messages.error(request, _("Organisation du club non trouvée."))
+            return redirect('competitions:dashboard')
+        
+        # Récupérer l'inscription
+        registration = get_object_or_404(
+            CompetitionRegistration,
+            id=registration_id,
+            practitioner__organization=club_organization
+        )
+        
+        practitioner_name = registration.practitioner.full_name
+        competition_name = registration.competition.title
+        competition_id = registration.competition.id
+        
+        registration.delete()
+        
+        messages.success(request, _("L'inscription de {} à {} a été annulée.").format(
+            practitioner_name, competition_name
+        ))
+        
+        # Rediriger vers la page de gestion de la compétition
+        return redirect('competitions:club:competition_management_detail', competition_id=competition_id)
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de l'annulation de l'inscription {registration_id}: {str(e)}", exc_info=True)
+        messages.error(request, _("Une erreur est survenue lors de l'annulation: {}").format(str(e)))
+        return redirect('competitions:dashboard')

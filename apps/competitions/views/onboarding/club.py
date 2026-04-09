@@ -18,9 +18,18 @@ def handle_club_creation(request):
     """Gestion de la création d'un club."""
     # Vérifier si l'utilisateur a un profil
     if not hasattr(request.user, 'profile') or request.user.profile.role != 'club_manager':
+        # Si le profil existe et que l'onboarding est déjà terminé, rediriger vers le dashboard
+        if hasattr(request.user, 'profile') and getattr(request.user.profile, 'onboarding_completed', False):
+            messages.info(request, _("Votre compte est déjà configuré."))
+            return redirect('competitions:dashboard:club')
         messages.error(request, _("Accès non autorisé. Vous devez être responsable de club."))
         return redirect('competitions:onboarding:role_selection')
-    
+
+    # Si l'onboarding est déjà terminé (ex: via application mobile), rediriger vers le dashboard
+    if getattr(request.user.profile, 'onboarding_completed', False):
+        messages.info(request, _("Votre compte est déjà configuré."))
+        return redirect('competitions:dashboard:club')
+
     # Vérifier si l'utilisateur a déjà un club
     existing_club = Club.objects.filter(owner=request.user).first()
     if existing_club:
@@ -32,7 +41,10 @@ def handle_club_creation(request):
         if 'onboarding_step' in request.session:
             del request.session['onboarding_step']
         return redirect('competitions:dashboard:club')
-    
+
+    # Récupérer toutes les disciplines actives pour le formulaire
+    disciplines = Discipline.objects.filter(is_active=True).order_by('name')
+
     if request.method == 'POST':
         form = ClubCreationForm(request.POST, request.FILES)
         if form.is_valid():
@@ -41,40 +53,52 @@ def handle_club_creation(request):
                     # Création du club avec l'utilisateur comme propriétaire
                     club = form.save(commit=False)
                     club.owner = request.user
-                    
+
                     # Gestion de l'upload du logo si présent
                     if 'logo' in request.FILES:
                         from ...utils.upload import handle_club_logo_upload
                         club.logo = handle_club_logo_upload(request.FILES['logo'], club.name)
-                    
-                    # Sauvegarder le club
+
+                    # Sauvegarder le club d'abord (nécessaire pour les relations M2M)
                     club.save()
-                    
-                    # Gestion de la discipline
-                    discipline = form.cleaned_data.get('discipline')
-                    if discipline:
-                        # Définir la discipline principale
-                        club.main_discipline = discipline
-                        club.save()
-                        
-                        # Ajouter aux disciplines du club (relation M2M)
-                        club.disciplines.add(discipline)
-                    
+
+                    # Gestion des disciplines sélectionnées (checkboxes multiples)
+                    discipline_ids = request.POST.getlist('disciplines')
+                    if discipline_ids:
+                        selected_disciplines = Discipline.objects.filter(id__in=discipline_ids)
+                        # Ajouter toutes les disciplines sélectionnées
+                        club.disciplines.set(selected_disciplines)
+                        # Définir la première comme discipline principale
+                        first_discipline = selected_disciplines.first()
+                        if first_discipline:
+                            club.main_discipline = first_discipline
+                            club.save(update_fields=['main_discipline'])
+
+                        # CRUCIAL: Assigner les disciplines à l'organisation du club
+                        # Cela permet au filtrage par discipline de fonctionner correctement
+                        if club.organization:
+                            club.organization.disciplines.set(selected_disciplines)
+                            club.organization.save()
+                            logger.info(f"Disciplines {[d.name for d in selected_disciplines]} assignées à l'organisation {club.organization.id}")
+
                     # Mise à jour du profil utilisateur avec ce club et COMPLETION de l'onboarding
                     try:
                         request.user.profile.club = club
+                        # Associer l'organisation du club au profil pour harmoniser l'interface
+                        if club.organization:
+                            request.user.profile.organization = club.organization
                         request.user.profile.onboarding_step = 'completed'
                         request.user.profile.onboarding_completed = True  # IMPORTANT: Marquer comme complété
                         request.user.profile.save()
                     except Exception as e:
                         logger.warning(f"Impossible de mettre à jour le profil: {str(e)}")
-                    
+
                     # Supprimer l'étape d'onboarding de la session
                     if 'onboarding_step' in request.session:
                         del request.session['onboarding_step']
-                    
+
                     messages.success(request, _("Votre club a été créé avec succès! Configuration terminée."))
-                    
+
                     # Redirection directe vers le dashboard club
                     return redirect('competitions:dashboard:club')
             except Exception as e:
@@ -86,9 +110,10 @@ def handle_club_creation(request):
                     messages.error(request, f"{field}: {error}")
     else:
         form = ClubCreationForm()
-    
+
     return render(request, 'competitions/onboarding/club_creation.html', {
         'form': form,
+        'disciplines': disciplines,  # Passer les disciplines au template
         'step': 'club_creation',
         'current_step': 'club_creation'
     })

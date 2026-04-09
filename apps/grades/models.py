@@ -2,7 +2,16 @@ from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, FileExtensionValidator
+from django.core.exceptions import ValidationError
+import os
+
+
+def validate_image_size(value):
+    """Valide que l'image ne dépasse pas 500KB."""
+    filesize = value.size
+    if filesize > 512000:  # 500KB = 500 * 1024 = 512000 bytes
+        raise ValidationError(_("La taille de l'image ne doit pas dépasser 500 KB."))
 
 
 
@@ -60,7 +69,26 @@ class Grade(models.Model):
     is_active = models.BooleanField(_("Actif"), default=True)
     is_dan_grade = models.BooleanField(_("Grade dan/dang"), default=False, help_text=_("S'agit-il d'un grade dan/dang (ceinture noire)"))
     order = models.PositiveSmallIntegerField(_("Ordre d'affichage"), default=0)
-    
+
+    # Nouveaux champs pour l'image du grade
+    image = models.ImageField(
+        _("Image du grade"),
+        upload_to='grades/',
+        blank=True,
+        null=True,
+        validators=[
+            FileExtensionValidator(allowed_extensions=['png', 'jpg', 'jpeg', 'svg', 'webp']),
+            validate_image_size
+        ],
+        help_text=_("Image du grade (PNG, JPG, SVG, WebP - max 500KB, recommandé 100x100px)")
+    )
+    icon = models.CharField(
+        _("Icône Font Awesome"),
+        max_length=50,
+        blank=True,
+        help_text=_("Classe Font Awesome optionnelle (ex: fa-medal, fa-award)")
+    )
+
     class Meta:
         verbose_name = _("Grade")
         verbose_name_plural = _("Grades")
@@ -69,7 +97,28 @@ class Grade(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.discipline.name})"
-    
+
+    @property
+    def image_url(self):
+        """Retourne l'URL de l'image du grade si elle existe."""
+        if self.image and hasattr(self.image, 'url'):
+            return self.image.url
+        return None
+
+    @property
+    def initials(self):
+        """Retourne les initiales du grade pour le fallback SVG."""
+        words = self.name.split()
+        if len(words) >= 2:
+            return (words[0][0] + words[1][0]).upper()
+        elif len(words) == 1 and len(words[0]) >= 2:
+            return words[0][:2].upper()
+        return self.name[:2].upper() if self.name else "GR"
+
+    def get_display_color(self):
+        """Retourne la couleur d'affichage du grade."""
+        return self.color_code or self.color or '#6c757d'
+
     @property
     def is_black_belt(self):
         """Détermine si le grade est une ceinture noire ou équivalent."""
@@ -347,3 +396,169 @@ class GradeActionLog(models.Model):
     def __str__(self):
         return f"{self.get_action_type_display()} - {self.practitioner.full_name} - {self.timestamp.strftime('%d/%m/%Y %H:%M')}"
 
+
+class GradeAlertLog(models.Model):
+    """
+    Journal des alertes de grade envoyees aux pratiquants.
+    Utilise pour eviter d'envoyer plusieurs fois la meme alerte.
+    Prompt 2 - Systeme d'alertes et notifications.
+    """
+    MILESTONE_CHOICES = [
+        ('j-30', _("J-30 avant eligibilite")),
+        ('j-7', _("J-7 avant eligibilite")),
+        ('eligible', _("Devient eligible")),
+        ('deadline-j14', _("J-14 avant deadline examen")),
+        ('deadline-j3', _("J-3 avant deadline examen")),
+        ('monthly-reminder', _("Rappel mensuel")),
+    ]
+
+    practitioner = models.ForeignKey(
+        'competitions.Practitioner',
+        on_delete=models.CASCADE,
+        related_name='grade_alerts',
+        verbose_name=_("Pratiquant")
+    )
+    target_grade = models.ForeignKey(
+        'Grade',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='alerts',
+        verbose_name=_("Grade cible")
+    )
+    exam = models.ForeignKey(
+        'GradeExam',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='alerts',
+        verbose_name=_("Examen")
+    )
+    milestone = models.CharField(
+        _("Jalon"),
+        max_length=20,
+        choices=MILESTONE_CHOICES
+    )
+    notification = models.ForeignKey(
+        'competitions.Notification',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='grade_alerts',
+        verbose_name=_("Notification")
+    )
+    created_at = models.DateTimeField(
+        _("Date de creation"),
+        auto_now_add=True
+    )
+
+    class Meta:
+        verbose_name = _("Log d'alerte grade")
+        verbose_name_plural = _("Logs d'alertes grade")
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['practitioner', 'target_grade', 'milestone']),
+            models.Index(fields=['practitioner', 'exam', 'milestone']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.practitioner.full_name} - {self.milestone} - {self.created_at.strftime('%d/%m/%Y')}"
+
+
+class ExamScoringModule(models.Model):
+    """Module de notation pour un examen de grade (ex: Technique, Kata, Combat)."""
+    exam = models.ForeignKey(
+        GradeExam,
+        on_delete=models.CASCADE,
+        related_name='scoring_modules',
+        verbose_name=_("Examen")
+    )
+    name = models.CharField(_("Nom du module"), max_length=100)
+    order = models.PositiveSmallIntegerField(_("Ordre"), default=0)
+    assigned_examiners = models.ManyToManyField(
+        'competitions.Practitioner',
+        blank=True,
+        related_name='exam_scoring_modules',
+        verbose_name=_("Examinateurs assignés")
+    )
+
+    class Meta:
+        verbose_name = _("Module de notation")
+        verbose_name_plural = _("Modules de notation")
+        ordering = ['exam', 'order', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.exam.title})"
+
+
+class ExamScoringCriterion(models.Model):
+    """Critère de notation au sein d'un module d'examen."""
+    module = models.ForeignKey(
+        ExamScoringModule,
+        on_delete=models.CASCADE,
+        related_name='criteria',
+        verbose_name=_("Module")
+    )
+    name = models.CharField(_("Nom du critère"), max_length=150)
+    coefficient = models.DecimalField(
+        _("Coefficient"),
+        max_digits=4,
+        decimal_places=2,
+        default=1.0
+    )
+    max_score = models.DecimalField(
+        _("Score maximum"),
+        max_digits=4,
+        decimal_places=1,
+        default=10.0
+    )
+    order = models.PositiveSmallIntegerField(_("Ordre"), default=0)
+    description = models.TextField(_("Description"), blank=True)
+
+    class Meta:
+        verbose_name = _("Critère de notation")
+        verbose_name_plural = _("Critères de notation")
+        ordering = ['module', 'order', 'name']
+
+    def __str__(self):
+        return f"{self.name} (coeff. {self.coefficient})"
+
+
+class ExamScore(models.Model):
+    """Note individuelle donnée par un examinateur à un pratiquant pour un critère."""
+    registration = models.ForeignKey(
+        GradeExamRegistration,
+        on_delete=models.CASCADE,
+        related_name='exam_scores',
+        verbose_name=_("Inscription")
+    )
+    criterion = models.ForeignKey(
+        ExamScoringCriterion,
+        on_delete=models.CASCADE,
+        related_name='scores',
+        verbose_name=_("Critère")
+    )
+    examiner = models.ForeignKey(
+        'competitions.Practitioner',
+        on_delete=models.CASCADE,
+        related_name='given_exam_scores',
+        verbose_name=_("Examinateur")
+    )
+    value = models.DecimalField(
+        _("Note"),
+        max_digits=4,
+        decimal_places=1,
+        validators=[MinValueValidator(0)]
+    )
+    comment = models.TextField(_("Commentaire"), blank=True)
+    scored_at = models.DateTimeField(_("Noté le"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Note d'examen")
+        verbose_name_plural = _("Notes d'examen")
+        unique_together = ['registration', 'criterion', 'examiner']
+        ordering = ['registration', 'criterion']
+
+    def __str__(self):
+        return f"{self.registration.practitioner.full_name} - {self.criterion.name}: {self.value}"

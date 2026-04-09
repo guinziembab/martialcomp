@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
@@ -20,11 +22,13 @@ def board_list(request):
     user_orgs = get_user_organizations(request.user)
     
     # Base queryset
+    # Note: Use task_total and completed_task_total to avoid conflict with model properties
+    # (task_count and completed_task_count are @property methods on the Board model)
     boards = Board.objects.filter(
         organization__in=user_orgs
     ).select_related('organization', 'created_by').annotate(
-        task_count=Count('tasks'),
-        completed_task_count=Count('tasks', filter=Q(tasks__status='done'))
+        task_total=Count('tasks'),
+        completed_task_total=Count('tasks', filter=Q(tasks__status='done'))
     )
     
     # Apply filters
@@ -56,7 +60,10 @@ def board_list(request):
     
     # Ordering
     order_by = request.GET.get('order', '-created_at')
-    valid_orders = ['name', '-name', 'created_at', '-created_at', 'task_count', '-task_count']
+    valid_orders = [
+        'name', '-name', 'created_at', '-created_at',
+        'task_total', '-task_total'
+    ]
     if order_by in valid_orders:
         boards = boards.order_by(order_by)
     
@@ -91,18 +98,18 @@ def board_detail(request, board_id):
     stats = get_board_statistics(board)
     
     # Get columns with task counts
+    # Note: Use column_task_total to avoid conflict with Column.task_count @property
     columns = board.columns.all().annotate(
-        task_count=Count('tasks'),
-        overdue_task_count=Count('tasks', filter=Q(
+        column_task_total=Count('tasks'),
+        column_overdue_total=Count('tasks', filter=Q(
             tasks__due_date__lt=timezone.now(),
             tasks__status__in=['todo', 'in_progress', 'in_review']
         ))
     ).order_by('position')
     
     # Recent activity (last 10 items)
-    from ..utils import get_task_activity
     recent_tasks = board.tasks.filter(
-        updated_at__gte=timezone.now() - timezone.timedelta(days=7)
+        updated_at__gte=timezone.now() - timedelta(days=7)
     ).select_related('created_by').order_by('-updated_at')[:10]
     
     context = {

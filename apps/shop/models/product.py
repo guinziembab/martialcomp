@@ -43,9 +43,25 @@ class Product(models.Model):
         """Retourne la catégorie principale du produit."""
         return self.categories.first()
     
+    # Organisation propriétaire (isolation boutique)
+    organization = models.ForeignKey(
+        'organizations.Organization',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='shop_products',
+        verbose_name=_("Organisation"),
+        help_text=_("Organisation propriétaire du produit. Si vide, le produit est global.")
+    )
+    is_public = models.BooleanField(
+        _("Public"),
+        default=False,
+        help_text=_("Si activé, le produit est visible par tous les utilisateurs, pas seulement les membres de l'organisation.")
+    )
+
     # Associations
     disciplines = models.ManyToManyField(
-        'competitions.Discipline', 
+        'competitions.Discipline',
         blank=True,
         related_name='related_products',
         verbose_name=_("Disciplines associées")

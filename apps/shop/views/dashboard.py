@@ -83,6 +83,7 @@ def shop_club_dashboard(request):
         'club': club,
         'stats': stats,
         'latest_orders': latest_orders,
+        'recent_orders': latest_orders,
         'popular_products': popular_products,
         'current_section': 'shop_dashboard'
     }
@@ -300,15 +301,15 @@ def club_products(request):
     """
     club = request.club
     
-    # Récupérer les produits vendus par ce club
-    # On peut utiliser différentes approches :
-    # 1. Produits des disciplines que le club pratique
-    discipline_ids = club.disciplines.values_list('id', flat=True)
-    products = Product.objects.filter(disciplines__in=discipline_ids).distinct()
-    
-    # Si aucun produit par discipline, récupérer tous les produits actifs
-    if not products.exists():
-        products = Product.objects.filter(is_active=True)
+    # Récupérer les produits de l'organisation du club
+    if hasattr(club, 'organization') and club.organization:
+        products = Product.objects.filter(organization=club.organization)
+    else:
+        # Fallback: produits par discipline
+        discipline_ids = club.disciplines.values_list('id', flat=True)
+        products = Product.objects.filter(disciplines__in=discipline_ids).distinct()
+        if not products.exists():
+            products = Product.objects.filter(is_active=True)
     
     # Filtrer et trier selon les paramètres
     search = request.GET.get('search')
@@ -350,12 +351,13 @@ def club_product_create(request):
         variation_formset = ProductVariationFormSet(request.POST, prefix='variations')
         
         if form.is_valid() and image_formset.is_valid() and variation_formset.is_valid():
-            # Créer le produit (sans club car Product n'a pas ce champ)
             product = form.save(commit=False)
-            # Ajouter les disciplines du club si pas spécifiées
+            # Auto-assign the club's organization for shop isolation
+            if hasattr(club, 'organization') and club.organization:
+                product.organization = club.organization
             product.save()
             form.save_m2m()  # Sauvegarder les relations many-to-many
-            
+
             # S'assurer que le produit est associé aux disciplines du club
             if not product.disciplines.exists():
                 product.disciplines.set(club.disciplines.all())
@@ -411,8 +413,11 @@ def club_product_edit(request, product_id):
     Modifier un produit existant pour un club.
     """
     club = request.club
-    # Récupérer le produit (sans filtrer par club car Product n'a pas ce champ)
-    product = get_object_or_404(Product, id=product_id)
+    # Récupérer le produit en filtrant par organisation du club
+    if hasattr(club, 'organization') and club.organization:
+        product = get_object_or_404(Product, id=product_id, organization=club.organization)
+    else:
+        product = get_object_or_404(Product, id=product_id)
     
     if request.method == 'POST':
         form = ProductForm(request.POST, request.FILES, instance=product)
@@ -453,7 +458,10 @@ def club_product_delete(request, product_id):
     Supprimer un produit pour un club.
     """
     club = request.club
-    product = get_object_or_404(Product, id=product_id)
+    if hasattr(club, 'organization') and club.organization:
+        product = get_object_or_404(Product, id=product_id, organization=club.organization)
+    else:
+        product = get_object_or_404(Product, id=product_id)
     
     if request.method == 'POST':
         product.delete()
@@ -471,15 +479,15 @@ def club_inventory(request):
     """
     club = request.club
     
-    # Récupérer tous les produits vendus dans le club
-    # Comme Product n'a pas de champ club, on peut soit:
-    # 1. Récupérer tous les produits actifs
-    # 2. Récupérer les produits des disciplines du club
-    discipline_ids = club.disciplines.values_list('id', flat=True)
-    if discipline_ids:
-        products = Product.objects.filter(disciplines__in=discipline_ids).distinct().order_by('stock_quantity')
+    # Récupérer les produits de l'organisation du club
+    if hasattr(club, 'organization') and club.organization:
+        products = Product.objects.filter(organization=club.organization).order_by('stock_quantity')
     else:
-        products = Product.objects.filter(is_active=True).order_by('stock_quantity')
+        discipline_ids = club.disciplines.values_list('id', flat=True)
+        if discipline_ids:
+            products = Product.objects.filter(disciplines__in=discipline_ids).distinct().order_by('stock_quantity')
+        else:
+            products = Product.objects.filter(is_active=True).order_by('stock_quantity')
     
     # Filtrer les produits Ã  faible stock en premier (moins de 10 unités)
     low_stock_products = products.filter(stock_quantity__lt=10)
@@ -523,8 +531,10 @@ def club_product_detail(request, product_id):
     Afficher les détails d'un produit pour un club.
     """
     club = request.club
-    # Récupérer le produit (sans filtrer par club car Product n'a pas ce champ)
-    product = get_object_or_404(Product, id=product_id)
+    if hasattr(club, 'organization') and club.organization:
+        product = get_object_or_404(Product, id=product_id, organization=club.organization)
+    else:
+        product = get_object_or_404(Product, id=product_id)
     
     # Récupérer les informations associées
     images = product.images.all().order_by('order')
@@ -878,8 +888,12 @@ def federation_product_create(request):
         form = ProductForm(request.POST, request.FILES)
         if form.is_valid():
             product = form.save(commit=False)
+            # Auto-assign the federation's organization for shop isolation
+            federation_org = getattr(federation, 'as_organization', None)
+            if federation_org:
+                product.organization = federation_org
             product.save()
-            
+
             # Ajouter les disciplines de la fédération au produit
             federation_disciplines = federation.disciplines.all()
             product.disciplines.set(federation_disciplines)

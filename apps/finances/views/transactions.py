@@ -100,16 +100,24 @@ class TransactionListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['filter_form'] = TransactionFilterForm(self.request.GET or None)
-        
+
         # Résumé des transactions pour la période sélectionnée
         queryset = self.get_queryset()
         context['total_income'] = queryset.filter(type='income').aggregate(Sum('amount'))['amount__sum'] or 0
         context['total_expense'] = queryset.filter(type='expense').aggregate(Sum('amount'))['amount__sum'] or 0
         context['total_balance'] = context['total_income'] - context['total_expense']
-        
+
         # Permissions
         context['permissions'] = get_financial_permissions(self.request.user)
-        
+
+        # Devise préférée de l'utilisateur
+        try:
+            from ..currency_service import get_preferred_currency_for_request
+            currency_code, _ = get_preferred_currency_for_request(self.request)
+        except Exception:
+            currency_code = 'EUR'
+        context['currency_code'] = currency_code
+
         return context
 
 
@@ -118,11 +126,20 @@ class TransactionDetailView(LoginRequiredMixin, DetailView):
     model = Transaction
     template_name = 'finances/transactions/detail.html'
     context_object_name = 'transaction'
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['attachments'] = self.object.attachments.all()
         context['permissions'] = get_financial_permissions(self.request.user)
+
+        # Devise préférée de l'utilisateur
+        try:
+            from ..currency_service import get_preferred_currency_for_request
+            currency_code, _ = get_preferred_currency_for_request(self.request)
+        except Exception:
+            currency_code = 'EUR'
+        context['currency_code'] = currency_code
+
         return context
 
 

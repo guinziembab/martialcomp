@@ -34,6 +34,14 @@ class Federation(AdministratorMixin, models.Model):
     created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
     updated_at = models.DateTimeField(_("Mis Ã  jour le"), auto_now=True)
     
+    # Champ JSON pour stocker les métadonnées du site (contenu, thème, etc.)
+    metadata = models.JSONField(
+        _("Métadonnées du site"),
+        default=dict,
+        blank=True,
+        help_text=_("Stocke le contenu personnalisé du site public")
+    )
+
     # Relation avec le propriétaire
     owner = models.ForeignKey(
         User,

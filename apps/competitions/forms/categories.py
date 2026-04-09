@@ -3,6 +3,12 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
 from apps.competitions.models import CategoryTemplate, CompetitionCategory, Discipline
+import logging
+
+# PHASE 2 SECURITY: Import helpers de filtrage par discipline
+from apps.competitions.utils.permission_helpers import get_user_disciplines
+
+logger = logging.getLogger('discipline_isolation')
 
 
 class CompetitionCategoryForm(forms.ModelForm):
@@ -53,8 +59,10 @@ class CompetitionCategoryForm(forms.ModelForm):
 
 
 class CategoryTemplateForm(forms.ModelForm):
-    """Formulaire pour la création/modification d'un template de catégorie."""
-    
+    """Formulaire pour la creation/modification d'un template de categorie.
+    PHASE 2 SECURITY: Filtrage des disciplines par acces utilisateur.
+    """
+
     class Meta:
         model = CategoryTemplate
         fields = [
@@ -66,8 +74,8 @@ class CategoryTemplateForm(forms.ModelForm):
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Nom du template')}),
             'discipline': forms.Select(attrs={'class': 'form-control'}),
             'competition_type': forms.Select(attrs={'class': 'form-control'}),
-            'min_age': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': _('Ã‚ge minimum')}),
-            'max_age': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': _('Ã‚ge maximum')}),
+            'min_age': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': _('Age minimum')}),
+            'max_age': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': _('Age maximum')}),
             'min_grade': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Grade minimum')}),
             'max_grade': forms.TextInput(attrs={'class': 'form-control', 'placeholder': _('Grade maximum')}),
             'min_weight': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': _('Poids minimum (kg)'), 'step': '0.1'}),
@@ -75,6 +83,19 @@ class CategoryTemplateForm(forms.ModelForm):
             'gender': forms.Select(attrs={'class': 'form-control'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # PHASE 2 SECURITY: Filtrer les disciplines par acces utilisateur
+        if user:
+            if user.is_superuser:
+                self.fields['discipline'].queryset = Discipline.objects.filter(is_active=True)
+            else:
+                self.fields['discipline'].queryset = get_user_disciplines(user)
+        else:
+            # PHASE 2 SECURITY: Sans user, aucune discipline disponible
+            self.fields['discipline'].queryset = Discipline.objects.none()
+            logger.warning("CategoryTemplateForm: No user provided - disciplines empty")
 
     def clean(self):
         cleaned_data = super().clean()

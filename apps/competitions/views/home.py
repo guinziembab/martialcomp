@@ -19,3 +19,4 @@ def home(request):
     return render(request, 'competitions/home.html', context)
 
 
+

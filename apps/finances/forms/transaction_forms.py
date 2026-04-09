@@ -16,12 +16,12 @@ class TransactionForm(forms.ModelForm):
     
     class Meta:
         model = Transaction
-        fields = ['type', 'amount', 'currency', 'date', 'description', 'category', 
-                  'payment_method', 'financial_account', 'receipt_file']
+        fields = ['type', 'amount', 'currency', 'date', 'description', 'category',
+                  'payment_method', 'financial_account', 'practitioner', 'receipt_file']
         widgets = {
             'description': forms.Textarea(attrs={'rows': 3}),
             'amount': forms.NumberInput(attrs={'step': '0.01', 'min': '0.01'}),
-            'date': forms.DateInput(attrs={'type': 'date'}),
+            'date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
         }
 
     def __init__(self, *args, **kwargs):
@@ -32,20 +32,45 @@ class TransactionForm(forms.ModelForm):
         self.request = kwargs.pop('request', None)
         
         super().__init__(*args, **kwargs)
-        
-        # Filtrer les catégories selon le type de transaction et l'organisation
+
+        # Configurer le champ date pour HTML5 date input
+        if 'date' in self.fields:
+            self.fields['date'].input_formats = ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y']
+            # S'assurer que la valeur initiale est au bon format pour le widget HTML5
+            if self.instance and self.instance.pk and self.instance.date:
+                self.initial['date'] = self.instance.date.strftime('%Y-%m-%d')
+
+        # Filtrer les catégories et pratiquants selon l'organisation
         try:
             from django.contrib.contenttypes.models import ContentType
             from apps.finances.models.accounts import AccountingCategory
             from apps.finances.currency_service import _get_request_organization
-            # On bascule la sélection sur les catégories comptables (plus riches) si elles existent
-            # et utilisons celles de l'organisation (ou globales)
+            from apps.competitions.models import Practitioner
+
+            # Déterminer l'organisation
             organization = None
             request = getattr(self, 'request', None)
             if request is not None:
                 organization = _get_request_organization(request)
-            else:
-                organization = None
+
+            # Filtrer les pratiquants par organisation
+            if 'practitioner' in self.fields:
+                if organization:
+                    # Filtrer directement par l'organisation du pratiquant
+                    self.fields['practitioner'].queryset = Practitioner.objects.filter(
+                        organization=organization, is_active=True
+                    ).order_by('last_name', 'first_name')
+                else:
+                    # Fallback: limiter aux 100 premiers pratiquants actifs
+                    self.fields['practitioner'].queryset = Practitioner.objects.filter(
+                        is_active=True
+                    ).order_by('last_name', 'first_name')[:100]
+
+                # Améliorer le widget avec recherche
+                self.fields['practitioner'].widget.attrs.update({
+                    'class': 'form-select select2-practitioner',
+                    'data-placeholder': _('Sélectionner un membre...')
+                })
 
             # Déterminer le type
             transaction_type = None

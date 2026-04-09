@@ -3,22 +3,28 @@ from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
+import logging
 
 from apps.competitions.models import JudgeAssignment, Judge, CompetitionCategory
 
-# Imports optimisés des modèles
+# Imports optimises des modeles
 from apps.competitions.models import (
-    Discipline, 
+    Discipline,
     Practitioner,
     Judge,
-    JudgeQualification, 
-    JudgeCompetitionAssignment, 
+    JudgeQualification,
+    JudgeCompetitionAssignment,
     CompetitionRegistration,
     JudgeTechnicalApplication
 )
 
-# Import explicite des modèles de grade
-from apps.grades.models import Grade, GradeCategory 
+# Import explicite des modeles de grade
+from apps.grades.models import Grade, GradeCategory
+
+# PHASE 2 SECURITY: Import helpers de filtrage par discipline
+from apps.competitions.utils.permission_helpers import get_user_disciplines
+
+logger = logging.getLogger('discipline_isolation') 
 
 class JudgeProfileForm(forms.ModelForm):
     """Formulaire pour la création et modification d'un profil de juge."""
@@ -61,11 +67,12 @@ class JudgeProfileForm(forms.ModelForm):
     )
     
     # Champ pour la discipline principale
+    # PHASE 2 SECURITY: queryset vide par defaut, filtre dans __init__
     main_discipline = forms.ModelChoiceField(
-        queryset=Discipline.objects.filter(is_active=True),
+        queryset=Discipline.objects.none(),
         label=_("Discipline principale"),
         required=False,
-        empty_label=_("Sélectionnez une discipline"),
+        empty_label=_("Selectionnez une discipline"),
         widget=forms.Select(attrs={'class': 'form-control'})
     )
     
@@ -105,9 +112,10 @@ class JudgeProfileForm(forms.ModelForm):
         widget=forms.HiddenInput(attrs={'id': 'selected_grade_name'})
     )
     
+    # PHASE 2 SECURITY: queryset vide par defaut, filtre dans __init__
     disciplines = forms.ModelMultipleChoiceField(
-        queryset=Discipline.objects.filter(is_active=True),
-        label=_("Disciplines pratiquées"),
+        queryset=Discipline.objects.none(),
+        label=_("Disciplines pratiquees"),
         required=False,
         widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'})
     )
@@ -115,14 +123,26 @@ class JudgeProfileForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        
-        # Définir les choix de base pour grade_display
+
+        # PHASE 2 SECURITY: Filtrer les disciplines par acces utilisateur
+        if self.user:
+            if self.user.is_superuser:
+                discipline_qs = Discipline.objects.filter(is_active=True)
+            else:
+                discipline_qs = get_user_disciplines(self.user)
+            self.fields['main_discipline'].queryset = discipline_qs
+            self.fields['disciplines'].queryset = discipline_qs
+        else:
+            # Sans user, les disciplines restent vides (securite)
+            logger.warning("JudgeProfileForm: No user provided - disciplines empty")
+
+        # Definir les choix de base pour grade_display
         self.fields['grade_display'].choices = [
-            ('', _('Sélectionnez d\'abord une discipline')),
-            ('custom', _('Saisie personnalisée'))
+            ('', _('Selectionnez d\'abord une discipline')),
+            ('custom', _('Saisie personnalisee'))
         ]
-        
-        # Préremplir avec les données de l'utilisateur si disponibles
+
+        # Preremplir avec les donnees de l'utilisateur si disponibles
         if self.user:
             self.fields['first_name'].initial = self.user.first_name
             self.fields['last_name'].initial = self.user.last_name
@@ -439,21 +459,35 @@ class JudgeCompetitionAssignmentForm(forms.ModelForm):
 
 
 class JudgeSearchForm(forms.Form):
-    """Formulaire pour la recherche de juges."""
-    
+    """Formulaire pour la recherche de juges.
+    PHASE 2 SECURITY: Filtrage des disciplines par acces utilisateur.
+    """
+
     name = forms.CharField(
-        label=_("Nom ou prénom"),
+        label=_("Nom ou prenom"),
         required=False,
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': _("Rechercher par nom...")})
     )
-    
+
+    # PHASE 2 SECURITY: queryset vide par defaut, filtre dans __init__
     discipline = forms.ModelChoiceField(
-        queryset=Discipline.objects.filter(is_active=True),
+        queryset=Discipline.objects.none(),
         label=_("Discipline"),
         required=False,
         empty_label=_("Toutes les disciplines"),
         widget=forms.Select(attrs={'class': 'form-control'})
     )
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # PHASE 2 SECURITY: Filtrer les disciplines par acces utilisateur
+        if user:
+            if user.is_superuser:
+                self.fields['discipline'].queryset = Discipline.objects.filter(is_active=True)
+            else:
+                self.fields['discipline'].queryset = get_user_disciplines(user)
+        else:
+            logger.warning("JudgeSearchForm: No user provided - disciplines empty")
     
     qualification_type = forms.ChoiceField(
         choices=[('', _("Tous types"))] + list(JudgeQualification._meta.get_field('qualification_type').choices),
@@ -477,6 +511,7 @@ class JudgeAssignmentForm(forms.ModelForm):
     class Meta:
         model = JudgeAssignment
         fields = [
+            'user',
             'registration', 
             'category', 
             'assignment_type', 
@@ -486,7 +521,7 @@ class JudgeAssignmentForm(forms.ModelForm):
             'notes'
         ]
         widgets = {
-            'judge': forms.Select(attrs={'class': 'form-select'}),
+            'user': forms.Select(attrs={'class': 'form-select'}),
             'category': forms.Select(attrs={'class': 'form-select'}),
             'assignment_type': forms.Select(attrs={'class': 'form-select'}),
             'start_time': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
@@ -506,22 +541,31 @@ class JudgeAssignmentForm(forms.ModelForm):
             
             # Filtrer les juges ayant les qualifications pour cette compétition
             # ou les juges déjÃ  assignés pour cette compétition
+            # Les qualifications sont liées au practitioner, pas directement au Judge
             qualified_judges = Judge.objects.filter(
-                # Juges qualifiés dans la discipline
-                qualifications__discipline=competition.discipline,
+                # Juges qualifiés dans une discipline (via practitioner__qualifications)
+                practitioner__qualifications__discipline__in=competition.competition_types.values_list('discipline', flat=True),
                 # Juges actifs
                 active=True
             ).distinct()
             
             assigned_judges = Judge.objects.filter(
-                # Juges déjÃ  assignés Ã  cette compétition
-                judgements__category__competition=competition
+                # Juges déjÃ  assignés Ã  cette compétition (via user__judge_assignments)
+                user__judge_assignments__category__competition=competition
             ).distinct()
             
             # Combiner les deux querysets
             all_judges = (qualified_judges | assigned_judges).distinct()
             
-            self.fields['judge'].queryset = all_judges.order_by('practitioner__last_name')
+            # Filtrer les utilisateurs correspondant aux juges
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            judge_users = User.objects.filter(
+                judge_profile__in=all_judges
+            ).distinct()
+            
+            if 'user' in self.fields:
+                self.fields['user'].queryset = judge_users.order_by('last_name', 'first_name')
         
         # Si c'est une modification, désactiver certains champs
         if self.instance and self.instance.pk:
@@ -531,14 +575,14 @@ class JudgeAssignmentForm(forms.ModelForm):
                     
     def clean(self):
         cleaned_data = super().clean()
-        judge = cleaned_data.get('judge')
+        user = cleaned_data.get('user')
         category = cleaned_data.get('category')
         assignment_type = cleaned_data.get('assignment_type')
         start_time = cleaned_data.get('start_time')
         end_time = cleaned_data.get('end_time')
         
         # Vérifier que le juge n'est pas déjÃ  assigné Ã  un autre événement au mÃªme moment
-        if judge and category and start_time and end_time:
+        if user and category and start_time and end_time:
             # Créer la condition pour exclure l'instance actuelle
             if self.instance and self.instance.pk:
                 base_query = JudgeAssignment.objects.exclude(pk=self.instance.pk)
@@ -556,7 +600,7 @@ class JudgeAssignmentForm(forms.ModelForm):
             )
             
             # Appliquer les filtres séparément pour éviter le mélange d'arguments positionnels et nommés
-            conflicting_assignments = base_query.filter(judge=judge)
+            conflicting_assignments = base_query.filter(user=user)
             conflicting_assignments = conflicting_assignments.filter(time_overlap_condition)
             # Exclure également séparément
             conflicting_assignments = conflicting_assignments.exclude(category=category)

@@ -1,0 +1,478 @@
+{% load i18n %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'fr' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MartialComp{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Protection CSRF automatique -->
+    {% include "competitions/includes/csrf_protection.html" %}
+    
+    {% block extra_css %}{% endblock %}
+    
+    <style>
+        /* Système de notifications discret */
+        .notifications-icon {
+            position: relative;
+            color: #6c757d;
+            text-decoration: none;
+            padding: 0.5rem;
+            margin: 0 0.25rem;
+        }
+        
+        .notifications-icon:hover {
+            color: #495057;
+            text-decoration: none;
+        }
+        
+        .notification-badge {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            background-color: #dc3545;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            min-width: 18px;
+            text-align: center;
+            line-height: 1;
+        }
+        
+        .notifications-dropdown {
+            min-width: 350px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .notification-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .notification-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .notification-item.unread {
+            background-color: #fff3cd;
+            border-left: 3px solid #ffc107;
+        }
+        
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            font-size: 0.9rem;
+        }
+        
+        .notification-message {
+            color: #6c757d;
+            font-size: 0.8rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .notification-time {
+            color: #adb5bd;
+            font-size: 0.7rem;
+        }
+        
+        .notification-empty {
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+        }
+
+        /* ===== THEME DARK/GOLD - ALERTES GLOBALES ===== */
+        .alert {
+            background-color: #16213e !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: #eaeaea !important;
+            border-radius: 8px;
+        }
+        .alert-success {
+            background-color: rgba(0, 210, 106, 0.15) !important;
+            border-color: rgba(0, 210, 106, 0.3) !important;
+            color: #00d26a !important;
+            border-left: 4px solid #00d26a !important;
+        }
+        .alert-info {
+            background-color: rgba(52, 152, 219, 0.15) !important;
+            border-color: rgba(52, 152, 219, 0.3) !important;
+            color: #3498db !important;
+            border-left: 4px solid #3498db !important;
+        }
+        .alert-warning {
+            background-color: rgba(255, 193, 7, 0.15) !important;
+            border-color: rgba(255, 193, 7, 0.3) !important;
+            color: #ffc107 !important;
+            border-left: 4px solid #ffc107 !important;
+        }
+        .alert-danger, .alert-error {
+            background-color: rgba(233, 69, 96, 0.15) !important;
+            border-color: rgba(233, 69, 96, 0.3) !important;
+            color: #e94560 !important;
+            border-left: 4px solid #e94560 !important;
+        }
+        .alert .btn-close {
+            filter: invert(1);
+        }
+        .list-group-item {
+            background-color: #16213e !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+            color: #eaeaea !important;
+        }
+        .list-group-item-success {
+            background-color: rgba(0, 210, 106, 0.15) !important;
+            color: #00d26a !important;
+        }
+        .list-group-item-info {
+            background-color: rgba(52, 152, 219, 0.15) !important;
+            color: #3498db !important;
+        }
+        .list-group-item-warning {
+            background-color: rgba(255, 193, 7, 0.15) !important;
+            color: #ffc107 !important;
+        }
+        .list-group-item-danger, .list-group-item-error {
+            background-color: rgba(233, 69, 96, 0.15) !important;
+            color: #e94560 !important;
+        }
+        .modal-content {
+            background-color: #16213e !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: #eaeaea !important;
+        }
+        .modal-header {
+            border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        .modal-header .btn-close {
+            filter: invert(1);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation principale -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'welcome' %}">
+                <i class="fa-solid fa-hand-fist me-2"></i>{% trans "MartialComp" %}</a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'welcome' %}">{% trans "Accueil" %}</a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <!-- Sélecteur de langue -->
+                    <li class="nav-item">
+                        {% load translation_helpers %}
+                        {% language_selector %}
+                    </li>
+                    
+                    {% if user.is_authenticated %}
+                        <!-- SYSTÈME DE NOTIFICATIONS - NOUVEAU -->
+                        <li class="nav-item">
+                            <a class="notifications-icon" href="#" id="notificationsDropdown" role="button" 
+                               title="{% trans 'Notifications' %}">
+                                <i class="fa-solid fa-bell"></i>
+                                <span class="notification-badge" id="notificationCount" style="display: none;">0</span>
+                            </a>
+                        </li>
+                        
+                        <!-- Menu utilisateur -->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" 
+                               data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fa-solid fa-user me-1"></i> {{ user.username }}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                                {% get_current_language as current_lang %}
+                                <li><a class="dropdown-item" href="/{{ current_lang }}/profile/">
+                                    <i class="fa-solid fa-user-pen me-2"></i>{% trans "Mon profil" %}
+                                </a></li>
+                                {% if user.is_staff %}
+                                <li><a class="dropdown-item" href="{% url 'admin:index' %}">
+                                    <i class="fa-solid fa-gears me-2"></i>{% trans "Administration" %}
+                                </a></li>
+                                {% endif %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'account_logout' %}">
+                                    <i class="fa-solid fa-right-from-bracket me-2"></i>{% trans "Déconnexion" %}
+                                </a></li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <button class="btn btn-outline-light me-2" onclick="openModal('loginModal')">
+                                <i class="fa-solid fa-right-to-bracket"></i>
+                                {% trans "Se connecter" %}
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{% url 'account_signup' %}" class="btn btn-primary">
+                                <i class="fas fa-user-plus"></i>
+                                {% trans "S'inscrire" %}
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Messages Django -->
+    {% include "competitions/includes/messages_unique.html" %}
+
+    <!-- Modal notifications/messages -->
+    <div class="modal fade" id="messagesModal" tabindex="-1" aria-labelledby="messagesModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="messagesModalLabel">{% trans "Tous les messages" %}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div id="modal-messages-list">
+              <!-- Liste des messages sera injectée ici -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contenu principal -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-light py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>{% trans "MartialComp" %}</h5>
+                    <p>{% trans "Plateforme de gestion des compétitions d'arts martiaux" %}</p>
+                </div>
+                <div class="col-md-6 text-end">
+                    <p>&copy; 2025 MartialComp. {% trans "Tous droits réservés." %}</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Script notifications AJAX -->
+    <script>
+        // Chargement des notifications au démarrage
+        document.addEventListener('DOMContentLoaded', function() {
+            {% if user.is_authenticated %}
+                loadNotifications();
+                // Actualiser les notifications toutes les 30 secondes
+                setInterval(loadNotifications, 30000);
+            {% endif %}
+        });
+        
+        function loadNotifications() {
+            try {
+                const currentLang = document.documentElement.lang || 'en';
+                const notificationsUrl = `/${currentLang}/competitions/notifications/api/list/`;
+
+                // Vérifier que l'URL est valide
+                if (!notificationsUrl || notificationsUrl.includes('None')) {
+                    console.warn('Notifications: URL non disponible');
+                    return;
+                }
+                
+                fetch(notificationsUrl, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            // Si l'endpoint n'existe pas ou retourne une erreur, ne pas bloquer
+                            if (response.status === 404 || response.status === 500) {
+                                console.warn('Notifications: Endpoint non disponible (', response.status, ')');
+                                return null;
+                            }
+                            throw new Error('HTTP error! status: ' + response.status);
+                        }
+                        // Vérifier le Content-Type avant de parser
+                        const contentType = response.headers.get('content-type');
+                        if (!contentType || !contentType.includes('application/json')) {
+                            // Si ce n'est pas du JSON, ne pas essayer de parser
+                            console.warn('Notifications: L\'endpoint retourne du HTML au lieu de JSON.');
+                            return null;
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data) {
+                            updateNotificationUI(data);
+                        }
+                    })
+                    .catch(error => {
+                        // Gérer les erreurs de connexion silencieusement
+                        if (error.message && (
+                            error.message.includes('Failed to fetch') || 
+                            error.message.includes('ERR_CONNECTION_REFUSED') ||
+                            error.message.includes('NetworkError')
+                        )) {
+                            // Erreur de connexion - ne pas bloquer l'interface
+                            console.warn('Notifications: Service non disponible. L\'affichage des notifications est désactivé.');
+                        } else if (error.message && error.message.includes('Unexpected token')) {
+                            console.warn('Notifications: L\'endpoint retourne du HTML. L\'affichage des notifications est désactivé.');
+                        } else {
+                            // Autres erreurs - log uniquement en mode debug
+                            if (window.DEBUG) {
+                                console.error('Erreur lors du chargement des notifications:', error);
+                            }
+                        }
+                    });
+            } catch (error) {
+                // Erreur de syntaxe ou autre - ne pas bloquer
+                if (window.DEBUG) {
+                    console.log('Notifications non disponibles:', error);
+                }
+            }
+        }
+        
+        // Correctif notifications : évite les erreurs JS invasives si éléments absents
+        function updateNotificationUI(data) {
+            const countElement = document.getElementById('notificationCount');
+            const listElement = document.getElementById('notificationsList');
+            if (!countElement || !listElement) return;
+            // Mettre à jour le compteur
+            if (data.unread_count > 0) {
+                countElement.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                countElement.style.display = 'block';
+            } else {
+                countElement.style.display = 'none';
+            }
+            
+            // Mettre à jour la liste
+            if (data.notifications.length === 0) {
+                listElement.innerHTML = `
+                    <div class="notification-empty">
+                        <i class="fas fa-bell-slash fa-2x mb-2"></i><br>
+                        Aucune notification
+                    </div>
+                `;
+            } else {
+                let html = '';
+                data.notifications.forEach(notification => {
+                    html += `
+                        <div class="notification-item ${!notification.is_read ? 'unread' : ''}" 
+                             onclick="markAsRead(${notification.id}, '${notification.action_url || '#'}')">
+                            <div class="d-flex">
+                                <i class="${notification.icon_class} ${notification.css_class} me-2 mt-1"></i>
+                                <div class="flex-grow-1">
+                                    <div class="notification-title">${notification.title}</div>
+                                    <div class="notification-message">${notification.message}</div>
+                                    <div class="notification-time">${notification.created_at}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                listElement.innerHTML = html;
+            }
+        }
+        
+        function markAsRead(notificationId, actionUrl) {
+            const currentLang = document.documentElement.lang || 'en';
+            const markReadUrl = `/${currentLang}/competitions/notifications/mark-read/${notificationId}/`;
+            fetch(markReadUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                }
+            }).then(() => {
+                if (actionUrl && actionUrl !== '#') {
+                    window.location.href = actionUrl;
+                } else {
+                    loadNotifications();
+                }
+            });
+        }
+        
+        function markAllAsRead() {
+            const currentLang = document.documentElement.lang || 'en';
+            const markAllReadUrl = `/${currentLang}/competitions/notifications/mark-all-read/`;
+            fetch(markAllReadUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json',
+                }
+            }).then(() => {
+                loadNotifications();
+            });
+        }
+    </script>
+    
+    <!-- Script pour les notifications et messages -->
+    <script type="text/javascript">
+    // Affichage du nombre de messages dans la cloche
+    (function() {
+        var allMessagesList = document.getElementById('all-messages-list');
+        var notificationCount = document.getElementById('notificationCount');
+        if (allMessagesList && notificationCount) {
+            var count = allMessagesList.querySelectorAll('li').length;
+            if (count > 0) {
+                notificationCount.textContent = count;
+                notificationCount.style.display = '';
+            } else {
+                notificationCount.style.display = 'none';
+            }
+        }
+    })();
+    
+    // Ouvre le modal de messages quand on clique sur la cloche
+    (function() {
+        var bell = document.getElementById('notificationsDropdown');
+        if (bell) {
+            bell.addEventListener('click', function(e) {
+                e.preventDefault();
+                try {
+                    var modal = new bootstrap.Modal(document.getElementById('messagesModal'));
+                    // Injecte la liste des messages dans le modal
+                    var src = document.getElementById('all-messages-list');
+                    var dest = document.getElementById('modal-messages-list');
+                    if (src && dest) {
+                        dest.innerHTML = src.innerHTML;
+                    }
+                    modal.show();
+                } catch (err) {
+                    console.warn('Erreur lors de l\'ouverture du modal:', err);
+                }
+            });
+        }
+    })();
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

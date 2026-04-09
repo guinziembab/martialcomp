@@ -6,7 +6,13 @@ app_name = 'family_management'
 urlpatterns = [
     # Dashboard principal
     path('', views.family_dashboard, name='dashboard'),
-    
+
+    # Création de famille
+    path('create/', views.create_family, name='create_family'),
+
+    # API pour récupérer les pratiquants disponibles
+    path('api/practitioners/', views.get_available_practitioners, name='get_available_practitioners'),
+
     # Gestion des familles
     path('family/<uuid:family_id>/', views.family_detail, name='family_detail'),
     path('family/<uuid:family_id>/calendar/', views.family_calendar, name='family_calendar'),

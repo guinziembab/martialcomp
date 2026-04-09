@@ -3,6 +3,7 @@ Configuration de django-modeltranslation pour les modèles MartialComp
 """
 from modeltranslation.translator import translator, TranslationOptions
 from .models import Competition, Club, Discipline
+from .models.tutorials import TutorialSection, Tutorial
 
 
 class CompetitionTranslationOptions(TranslationOptions):
@@ -24,3 +25,17 @@ class DisciplineTranslationOptions(TranslationOptions):
 translator.register(Competition, CompetitionTranslationOptions)
 translator.register(Club, ClubTranslationOptions)
 translator.register(Discipline, DisciplineTranslationOptions)
+
+
+class TutorialSectionTranslationOptions(TranslationOptions):
+    """Configuration de traduction pour le modèle TutorialSection"""
+    fields = ('title',)
+
+
+class TutorialTranslationOptions(TranslationOptions):
+    """Configuration de traduction pour le modèle Tutorial"""
+    fields = ('title', 'steps', 'tip')
+
+
+translator.register(TutorialSection, TutorialSectionTranslationOptions)
+translator.register(Tutorial, TutorialTranslationOptions)

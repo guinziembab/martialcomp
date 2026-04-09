@@ -456,17 +456,11 @@ def get_user_club(request):
     """
     Fonction utilitaire pour récupérer le club de l'utilisateur.
     Essaie différentes méthodes pour trouver le club associé.
+    Utilise la même logique que club_dashboard.
     """
-    # Essayer d'abord avec l'attribut direct
-    if hasattr(request.user, 'club') and request.user.club:
-        return request.user.club
-    
-    # Essayer ensuite avec le profil utilisateur
-    if hasattr(request.user, 'profile') and hasattr(request.user.profile, 'club'):
-        return request.user.profile.club
-    
-    # Enfin, chercher le club dont l'utilisateur est propriétaire
-    return Club.objects.filter(owner=request.user).first()
+    # Utiliser la fonction de permission_helpers qui est plus complète
+    from apps.competitions.utils.permission_helpers import get_user_club as get_user_club_helper
+    return get_user_club_helper(request)
 
 @login_required
 def register_multiple_practitioners(request, competition_id):
@@ -668,6 +662,16 @@ def competition_registration_form(request, competition_id):
         messages.success(request, f"{count} pratiquant(s) inscrit(s) avec succès Ã  {competition.title}")
         if errors > 0:
             messages.warning(request, _("{} erreur(s) lors de l'inscription.").format(errors))
+        
+        # Si c'est une requête AJAX, retourner JSON
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            from django.http import JsonResponse
+            return JsonResponse({
+                'success': True,
+                'message': _("{} pratiquant(s) inscrit(s) avec succès.").format(count),
+                'count': count,
+                'errors': errors
+            })
         
         return redirect('competitions:club:registrations_list')
     

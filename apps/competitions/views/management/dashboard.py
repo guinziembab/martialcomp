@@ -13,7 +13,6 @@ from apps.competitions.models import (
 from apps.competitions.models.schedule import CompetitionSchedule, CategorySchedule, TatamiSchedule
 from apps.competitions.utils.decorators import competition_management_permission_required
 from apps.competitions.utils.competitions import get_competition_progress, get_competition_statistics
-from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
 
 
 @login_required
@@ -21,16 +20,18 @@ from apps.core.isolation import OrganizationIsolationMixin, get_organization_que
 def management_dashboard(request, competition_id):
     """
     Tableau de bord pour la gestion d'une compétition spécifique.
-    Affiche un aperçu général de l'état de la compétition.
     """
-    # Récupérer la compétition
+    try:
+        return _management_dashboard_impl(request, competition_id)
+    except Exception as e:
+        import traceback
+        from django.http import HttpResponse
+        return HttpResponse(f"<pre>{e}\n\n{traceback.format_exc()}</pre>", status=500)
+
+
+def _management_dashboard_impl(request, competition_id):
     competition = get_object_or_404(Competition, pk=competition_id)
-    
-    # Vérifier si l'utilisateur a les permissions nécessaires
-    if not request.user.has_perm('competitions.manage_competition', competition):
-        messages.error(request, _("Vous n'avez pas les permissions nécessaires pour gérer cette compétition."))
-        return redirect('competitions:competitions:detail', pk=competition_id)
-    
+
     # Récupérer les statistiques de la compétition
     statistics = get_competition_statistics(competition)
     
@@ -47,10 +48,13 @@ def management_dashboard(request, competition_id):
             is_competitor=True
         ).count()
         
-        category.matches_count = Match.objects.filter(category=category).count()
-        category.completed_matches_count = Match.objects.filter(
-            category=category, 
-            status='completed'
+        from apps.competitions.models.combat import Combat as CombatModel
+        category.matches_count = CombatModel.objects.filter(
+            poule__category=category
+        ).count()
+        category.completed_matches_count = CombatModel.objects.filter(
+            poule__category=category,
+            status='termine'
         ).count()
         
         # Calculer le pourcentage de progression
@@ -77,20 +81,22 @@ def management_dashboard(request, competition_id):
         category_schedules = None
     
     # Récupérer les derniers matchs terminés
-    recent_matches = Match.objects.filter(
-        category__competition=competition,
-        status='completed'
-    ).order_by('-end_time')[:5]
-    
-    # Récupérer les prochains matchs
-    upcoming_matches = Match.objects.filter(
-        category__competition=competition,
-        status='pending'
-    ).order_by('start_time')[:5]
+    from apps.competitions.models.combat import Combat as CombatModel2
+    recent_matches = CombatModel2.objects.filter(
+        competition=competition,
+        status='termine'
+    ).order_by('-date_planifiee')[:5]
+
+    # Récupérer les prochains combats
+    upcoming_matches = CombatModel2.objects.filter(
+        competition=competition,
+        status='planifie'
+    ).order_by('date_planifiee')[:5]
     
     context = {
         'competition': competition,
         'statistics': statistics,
+        'stats': statistics,
         'progress': progress,
         'categories': categories,
         'judges': judges,
@@ -172,7 +178,7 @@ def quick_stats(request, competition_id):
     Retourne des statistiques rapides pour le tableau de bord en AJAX.
     """
     from django.http import JsonResponse
-    
+
     competition = get_object_or_404(Competition, pk=competition_id)
     
     # Statistiques générales
@@ -219,4 +225,73 @@ def quick_stats(request, competition_id):
     }
     
     return JsonResponse(data)
+
+
+@login_required
+@competition_management_permission_required
+def close_competition(request, competition_id):
+    """
+    Clôture une compétition et génère les résultats finaux.
+    Accessible uniquement en POST.
+    """
+    from django.http import JsonResponse
+    from apps.competitions.services import CompetitionClosureService
+
+    competition = get_object_or_404(Competition, pk=competition_id)
+
+    # Vérifier les permissions
+    if not request.user.has_perm('competitions.change_competition_status', competition):
+        messages.error(request, _("Vous n'avez pas les permissions nécessaires pour clôturer cette compétition."))
+        return redirect('competitions:management:dashboard', competition_id=competition_id)
+
+    if request.method == 'GET':
+        # Retourner les infos de pré-clôture (pour le modal)
+        can_close, warnings = CompetitionClosureService.can_close(competition)
+
+        return JsonResponse({
+            'can_close': can_close,
+            'warnings': [str(w) for w in warnings],
+            'competition_status': competition.status,
+            'competition_title': competition.title,
+        })
+
+    elif request.method == 'POST':
+        # Effectuer la clôture
+        success, result_messages = CompetitionClosureService.close_competition(
+            competition, request.user
+        )
+
+        if success:
+            messages.success(request, _("La compétition a été clôturée avec succès."))
+            for msg in result_messages:
+                messages.info(request, str(msg))
+        else:
+            messages.error(request, _("Impossible de clôturer la compétition."))
+            for msg in result_messages:
+                messages.warning(request, str(msg))
+
+        return redirect('competitions:management:dashboard', competition_id=competition_id)
+
+    return redirect('competitions:management:dashboard', competition_id=competition_id)
+
+
+@login_required
+@competition_management_permission_required
+def close_competition_api(request, competition_id):
+    """
+    API pour obtenir les informations de clôture (JSON).
+    """
+    from django.http import JsonResponse
+    from apps.competitions.services import CompetitionClosureService
+
+    competition = get_object_or_404(Competition, pk=competition_id)
+
+    can_close, warnings = CompetitionClosureService.can_close(competition)
+
+    return JsonResponse({
+        'can_close': can_close,
+        'warnings': [str(w) for w in warnings],
+        'competition_status': competition.status,
+        'competition_title': competition.title,
+    })
 

@@ -1,7 +1,8 @@
 from django.urls import path, include
 
 from .views import (
-    transactions, payments, invoices, accounts, dashboard
+    transactions, payments, invoices, accounts, dashboard, banking,
+    stripe_views,
 )
 
 app_name = 'finances'
@@ -82,6 +83,14 @@ account_patterns = [
     path('membership/<str:pk>/delete/', accounts.MembershipFeeDeleteView.as_view(), name='membership_fee_delete'),
 ]
 
+# URLs Stripe Checkout
+stripe_patterns = [
+    path('checkout/create/', stripe_views.create_checkout, name='stripe_checkout_create'),
+    path('subscription/create/', stripe_views.create_subscription_checkout, name='subscription_checkout_create'),
+    path('success/', stripe_views.checkout_success, name='stripe_checkout_success'),
+    path('cancel/', stripe_views.checkout_cancel, name='stripe_checkout_cancel'),
+]
+
 # URLs principales de l'application
 urlpatterns = [
     # Dashboard et rapports
@@ -115,4 +124,41 @@ urlpatterns = [
     path('accounts/membership/', accounts.MembershipFeeListView.as_view(), name='membership_fee_list'),
     
     path('payments/methods/', payments.PaymentMethodListView.as_view(), name='payment_method_list'),
+
+    # ===== Import bancaire et réconciliation =====
+    # Dashboard import
+    path('banking/', banking.bank_import_dashboard, name='bank_import_dashboard'),
+    path('banking/upload/', banking.bank_import_upload, name='bank_import_upload'),
+    path('banking/preview/', banking.bank_import_preview, name='bank_import_preview'),
+    path('banking/confirm/', banking.bank_import_confirm, name='bank_import_confirm'),
+    path('banking/history/', banking.bank_import_history, name='bank_import_history'),
+    path('banking/batch/<str:batch_id>/', banking.bank_import_detail, name='bank_import_detail'),
+
+    # Réconciliation - IMPORTANT: les routes fixes doivent être AVANT <uuid:transaction_id>/
+    path('banking/reconciliation/', banking.bank_reconciliation_pending, name='bank_reconciliation_pending'),
+    path('banking/reconciliation/dashboard/', banking.bank_reconciliation_dashboard, name='bank_reconciliation_dashboard'),
+    path('banking/reconciliation/export-pdf/', banking.bank_reconciliation_export_pdf, name='bank_reconciliation_export_pdf'),
+    path('banking/reconciliation/auto/', banking.bank_transaction_auto_reconcile, name='bank_transaction_auto_reconcile'),
+    path('banking/reconciliation/validate-all/', banking.bank_transaction_validate_all, name='bank_transaction_validate_all'),
+    path('banking/reconciliation/<uuid:transaction_id>/', banking.bank_transaction_reconcile, name='bank_transaction_reconcile'),
+
+    # API endpoints pour AJAX
+    path('banking/api/practitioners/', banking.api_search_practitioners, name='api_search_practitioners'),
+    path('banking/api/suggestions/<str:transaction_id>/', banking.api_transaction_suggestions, name='api_transaction_suggestions'),
+
+    # =============================================================================
+    # API REST Multi-Devises
+    # =============================================================================
+    # Inclusion des endpoints API pour les devises et conversions
+    # GET /finances/api/currencies/ - Liste des devises
+    # GET /finances/api/rates/ - Taux de change actuels
+    # GET/POST /finances/api/convert/ - Conversion de devises
+    # GET/POST /finances/api/format/ - Formatage de montants
+    # GET/POST /finances/api/user-currency/ - Préférence utilisateur
+    # POST /finances/api/bulk-convert/ - Conversion en lot
+    # Import urlpatterns directly from api.py to avoid conflict with api/ directory
+    path('api/', include('apps.finances.rest_api')),
+
+    # ===== Stripe Checkout =====
+    path('stripe/', include((stripe_patterns, 'stripe'))),
 ]

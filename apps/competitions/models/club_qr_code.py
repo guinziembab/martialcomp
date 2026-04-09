@@ -73,19 +73,34 @@ class ClubQRCode(models.Model):
     
     def _generate_url(self):
         """Génère l'URL pour le QR code"""
-        base_url = getattr(settings, 'BASE_URL', 'http://localhost:8000')
-        
+        from django.urls import reverse
+        base_url = getattr(settings, 'BASE_URL', 'https://martialcomp.com')
+
         if self.qr_type == 'registration':
-            # URL d'inscription directe au club
-            return f"{base_url}/club/{self.club.id}/register/?qr={self.id}&source=qr_code"
+            # URL d'inscription directe au club via la vue direct_registration
+            # Utilise le namespace correct: competitions:club:direct_registration
+            try:
+                path = reverse('competitions:club:direct_registration')
+                return f"{base_url}{path}?qr={self.id}&club_id={self.club.id}&source=qr_code"
+            except Exception:
+                # Fallback si la route n'existe pas
+                return f"{base_url}/fr/competitions/club/register/?qr={self.id}&club_id={self.club.id}&source=qr_code"
         elif self.qr_type == 'activity':
-            # URL de suivi d'activité
-            return f"{base_url}/club/{self.club.id}/activity/?qr={self.id}"
+            # URL de suivi d'activité - rediriger vers le dashboard du club
+            try:
+                path = reverse('competitions:club:dashboard')
+                return f"{base_url}{path}?qr={self.id}&club_id={self.club.id}&activity=true"
+            except Exception:
+                return f"{base_url}/fr/competitions/club/dashboard/?qr={self.id}&club_id={self.club.id}&activity=true"
         elif self.qr_type == 'access':
             # URL d'accès rapide au dashboard
-            return f"{base_url}/club/{self.club.id}/dashboard/?qr={self.id}"
-        
-        return f"{base_url}/club/{self.club.id}/"
+            try:
+                path = reverse('competitions:club:dashboard')
+                return f"{base_url}{path}?qr={self.id}&club_id={self.club.id}"
+            except Exception:
+                return f"{base_url}/fr/competitions/club/dashboard/?qr={self.id}&club_id={self.club.id}"
+
+        return f"{base_url}/fr/competitions/club/"
     
     def record_scan(self):
         """Enregistre un scan du QR code"""

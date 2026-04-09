@@ -1,0 +1,3220 @@
+{% extends "base.html" %}
+{% load static i18n %}
+
+{% block title %}{{ competition.title }} - {% trans "Gestion Pro" %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dragula/3.7.3/dragula.min.css">
+<style>
+    /* Layout général */
+    .competition-header {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        color: white;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+    }
+    
+    .competition-header h1 {
+        margin-bottom: 0.5rem;
+    }
+    
+    .competition-meta {
+        opacity: 0.9;
+    }
+    
+    .competition-meta i {
+        margin-right: 0.5rem;
+    }
+    
+    /* Onglets personnalisés */
+    .nav-tabs {
+        border-bottom: 2px solid #e9ecef;
+        margin-bottom: 0;
+    }
+    
+    .nav-tabs .nav-link {
+        border: none;
+        border-bottom: 3px solid transparent;
+        color: #6c757d;
+        padding: 1rem 1.5rem;
+        font-weight: 500;
+        transition: all 0.3s;
+    }
+    
+    .nav-tabs .nav-link:hover {
+        border-bottom-color: #dee2e6;
+        color: #495057;
+    }
+    
+    .nav-tabs .nav-link.active {
+        border-bottom-color: #007bff;
+        color: #007bff;
+        background: none;
+    }
+    
+    .tab-content {
+        background: white;
+        padding: 2rem;
+        border-radius: 0 0 0.5rem 0.5rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    }
+    
+    /* Cards personnalisées */
+    .category-card, .type-card, .registration-card, .judge-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s;
+        background: white;
+    }
+    
+    .category-card:hover, .type-card:hover {
+        box-shadow: 0 0.25rem 0.5rem rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+    
+    /* Drag and Drop */
+    .drag-container {
+        min-height: 100px;
+        border: 2px dashed #dee2e6;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        transition: all 0.3s;
+    }
+    
+    .drag-container.drag-over {
+        border-color: #007bff;
+        background: #e7f3ff;
+    }
+    
+    .draggable-item {
+        cursor: move;
+        padding: 0.75rem;
+        margin: 0.5rem 0;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        transition: all 0.3s;
+    }
+    
+    .draggable-item:hover {
+        box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.1);
+    }
+    
+    .draggable-item.gu-mirror {
+        opacity: 0.8;
+        background: #007bff;
+        color: white;
+        transform: rotate(3deg);
+    }
+    
+    /* Types de compétition */
+    .type-card {
+        position: relative;
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+    }
+    
+    .type-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    /* Statistiques */
+    .card.bg-primary, .card.bg-info, .card.bg-success, .card.bg-warning, .card.bg-secondary, .card.bg-dark {
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* Filtres avancés */
+    .collapse {
+        transition: all 0.3s ease;
+    }
+    
+    /* Boutons d'action */
+    .btn-group .btn {
+        border-radius: 0.375rem;
+    }
+    
+    .btn-group .btn:not(:last-child) {
+        margin-right: 0.25rem;
+    }
+    
+    /* Messages d'état */
+    .alert {
+        border: none;
+        border-radius: 0.5rem;
+    }
+    
+    /* Pagination */
+    .pagination .page-link {
+        border-radius: 0.375rem;
+        margin: 0 0.125rem;
+        border: 1px solid #dee2e6;
+    }
+    
+    .pagination .page-item.active .page-link {
+        background-color: #007bff;
+        border-color: #007bff;
+    }
+    
+    /* Tableau des catégories */
+    .table-responsive {
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+    
+    .table th {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        font-weight: 600;
+    }
+    
+    /* Liste des catégories */
+    .list-group-item {
+        border-radius: 0.5rem !important;
+        margin-bottom: 0.5rem;
+        border: 1px solid #dee2e6;
+    }
+    
+    .list-group-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    /* Spinner de chargement */
+    .spinner-border {
+        width: 3rem;
+        height: 3rem;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .btn-group {
+            flex-direction: column;
+        }
+        
+        .btn-group .btn {
+            margin-right: 0;
+            margin-bottom: 0.25rem;
+        }
+        
+        .card-body {
+            padding: 1rem;
+        }
+    }
+    
+    .type-card .badge {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+    }
+    
+    .type-categories {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    /* Programmation */
+    .schedule-timeline {
+        position: relative;
+        padding-left: 2rem;
+    }
+    
+    .schedule-item {
+        position: relative;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 0.5rem;
+    }
+    
+    .schedule-item::before {
+        content: '';
+        position: absolute;
+        left: -2rem;
+        top: 50%;
+        width: 12px;
+        height: 12px;
+        background: #007bff;
+        border-radius: 50%;
+        transform: translateY(-50%);
+    }
+    
+    .schedule-item::after {
+        content: '';
+        position: absolute;
+        left: -1.44rem;
+        top: 0;
+        bottom: -1rem;
+        width: 1px;
+        background: #dee2e6;
+    }
+    
+    .schedule-item:last-child::after {
+        display: none;
+    }
+    
+    .schedule-time {
+        font-weight: 600;
+        color: #007bff;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Actions rapides */
+    .quick-actions {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        z-index: 1040;
+    }
+    
+    .quick-actions .btn {
+        display: block;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        margin-bottom: 1rem;
+        box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.2);
+    }
+    
+    /* Statistiques */
+    .stat-card {
+        text-align: center;
+        padding: 2rem 1rem;
+        background: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+        margin-bottom: 1rem;
+    }
+    
+    .stat-card .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #007bff;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stat-card .stat-label {
+        color: #6c757d;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    /* États de publication */
+    .publication-status {
+        display: inline-block;
+        padding: 0.375rem 0.75rem;
+        border-radius: 2rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+    
+    .publication-status.draft {
+        background: #ffc107;
+        color: #000;
+    }
+    
+    .publication-status.published {
+        background: #28a745;
+        color: white;
+    }
+    
+    .publication-status.closed {
+        background: #6c757d;
+        color: white;
+    }
+    
+    /* Messages flottants */
+    .alert-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1050;
+        max-width: 400px;
+    }
+    
+    /* Styles pour l'onglet Résultats */
+    .scoring-chart-container {
+        position: relative;
+        height: 200px;
+        margin: 20px 0;
+    }
+    
+    #liveStatus.pulse {
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.5;
+        }
+        100% {
+            opacity: 1;
+        }
+    }
+    
+    .list-group-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .competition-header {
+            padding: 1rem 0;
+        }
+        
+        .nav-tabs .nav-link {
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+        }
+        
+        .tab-content {
+            padding: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Alert Container -->
+<div class="alert-container" id="alertContainer"></div>
+
+<!-- Header de compétition -->
+<div class="competition-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h1>{{ competition.title }}</h1>
+                <div class="competition-meta">
+                    <i class="fas fa-calendar"></i>{{ competition.start_date|date:"d F Y" }}
+                    <span class="ms-3"><i class="fas fa-map-marker-alt"></i>{{ competition.venue_name|default:"À définir" }}</span>
+                    <span class="ms-3"><i class="fas fa-trophy"></i>{{ competition.discipline.name }}</span>
+                </div>
+            </div>
+            <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+                <span class="publication-status {% if competition.is_published %}published{% else %}draft{% endif %}">
+                    {% if competition.is_published %}
+                        <i class="fas fa-check-circle me-1"></i>{% trans "Publiée" %}
+                    {% else %}
+                        <i class="fas fa-edit me-1"></i>{% trans "Brouillon" %}
+                    {% endif %}
+                </span>
+                <a href="{% url 'competitions:dashboard:club' %}" class="btn btn-light ms-2">
+                    <i class="fas fa-arrow-left me-2"></i>{% trans "Retour" %}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contenu principal -->
+<div class="container">
+    <!-- Statistiques rapides -->
+    <div class="row mb-4">
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="stat-number" id="statPractitioners">{{ competition.registrations.count }}</div>
+                <div class="stat-label">{% trans "Pratiquants" %}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="stat-number" id="statCategories">{{ competition.categories.count }}</div>
+                <div class="stat-label">{% trans "Catégories" %}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="stat-number" id="statJudges">{{ competition.judges.count|default:0 }}</div>
+                <div class="stat-label">{% trans "Juges" %}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="stat-number" id="statTypes">{{ competition.competition_types.count|default:0 }}</div>
+                <div class="stat-label">{% trans "Types" %}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Onglets -->
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#overview">
+                <i class="fas fa-home me-2"></i>{% trans "Vue d'ensemble" %}
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#types">
+                <i class="fas fa-th-large me-2"></i>{% trans "Types de compétition" %}
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#categories">
+                <i class="fas fa-layer-group me-2"></i>{% trans "Catégories" %}
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#registrations">
+                <i class="fas fa-users me-2"></i>{% trans "Inscriptions" %}
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#judges">
+                <i class="fas fa-gavel me-2"></i>{% trans "Juges" %}
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#schedule">
+                <i class="fas fa-clock me-2"></i>{% trans "Programmation" %}
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#publish">
+                <i class="fas fa-share-alt me-2"></i>{% trans "Publier & Partager" %}
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#results">
+                <i class="fas fa-trophy me-2"></i>{% trans "Résultats" %}
+            </button>
+        </li>
+    </ul>
+
+    <!-- Contenu des onglets -->
+    <div class="tab-content">
+        <!-- Vue d'ensemble -->
+        <div class="tab-pane fade show active" id="overview">
+            <h3 class="mb-4">{% trans "Vue d'ensemble de la compétition" %}</h3>
+            
+            <div class="row">
+                <div class="col-lg-8">
+                    <!-- Affectation rapide par glisser-déposer -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="fas fa-hand-pointer me-2"></i>{% trans "Affectation rapide" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>{% trans "Pratiquants non affectés" %}</h6>
+                                    <div id="unassignedPractitioners" class="drag-container">
+                                        {% for reg in competition.registrations.all %}
+                                            {% if not reg.categories.exists %}
+                                            <div class="draggable-item" data-practitioner-id="{{ reg.practitioner.id }}" data-registration-id="{{ reg.id }}">
+                                                <i class="fas fa-user me-2"></i>
+                                                {{ reg.practitioner.get_full_name }}
+                                                <small class="text-muted d-block">{{ reg.practitioner.club.name }}</small>
+                                            </div>
+                                            {% endif %}
+                                        {% empty %}
+                                            <p class="text-muted text-center mb-0">{% trans "Aucun pratiquant non affecté" %}</p>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>{% trans "Juges non affectés" %}</h6>
+                                    <div id="unassignedJudges" class="drag-container">
+                                        <p class="text-muted text-center mb-0">{% trans "Aucun juge disponible" %}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Activité récente -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-history me-2"></i>{% trans "Activité récente" %}</h5>
+                        </div>
+                        <div class="card-body" id="recentActivity">
+                            <p class="text-muted">{% trans "Aucune activité récente" %}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <!-- Actions rapides -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>{% trans "Actions rapides" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <button class="btn btn-success w-100 mb-2" onclick="publishCompetition()">
+                                <i class="fas fa-rocket me-2"></i>{% trans "Publier la compétition" %}
+                            </button>
+                            <button class="btn btn-primary w-100 mb-2" onclick="exportPDF()">
+                                <i class="fas fa-file-pdf me-2"></i>{% trans "Exporter en PDF" %}
+                            </button>
+                            <button class="btn btn-info w-100 mb-2" onclick="shareCompetition()">
+                                <i class="fas fa-share me-2"></i>{% trans "Partager" %}
+                            </button>
+                            <button class="btn btn-warning w-100" onclick="sendNotifications()">
+                                <i class="fas fa-bell me-2"></i>{% trans "Envoyer notifications" %}
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Prochaines étapes -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-tasks me-2"></i>{% trans "Prochaines étapes" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="step1" {% if competition.competition_types.exists %}checked{% endif %}>
+                                <label class="form-check-label" for="step1">
+                                    {% trans "Définir les types de compétition" %}
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="step2" {% if competition.categories.exists %}checked{% endif %}>
+                                <label class="form-check-label" for="step2">
+                                    {% trans "Créer les catégories" %}
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="step3" {% if competition.registrations.exists %}checked{% endif %}>
+                                <label class="form-check-label" for="step3">
+                                    {% trans "Enregistrer les participants" %}
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="step4">
+                                <label class="form-check-label" for="step4">
+                                    {% trans "Affecter les juges" %}
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="step5">
+                                <label class="form-check-label" for="step5">
+                                    {% trans "Publier la compétition" %}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Types de compétition -->
+        <div class="tab-pane fade" id="types">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3>{% trans "Types de compétition" %}</h3>
+                <div>
+                    <button class="btn btn-outline-secondary me-2" onclick="refreshTypes()">
+                        <i class="fas fa-sync-alt me-1"></i>{% trans "Actualiser" %}
+                    </button>
+                    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#typeModal">
+                        <i class="fas fa-plus me-2"></i>{% trans "Ajouter un type" %}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Barre de recherche et filtres -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" id="typeSearchInput" placeholder="{% trans 'Rechercher un type...' %}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="typeSortSelect">
+                        <option value="name">{% trans "Trier par nom" %}</option>
+                        <option value="categories">{% trans "Trier par nombre de catégories" %}</option>
+                        <option value="created">{% trans "Trier par date de création" %}</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="typeViewMode" id="gridView" value="grid" checked>
+                        <label class="btn btn-outline-secondary" for="gridView">
+                            <i class="fas fa-th"></i>
+                        </label>
+                        <input type="radio" class="btn-check" name="typeViewMode" id="listView" value="list">
+                        <label class="btn btn-outline-secondary" for="listView">
+                            <i class="fas fa-list"></i>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistiques des types -->
+            <div class="row mb-4" id="typesStats">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body text-center">
+                            <h4 class="mb-0" id="totalTypesCount">0</h4>
+                            <small>{% trans "Types total" %}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <h4 class="mb-0" id="totalCategoriesCount">0</h4>
+                            <small>{% trans "Catégories total" %}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <h4 class="mb-0" id="avgCategoriesPerType">0</h4>
+                            <small>{% trans "Moy. catégories/type" %}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body text-center">
+                            <h4 class="mb-0" id="emptyTypesCount">0</h4>
+                            <small>{% trans "Types vides" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Container des types -->
+            <div class="row" id="typesContainer">
+                <!-- Les types seront chargés dynamiquement ici -->
+            </div>
+
+            <!-- Message de chargement -->
+            <div id="typesLoading" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">{% trans "Chargement..." %}</span>
+                </div>
+                <p class="mt-2">{% trans "Chargement des types de compétition..." %}</p>
+            </div>
+
+            <!-- Message d'erreur -->
+            <div id="typesError" class="alert alert-danger d-none" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <span id="typesErrorMessage">{% trans "Erreur lors du chargement des types" %}</span>
+            </div>
+
+            <!-- Message vide -->
+            <div id="typesEmpty" class="alert alert-info d-none">
+                <i class="fas fa-info-circle me-2"></i>
+                {% trans "Aucun type de compétition trouvé. Créez votre premier type pour organiser les catégories." %}
+            </div>
+        </div>
+
+        <!-- Catégories -->
+        <div class="tab-pane fade" id="categories">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3>{% trans "Catégories de la compétition" %}</h3>
+                <div>
+                    <button class="btn btn-outline-secondary me-2" onclick="refreshCategories()">
+                        <i class="fas fa-sync-alt me-1"></i>{% trans "Actualiser" %}
+                    </button>
+                    <div class="btn-group me-2">
+                        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-cog me-1"></i>{% trans "Actions" %}
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" onclick="bulkEditCategories()">
+                                <i class="fas fa-edit me-2"></i>{% trans "Modification en masse" %}
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" onclick="exportCategories()">
+                                <i class="fas fa-download me-2"></i>{% trans "Exporter" %}
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" onclick="importCategories()">
+                                <i class="fas fa-upload me-2"></i>{% trans "Importer" %}
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="#" onclick="bulkDeleteCategories()">
+                                <i class="fas fa-trash me-2"></i>{% trans "Suppression en masse" %}
+                            </a></li>
+                        </ul>
+                    </div>
+                    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#categoryModal">
+                        <i class="fas fa-plus me-2"></i>{% trans "Ajouter une catégorie" %}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Barre de recherche et filtres avancés -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" class="form-control" id="categorySearchInput" placeholder="{% trans 'Rechercher une catégorie...' %}">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="categoryTypeFilter">
+                                <option value="">{% trans "Tous les types" %}</option>
+                                <!-- Les types seront chargés dynamiquement -->
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="categoryGenderFilter">
+                                <option value="">{% trans "Tous les genres" %}</option>
+                                <option value="M">{% trans "Masculin" %}</option>
+                                <option value="F">{% trans "Féminin" %}</option>
+                                <option value="X">{% trans "Mixte" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="categorySortSelect">
+                                <option value="name">{% trans "Trier par nom" %}</option>
+                                <option value="type">{% trans "Trier par type" %}</option>
+                                <option value="gender">{% trans "Trier par genre" %}</option>
+                                <option value="age">{% trans "Trier par âge" %}</option>
+                                <option value="registrations">{% trans "Trier par inscriptions" %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="categoryViewMode" id="categoryGridView" value="grid" checked>
+                                <label class="btn btn-outline-secondary" for="categoryGridView">
+                                    <i class="fas fa-th"></i>
+                                </label>
+                                <input type="radio" class="btn-check" name="categoryViewMode" id="categoryListView" value="list">
+                                <label class="btn btn-outline-secondary" for="categoryListView">
+                                    <i class="fas fa-list"></i>
+                                </label>
+                                <input type="radio" class="btn-check" name="categoryViewMode" id="categoryTableView" value="table">
+                                <label class="btn btn-outline-secondary" for="categoryTableView">
+                                    <i class="fas fa-table"></i>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Filtres avancés (collapsible) -->
+                    <div class="mt-3">
+                        <button class="btn btn-link p-0" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilters">
+                            <i class="fas fa-filter me-1"></i>{% trans "Filtres avancés" %}
+                        </button>
+                        <div class="collapse mt-2" id="advancedFilters">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <label class="form-label small">{% trans "Âge minimum" %}</label>
+                                    <input type="number" class="form-control form-control-sm" id="minAgeFilter" placeholder="0">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small">{% trans "Âge maximum" %}</label>
+                                    <input type="number" class="form-control form-control-sm" id="maxAgeFilter" placeholder="100">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small">{% trans "Poids minimum (kg)" %}</label>
+                                    <input type="number" class="form-control form-control-sm" id="minWeightFilter" placeholder="0">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small">{% trans "Poids maximum (kg)" %}</label>
+                                    <input type="number" class="form-control form-control-sm" id="maxWeightFilter" placeholder="200">
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="hasRegistrationsFilter">
+                                        <label class="form-check-label small" for="hasRegistrationsFilter">
+                                            {% trans "Avec inscriptions seulement" %}
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="emptyCategoriesFilter">
+                                        <label class="form-check-label small" for="emptyCategoriesFilter">
+                                            {% trans "Catégories vides seulement" %}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistiques des catégories -->
+            <div class="row mb-4" id="categoriesStats">
+                <div class="col-md-2">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body text-center">
+                            <h5 class="mb-0" id="totalCategoriesCount">0</h5>
+                            <small>{% trans "Total" %}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <h5 class="mb-0" id="categoriesWithRegistrationsCount">0</h5>
+                            <small>{% trans "Avec inscriptions" %}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body text-center">
+                            <h5 class="mb-0" id="emptyCategoriesCount">0</h5>
+                            <small>{% trans "Vides" %}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <h5 class="mb-0" id="totalRegistrationsCount">0</h5>
+                            <small>{% trans "Inscriptions" %}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card bg-secondary text-white">
+                        <div class="card-body text-center">
+                            <h5 class="mb-0" id="avgRegistrationsPerCategory">0</h5>
+                            <small>{% trans "Moy./catégorie" %}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="card bg-dark text-white">
+                        <div class="card-body text-center">
+                            <h5 class="mb-0" id="filteredCategoriesCount">0</h5>
+                            <small>{% trans "Filtrées" %}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Container des catégories -->
+            <div id="categoriesContainer">
+                <!-- Les catégories seront chargées dynamiquement ici -->
+            </div>
+
+            <!-- Message de chargement -->
+            <div id="categoriesLoading" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">{% trans "Chargement..." %}</span>
+                </div>
+                <p class="mt-2">{% trans "Chargement des catégories..." %}</p>
+            </div>
+
+            <!-- Message d'erreur -->
+            <div id="categoriesError" class="alert alert-danger d-none" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <span id="categoriesErrorMessage">{% trans "Erreur lors du chargement des catégories" %}</span>
+            </div>
+
+            <!-- Message vide -->
+            <div id="categoriesEmpty" class="alert alert-info d-none">
+                <i class="fas fa-info-circle me-2"></i>
+                {% trans "Aucune catégorie trouvée. Créez votre première catégorie pour organiser les participants." %}
+            </div>
+
+            <!-- Pagination -->
+            <nav aria-label="{% trans 'Pagination des catégories' %}" class="mt-4">
+                <ul class="pagination justify-content-center" id="categoriesPagination">
+                    <!-- La pagination sera générée dynamiquement -->
+                </ul>
+            </nav>
+        </div>
+
+        <!-- Inscriptions -->
+        <div class="tab-pane fade" id="registrations">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3>{% trans "Gestion des inscriptions" %}</h3>
+                <div>
+                    <button class="btn btn-primary me-2" onclick="importRegistrations()">
+                        <i class="fas fa-file-import me-2"></i>{% trans "Importer" %}
+                    </button>
+                    <a href="{% url 'competitions:club:competition_registration_form' competition.id %}" class="btn btn-success">
+                        <i class="fas fa-user-plus me-2"></i>{% trans "Inscrire des pratiquants" %}
+                    </a>
+                </div>
+            </div>
+
+            <!-- Filtres -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "Rechercher" %}</label>
+                            <input type="text" class="form-control" id="searchRegistration" placeholder="{% trans 'Nom, club, licence...' %}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "Club" %}</label>
+                            <select class="form-select" id="filterClub">
+                                <option value="">{% trans "Tous les clubs" %}</option>
+                                {% for club in clubs %}
+                                <option value="{{ club.id }}">{{ club.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "Catégorie" %}</label>
+                            <select class="form-select" id="filterCategory">
+                                <option value="">{% trans "Toutes les catégories" %}</option>
+                                {% for cat in competition.categories.all %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">{% trans "Type" %}</label>
+                            <select class="form-select" id="filterType">
+                                <option value="">{% trans "Tous les types" %}</option>
+                                {% for type in competition.competition_types.all %}
+                                <option value="{{ type.id }}">{{ type.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liste des inscriptions -->
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>{% trans "Pratiquant" %}</th>
+                            <th>{% trans "Club" %}</th>
+                            <th>{% trans "Licence" %}</th>
+                            <th>{% trans "Types de compétition" %}</th>
+                            <th>{% trans "Catégories" %}</th>
+                            <th>{% trans "Date d'inscription" %}</th>
+                            <th>{% trans "Actions" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="registrationsTableBody">
+                        {% for reg in competition.registrations.all %}
+                        <tr data-registration-id="{{ reg.id }}">
+                            <td>
+                                <strong>{{ reg.practitioner.get_full_name }}</strong>
+                                <br>
+                                <small class="text-muted">
+                                    {{ reg.practitioner.date_of_birth|date:"d/m/Y" }}
+                                    {% if reg.practitioner.gender %}
+                                    - {{ reg.practitioner.get_gender_display }}
+                                    {% endif %}
+                                </small>
+                            </td>
+                            <td>{{ reg.practitioner.club.name }}</td>
+                            <td>{{ reg.practitioner.license_number|default:"-" }}</td>
+                            <td>
+                                {% for type in reg.competition_types.all %}
+                                <span class="badge bg-info">{{ type.name }}</span>
+                                {% empty %}
+                                <span class="text-muted">-</span>
+                                {% endfor %}
+                            </td>
+                            <td>
+                                {% for cat in reg.categories.all %}
+                                <span class="badge bg-secondary">{{ cat.name }}</span>
+                                {% empty %}
+                                <span class="text-warning">{% trans "Non affecté" %}</span>
+                                {% endfor %}
+                            </td>
+                            <td>{{ reg.registration_date|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editRegistration({{ reg.id }})">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteRegistration({{ reg.id }})">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                {% trans "Aucune inscription pour le moment" %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Juges -->
+        <div class="tab-pane fade" id="judges">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3>{% trans "Affectation des juges" %}</h3>
+                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#judgeModal">
+                    <i class="fas fa-plus me-2"></i>{% trans "Ajouter un juge" %}
+                </button>
+            </div>
+
+            <div class="row">
+                <!-- Pool de juges disponibles -->
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0">{% trans "Juges disponibles" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="availableJudges" class="drag-container">
+                                <p class="text-muted text-center">{% trans "Chargement..." %}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Affectations par tatami/zone -->
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Affectations par zone" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="accordion" id="judgeZones">
+                                {% for i in "123"|make_list %}
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#zone{{ i }}">
+                                            {% trans "Tatami" %} {{ i }}
+                                        </button>
+                                    </h2>
+                                    <div id="zone{{ i }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" data-bs-parent="#judgeZones">
+                                        <div class="accordion-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <h6>{% trans "Arbitre central" %}</h6>
+                                                    <div class="drag-container judge-drop" data-zone="{{ i }}" data-role="central">
+                                                        <p class="text-muted text-center">{% trans "Glisser un juge ici" %}</p>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <h6>{% trans "Juges de coin" %}</h6>
+                                                    <div class="drag-container judge-drop" data-zone="{{ i }}" data-role="corner">
+                                                        <p class="text-muted text-center">{% trans "Glisser jusqu'à 4 juges" %}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Programmation -->
+        <div class="tab-pane fade" id="schedule">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3>{% trans "Programmation et suivi temps réel" %}</h3>
+                <div>
+                    <button class="btn btn-primary me-2" onclick="generateSchedule()">
+                        <i class="fas fa-magic me-2"></i>{% trans "Générer automatiquement" %}
+                    </button>
+                    <button class="btn btn-success" onclick="startLiveTracking()">
+                        <i class="fas fa-play me-2"></i>{% trans "Démarrer le suivi" %}
+                    </button>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-8">
+                    <!-- Timeline de la journée -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Planning de la journée" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="schedule-timeline" id="scheduleTimeline">
+                                <div class="schedule-item">
+                                    <div class="schedule-time">08:00 - 09:00</div>
+                                    <div class="schedule-content">
+                                        <h6>{% trans "Accueil et pesée" %}</h6>
+                                        <p class="text-muted mb-0">{% trans "Vérification des licences et pesée officielle" %}</p>
+                                    </div>
+                                </div>
+                                <div class="schedule-item">
+                                    <div class="schedule-time">09:00 - 09:30</div>
+                                    <div class="schedule-content">
+                                        <h6>{% trans "Cérémonie d'ouverture" %}</h6>
+                                        <p class="text-muted mb-0">{% trans "Présentation des juges et rappel des règles" %}</p>
+                                    </div>
+                                </div>
+                                <div class="schedule-item">
+                                    <div class="schedule-time">09:30 - 12:00</div>
+                                    <div class="schedule-content">
+                                        <h6>{% trans "Compétitions - Session 1" %}</h6>
+                                        <p class="text-muted mb-0">{% trans "Catégories jeunes et débutants" %}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <!-- Suivi temps réel -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">{% trans "Temps réel" %}</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <h1 class="display-4" id="currentTime">09:45</h1>
+                            <p class="text-muted mb-0">{% trans "Temps écoulé" %}: <span id="elapsedTime">45 min</span></p>
+                            <p class="text-muted">{% trans "Retard" %}: <span class="text-danger" id="delay">+15 min</span></p>
+                        </div>
+                    </div>
+                    
+                    <!-- État des tatamis -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "État des tatamis" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>{% trans "Tatami 1" %}</span>
+                                    <span class="badge bg-success">{% trans "En cours" %}</span>
+                                </div>
+                                <div class="progress mt-1">
+                                    <div class="progress-bar bg-success" style="width: 75%"></div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>{% trans "Tatami 2" %}</span>
+                                    <span class="badge bg-warning">{% trans "Pause" %}</span>
+                                </div>
+                                <div class="progress mt-1">
+                                    <div class="progress-bar bg-warning" style="width: 60%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>{% trans "Tatami 3" %}</span>
+                                    <span class="badge bg-secondary">{% trans "En attente" %}</span>
+                                </div>
+                                <div class="progress mt-1">
+                                    <div class="progress-bar bg-secondary" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Publier & Partager -->
+        <div class="tab-pane fade" id="publish">
+            <h3 class="mb-4">{% trans "Publication et partage" %}</h3>
+            
+            <div class="row">
+                <div class="col-lg-6">
+                    <!-- Publication -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "État de publication" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if not competition.is_published %}
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                {% trans "Cette compétition n'est pas encore publiée. Elle n'est visible que par les organisateurs." %}
+                            </div>
+                            
+                            <h6 class="mb-3">{% trans "Checklist avant publication" %}</h6>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="pubCheck1" {% if competition.venue_name %}checked{% endif %}>
+                                <label class="form-check-label" for="pubCheck1">
+                                    {% trans "Lieu défini" %}
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="pubCheck2" {% if competition.categories.exists %}checked{% endif %}>
+                                <label class="form-check-label" for="pubCheck2">
+                                    {% trans "Au moins une catégorie créée" %}
+                                </label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="pubCheck3">
+                                <label class="form-check-label" for="pubCheck3">
+                                    {% trans "Informations complètes" %}
+                                </label>
+                            </div>
+                            
+                            <button class="btn btn-success w-100" onclick="publishCompetition()">
+                                <i class="fas fa-rocket me-2"></i>{% trans "Publier maintenant" %}
+                            </button>
+                            {% else %}
+                            <div class="alert alert-success">
+                                <i class="fas fa-check-circle me-2"></i>
+                                {% trans "Cette compétition est publiée et visible publiquement." %}
+                            </div>
+                            
+                            <p class="mb-3">
+                                <strong>{% trans "URL publique" %}:</strong><br>
+                                <a href="#" target="_blank">https://martialcomp.com/competitions/{{ competition.id }}</a>
+                            </p>
+                            
+                            <button class="btn btn-warning w-100" onclick="unpublishCompetition()">
+                                <i class="fas fa-eye-slash me-2"></i>{% trans "Dépublier" %}
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Options de visibilité -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Options de visibilité" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="allowRegistrations" checked>
+                                <label class="form-check-label" for="allowRegistrations">
+                                    {% trans "Autoriser les inscriptions en ligne" %}
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="showParticipants">
+                                <label class="form-check-label" for="showParticipants">
+                                    {% trans "Afficher la liste des participants" %}
+                                </label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="liveResults" checked>
+                                <label class="form-check-label" for="liveResults">
+                                    {% trans "Résultats en temps réel" %}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <!-- Partage -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Partager la compétition" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="mb-3">{% trans "Réseaux sociaux" %}</h6>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-primary" onclick="shareOnFacebook()">
+                                    <i class="fab fa-facebook me-2"></i>{% trans "Partager sur Facebook" %}
+                                </button>
+                                <button class="btn btn-info text-white" onclick="shareOnTwitter()">
+                                    <i class="fab fa-twitter me-2"></i>{% trans "Partager sur Twitter" %}
+                                </button>
+                                <button class="btn btn-success" onclick="shareOnWhatsApp()">
+                                    <i class="fab fa-whatsapp me-2"></i>{% trans "Partager sur WhatsApp" %}
+                                </button>
+                            </div>
+                            
+                            <hr class="my-4">
+                            
+                            <h6 class="mb-3">{% trans "Lien de partage" %}</h6>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="shareLink" value="https://martialcomp.com/c/{{ competition.id }}" readonly>
+                                <button class="btn btn-outline-secondary" onclick="copyShareLink()">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                            
+                            <hr class="my-4">
+                            
+                            <h6 class="mb-3">{% trans "QR Code" %}</h6>
+                            <div class="text-center">
+                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://martialcomp.com/c/{{ competition.id }}" alt="QR Code" class="img-fluid">
+                                <br>
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="downloadQRCode()">
+                                    <i class="fas fa-download me-1"></i>{% trans "Télécharger" %}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notifications -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">{% trans "Notifications" %}</h5>
+                        </div>
+                        <div class="card-body">
+                            <button class="btn btn-warning w-100 mb-2" onclick="sendNotificationToAll()">
+                                <i class="fas fa-bell me-2"></i>{% trans "Notifier tous les participants" %}
+                            </button>
+                            <button class="btn btn-info w-100" onclick="sendNotificationToJudges()">
+                                <i class="fas fa-gavel me-2"></i>{% trans "Notifier les juges" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Résultats -->
+        <div class="tab-pane fade" id="results">
+            <h3 class="mb-4">{% trans "Résultats et notation" %}</h3>
+            
+            <div class="row">
+                <div class="col-lg-8">
+                    <!-- Accès notation -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-clipboard-list me-2"></i>{% trans "Interfaces de notation" %}
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="card h-100 border-primary">
+                                        <div class="card-body text-center">
+                                            <i class="fas fa-user-tie fa-3x text-primary mb-3"></i>
+                                            <h6 class="card-title">{% trans "Dashboard Juges" %}</h6>
+                                            <p class="card-text text-muted small">{% trans "Interface pour les juges assignés" %}</p>
+                                            <a href="{% url 'competitions:technical_scoring:judge_dashboard' %}" class="btn btn-primary btn-sm" target="_blank">
+                                                <i class="fas fa-external-link-alt me-1"></i>{% trans "Ouvrir" %}
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card h-100 border-info">
+                                        <div class="card-body text-center">
+                                            <i class="fas fa-clipboard-check fa-3x text-info mb-3"></i>
+                                            <h6 class="card-title">{% trans "Gestion Notation" %}</h6>
+                                            <p class="card-text text-muted small">{% trans "Configurer les critères de notation" %}</p>
+                                            <a href="{% url 'competitions:technical_scoring:management_competition' competition.id %}" class="btn btn-info btn-sm text-white" target="_blank">
+                                                <i class="fas fa-cog me-1"></i>{% trans "Configurer" %}
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Résultats par catégorie -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-trophy me-2"></i>{% trans "Résultats par catégorie" %}
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if competition.categories.exists %}
+                                <div class="list-group">
+                                    {% for category in competition.categories.all %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{{ category.name }}</h6>
+                                            <small class="text-muted">
+                                                <i class="fas fa-users me-1"></i>{{ category.registrations.count }} {% trans "participants" %}
+                                            </small>
+                                        </div>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'competitions:technical_scoring:scoring_interface_category' competition.id category.id %}" 
+                                               class="btn btn-sm btn-outline-primary" target="_blank" title="{% trans 'Notation' %}">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'competitions:technical_scoring:category_results' category.id %}" 
+                                               class="btn btn-sm btn-outline-success" target="_blank" title="{% trans 'Résultats' %}">
+                                                <i class="fas fa-medal"></i>
+                                            </a>
+                                            <button class="btn btn-sm btn-outline-info" onclick="viewLiveResults({{ category.id }})" title="{% trans 'Temps réel' %}">
+                                                <i class="fas fa-broadcast-tower"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="alert alert-info mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    {% trans "Aucune catégorie n'a encore été créée. Créez des catégories pour accéder aux résultats." %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <!-- État de la notation -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-pie me-2"></i>{% trans "État de la notation" %}
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="scoring-chart-container">
+                                <canvas id="scoringChart"></canvas>
+                            </div>
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>{% trans "Non notés" %}</span>
+                                    <span class="badge bg-secondary" id="notScored">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>{% trans "En cours" %}</span>
+                                    <span class="badge bg-warning" id="inProgress">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>{% trans "Terminés" %}</span>
+                                    <span class="badge bg-success" id="completed">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions résultats -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-tools me-2"></i>{% trans "Actions" %}
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-primary" onclick="exportAllResults()">
+                                    <i class="fas fa-download me-2"></i>{% trans "Exporter tous les résultats" %}
+                                </button>
+                                <button class="btn btn-info text-white" onclick="printResultsCertificates()">
+                                    <i class="fas fa-certificate me-2"></i>{% trans "Imprimer certificats" %}
+                                </button>
+                                <button class="btn btn-success" onclick="publishResults()">
+                                    <i class="fas fa-globe me-2"></i>{% trans "Publier les résultats" %}
+                                </button>
+                                <hr>
+                                <a href="{% url 'competitions:club:results' %}" class="btn btn-outline-primary" target="_blank">
+                                    <i class="fas fa-external-link-alt me-2"></i>{% trans "Vue publique" %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tableau de bord temps réel -->
+            <div class="card mt-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tv me-2"></i>{% trans "Suivi temps réel" %}
+                        <span class="badge bg-success float-end" id="liveStatus">LIVE</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="liveResultsContainer" class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Catégorie" %}</th>
+                                    <th>{% trans "Participant" %}</th>
+                                    <th>{% trans "Club" %}</th>
+                                    <th>{% trans "Score" %}</th>
+                                    <th>{% trans "État" %}</th>
+                                    <th>{% trans "Dernière mise à jour" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="liveResultsBody">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">
+                                        {% trans "Aucune performance en cours..." %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Actions rapides flottantes -->
+<div class="quick-actions">
+    <button class="btn btn-primary" onclick="scrollToTop()">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+    <button class="btn btn-success" onclick="saveProgress()">
+        <i class="fas fa-save"></i>
+    </button>
+</div>
+
+<!-- Modal Type de compétition -->
+<div class="modal fade" id="typeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Ajouter un type de compétition" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="typeForm">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="typeName" class="form-label">{% trans "Nom" %} *</label>
+                        <input type="text" class="form-control" id="typeName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="typeDescription" class="form-label">{% trans "Description" %}</label>
+                        <textarea class="form-control" id="typeDescription" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="typeRules" class="form-label">{% trans "Règles spécifiques" %}</label>
+                        <select class="form-select" id="typeRules" name="rules">
+                            <option value="combat">{% trans "Combat" %}</option>
+                            <option value="technique">{% trans "Technique" %}</option>
+                            <option value="demonstration">{% trans "Démonstration" %}</option>
+                            <option value="custom">{% trans "Personnalisé" %}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                    <button type="submit" class="btn btn-success">{% trans "Créer" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Catégorie (mise à jour) -->
+<div class="modal fade" id="categoryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>{% trans "Ajouter une catégorie" %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="categoryForm" method="POST" action="{% url 'competitions:competitions:add_category_detailed' competition.id %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="categoryType" class="form-label">{% trans "Type de compétition" %}</label>
+                                <select class="form-select" id="categoryType" name="competition_type">
+                                    <option value="">{% trans "Sélectionner un type" %}</option>
+                                    {% for type in competition.competition_types.all %}
+                                    <option value="{{ type.id }}">{{ type.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="name" class="form-label">{% trans "Nom de la catégorie" %} *</label>
+                                <input type="text" class="form-control" id="name" name="name" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="gender" class="form-label">{% trans "Genre" %}</label>
+                                <select class="form-select" id="gender" name="gender">
+                                    <option value="">{% trans "Mixte" %}</option>
+                                    <option value="M">{% trans "Masculin" %}</option>
+                                    <option value="F">{% trans "Féminin" %}</option>
+                                </select>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <label for="min_age" class="form-label">{% trans "Âge minimum" %}</label>
+                                        <input type="number" class="form-control" id="min_age" name="min_age" min="0">
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <label for="max_age" class="form-label">{% trans "Âge maximum" %}</label>
+                                        <input type="number" class="form-control" id="max_age" name="max_age" min="0">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <label for="min_weight" class="form-label">{% trans "Poids min (kg)" %}</label>
+                                        <input type="number" class="form-control" id="min_weight" name="min_weight" min="0" step="0.1">
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="mb-3">
+                                        <label for="max_weight" class="form-label">{% trans "Poids max (kg)" %}</label>
+                                        <input type="number" class="form-control" id="max_weight" name="max_weight" min="0" step="0.1">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="min_grade" class="form-label">{% trans "Grade minimum" %}</label>
+                                <select class="form-select" id="min_grade" name="min_grade">
+                                    <option value="">{% trans "Aucun grade minimum" %}</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="max_grade" class="form-label">{% trans "Grade maximum" %}</label>
+                                <select class="form-select" id="max_grade" name="max_grade">
+                                    <option value="">{% trans "Aucun grade maximum" %}</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="maxParticipants" class="form-label">{% trans "Nombre max de participants" %}</label>
+                                <input type="number" class="form-control" id="maxParticipants" name="max_participants" min="0">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                    <button type="submit" class="btn btn-success" id="submitButton">
+                        <i class="fas fa-plus me-2"></i>{% trans "Créer" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Juge -->
+<div class="modal fade" id="judgeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{% trans "Ajouter un juge" %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="judgeForm">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="judgeSearch" class="form-label">{% trans "Rechercher un utilisateur" %}</label>
+                        <input type="text" class="form-control" id="judgeSearch" placeholder="{% trans 'Nom ou email' %}">
+                        <div id="judgeSearchResults" class="list-group mt-2"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="judgeRole" class="form-label">{% trans "Rôle" %}</label>
+                        <select class="form-select" id="judgeRole" name="role">
+                            <option value="central">{% trans "Arbitre central" %}</option>
+                            <option value="corner">{% trans "Juge de coin" %}</option>
+                            <option value="table">{% trans "Table de marque" %}</option>
+                            <option value="chief">{% trans "Arbitre en chef" %}</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="judgeQualification" class="form-label">{% trans "Qualification" %}</label>
+                        <input type="text" class="form-control" id="judgeQualification" name="qualification">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% trans "Annuler" %}</button>
+                    <button type="submit" class="btn btn-success">{% trans "Ajouter" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dragula/3.7.3/dragula.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+// Configuration
+const competitionId = {{ competition.id }};
+const currentLanguage = '{{ LANGUAGE_CODE|default:"fr" }}';
+const csrfToken = '{{ csrf_token }}';
+
+// URLs API
+const urls = {
+    addCategory: "{% url 'competitions:competitions:add_category_detailed' competition.id %}",
+    deleteCategory: "{% url 'competitions:competitions:delete_category_detailed' competition.id %}",
+    getGrades: `/${currentLanguage}/competitions/competitions/${competitionId}/api/grades/`,
+    addType: `{% url 'competitions:club:api_add_competition_type' competition.id %}`,
+    editType: `{% url 'competitions:club:api_add_competition_type' competition.id %}`,
+    deleteType: `{% url 'competitions:club:api_add_competition_type' competition.id %}`,
+    assignToCategory: `/api/competitions/${competitionId}/assign-category/`,
+    removeFromCategory: `/api/competitions/${competitionId}/remove-category/`,
+    assignJudge: `/api/competitions/${competitionId}/assign-judge/`,
+    publishCompetition: `/api/competitions/${competitionId}/publish/`,
+    shareCompetition: `/api/competitions/${competitionId}/share/`
+};
+
+// Variables globales
+let gradesLoaded = false;
+let gradesData = [];
+let dragulaPractitioners = null;
+let dragulaJudges = null;
+let dragulaCategories = null;
+
+// Initialisation
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing Competition Management Pro...');
+    console.log('Competition ID:', competitionId);
+    console.log('URLs:', urls);
+    console.log('Add Type URL:', urls.addType);
+    console.log('Edit Type URL:', urls.editType);
+    console.log('Delete Type URL:', urls.deleteType);
+    
+    // Test des URLs
+    console.log('Test URL for type 79:', `/fr/competitions/club/api/competitions/${competitionId}/types/79/`);
+    
+    // Test de l'API
+    fetch(`/fr/competitions/club/api/competitions/${competitionId}/types/`)
+        .then(response => {
+            console.log('API test response status:', response.status);
+            return response.text();
+        })
+        .then(text => {
+            console.log('API test response text:', text);
+        })
+        .catch(error => {
+            console.error('API test error:', error);
+        });
+    
+    // Initialiser les formulaires
+    initCategoryForm();
+    initTypeForm();
+    initJudgeForm();
+    
+    // Réinitialiser le modal de type après fermeture
+    document.getElementById('typeModal').addEventListener('hidden.bs.modal', function() {
+        const form = document.getElementById('typeForm');
+        form.reset();
+        form.removeAttribute('data-edit-id');
+        document.querySelector('#typeModal .modal-title').textContent = 'Ajouter un type de compétition';
+    });
+    
+    // Charger les grades
+    loadGrades();
+    
+    // Initialiser le drag and drop
+    initDragAndDrop();
+    
+    // Initialiser les filtres
+    initFilters();
+    
+    // Démarrer l'horloge temps réel
+    startRealtimeClock();
+    
+    // Charger les juges disponibles
+    loadAvailableJudges();
+    
+    // Initialiser l'onglet Résultats si Chart.js est disponible
+    if (window.Chart) {
+        initScoringChart();
+    }
+    
+    // Charger les statistiques de notation
+    loadScoringStats();
+    
+    // Gérer le changement d'onglets pour le live update
+    document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(button => {
+        button.addEventListener('shown.bs.tab', function (e) {
+            if (e.target.getAttribute('data-bs-target') === '#results') {
+                // Rafraîchir les statistiques quand on arrive sur l'onglet
+                loadScoringStats();
+            } else {
+                // Arrêter le rafraîchissement automatique si on quitte l'onglet
+                if (window.liveResultsInterval) {
+                    clearInterval(window.liveResultsInterval);
+                    window.liveResultsInterval = null;
+                }
+            }
+        });
+    });
+});
+
+// Initialiser le drag and drop
+function initDragAndDrop() {
+    // Drag and drop pour les pratiquants
+    const practitionerContainers = [
+        document.getElementById('unassignedPractitioners'),
+        ...document.querySelectorAll('.category-drop')
+    ].filter(el => el !== null);
+    
+    if (practitionerContainers.length > 0) {
+        dragulaPractitioners = dragula(practitionerContainers, {
+            copy: false,
+            revertOnSpill: true,
+            accepts: function(el, target, source, sibling) {
+                // Ne pas accepter si déjà dans une catégorie du même type
+                if (target.classList.contains('category-drop')) {
+                    const categoryId = target.dataset.categoryId;
+                    const registrationId = el.dataset.registrationId;
+                    return canAssignToCategory(registrationId, categoryId);
+                }
+                return true;
+            }
+        });
+        
+        dragulaPractitioners.on('drop', function(el, target, source, sibling) {
+            if (target.classList.contains('category-drop')) {
+                const categoryId = target.dataset.categoryId;
+                const registrationId = el.dataset.registrationId;
+                assignToCategory(registrationId, categoryId);
+            }
+        });
+    }
+    
+    // Drag and drop pour les juges
+    const judgeContainers = [
+        document.getElementById('availableJudges'),
+        ...document.querySelectorAll('.judge-drop')
+    ].filter(el => el !== null);
+    
+    if (judgeContainers.length > 0) {
+        dragulaJudges = dragula(judgeContainers, {
+            copy: false,
+            revertOnSpill: true,
+            accepts: function(el, target, source, sibling) {
+                // Vérifier les contraintes pour les juges
+                if (target.classList.contains('judge-drop')) {
+                    const role = target.dataset.role;
+                    if (role === 'central' && target.children.length >= 1) {
+                        return false; // Un seul arbitre central
+                    }
+                    if (role === 'corner' && target.children.length >= 4) {
+                        return false; // Maximum 4 juges de coin
+                    }
+                }
+                return true;
+            }
+        });
+        
+        dragulaJudges.on('drop', function(el, target, source, sibling) {
+            if (target.classList.contains('judge-drop')) {
+                const zone = target.dataset.zone;
+                const role = target.dataset.role;
+                const judgeId = el.dataset.judgeId;
+                assignJudge(judgeId, zone, role);
+            }
+        });
+    }
+}
+
+// Vérifier si on peut assigner à une catégorie
+function canAssignToCategory(registrationId, categoryId) {
+    // TODO: Implémenter la logique de vérification
+    // Vérifier que le pratiquant n'est pas déjà dans une catégorie du même type
+    return true;
+}
+
+// Assigner à une catégorie
+function assignToCategory(registrationId, categoryId) {
+    fetch(urls.assignToCategory, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+            registration_id: registrationId,
+            category_id: categoryId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('{% trans "Pratiquant affecté avec succès" %}', 'success');
+            updateStats();
+            addActivity('assign_practitioner', data.practitioner_name, data.category_name);
+        } else {
+            showAlert(data.message || '{% trans "Erreur lors de l\'affectation" %}', 'danger');
+            // Remettre l'élément à sa place d'origine
+            location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('{% trans "Erreur de connexion" %}', 'danger');
+        location.reload();
+    });
+}
+
+// Retirer d'une catégorie
+function removeFromCategory(registrationId, categoryId) {
+    if (!confirm('{% trans "Êtes-vous sûr de vouloir retirer ce pratiquant de cette catégorie ?" %}')) {
+        return;
+    }
+    
+    fetch(urls.removeFromCategory, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+            registration_id: registrationId,
+            category_id: categoryId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('{% trans "Pratiquant retiré de la catégorie" %}', 'success');
+            location.reload();
+        } else {
+            showAlert(data.message || '{% trans "Erreur" %}', 'danger');
+        }
+    });
+}
+
+// Assigner un juge
+function assignJudge(judgeId, zone, role) {
+    fetch(urls.assignJudge, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+            judge_id: judgeId,
+            zone: zone,
+            role: role
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('{% trans "Juge affecté avec succès" %}', 'success');
+            updateStats();
+        } else {
+            showAlert(data.message || '{% trans "Erreur lors de l\'affectation" %}', 'danger');
+            location.reload();
+        }
+    });
+}
+
+// Charger les grades
+function loadGrades() {
+    if (gradesLoaded) return;
+    
+    fetch(urls.getGrades)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.grades) {
+                gradesData = data.grades;
+                gradesLoaded = true;
+                populateGradeSelects();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading grades:', error);
+        });
+}
+
+// Remplir les selects de grades
+function populateGradeSelects() {
+    const minGradeSelect = document.getElementById('min_grade');
+    const maxGradeSelect = document.getElementById('max_grade');
+    
+    if (!minGradeSelect || !maxGradeSelect) return;
+    
+    minGradeSelect.innerHTML = '<option value="">{% trans "Aucun grade minimum" %}</option>';
+    maxGradeSelect.innerHTML = '<option value="">{% trans "Aucun grade maximum" %}</option>';
+    
+    gradesData.forEach(grade => {
+        const option = `<option value="${grade.name}">${grade.name}</option>`;
+        minGradeSelect.innerHTML += option;
+        maxGradeSelect.innerHTML += option;
+    });
+}
+
+// Formulaire de catégorie
+function initCategoryForm() {
+    const form = document.getElementById('categoryForm');
+    if (!form) return;
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const submitButton = document.getElementById('submitButton');
+        const originalText = submitButton.innerHTML;
+        
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>{% trans "Création..." %}';
+        
+        fetch(urls.addCategory, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('categoryModal')).hide();
+                showAlert(data.message || '{% trans "Catégorie créée avec succès" %}', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showAlert(data.message || '{% trans "Erreur lors de la création" %}', 'danger');
+            }
+        })
+        .finally(() => {
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
+        });
+    });
+}
+
+// Formulaire de type
+function initTypeForm() {
+    const form = document.getElementById('typeForm');
+    if (!form) return;
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const submitButton = form.querySelector('button[type="submit"]');
+        const originalText = submitButton.innerHTML;
+        const editId = form.getAttribute('data-edit-id');
+        
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Enregistrement...';
+        
+        const url = editId ? `/fr/competitions/club/api/competitions/${competitionId}/types/${editId}/` : urls.addType;
+        const method = editId ? 'PUT' : 'POST';
+        
+        // Pour la modification, envoyer en JSON
+        const data = editId ? Object.fromEntries(formData) : formData;
+        const headers = {
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        };
+        
+        if (editId) {
+            headers['Content-Type'] = 'application/json';
+        }
+        
+        fetch(url, {
+            method: method,
+            body: editId ? JSON.stringify(data) : data,
+            headers: headers
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('typeModal')).hide();
+                showAlert(data.message || 'Type de compétition créé avec succès', 'success');
+                form.reset();
+                form.removeAttribute('data-edit-id');
+                document.querySelector('#typeModal .modal-title').textContent = 'Ajouter un type de compétition';
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showAlert(data.message || 'Erreur lors de la création', 'danger');
+                if (data.errors) {
+                    console.error('Erreurs de validation:', data.errors);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Erreur de connexion', 'danger');
+        })
+        .finally(() => {
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
+        });
+    });
+}
+
+// Formulaire de juge
+function initJudgeForm() {
+    const form = document.getElementById('judgeForm');
+    if (!form) return;
+    
+    // Recherche de juges
+    const searchInput = document.getElementById('judgeSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', debounce(function() {
+            searchJudges(this.value);
+        }, 300));
+    }
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        // TODO: Implémenter l'ajout de juge
+        showAlert('{% trans "Fonction en cours de développement" %}', 'info');
+    });
+}
+
+// Rechercher des juges
+function searchJudges(query) {
+    if (query.length < 2) return;
+    
+    // TODO: Implémenter la recherche de juges
+    const resultsDiv = document.getElementById('judgeSearchResults');
+    resultsDiv.innerHTML = '<div class="list-group-item">{% trans "Recherche..." %}</div>';
+}
+
+// Charger les juges disponibles
+function loadAvailableJudges() {
+    // TODO: Implémenter le chargement des juges
+    const container = document.getElementById('availableJudges');
+    if (container) {
+        container.innerHTML = `
+            <div class="draggable-item" data-judge-id="1">
+                <i class="fas fa-user-tie me-2"></i>
+                Jean Arbitre
+                <small class="text-muted d-block">{% trans "Arbitre national" %}</small>
+            </div>
+            <div class="draggable-item" data-judge-id="2">
+                <i class="fas fa-user-tie me-2"></i>
+                Marie Juge
+                <small class="text-muted d-block">{% trans "Juge régional" %}</small>
+            </div>
+        `;
+    }
+}
+
+// Supprimer une catégorie
+function deleteCategory(categoryId, categoryName) {
+    if (!confirm(`{% trans "Êtes-vous sûr de vouloir supprimer la catégorie" %} "${categoryName}" ?`)) {
+        return;
+    }
+    
+    fetch(urls.deleteCategory, {
+        method: 'POST',
+        body: JSON.stringify({ category_id: categoryId }),
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message || '{% trans "Catégorie supprimée avec succès" %}', 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.message || '{% trans "Erreur lors de la suppression" %}', 'danger');
+        }
+    });
+}
+
+// Publier la compétition
+function publishCompetition() {
+    if (!confirm('{% trans "Êtes-vous sûr de vouloir publier cette compétition ? Elle sera visible publiquement." %}')) {
+        return;
+    }
+    
+    fetch(urls.publishCompetition, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('{% trans "Compétition publiée avec succès !" %}', 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.message || '{% trans "Erreur lors de la publication" %}', 'danger');
+        }
+    });
+}
+
+// Partage sur les réseaux sociaux
+function shareOnFacebook() {
+    const url = `https://martialcomp.com/competitions/${competitionId}`;
+    const title = encodeURIComponent('{{ competition.title|escapejs }}');
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}&t=${title}`, '_blank');
+}
+
+function shareOnTwitter() {
+    const url = `https://martialcomp.com/competitions/${competitionId}`;
+    const text = encodeURIComponent('{{ competition.title|escapejs }} - Rejoignez-nous !');
+    window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank');
+}
+
+function shareOnWhatsApp() {
+    const url = `https://martialcomp.com/competitions/${competitionId}`;
+    const text = encodeURIComponent('{{ competition.title|escapejs }} - Rejoignez-nous ! ' + url);
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+}
+
+// Copier le lien de partage
+function copyShareLink() {
+    const input = document.getElementById('shareLink');
+    input.select();
+    document.execCommand('copy');
+    showAlert('{% trans "Lien copié !" %}', 'success');
+}
+
+// Générer la programmation automatique
+function generateSchedule() {
+    showAlert('{% trans "Génération de la programmation en cours..." %}', 'info');
+    // TODO: Implémenter la génération automatique
+}
+
+// Démarrer le suivi temps réel
+function startLiveTracking() {
+    showAlert('{% trans "Suivi temps réel activé" %}', 'success');
+    // TODO: Implémenter le suivi temps réel
+}
+
+// Horloge temps réel
+function startRealtimeClock() {
+    const updateClock = () => {
+        const now = new Date();
+        const timeElement = document.getElementById('currentTime');
+        if (timeElement) {
+            timeElement.textContent = now.toLocaleTimeString('fr-FR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+        }
+    };
+    
+    updateClock();
+    setInterval(updateClock, 1000);
+}
+
+// ===== FONCTIONS POUR L'ONGLET RÉSULTATS =====
+
+// Voir résultats temps réel d'une catégorie
+function viewLiveResults(categoryId) {
+    showAlert('{% trans "Chargement des résultats en temps réel..." %}', 'info');
+    
+    fetch(`{% url 'competitions:technical_scoring:api_category_results' 0 %}`.replace('0', categoryId))
+        .then(response => response.json())
+        .then(data => {
+            updateLiveResultsTable(data, categoryId);
+            // Rafraîchir toutes les 5 secondes si l'onglet est actif
+            if (!window.liveResultsInterval) {
+                window.liveResultsInterval = setInterval(() => {
+                    if (document.querySelector('#results.active')) {
+                        fetch(`{% url 'competitions:technical_scoring:api_category_results' 0 %}`.replace('0', categoryId))
+                            .then(response => response.json())
+                            .then(data => updateLiveResultsTable(data, categoryId));
+                    }
+                }, 5000);
+            }
+        })
+        .catch(error => {
+            showAlert('{% trans "Erreur lors du chargement des résultats" %}', 'danger');
+        });
+}
+
+// Mettre à jour le tableau des résultats temps réel
+function updateLiveResultsTable(data, categoryId) {
+    const tbody = document.getElementById('liveResultsBody');
+    if (!tbody || !data.performances) return;
+    
+    tbody.innerHTML = '';
+    
+    if (data.performances.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">{% trans "Aucune performance pour cette catégorie..." %}</td></tr>';
+        return;
+    }
+    
+    data.performances.forEach(perf => {
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td>${perf.category_name || '-'}</td>
+            <td><strong>${perf.practitioner_name}</strong></td>
+            <td>${perf.club_name || '-'}</td>
+            <td><span class="badge bg-primary fs-6">${perf.total_score || 0}</span></td>
+            <td>
+                ${perf.status === 'completed' ? 
+                    '<span class="badge bg-success">Terminé</span>' : 
+                    '<span class="badge bg-warning">En cours</span>'}
+            </td>
+            <td><small>${new Date(perf.last_update).toLocaleTimeString()}</small></td>
+        `;
+    });
+    
+    // Mettre à jour l'indicateur LIVE
+    const liveStatus = document.getElementById('liveStatus');
+    if (liveStatus) {
+        liveStatus.textContent = 'LIVE';
+        liveStatus.classList.add('pulse');
+    }
+}
+
+// Exporter tous les résultats
+function exportAllResults() {
+    showAlert('{% trans "Préparation de l\'export..." %}', 'info');
+    
+    // TODO: Implémenter l'URL d'export
+    // window.location.href = `/competitions/${competitionId}/export-results/`;
+    showAlert('{% trans "Fonction d\'export en cours de développement" %}', 'info');
+}
+
+// Imprimer les certificats
+function printResultsCertificates() {
+    showAlert('{% trans "Préparation des certificats..." %}', 'info');
+    
+    // TODO: Implémenter l'URL d'impression
+    // window.open(`/competitions/${competitionId}/print-certificates/`, '_blank');
+    showAlert('{% trans "Fonction d\'impression en cours de développement" %}', 'info');
+}
+
+// Publier les résultats
+function publishResults() {
+    if (!confirm('{% trans "Voulez-vous publier tous les résultats ? Ils seront visibles publiquement." %}')) {
+        return;
+    }
+    
+    // TODO: Implémenter l'API de publication
+    fetch(`/api/competitions/${competitionId}/publish-results/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('{% trans "Résultats publiés avec succès !" %}', 'success');
+        } else {
+            showAlert(data.message || '{% trans "Erreur lors de la publication" %}', 'danger');
+        }
+    });
+}
+
+// Initialiser le graphique de notation
+function initScoringChart() {
+    const ctx = document.getElementById('scoringChart');
+    if (!ctx) return;
+    
+    // Simuler des données pour le moment
+    const data = {
+        labels: ['{% trans "Non notés" %}', '{% trans "En cours" %}', '{% trans "Terminés" %}'],
+        datasets: [{
+            data: [30, 20, 50],
+            backgroundColor: ['#6c757d', '#ffc107', '#28a745'],
+            borderWidth: 0
+        }]
+    };
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: data,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+// Charger les statistiques de notation
+function loadScoringStats() {
+    // TODO: Implémenter l'API des statistiques
+    fetch(`/api/competitions/${competitionId}/scoring-stats/`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('notScored').textContent = data.not_scored || 0;
+            document.getElementById('inProgress').textContent = data.in_progress || 0;
+            document.getElementById('completed').textContent = data.completed || 0;
+            
+            // Mettre à jour le graphique si Chart.js est disponible
+            if (window.Chart) {
+                initScoringChart();
+            }
+        })
+        .catch(error => {
+            console.error('Erreur lors du chargement des statistiques:', error);
+        });
+}
+
+// Mise à jour des statistiques
+function updateStats() {
+    // TODO: Implémenter la mise à jour des stats en temps réel
+}
+
+// Ajouter une activité
+function addActivity(type, ...params) {
+    const activityContainer = document.getElementById('recentActivity');
+    if (!activityContainer) return;
+    
+    const now = new Date();
+    const time = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    
+    let message = '';
+    switch(type) {
+        case 'assign_practitioner':
+            message = `${params[0]} affecté à ${params[1]}`;
+            break;
+        case 'create_category':
+            message = `Catégorie "${params[0]}" créée`;
+            break;
+        case 'publish_competition':
+            message = 'Compétition publiée';
+            break;
+    }
+    
+    const activityHtml = `
+        <div class="d-flex align-items-center mb-2">
+            <small class="text-muted me-3">${time}</small>
+            <span>${message}</span>
+        </div>
+    `;
+    
+    activityContainer.innerHTML = activityHtml + activityContainer.innerHTML;
+}
+
+// Filtres
+function initFilters() {
+    const searchInput = document.getElementById('searchRegistration');
+    const filterClub = document.getElementById('filterClub');
+    const filterCategory = document.getElementById('filterCategory');
+    const filterType = document.getElementById('filterType');
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', debounce(filterRegistrations, 300));
+    }
+    
+    [filterClub, filterCategory, filterType].forEach(filter => {
+        if (filter) {
+            filter.addEventListener('change', filterRegistrations);
+        }
+    });
+}
+
+// Filtrer les inscriptions
+function filterRegistrations() {
+    const search = document.getElementById('searchRegistration')?.value.toLowerCase() || '';
+    const clubId = document.getElementById('filterClub')?.value || '';
+    const categoryId = document.getElementById('filterCategory')?.value || '';
+    const typeId = document.getElementById('filterType')?.value || '';
+    
+    const rows = document.querySelectorAll('#registrationsTableBody tr');
+    
+    rows.forEach(row => {
+        let visible = true;
+        
+        // Recherche textuelle
+        if (search && !row.textContent.toLowerCase().includes(search)) {
+            visible = false;
+        }
+        
+        // TODO: Implémenter les autres filtres
+        
+        row.style.display = visible ? '' : 'none';
+    });
+}
+
+// Utilitaires
+function showAlert(message, type) {
+    const alertContainer = document.getElementById('alertContainer');
+    const alertId = 'alert-' + Date.now();
+    
+    const alertHtml = `
+        <div id="${alertId}" class="alert alert-${type} alert-dismissible fade show" role="alert">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    alertContainer.insertAdjacentHTML('beforeend', alertHtml);
+    
+    setTimeout(() => {
+        const alert = document.getElementById(alertId);
+        if (alert) alert.remove();
+    }, 5000);
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function saveProgress() {
+    showAlert('{% trans "Progression sauvegardée" %}', 'success');
+}
+
+// Fonctions à implémenter
+function editCategory(id) {
+    showAlert('{% trans "Fonction en cours de développement" %}', 'info');
+}
+
+window.editType = function(id) {
+    console.log('editType called with id:', id);
+    
+    // URL temporaire pour test
+    const url = `/fr/competitions/club/api/competitions/${competitionId}/types/${id}/`;
+    console.log('Fetching URL:', url);
+    
+    // Récupérer les détails du type
+    fetch(url)
+        .then(response => {
+            console.log('Response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Response data:', data);
+            if (data.success) {
+                // Remplir le formulaire avec les données existantes
+                document.getElementById('typeName').value = data.type.name;
+                document.getElementById('typeDescription').value = data.type.description || '';
+                document.getElementById('typeRules').value = data.type.scoring_system || 'combat';
+                
+                // Modifier le titre du modal
+                document.querySelector('#typeModal .modal-title').textContent = 'Modifier le type de compétition';
+                
+                // Changer l'action du formulaire
+                const form = document.getElementById('typeForm');
+                form.setAttribute('data-edit-id', id);
+                
+                // Afficher le modal
+                const modal = new bootstrap.Modal(document.getElementById('typeModal'));
+                modal.show();
+            } else {
+                showAlert(data.message || 'Erreur lors du chargement', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Erreur de connexion: ' + error.message, 'danger');
+        });
+}
+
+window.deleteType = function(id) {
+    console.log('deleteType called with id:', id);
+    
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce type de compétition ? Cette action est irréversible.')) {
+        return;
+    }
+    
+    // URL temporaire pour test
+    const url = `/fr/competitions/club/api/competitions/${competitionId}/types/${id}/`;
+    console.log('Deleting from URL:', url);
+    
+    fetch(url, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        console.log('Delete response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Delete response data:', data);
+        if (data.success) {
+            showAlert(data.message || 'Type de compétition supprimé avec succès', 'success');
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.message || 'Erreur lors de la suppression', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Erreur de connexion: ' + error.message, 'danger');
+    });
+}
+
+function exportPDF() {
+    showAlert('{% trans "Export PDF en cours de développement" %}', 'info');
+}
+
+function sendNotifications() {
+    showAlert('{% trans "Envoi de notifications en cours de développement" %}', 'info');
+}
+
+function importRegistrations() {
+    showAlert('{% trans "Import en cours de développement" %}', 'info');
+}
+
+function editRegistration(id) {
+    // Rediriger vers la page d'édition de l'inscription
+    // Note: L'URL edit_registration n'existe pas encore, utiliser la page de gestion des inscriptions
+    window.location.href = `{% url 'competitions:club:registrations_list' %}`;
+}
+
+function deleteRegistration(id) {
+    if (!confirm('{% trans "Êtes-vous sûr de vouloir supprimer cette inscription ? Cette action est irréversible." %}')) {
+        return;
+    }
+    
+    // Utiliser l'API pour supprimer l'inscription
+    const formData = new FormData();
+    formData.append('registration_id', id);
+    
+    fetch(`{% url 'competitions:club:api_remove_registration' %}`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('{% trans "Inscription supprimée avec succès" %}', 'success');
+            // Recharger la page pour mettre à jour la liste
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showAlert(data.message || data.error || '{% trans "Erreur lors de la suppression de l\'inscription" %}', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('{% trans "Erreur lors de la suppression de l\'inscription" %}', 'danger');
+    });
+}
+
+function unpublishCompetition() {
+    showAlert('{% trans "Dépublication en cours de développement" %}', 'info');
+}
+
+function downloadQRCode() {
+    showAlert('{% trans "Téléchargement du QR Code" %}', 'info');
+}
+
+function sendNotificationToAll() {
+    showAlert('{% trans "Envoi de notifications à tous les participants" %}', 'info');
+}
+
+function sendNotificationToJudges() {
+    showAlert('{% trans "Envoi de notifications aux juges" %}', 'info');
+}
+
+console.log('Competition Management Pro loaded successfully');
+
+// ===== NOUVELLES FONCTIONNALITÉS AMÉLIORÉES =====
+
+// Variables globales pour la gestion des types et catégories
+let typesData = [];
+let categoriesData = [];
+let filteredTypes = [];
+let filteredCategories = [];
+let currentTypePage = 1;
+let currentCategoryPage = 1;
+let itemsPerPage = 12;
+
+// ===== GESTION DES TYPES DE COMPÉTITION =====
+
+// Charger les types de compétition
+async function loadTypes() {
+    try {
+        showTypesLoading(true);
+        const response = await fetch(urls.addType);
+        const data = await response.json();
+        
+        if (data.success) {
+            typesData = data.types || [];
+            filteredTypes = [...typesData];
+            renderTypes();
+            updateTypesStats();
+        } else {
+            showTypesError(data.message || 'Erreur lors du chargement des types');
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement des types:', error);
+        showTypesError('Erreur de connexion');
+    } finally {
+        showTypesLoading(false);
+    }
+}
+
+// Afficher les types
+function renderTypes() {
+    const container = document.getElementById('typesContainer');
+    const viewMode = document.querySelector('input[name="typeViewMode"]:checked').value;
+    
+    if (filteredTypes.length === 0) {
+        showTypesEmpty();
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    filteredTypes.forEach(type => {
+        const typeElement = createTypeElement(type, viewMode);
+        container.appendChild(typeElement);
+    });
+}
+
+// Créer un élément de type
+function createTypeElement(type, viewMode) {
+    const col = document.createElement('div');
+    col.className = viewMode === 'list' ? 'col-12 mb-3' : 'col-md-6 mb-3';
+    
+    col.innerHTML = `
+        <div class="type-card" data-type-id="${type.id}">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="flex-grow-1">
+                    <div class="d-flex align-items-center mb-2">
+                        <h5 class="mb-0 me-2">${type.name}</h5>
+                        <span class="badge bg-info">${type.categories_count} catégories</span>
+                    </div>
+                    <p class="text-muted mb-2">${type.description || 'Aucune description'}</p>
+                    <div class="small text-muted">
+                        <span class="badge bg-secondary me-1">${type.team_based ? 'Équipe' : 'Individuel'}</span>
+                        <span class="badge bg-primary">${type.scoring_system || 'Standard'}</span>
+                    </div>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editType(${type.id})" title="Modifier">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteType(${type.id})" title="Supprimer">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="type-categories">
+                <h6 class="text-muted mb-2">Catégories associées :</h6>
+                <div class="drag-container" data-type-id="${type.id}">
+                    <div class="text-muted text-center py-2">
+                        <i class="fas fa-layer-group me-1"></i>
+                        ${type.categories_count > 0 ? `${type.categories_count} catégorie(s)` : 'Aucune catégorie'}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return col;
+}
+
+// Recherche dans les types
+function searchTypes() {
+    const searchTerm = document.getElementById('typeSearchInput').value.toLowerCase();
+    const sortBy = document.getElementById('typeSortSelect').value;
+    
+    filteredTypes = typesData.filter(type => 
+        type.name.toLowerCase().includes(searchTerm) ||
+        (type.description && type.description.toLowerCase().includes(searchTerm))
+    );
+    
+    // Trier
+    filteredTypes.sort((a, b) => {
+        switch (sortBy) {
+            case 'name':
+                return a.name.localeCompare(b.name);
+            case 'categories':
+                return b.categories_count - a.categories_count;
+            case 'created':
+                return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+            default:
+                return 0;
+        }
+    });
+    
+    renderTypes();
+    updateTypesStats();
+}
+
+// Actualiser les types
+function refreshTypes() {
+    loadTypes();
+}
+
+// Mettre à jour les statistiques des types
+function updateTypesStats() {
+    const totalTypes = typesData.length;
+    const totalCategories = typesData.reduce((sum, type) => sum + type.categories_count, 0);
+    const avgCategories = totalTypes > 0 ? Math.round(totalCategories / totalTypes) : 0;
+    const emptyTypes = typesData.filter(type => type.categories_count === 0).length;
+    
+    document.getElementById('totalTypesCount').textContent = totalTypes;
+    document.getElementById('totalCategoriesCount').textContent = totalCategories;
+    document.getElementById('avgCategoriesPerType').textContent = avgCategories;
+    document.getElementById('emptyTypesCount').textContent = emptyTypes;
+}
+
+// ===== GESTION DES CATÉGORIES =====
+
+// Charger les catégories
+async function loadCategories() {
+    try {
+        showCategoriesLoading(true);
+        // Simuler le chargement des catégories depuis l'API
+        // En attendant, utiliser les données du template
+        const categories = [];
+        document.querySelectorAll('[data-category-id]').forEach(element => {
+            const categoryId = element.getAttribute('data-category-id');
+            const name = element.querySelector('h5').textContent.trim();
+            const type = element.querySelector('.badge.bg-info')?.textContent.trim() || '';
+            const gender = element.querySelector('.fa-venus-mars')?.parentElement.textContent.trim() || '';
+            const age = element.querySelector('.fa-birthday-cake')?.parentElement.textContent.trim() || '';
+            const registrationsCount = parseInt(element.querySelector('.fa-users')?.parentElement.textContent.match(/\d+/)?.[0] || '0');
+            
+            categories.push({
+                id: categoryId,
+                name: name,
+                type: type,
+                gender: gender,
+                age: age,
+                registrations_count: registrationsCount
+            });
+        });
+        
+        categoriesData = categories;
+        filteredCategories = [...categories];
+        renderCategories();
+        updateCategoriesStats();
+        loadTypeFilters();
+    } catch (error) {
+        console.error('Erreur lors du chargement des catégories:', error);
+        showCategoriesError('Erreur de connexion');
+    } finally {
+        showCategoriesLoading(false);
+    }
+}
+
+// Afficher les catégories
+function renderCategories() {
+    const container = document.getElementById('categoriesContainer');
+    const viewMode = document.querySelector('input[name="categoryViewMode"]:checked').value;
+    
+    if (filteredCategories.length === 0) {
+        showCategoriesEmpty();
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    filteredCategories.forEach(category => {
+        const categoryElement = createCategoryElement(category, viewMode);
+        container.appendChild(categoryElement);
+    });
+}
+
+// Créer un élément de catégorie
+function createCategoryElement(category, viewMode) {
+    const col = document.createElement('div');
+    
+    if (viewMode === 'table') {
+        col.className = 'col-12';
+        col.innerHTML = createCategoryTableRow(category);
+    } else if (viewMode === 'list') {
+        col.className = 'col-12 mb-3';
+        col.innerHTML = createCategoryListItem(category);
+    } else {
+        col.className = 'col-lg-6 mb-3';
+        col.innerHTML = createCategoryCard(category);
+    }
+    
+    return col;
+}
+
+// Créer une carte de catégorie
+function createCategoryCard(category) {
+    return `
+        <div class="category-card" data-category-id="${category.id}">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="flex-grow-1">
+                    <h5 class="mb-1">${category.name}</h5>
+                    <div class="text-muted small">
+                        ${category.type ? `<span class="badge bg-info">${category.type}</span>` : ''}
+                        ${category.gender ? `<i class="fas fa-venus-mars ms-2 me-1"></i>${category.gender}` : ''}
+                        ${category.age ? `<i class="fas fa-birthday-cake ms-2 me-1"></i>${category.age}` : ''}
+                    </div>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editCategory(${category.id})" title="Modifier">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${category.id}, '${category.name}')" title="Supprimer">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="drag-container category-drop" data-category-id="${category.id}">
+                <h6 class="text-muted mb-2">
+                    <i class="fas fa-users me-1"></i>
+                    Pratiquants (${category.registrations_count})
+                </h6>
+                <div class="text-muted text-center py-2">
+                    <i class="fas fa-info-circle me-1"></i>
+                    ${category.registrations_count > 0 ? `${category.registrations_count} participant(s)` : 'Aucun participant'}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Créer un élément de liste de catégorie
+function createCategoryListItem(category) {
+    return `
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div class="flex-grow-1">
+                <h6 class="mb-1">${category.name}</h6>
+                <small class="text-muted">
+                    ${category.type ? `<span class="badge bg-info me-1">${category.type}</span>` : ''}
+                    ${category.gender ? `<i class="fas fa-venus-mars me-1"></i>${category.gender}` : ''}
+                    ${category.age ? `<i class="fas fa-birthday-cake me-1"></i>${category.age}` : ''}
+                    <i class="fas fa-users me-1"></i>${category.registrations_count} participant(s)
+                </small>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-sm btn-outline-primary" onclick="editCategory(${category.id})">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${category.id}, '${category.name}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Créer une ligne de tableau de catégorie
+function createCategoryTableRow(category) {
+    return `
+        <tr data-category-id="${category.id}">
+            <td>${category.name}</td>
+            <td>${category.type || '-'}</td>
+            <td>${category.gender || '-'}</td>
+            <td>${category.age || '-'}</td>
+            <td class="text-center">${category.registrations_count}</td>
+            <td class="text-center">
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editCategory(${category.id})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${category.id}, '${category.name}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+// Recherche dans les catégories
+function searchCategories() {
+    const searchTerm = document.getElementById('categorySearchInput').value.toLowerCase();
+    const typeFilter = document.getElementById('categoryTypeFilter').value;
+    const genderFilter = document.getElementById('categoryGenderFilter').value;
+    const sortBy = document.getElementById('categorySortSelect').value;
+    const minAge = parseInt(document.getElementById('minAgeFilter').value) || 0;
+    const maxAge = parseInt(document.getElementById('maxAgeFilter').value) || 999;
+    const hasRegistrations = document.getElementById('hasRegistrationsFilter').checked;
+    const emptyOnly = document.getElementById('emptyCategoriesFilter').checked;
+    
+    filteredCategories = categoriesData.filter(category => {
+        // Recherche textuelle
+        if (searchTerm && !category.name.toLowerCase().includes(searchTerm)) {
+            return false;
+        }
+        
+        // Filtre par type
+        if (typeFilter && !category.type.includes(typeFilter)) {
+            return false;
+        }
+        
+        // Filtre par genre
+        if (genderFilter && !category.gender.includes(genderFilter)) {
+            return false;
+        }
+        
+        // Filtre par inscriptions
+        if (hasRegistrations && category.registrations_count === 0) {
+            return false;
+        }
+        
+        if (emptyOnly && category.registrations_count > 0) {
+            return false;
+        }
+        
+        return true;
+    });
+    
+    // Trier
+    filteredCategories.sort((a, b) => {
+        switch (sortBy) {
+            case 'name':
+                return a.name.localeCompare(b.name);
+            case 'type':
+                return (a.type || '').localeCompare(b.type || '');
+            case 'gender':
+                return (a.gender || '').localeCompare(b.gender || '');
+            case 'registrations':
+                return b.registrations_count - a.registrations_count;
+            default:
+                return 0;
+        }
+    });
+    
+    renderCategories();
+    updateCategoriesStats();
+}
+
+// Charger les filtres de type
+function loadTypeFilters() {
+    const typeFilter = document.getElementById('categoryTypeFilter');
+    const types = [...new Set(categoriesData.map(cat => cat.type).filter(Boolean))];
+    
+    typeFilter.innerHTML = '<option value="">Tous les types</option>';
+    types.forEach(type => {
+        const option = document.createElement('option');
+        option.value = type;
+        option.textContent = type;
+        typeFilter.appendChild(option);
+    });
+}
+
+// Actualiser les catégories
+function refreshCategories() {
+    loadCategories();
+}
+
+// Mettre à jour les statistiques des catégories
+function updateCategoriesStats() {
+    const totalCategories = categoriesData.length;
+    const categoriesWithRegistrations = categoriesData.filter(cat => cat.registrations_count > 0).length;
+    const emptyCategories = totalCategories - categoriesWithRegistrations;
+    const totalRegistrations = categoriesData.reduce((sum, cat) => sum + cat.registrations_count, 0);
+    const avgRegistrations = totalCategories > 0 ? Math.round(totalRegistrations / totalCategories) : 0;
+    
+    document.getElementById('totalCategoriesCount').textContent = totalCategories;
+    document.getElementById('categoriesWithRegistrationsCount').textContent = categoriesWithRegistrations;
+    document.getElementById('emptyCategoriesCount').textContent = emptyCategories;
+    document.getElementById('totalRegistrationsCount').textContent = totalRegistrations;
+    document.getElementById('avgRegistrationsPerCategory').textContent = avgRegistrations;
+    document.getElementById('filteredCategoriesCount').textContent = filteredCategories.length;
+}
+
+// ===== FONCTIONS D'AFFICHAGE =====
+
+// Afficher/masquer le chargement des types
+function showTypesLoading(show) {
+    document.getElementById('typesLoading').classList.toggle('d-none', !show);
+    document.getElementById('typesContainer').classList.toggle('d-none', show);
+}
+
+// Afficher l'erreur des types
+function showTypesError(message) {
+    const errorDiv = document.getElementById('typesError');
+    document.getElementById('typesErrorMessage').textContent = message;
+    errorDiv.classList.remove('d-none');
+}
+
+// Afficher le message vide des types
+function showTypesEmpty() {
+    document.getElementById('typesEmpty').classList.remove('d-none');
+}
+
+// Afficher/masquer le chargement des catégories
+function showCategoriesLoading(show) {
+    document.getElementById('categoriesLoading').classList.toggle('d-none', !show);
+    document.getElementById('categoriesContainer').classList.toggle('d-none', show);
+}
+
+// Afficher l'erreur des catégories
+function showCategoriesError(message) {
+    const errorDiv = document.getElementById('categoriesError');
+    document.getElementById('categoriesErrorMessage').textContent = message;
+    errorDiv.classList.remove('d-none');
+}
+
+// Afficher le message vide des catégories
+function showCategoriesEmpty() {
+    document.getElementById('categoriesEmpty').classList.remove('d-none');
+}
+
+// ===== FONCTIONS D'ACTIONS EN MASSE =====
+
+// Modification en masse des catégories
+function bulkEditCategories() {
+    showAlert('Fonctionnalité de modification en masse à implémenter', 'info');
+}
+
+// Export des catégories
+function exportCategories() {
+    showAlert('Fonctionnalité d\'export à implémenter', 'info');
+}
+
+// Import des catégories
+function importCategories() {
+    showAlert('Fonctionnalité d\'import à implémenter', 'info');
+}
+
+// Suppression en masse des catégories
+function bulkDeleteCategories() {
+    if (confirm('Êtes-vous sûr de vouloir supprimer toutes les catégories sélectionnées ?')) {
+        showAlert('Fonctionnalité de suppression en masse à implémenter', 'warning');
+    }
+}
+
+// ===== ÉVÉNEMENTS =====
+
+// Ajouter les événements de recherche et filtrage
+document.addEventListener('DOMContentLoaded', function() {
+    // Événements pour les types
+    document.getElementById('typeSearchInput').addEventListener('input', searchTypes);
+    document.getElementById('typeSortSelect').addEventListener('change', searchTypes);
+    document.querySelectorAll('input[name="typeViewMode"]').forEach(radio => {
+        radio.addEventListener('change', renderTypes);
+    });
+    
+    // Événements pour les catégories
+    document.getElementById('categorySearchInput').addEventListener('input', searchCategories);
+    document.getElementById('categoryTypeFilter').addEventListener('change', searchCategories);
+    document.getElementById('categoryGenderFilter').addEventListener('change', searchCategories);
+    document.getElementById('categorySortSelect').addEventListener('change', searchCategories);
+    document.querySelectorAll('input[name="categoryViewMode"]').forEach(radio => {
+        radio.addEventListener('change', renderCategories);
+    });
+    
+    // Événements pour les filtres avancés
+    document.querySelectorAll('#advancedFilters input, #advancedFilters select').forEach(element => {
+        element.addEventListener('change', searchCategories);
+    });
+    
+    // Charger les données
+    loadTypes();
+    loadCategories();
+});
+
+</script>
+{% endblock %}

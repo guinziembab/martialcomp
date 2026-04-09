@@ -2,7 +2,16 @@ from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, FileExtensionValidator
+from django.core.exceptions import ValidationError
+import os
+
+
+def validate_image_size(value):
+    """Valide que l'image ne dépasse pas 500KB."""
+    filesize = value.size
+    if filesize > 512000:  # 500KB = 500 * 1024 = 512000 bytes
+        raise ValidationError(_("La taille de l'image ne doit pas dépasser 500 KB."))
 
 
 
@@ -59,7 +68,26 @@ class Grade(models.Model):
     is_active = models.BooleanField(_("Actif"), default=True)
     is_dan_grade = models.BooleanField(_("Grade dan/dang"), default=False, help_text=_("S'agit-il d'un grade dan/dang (ceinture noire)"))
     order = models.PositiveSmallIntegerField(_("Ordre d'affichage"), default=0)
-    
+
+    # Nouveaux champs pour l'image du grade
+    image = models.ImageField(
+        _("Image du grade"),
+        upload_to='grades/',
+        blank=True,
+        null=True,
+        validators=[
+            FileExtensionValidator(allowed_extensions=['png', 'jpg', 'jpeg', 'svg', 'webp']),
+            validate_image_size
+        ],
+        help_text=_("Image du grade (PNG, JPG, SVG, WebP - max 500KB, recommandé 100x100px)")
+    )
+    icon = models.CharField(
+        _("Icône Font Awesome"),
+        max_length=50,
+        blank=True,
+        help_text=_("Classe Font Awesome optionnelle (ex: fa-medal, fa-award)")
+    )
+
     class Meta:
         verbose_name = _("Grade")
         verbose_name_plural = _("Grades")
@@ -91,6 +119,27 @@ class Grade(models.Model):
             level__lt=self.level,
             is_active=True
         ).order_by('-level').first()
+
+    @property
+    def image_url(self):
+        """Retourne l'URL de l'image du grade si elle existe."""
+        if self.image and hasattr(self.image, 'url'):
+            return self.image.url
+        return None
+
+    @property
+    def initials(self):
+        """Retourne les initiales du grade pour le fallback SVG."""
+        words = self.name.split()
+        if len(words) >= 2:
+            return (words[0][0] + words[1][0]).upper()
+        elif len(words) == 1 and len(words[0]) >= 2:
+            return words[0][:2].upper()
+        return self.name[:2].upper() if self.name else "GR"
+
+    def get_display_color(self):
+        """Retourne la couleur d'affichage du grade."""
+        return self.color_code or self.color or '#6c757d'
 
 
 class PractitionerGrade(models.Model):

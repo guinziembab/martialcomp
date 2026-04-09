@@ -124,6 +124,16 @@ class MembersListView(APIView):
             except Exception:
                 org = None
 
+        # 5) fallback: organisation du Practitioner lié à l'utilisateur
+        if org is None:
+            try:
+                from apps.competitions.models.practitioners import Practitioner
+                practitioner = Practitioner.objects.filter(user=request.user).select_related('organization').first()
+                if practitioner and practitioner.organization:
+                    org = practitioner.organization
+            except Exception:
+                org = None
+
         # Membres d'organisation (utilisateurs)
         try:
             if org is not None:
@@ -142,21 +152,52 @@ class MembersListView(APIView):
         except Exception:
             pass
 
-        # Pratiquants (si disponibles)
+        # Pratiquants (si disponibles) - avec données complètes pour l'app mobile
         try:
             if org is not None:
                 from apps.competitions.models.practitioners import Practitioner  # type: ignore
-                pqs = Practitioner.objects.filter(organization=org)
+                pqs = Practitioner.objects.filter(organization=org).select_related('user')
                 for p in pqs:
+                    # Récupérer le grade actuel
+                    grade_name = None
+                    try:
+                        current_grade = getattr(p, 'current_grade', None)
+                        if current_grade:
+                            grade_name = getattr(current_grade, 'name', None) or str(current_grade)
+                    except Exception:
+                        pass
+
+                    # Construire l'URL de la photo
+                    photo_url = None
+                    try:
+                        if p.photo:
+                            photo_url = request.build_absolute_uri(p.photo.url)
+                            # Ensure HTTPS in production
+                            if 'martialcomp.com' in photo_url and photo_url.startswith('http://'):
+                                photo_url = photo_url.replace('http://', 'https://')
+                    except Exception:
+                        pass
+
                     results.append({
-                        'id': getattr(getattr(p, 'user', None), 'id', None),
+                        'id': getattr(p, 'id', None),
+                        'practitioner_id': getattr(p, 'id', None),
                         'name': (f"{getattr(p, 'first_name', '')} {getattr(p, 'last_name', '')}".strip() or getattr(p, 'display_name', '')),
                         'full_name': f"{getattr(p, 'first_name', '')} {getattr(p, 'last_name', '')}".strip(),
-                        'email': getattr(getattr(p, 'user', None), 'email', ''),
+                        'first_name': getattr(p, 'first_name', ''),
+                        'last_name': getattr(p, 'last_name', ''),
+                        'email': getattr(getattr(p, 'user', None), 'email', '') or getattr(p, 'email', ''),
                         'type': 'practitioner',
+                        'photo': photo_url,
+                        'photo_url': photo_url,
+                        'license_number': getattr(p, 'license_number', None),
+                        'grade': grade_name,
+                        'birth_date': str(getattr(p, 'birth_date', '')) if getattr(p, 'birth_date', None) else None,
+                        'gender': getattr(p, 'gender', None),
+                        'status': 'active' if getattr(p, 'is_active', True) else 'inactive',
                     })
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Error loading practitioners: {e}")
 
         # Éviter les doublons par (type,name,email)
         seen = set()

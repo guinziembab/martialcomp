@@ -1,45 +1,82 @@
 #!/bin/bash
-# Script de déploiement des corrections en production
+# Script de déploiement complet pour la correction du club dashboard
+# Ce script peut être exécuté localement pour copier le fichier vers la production
 
-echo "📤 DÉPLOIEMENT DES CORRECTIONS EN PRODUCTION"
-echo "==========================================="
+echo "=== Déploiement de la correction Club Dashboard ==="
+echo ""
 
-# Transfert des scripts de diagnostic et correction
-echo "1️⃣ Transfert du script de diagnostic..."
-scp check_disciplines_production.py martialcomp-production:/tmp/
+# Configuration
+REMOTE_USER="pierrep99"
+REMOTE_HOST="martialcomp.com"
+REMOTE_PATH="/var/www/vhosts/martialcomp.com/httpdocs"
+LOCAL_FILE="apps/competitions/views/dashboard/club.py"
+REMOTE_FILE="$REMOTE_PATH/$LOCAL_FILE"
 
-echo "2️⃣ Transfert du script de correction..."
-scp fix_disciplines_production.py martialcomp-production:/tmp/
+# Vérifier que le fichier local existe
+if [ ! -f "$LOCAL_FILE" ]; then
+    echo "ERREUR: Le fichier $LOCAL_FILE n'existe pas localement"
+    exit 1
+fi
 
-echo "3️⃣ Transfert du script rapide..."
-scp quick_fix_disciplines.sh martialcomp-production:/tmp/
+# Vérifier que les corrections sont présentes
+echo "Vérification des corrections dans le fichier local..."
+if grep -q "^    now = timezone.now().date()" "$LOCAL_FILE"; then
+    NOW_LINE=$(grep -n "^    now = timezone.now().date()" "$LOCAL_FILE" | head -1 | cut -d: -f1)
+    echo "✓ now trouvé à la ligne $NOW_LINE"
+else
+    echo "✗ ERREUR: La correction 'now' n'est pas trouvée dans le fichier local"
+    exit 1
+fi
 
-echo "4️⃣ Transfert de la documentation..."
-scp RUNBOOK_PRODUCTION_FIX.md martialcomp-production:/tmp/
+if grep -q "^    club_organization = None" "$LOCAL_FILE"; then
+    CLUB_ORG_LINE=$(grep -n "^    club_organization = None" "$LOCAL_FILE" | head -1 | cut -d: -f1)
+    echo "✓ club_organization trouvé à la ligne $CLUB_ORG_LINE"
+else
+    echo "✗ ERREUR: La correction 'club_organization' n'est pas trouvée dans le fichier local"
+    exit 1
+fi
 
 echo ""
-echo "✅ Transfert terminé!"
+echo "Le fichier local est correct. Déploiement vers la production..."
 echo ""
-echo "==========================================="
-echo "PROCHAINES ÉTAPES SUR LE SERVEUR:"
-echo "==========================================="
+
+# Copier le fichier vers la production
+echo "Copie du fichier vers la production..."
+scp "$LOCAL_FILE" "$REMOTE_USER@$REMOTE_HOST:$REMOTE_FILE"
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "✗ ERREUR: Impossible de copier le fichier vers la production"
+    echo ""
+    echo "Veuillez exécuter manuellement :"
+    echo "  scp $LOCAL_FILE $REMOTE_USER@$REMOTE_HOST:$REMOTE_FILE"
+    echo "  ssh $REMOTE_USER@$REMOTE_HOST \"cd $REMOTE_PATH && sudo systemctl reload gunicorn\""
+    exit 1
+fi
+
+echo "✓ Fichier copié avec succès"
 echo ""
-echo "# Se connecter au serveur"
-echo "ssh martialcomp-production"
+
+# Redémarrer Gunicorn
+echo "Redémarrage de Gunicorn..."
+ssh "$REMOTE_USER@$REMOTE_HOST" "cd $REMOTE_PATH && sudo systemctl reload gunicorn"
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "✗ ATTENTION: Erreur lors du redémarrage de Gunicorn"
+    echo "Veuillez redémarrer manuellement :"
+    echo "  ssh $REMOTE_USER@$REMOTE_HOST \"cd $REMOTE_PATH && sudo systemctl reload gunicorn\""
+    exit 1
+fi
+
+echo "✓ Gunicorn redémarré avec succès"
 echo ""
-echo "# Option 1: Diagnostic d'abord"
-echo "cd /var/www/vhosts/martialcomp.com/httpdocs"
-echo "source venv/bin/activate"
-echo "python /tmp/check_disciplines_production.py"
+
+# Vérification finale
+echo "=== Déploiement terminé avec succès ==="
 echo ""
-echo "# Option 2: Correction directe (recommandé)"
-echo "chmod +x /tmp/quick_fix_disciplines.sh"
-echo "cd /var/www/vhosts/martialcomp.com/httpdocs"
-echo "bash /tmp/quick_fix_disciplines.sh"
+echo "Corrections appliquées :"
+echo "  ✓ now défini à la ligne 158 (après le log du club)"
+echo "  ✓ club_organization initialisé à None à la ligne 161"
+echo "  ✓ Suppression de la définition dupliquée de now"
 echo ""
-echo "# Option 3: Correction manuelle complète"
-echo "cd /var/www/vhosts/martialcomp.com/httpdocs"
-echo "source venv/bin/activate"
-echo "python /tmp/fix_disciplines_production.py"
-echo ""
-echo "==========================================="
+echo "Vérifiez que la page fonctionne maintenant :"
+echo "  https://martialcomp.com/fr/competitions/dashboard/club/"

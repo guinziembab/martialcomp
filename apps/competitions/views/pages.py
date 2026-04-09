@@ -1,11 +1,20 @@
-from django.core.exceptions import PermissionDenied
+import logging
+
+from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import logout
 from django.contrib import messages
 from django.utils.translation import gettext as _
+from django.views.decorators.http import require_POST
+
 from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
+from apps.competitions.forms.contact_form import ContactForm
+from apps.competitions.services.email_service import EmailService
+
+logger = logging.getLogger(__name__)
+
 
 def features_view(request):
     return render(request, 'competitions/pages/features.html')
@@ -17,7 +26,40 @@ def clubs_view(request):
     return render(request, 'competitions/pages/clubs.html')
 
 def contact_view(request):
-    return render(request, 'competitions/pages/contact.html')
+    """Vue du formulaire de contact avec traitement POST et envoi d'emails."""
+    if request.method == 'POST':
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            submission = form.save()
+            # Envoi des emails en arriere-plan (fail_silently dans les methodes)
+            EmailService.send_contact_acknowledgment(submission)
+            EmailService.send_contact_admin_notification(submission)
+            messages.success(request, _("Votre message a ete envoye avec succes. Vous recevrez un accuse de reception par email."))
+            return redirect('contact')
+    else:
+        form = ContactForm()
+    return render(request, 'competitions/pages/contact.html', {'form': form})
+
+
+@require_POST
+def contact_ajax_view(request):
+    """Endpoint AJAX pour le formulaire de contact dans le footer welcome."""
+    try:
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            submission = form.save()
+            EmailService.send_contact_acknowledgment(submission)
+            EmailService.send_contact_admin_notification(submission)
+            return JsonResponse({
+                'success': True,
+                'message': _("Votre message a ete envoye avec succes. Vous recevrez un accuse de reception par email.")
+            })
+        else:
+            errors = {field: errors[0] for field, errors in form.errors.items()}
+            return JsonResponse({'success': False, 'errors': errors}, status=400)
+    except Exception as e:
+        logger.error(f"Erreur contact AJAX: {e}", exc_info=True)
+        return JsonResponse({'success': False, 'message': _("Une erreur est survenue.")}, status=500)
 
 @login_required
 def translations_test(request):

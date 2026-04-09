@@ -114,6 +114,19 @@ def create_notification(user, title, message, notification_type='info', priority
     )
 
 @login_required
+def notifications_count(request):
+    """API pour obtenir le nombre de notifications non lues"""
+    unread_count = Notification.objects.filter(
+        user=request.user,
+        is_read=False
+    ).count()
+    
+    return JsonResponse({
+        'success': True,
+        'count': unread_count
+    })
+
+@login_required
 def create_test_notifications(request):
     """Vue temporaire pour créer des notifications de test"""
     if request.method == 'POST':

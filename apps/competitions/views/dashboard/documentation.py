@@ -3,6 +3,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
 from django.conf import settings
+from django.utils.translation import get_language
 import os
 import markdown
 from ...models import UserProfile
@@ -42,6 +43,7 @@ def dashboard_documentation(request, dashboard_type=None):
             'referee': 'referees',
             'coach_multidiscipline': 'coaches',
             'combat': 'combat',
+            'neutrality': 'neutrality',
             'admin': 'admin',  # Ã€ créer si nécessaire
             'spectator': 'spectators',  # Ã€ créer si nécessaire
         }
@@ -57,16 +59,24 @@ def dashboard_documentation(request, dashboard_type=None):
         template = 'competitions/dashboard/documentation/dashboard_doc.html'
         context_title = f"Documentation du Dashboard {dashboard_type.capitalize()}"
     
+    # Charger la version localisée si disponible
+    lang = get_language()
+    if lang and lang[:2] != 'fr':
+        lang_code = lang[:2]
+        localized_path = file_path.replace('.md', f'_{lang_code}.md')
+        if os.path.exists(localized_path):
+            file_path = localized_path
+
     # Vérifier si le fichier existe
     if not os.path.exists(file_path):
         logger.error(f"Fichier de documentation non trouvé: {file_path}")
         raise Http404("Documentation non trouvée")
-    
+
     # Lire et convertir le contenu Markdown en HTML
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
         html_content = markdown.markdown(content, extensions=['tables', 'fenced_code'])
-    
+
     # Vérifier si un guide d'utilisation existe
     guide_exists = False
     if dashboard_type:
@@ -115,12 +125,20 @@ def dashboard_guide(request, dashboard_type):
     # Construire le chemin vers le fichier guide_utilisation.md du dashboard spécifique
     doc_folder = dashboard_mapping[dashboard_type]
     file_path = os.path.join(settings.BASE_DIR, 'docs', 'dashboards', doc_folder, 'guide_utilisation.md')
-    
+
+    # Charger la version localisée si disponible
+    lang = get_language()
+    if lang and lang[:2] != 'fr':
+        lang_code = lang[:2]
+        localized_path = file_path.replace('.md', f'_{lang_code}.md')
+        if os.path.exists(localized_path):
+            file_path = localized_path
+
     # Vérifier si le fichier existe
     if not os.path.exists(file_path):
         logger.error(f"Fichier de guide non trouvé: {file_path}")
         raise Http404("Guide d'utilisation non trouvé")
-    
+
     # Lire et convertir le contenu Markdown en HTML
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()

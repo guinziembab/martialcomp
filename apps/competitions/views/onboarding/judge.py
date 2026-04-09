@@ -177,48 +177,51 @@ def handle_judge_profile(request):
         'grades_by_discipline': json.dumps(grades_by_discipline)
     })
 
-def _get_default_grade():
-    """Fonction utilitaire pour récupérer ou créer un grade par défaut."""
+def _get_default_grade(discipline=None):
+    """
+    Fonction utilitaire pour récupérer ou créer un grade par défaut.
+
+    Args:
+        discipline: Discipline spécifique à utiliser (optionnel).
+                   Si None, on cherche un grade générique existant sans en créer un nouveau
+                   avec une discipline par défaut (évite l'assignation automatique d'AIKIDO).
+    """
     # Essayer de récupérer un grade générique ou de base
     default_grade = Grade.objects.filter(name__icontains="non spécifié").first()
-    
+
     if not default_grade:
         # Prendre n'importe quel grade existant avec le niveau le plus bas
         default_grade = Grade.objects.filter(is_active=True).order_by('level').first()
-        
+
         if not default_grade:
-            # Si aucun grade n'existe, il faut créer un grade par défaut
-            try:
-                # Chercher une discipline
-                discipline = Discipline.objects.filter(is_active=True).first()
-                if not discipline:
-                    # Créer une discipline de base
-                    discipline = Discipline.objects.create(
-                        name="Discipline générique",
-                        is_active=True
+            # Si une discipline est fournie explicitement, créer le grade avec cette discipline
+            if discipline:
+                try:
+                    # Chercher une catégorie existante ou en créer une
+                    category = GradeCategory.objects.filter(discipline=discipline).first()
+                    if not category:
+                        category = GradeCategory.objects.create(
+                            name="Catégorie générique",
+                            discipline=discipline
+                        )
+
+                    # Créer un grade par défaut avec la discipline fournie
+                    default_grade = Grade.objects.create(
+                        name="Non spécifié",
+                        discipline=discipline,
+                        category=category,
+                        level=0,
+                        order=0
                     )
-                
-                # Chercher une catégorie existante ou en créer une
-                category = GradeCategory.objects.filter(discipline=discipline).first()
-                if not category:
-                    # Créer une catégorie de base
-                    category = GradeCategory.objects.create(
-                        name="Catégorie générique",
-                        discipline=discipline
-                    )
-                
-                # Créer un grade par défaut
-                default_grade = Grade.objects.create(
-                    name="Non spécifié",
-                    discipline=discipline,
-                    category=category,
-                    level=0,
-                    order=0
-                )
-            except Exception as e:
-                logger.error(f"Erreur lors de la création d'un grade par défaut: {str(e)}")
-                raise ValueError(_("Impossible de créer un grade par défaut. Veuillez contacter l'administrateur."))
-                
+                except Exception as e:
+                    logger.error(f"Erreur lors de la création d'un grade par défaut: {str(e)}")
+                    return None
+            else:
+                # IMPORTANT: Ne PAS créer automatiquement un grade avec une discipline par défaut
+                # Cela évite l'assignation automatique d'AIKIDO ou autre première discipline
+                logger.warning("Aucun grade par défaut trouvé et aucune discipline spécifiée.")
+                return None
+
     return default_grade
 
 @login_required

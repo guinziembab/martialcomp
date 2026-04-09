@@ -75,30 +75,62 @@ class LoginSerializer(serializers.Serializer):
 
 class RegistrationSerializer(serializers.ModelSerializer):
     """Serializer pour l'enregistrement de nouveaux utilisateurs"""
-    password = serializers.CharField(max_length=128, write_only=True)
-    password_confirm = serializers.CharField(max_length=128, write_only=True)
-    
+    password = serializers.CharField(max_length=128, write_only=True, required=True)
+    password_confirm = serializers.CharField(max_length=128, write_only=True, required=True)
+    username = serializers.CharField(max_length=150, required=True)
+    email = serializers.EmailField(required=True)
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+
     class Meta:
         model = User
         fields = ['username', 'email', 'password', 'password_confirm', 'first_name', 'last_name']
-        
+
+    def validate_username(self, value):
+        """Vérifie que le nom d'utilisateur est unique"""
+        if User.objects.filter(username__iexact=value).exists():
+            raise serializers.ValidationError(_("Ce nom d'utilisateur est déjà utilisé."))
+        return value
+
+    def validate_email(self, value):
+        """Vérifie que l'email est unique et valide"""
+        if not value:
+            raise serializers.ValidationError(_("L'adresse email est requise."))
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError(_("Cette adresse email est déjà utilisée."))
+        return value.lower()
+
+    def validate_password(self, value):
+        """Vérifie la complexité du mot de passe"""
+        if len(value) < 8:
+            raise serializers.ValidationError(_("Le mot de passe doit contenir au moins 8 caractères."))
+
+        # Vérifier qu'il y a au moins une lettre et un chiffre
+        has_letter = any(c.isalpha() for c in value)
+        has_digit = any(c.isdigit() for c in value)
+
+        if not has_letter:
+            raise serializers.ValidationError(_("Le mot de passe doit contenir au moins une lettre."))
+        if not has_digit:
+            raise serializers.ValidationError(_("Le mot de passe doit contenir au moins un chiffre."))
+
+        return value
+
     def validate(self, attrs):
         password = attrs.get('password')
         password_confirm = attrs.get('password_confirm')
-        
+
         if password != password_confirm:
-            raise serializers.ValidationError(_("Les mots de passe ne correspondent pas."))
-        
-        # Vérifier la complexité du mot de passe
-        if len(password) < 8:
-            raise serializers.ValidationError(_("Le mot de passe doit contenir au moins 8 caractères."))
-        
+            raise serializers.ValidationError({
+                'password_confirm': _("Les mots de passe ne correspondent pas.")
+            })
+
         return attrs
-    
+
     def create(self, validated_data):
         # Retirer le champ de confirmation du mot de passe
         validated_data.pop('password_confirm')
-        
+
         # Créer l'utilisateur
         user = User.objects.create_user(
             username=validated_data['username'],
@@ -107,7 +139,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', '')
         )
-        
+
         return user
 
 
@@ -158,6 +190,102 @@ class TokenSerializer(serializers.Serializer):
     refresh = serializers.CharField()
     user = UserSerializer(read_only=True)
     expires_in = serializers.IntegerField()
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    """Serializer pour le changement de mot de passe (utilisateur authentifié)"""
+    old_password = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+    new_password_confirm = serializers.CharField(required=True, write_only=True)
+
+    def validate_old_password(self, value):
+        """Vérifie que l'ancien mot de passe est correct"""
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError(_("L'ancien mot de passe est incorrect."))
+        return value
+
+    def validate_new_password(self, value):
+        """Vérifie la complexité du nouveau mot de passe"""
+        if len(value) < 8:
+            raise serializers.ValidationError(_("Le mot de passe doit contenir au moins 8 caractères."))
+
+        has_letter = any(c.isalpha() for c in value)
+        has_digit = any(c.isdigit() for c in value)
+
+        if not has_letter:
+            raise serializers.ValidationError(_("Le mot de passe doit contenir au moins une lettre."))
+        if not has_digit:
+            raise serializers.ValidationError(_("Le mot de passe doit contenir au moins un chiffre."))
+
+        return value
+
+    def validate(self, attrs):
+        new_password = attrs.get('new_password')
+        new_password_confirm = attrs.get('new_password_confirm')
+
+        if new_password != new_password_confirm:
+            raise serializers.ValidationError({
+                'new_password_confirm': _("Les nouveaux mots de passe ne correspondent pas.")
+            })
+
+        # Vérifier que le nouveau mot de passe est différent de l'ancien
+        user = self.context['request'].user
+        if user.check_password(new_password):
+            raise serializers.ValidationError({
+                'new_password': _("Le nouveau mot de passe doit être différent de l'ancien.")
+            })
+
+        return attrs
+
+    def save(self):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        return user
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Serializer pour la demande de réinitialisation de mot de passe"""
+    email = serializers.EmailField(required=True)
+
+    def validate_email(self, value):
+        """Vérifie le format de l'email (ne révèle pas si l'email existe)"""
+        return value.lower()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Serializer pour confirmer la réinitialisation de mot de passe"""
+    token = serializers.CharField(required=True)
+    uid = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, write_only=True)
+    new_password_confirm = serializers.CharField(required=True, write_only=True)
+
+    def validate_new_password(self, value):
+        """Vérifie la complexité du nouveau mot de passe"""
+        if len(value) < 8:
+            raise serializers.ValidationError(_("Le mot de passe doit contenir au moins 8 caractères."))
+
+        has_letter = any(c.isalpha() for c in value)
+        has_digit = any(c.isdigit() for c in value)
+
+        if not has_letter:
+            raise serializers.ValidationError(_("Le mot de passe doit contenir au moins une lettre."))
+        if not has_digit:
+            raise serializers.ValidationError(_("Le mot de passe doit contenir au moins un chiffre."))
+
+        return value
+
+    def validate(self, attrs):
+        new_password = attrs.get('new_password')
+        new_password_confirm = attrs.get('new_password_confirm')
+
+        if new_password != new_password_confirm:
+            raise serializers.ValidationError({
+                'new_password_confirm': _("Les mots de passe ne correspondent pas.")
+            })
+
+        return attrs
 
 
 class RefreshTokenSerializer(serializers.Serializer):

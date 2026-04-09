@@ -224,6 +224,108 @@ def add_competition_category(request, pk):
 
 @login_required
 @require_POST
+def update_competition_category(request, pk):
+    """Mettre à jour une catégorie d'une compétition"""
+    try:
+        competition = get_object_or_404(Competition, pk=pk)
+
+        if not request.user.is_authenticated:
+            return JsonResponse({
+                'success': False,
+                'message': _("Vous devez être connecté pour modifier cette compétition.")
+            })
+
+        category_id = request.POST.get('category_id')
+        if not category_id:
+            return JsonResponse({
+                'success': False,
+                'message': _("ID de la catégorie requis.")
+            })
+
+        category = get_object_or_404(CompetitionCategory, id=category_id, competition=competition)
+
+        # Mettre à jour le nom
+        name = request.POST.get('name', '').strip()
+        if not name:
+            return JsonResponse({
+                'success': False,
+                'message': _("Le nom de la catégorie est requis.")
+            })
+        category.name = name
+
+        # Mettre à jour le type de compétition
+        competition_type_id = request.POST.get('competition_type', '').strip()
+        if competition_type_id:
+            try:
+                comp_type = CompetitionType.objects.get(id=competition_type_id)
+                if comp_type not in competition.competition_types.all():
+                    return JsonResponse({
+                        'success': False,
+                        'message': _("Le type de compétition sélectionné n'est pas associé à cette compétition.")
+                    })
+                category.competition_type = comp_type
+            except CompetitionType.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': _("Le type de compétition sélectionné n'existe pas.")
+                })
+
+        # Mettre à jour le genre
+        gender = request.POST.get('gender', 'mixed')
+        if gender == 'M':
+            gender = 'male'
+        elif gender == 'F':
+            gender = 'female'
+        else:
+            gender = 'mixed'
+        category.gender = gender
+
+        # Mettre à jour les champs numériques optionnels
+        min_age = request.POST.get('min_age')
+        max_age = request.POST.get('max_age')
+        min_weight = request.POST.get('min_weight')
+        max_weight = request.POST.get('max_weight')
+        max_participants = request.POST.get('max_participants')
+
+        category.min_age = int(min_age) if min_age and min_age.strip() else None
+        category.max_age = int(max_age) if max_age and max_age.strip() else None
+        category.min_weight = float(min_weight) if min_weight and min_weight.strip() else None
+        category.max_weight = float(max_weight) if max_weight and max_weight.strip() else None
+        category.max_participants = int(max_participants) if max_participants and max_participants.strip() else None
+
+        # Mettre à jour les grades
+        category.min_grade = request.POST.get('min_grade', '')
+        category.max_grade = request.POST.get('max_grade', '')
+
+        # Validations
+        if category.min_age and category.max_age and category.min_age > category.max_age:
+            return JsonResponse({
+                'success': False,
+                'message': _("L'âge minimum ne peut pas être supérieur à l'âge maximum.")
+            })
+
+        if category.min_weight and category.max_weight and category.min_weight > category.max_weight:
+            return JsonResponse({
+                'success': False,
+                'message': _("Le poids minimum ne peut pas être supérieur au poids maximum.")
+            })
+
+        category.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': _("Catégorie '{}' mise à jour avec succès.").format(category.name)
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': _("Erreur lors de la mise à jour de la catégorie: {}").format(str(e))
+        })
+
+
+@login_required
+@require_POST
 def remove_competition_category(request, pk):
     """Supprimer une catégorie d'une compétition (sans affecter les inscriptions)"""
     try:
@@ -253,7 +355,7 @@ def remove_competition_category(request, pk):
         from apps.competitions.models import CompetitionRegistration
         registrations_count = CompetitionRegistration.objects.filter(
             competition=competition,
-            category=category
+            categories=category
         ).count()
         
         if registrations_count > 0:

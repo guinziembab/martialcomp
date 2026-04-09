@@ -2,7 +2,10 @@ from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from django.utils.html import format_html
 
-from .models import Organization, Affiliation, OrganizationMember, OrganizationType
+from .models import (
+    Organization, Affiliation, OrganizationMember, OrganizationType,
+    OrganizationNews, OrganizationGalleryImage, OrganizationVideoLink
+)
 
 
 class OrganizationMemberInline(admin.TabularInline):
@@ -158,7 +161,118 @@ class OrganizationMemberAdmin(admin.ModelAdmin):
     )
 
 
-# Enregistrer le modèle OrganizationType si nécessaire
+@admin.register(OrganizationNews)
+class OrganizationNewsAdmin(admin.ModelAdmin):
+    """Administration des actualités/news des organisations."""
+    list_display = (
+        'title', 'organization', 'is_published', 'is_featured',
+        'published_at', 'author', 'created_at'
+    )
+    list_filter = ('is_published', 'is_featured', 'organization', 'created_at')
+    search_fields = ('title', 'content', 'excerpt', 'organization__name')
+    raw_id_fields = ('organization', 'author')
+    readonly_fields = ('created_at', 'updated_at', 'slug', 'display_image')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+
+    fieldsets = (
+        (_("Contenu"), {
+            'fields': (
+                'organization', 'title', 'slug', 'excerpt', 'content'
+            ),
+        }),
+        (_("Image"), {
+            'fields': ('image', 'display_image'),
+            'classes': ('collapse',),
+        }),
+        (_("Publication"), {
+            'fields': ('is_published', 'is_featured', 'published_at', 'author'),
+        }),
+        (_("Metadonnees"), {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def display_image(self, obj):
+        """Affiche l'image dans l'admin."""
+        if obj.image:
+            return format_html('<img src="{}" height="100" />', obj.image.url)
+        return _("Aucune image")
+    display_image.short_description = _("Apercu de l'image")
+
+    def save_model(self, request, obj, form, change):
+        """Definit l'auteur automatiquement si non defini."""
+        if not obj.author:
+            obj.author = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(OrganizationGalleryImage)
+class OrganizationGalleryImageAdmin(admin.ModelAdmin):
+    """Administration de la galerie d'images des organisations."""
+    list_display = ('organization', 'description', 'order', 'created_at')
+    list_filter = ('organization',)
+    search_fields = ('description', 'alt_text', 'organization__name')
+    raw_id_fields = ('organization',)
+    readonly_fields = ('created_at', 'updated_at', 'display_image')
+    ordering = ('organization', 'order')
+
+    fieldsets = (
+        (_("Image"), {
+            'fields': ('organization', 'image', 'display_image', 'description', 'alt_text'),
+        }),
+        (_("Affichage"), {
+            'fields': ('order',),
+        }),
+        (_("Metadonnees"), {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def display_image(self, obj):
+        if obj.image:
+            return format_html('<img src="{}" height="100" />', obj.image.url)
+        return _("Aucune image")
+    display_image.short_description = _("Apercu")
+
+
+@admin.register(OrganizationVideoLink)
+class OrganizationVideoLinkAdmin(admin.ModelAdmin):
+    """Administration des liens videos des organisations."""
+    list_display = ('organization', 'title', 'video_id', 'order', 'is_active', 'created_at')
+    list_filter = ('is_active', 'organization')
+    search_fields = ('title', 'description', 'organization__name', 'youtube_url')
+    raw_id_fields = ('organization',)
+    readonly_fields = ('created_at', 'updated_at', 'video_id', 'thumbnail_url', 'display_thumbnail')
+    ordering = ('organization', 'order')
+
+    fieldsets = (
+        (_("Video"), {
+            'fields': ('organization', 'youtube_url', 'title', 'description'),
+        }),
+        (_("Informations YouTube (auto)"), {
+            'fields': ('video_id', 'thumbnail_url', 'display_thumbnail'),
+            'classes': ('collapse',),
+        }),
+        (_("Affichage"), {
+            'fields': ('order', 'is_active'),
+        }),
+        (_("Metadonnees"), {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def display_thumbnail(self, obj):
+        if obj.thumbnail_url:
+            return format_html('<img src="{}" height="100" />', obj.thumbnail_url)
+        return _("Aucune miniature")
+    display_thumbnail.short_description = _("Apercu")
+
+
+# Enregistrer le modele OrganizationType si necessaire
 # @admin.register(OrganizationType)
 # class OrganizationTypeAdmin(admin.ModelAdmin):
 #     list_display = ('name', 'description')

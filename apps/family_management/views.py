@@ -186,11 +186,27 @@ def family_members_management(request, family_id):
     
     members = family.members.all().select_related('practitioner', 'user').order_by('role', 'joined_at')
     
-    # Récupérer les pratiquants disponibles pour ajout
-    existing_practitioners = members.values_list('practitioner_id', flat=True)
-    available_practitioners = Practitioner.objects.filter(
-        organization=family.organization
-    ).exclude(id__in=existing_practitioners)
+    # Récupérer les pratiquants du même club disponibles pour ajout
+    existing_ids = [pid for pid in members.values_list('practitioner_id', flat=True) if pid is not None]
+
+    # Déterminer l'organisation du club : famille > membres existants > club de l'utilisateur
+    org = family.organization
+    if not org and existing_ids:
+        first_member = Practitioner.objects.filter(id__in=existing_ids, organization__isnull=False).first()
+        if first_member:
+            org = first_member.organization
+    if not org:
+        from apps.competitions.utils.permission_helpers import get_user_club
+        club = get_user_club(request)
+        if club:
+            org = getattr(club, 'organization', None) or getattr(club, 'as_organization', None)
+
+    if org:
+        available_practitioners = Practitioner.objects.filter(
+            organization=org
+        ).exclude(id__in=existing_ids).select_related('organization', 'grade').order_by('last_name', 'first_name')
+    else:
+        available_practitioners = Practitioner.objects.none()
     
     context = {
         'family': family,
@@ -234,14 +250,18 @@ def add_family_member(request, family_id):
             )
             
             messages.success(request, _("Membre ajouté avec succès Ã  la famille."))
-            return JsonResponse({'success': True, 'member_id': member.id})
-            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': True, 'member_id': member.id})
+            return redirect('family_management:family_members', family_id=family_id)
+
         except Practitioner.DoesNotExist:
-            return JsonResponse({'error': 'Practitioner not found'}, status=404)
+            messages.error(request, _("Pratiquant introuvable."))
+            return redirect('family_management:family_members', family_id=family_id)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
-    
-    return JsonResponse({'error': 'Method not allowed'}, status=405)
+            messages.error(request, str(e))
+            return redirect('family_management:family_members', family_id=family_id)
+
+    return redirect('family_management:family_members', family_id=family_id)
 
 
 @login_required
@@ -695,7 +715,221 @@ def suggest_optimal_time(request, family_id):
             'success': True,
             'suggestions': suggestions
         })
-        
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def get_available_practitioners(request):
+    """
+    API pour récupérer les pratiquants disponibles pour créer une famille.
+    Retourne les pratiquants de l'organisation de l'utilisateur.
+    """
+    try:
+        from apps.competitions.utils.permission_helpers import get_user_club
+        from apps.organizations.models import Organization
+
+        organization = None
+
+        # Méthode 1: Via le Club de l'utilisateur
+        club = get_user_club(request)
+        if club and hasattr(club, 'organization') and club.organization:
+            organization = club.organization
+
+        # Méthode 2: Fallback via UserProfile
+        if not organization:
+            try:
+                from apps.competitions.models.users import UserProfile
+                profile = UserProfile.objects.get(user=request.user)
+                if profile.organization:
+                    organization = profile.organization
+            except:
+                pass
+
+        # Méthode 3: Fallback via OrganizationMember
+        if not organization:
+            try:
+                from apps.organizations.models import OrganizationMember
+                member = OrganizationMember.objects.filter(user=request.user).first()
+                if member and member.organization:
+                    organization = member.organization
+            except:
+                pass
+
+        # Méthode 4: Fallback direct - chercher l'organisation dont l'utilisateur est owner
+        if not organization:
+            try:
+                organization = Organization.objects.filter(owner=request.user).first()
+            except:
+                pass
+
+        if not organization:
+            return JsonResponse({
+                'success': False,
+                'error': 'Aucune organisation trouvée pour votre compte',
+                'practitioners': []
+            }, status=200)
+
+        # Paramètre de recherche
+        search_query = request.GET.get('search', '').strip()
+
+        # Récupérer les pratiquants de l'organisation
+        practitioners = Practitioner.objects.filter(
+            organization=organization
+        ).select_related('grade', 'user').order_by('last_name', 'first_name')
+
+        # Appliquer la recherche si fournie
+        if search_query:
+            practitioners = practitioners.filter(
+                Q(first_name__icontains=search_query) |
+                Q(last_name__icontains=search_query) |
+                Q(email__icontains=search_query) |
+                Q(license_number__icontains=search_query)
+            )
+
+        # Limiter les résultats
+        practitioners = practitioners[:100]
+
+        # Formater les données
+        practitioners_data = []
+        for p in practitioners:
+            practitioners_data.append({
+                'id': p.id,
+                'first_name': p.first_name or '',
+                'last_name': p.last_name or '',
+                'full_name': f"{p.first_name or ''} {p.last_name or ''}".strip(),
+                'email': p.email or '',
+                'license_number': p.license_number or '',
+                'grade': p.grade.name if p.grade else '',
+                'status': getattr(p, 'status', 'active') or 'active',
+                'has_user': p.user is not None,
+            })
+
+        return JsonResponse({
+            'success': True,
+            'practitioners': practitioners_data,
+            'total': len(practitioners_data),
+            'organization': organization.name if organization else ''
+        })
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc(),
+            'practitioners': []
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def create_family(request):
+    """
+    Créer une nouvelle famille avec les membres sélectionnés.
+    Accepte les données JSON depuis le formulaire multi-étapes.
+    """
+    try:
+        # Parser les données JSON
+        data = json.loads(request.body)
+
+        family_name = data.get('family_name', '').strip()
+        billing_email = data.get('billing_email', '').strip()
+        billing_phone = data.get('billing_phone', '').strip()
+        billing_address = data.get('billing_address', '').strip()
+        description = data.get('description', '').strip()
+        members_data = data.get('members', [])
+
+        # Validation
+        if not family_name:
+            return JsonResponse({
+                'success': False,
+                'error': _('Le nom de famille est requis')
+            }, status=400)
+
+        # Récupérer l'organisation de l'utilisateur (si applicable)
+        organization = None
+        if hasattr(request.user, 'organization'):
+            organization = request.user.organization
+        elif hasattr(request, 'organization'):
+            organization = request.organization
+
+        # Créer la famille
+        family = Family.objects.create(
+            family_name=family_name,
+            primary_responsible=request.user,
+            billing_email=billing_email or request.user.email,
+            billing_phone=billing_phone,
+            billing_address=billing_address,
+            description=description,
+            organization=organization
+        )
+
+        # Ajouter les membres
+        members_created = 0
+        for member_data in members_data:
+            practitioner_id = member_data.get('practitioner_id')
+            role = member_data.get('role', 'child')
+
+            if practitioner_id:
+                try:
+                    practitioner = Practitioner.objects.get(id=practitioner_id)
+
+                    # Vérifier que le pratiquant n'est pas déjà membre
+                    if not FamilyMember.objects.filter(family=family, practitioner=practitioner).exists():
+                        FamilyMember.objects.create(
+                            family=family,
+                            practitioner=practitioner,
+                            user=practitioner.user if hasattr(practitioner, 'user') else None,
+                            role=role,
+                            is_active=True
+                        )
+                        members_created += 1
+                except Practitioner.DoesNotExist:
+                    continue  # Ignorer les pratiquants non trouvés
+
+        # Ajouter l'utilisateur créateur comme membre parent s'il n'est pas déjà dans la liste
+        user_is_member = FamilyMember.objects.filter(
+            family=family,
+            user=request.user
+        ).exists()
+
+        if not user_is_member:
+            # Chercher si l'utilisateur est un pratiquant
+            user_practitioner = None
+            try:
+                user_practitioner = Practitioner.objects.filter(user=request.user).first()
+            except:
+                pass
+
+            FamilyMember.objects.create(
+                family=family,
+                practitioner=user_practitioner,
+                user=request.user,
+                role='parent',
+                can_manage_others=True,
+                can_make_payments=True,
+                is_active=True
+            )
+
+        return JsonResponse({
+            'success': True,
+            'family_id': str(family.id),
+            'members_created': members_created,
+            'redirect_url': f'/family_management/family/{family.id}/',
+            'message': _('Famille créée avec succès')
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': _('Données invalides')
+        }, status=400)
     except Exception as e:
         return JsonResponse({
             'success': False,

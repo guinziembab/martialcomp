@@ -2,6 +2,7 @@ from django.core.exceptions import PermissionDenied
 """
 Module pour le tableau de bord des grades.
 Fournit une vue d'ensemble des pratiquants et de leurs grades.
+PHASE 2 SECURITY: Filtrage par disciplines accessibles.
 """
 from django.shortcuts import render, redirect
 from django.contrib import messages
@@ -9,10 +10,19 @@ from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.core.paginator import Paginator
+import logging
 
 from apps.competitions.models import Practitioner, Discipline
 from apps.grades.utils_module import get_user_club
 from apps.core.isolation import OrganizationIsolationMixin, get_organization_queryset
+
+# PHASE 2 SECURITY: Import helpers de filtrage par discipline
+from apps.competitions.utils.permission_helpers import (
+    get_user_disciplines,
+    check_discipline_access
+)
+
+logger = logging.getLogger('discipline_isolation')
 
 @login_required
 def grades_dashboard(request):
@@ -28,7 +38,13 @@ def grades_dashboard(request):
         return redirect('competitions:dashboard:index')
     
     # Récupérer l'organisation associée au club
-    organization = club.organization or club.as_organization
+    # Si club est déjà une Organization, l'utiliser directement
+    if hasattr(club, '__class__') and club.__class__.__name__ == 'Organization':
+        organization = club
+    else:
+        # Sinon, récupérer l'organisation du club
+        organization = getattr(club, 'organization', None) or getattr(club, 'as_organization', None)
+    
     if not organization:
         messages.error(request, _("Aucune organisation associée trouvée pour ce club."))
         return redirect('competitions:dashboard:index')
@@ -36,12 +52,20 @@ def grades_dashboard(request):
     # Récupérer tous les pratiquants du club
     practitioners = Practitioner.objects.filter(organization=organization)
     
-    # Filtrer par discipline si demandé
+    # Filtrer par discipline si demande
     discipline_id = request.GET.get('discipline')
     if discipline_id:
         try:
             discipline = Discipline.objects.get(id=discipline_id)
-            practitioners = practitioners.filter(disciplines=discipline)
+            # PHASE 2 SECURITY: Verifier l'acces a cette discipline
+            if not request.user.is_superuser:
+                if not check_discipline_access(request.user, discipline):
+                    logger.warning(f"grades_dashboard: User {request.user} denied access to discipline {discipline_id}")
+                    discipline_id = None  # Ignorer le filtre discipline
+                else:
+                    practitioners = practitioners.filter(disciplines=discipline)
+            else:
+                practitioners = practitioners.filter(disciplines=discipline)
         except Discipline.DoesNotExist:
             pass
     
@@ -67,8 +91,8 @@ def grades_dashboard(request):
     practitioners_page = paginator.get_page(page)
     
     # Récupérer les disciplines accessibles Ã  l'utilisateur
-    from apps.competitions.utils.discipline_filtering import get_filtered_disciplines_for_user
-    disciplines = get_filtered_disciplines_for_user(request.user).filter(is_active=True).order_by('name')
+    # PHASE 2 SECURITY: Utilise get_user_disciplines (import en haut du fichier)
+    disciplines = get_user_disciplines(request.user).order_by('name')
     
     return render(request, 'grades/dashboard.html', {
         'practitioners': practitioners_page,

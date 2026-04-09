@@ -1,6 +1,7 @@
 from django.core.exceptions import PermissionDenied
 import json
 import uuid
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
@@ -11,8 +12,11 @@ from django.utils import timezone
 from django.urls import reverse
 from django.conf import settings
 from django.views.decorators.http import require_POST
+from django.db import connection, IntegrityError
 from io import BytesIO
 import base64
+
+logger = logging.getLogger(__name__)
 
 from ..utils.qr_offline import OfflineQRTokenGenerator, OfflineQRValidator, OfflineQRStorage
 
@@ -202,27 +206,49 @@ def view_practitioner_qr(request, practitioner_id):
 def qr_code_image(request, practitioner_id):
     """Génère et retourne l'image du QR code"""
     practitioner = get_object_or_404(Practitioner, id=practitioner_id)
-    
+
     # Vérifier les permissions
     is_owner = practitioner.user == request.user
-    is_club_admin = request.user.has_perm('competitions.view_practitioner') and \
-                   practitioner.organization == request.user.club.organization
-    
+    is_club_admin = False
+    try:
+        is_club_admin = request.user.has_perm('competitions.view_practitioner') and \
+                       hasattr(request.user, 'club') and request.user.club and \
+                       practitioner.organization == request.user.club.organization
+    except AttributeError:
+        pass
+
     if not (is_owner or is_club_admin or request.user.is_superuser):
         return HttpResponse(status=403)
-    
+
     # Vérifier le type de QR code demandé (standard ou hors-ligne)
     offline = request.GET.get('offline', 'false').lower() == 'true'
-    
-    # Obtenir ou créer le QR code
-    qr_code, created = PractitionerQRCode.objects.get_or_create(practitioner=practitioner)
-    
+
+    # Obtenir ou créer le QR code avec gestion de l'erreur de séquence PostgreSQL
+    try:
+        qr_code, created = PractitionerQRCode.objects.get_or_create(practitioner=practitioner)
+    except IntegrityError as e:
+        # Erreur de séquence PostgreSQL désynchronisée - réinitialiser la séquence
+        logger.warning(f"IntegrityError lors de get_or_create QRCode (image): {e}. Tentative de correction de la séquence.")
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT setval(
+                        pg_get_serial_sequence('competitions_practitionerqrcode', 'id'),
+                        COALESCE((SELECT MAX(id) FROM competitions_practitionerqrcode), 0) + 1,
+                        false
+                    )
+                """)
+            qr_code, created = PractitionerQRCode.objects.get_or_create(practitioner=practitioner)
+        except Exception as e2:
+            logger.error(f"Erreur lors de la correction de séquence (image): {e2}")
+            return HttpResponse(status=500)
+
     if offline:
         # Générer ou récupérer l'image hors-ligne
         if not qr_code.qr_offline_image:
             qr_code.generate_offline_token()
             qr_code.generate_offline_qr_code()
-            
+
         # Retourner l'image du QR code hors-ligne
         return HttpResponse(qr_code.qr_offline_image.read(), content_type="image/png")
     else:
@@ -230,7 +256,7 @@ def qr_code_image(request, practitioner_id):
         if not qr_code.qr_image:
             qr_code.generate_qr_code()
             qr_code.save()
-        
+
         # Retourner l'image du QR code standard
         return HttpResponse(qr_code.qr_image.read(), content_type="image/png")
 
@@ -256,22 +282,42 @@ def view_qr(request, practitioner_id):
     if not (is_owner or is_club_admin or request.user.is_superuser):
         messages.error(request, _("Vous n'avez pas les permissions pour voir ce QR code."))
         return redirect('competitions:club:practitioners')
-    
-    # Obtenir ou créer le QR code
-    qr_code, created = PractitionerQRCode.objects.get_or_create(practitioner=practitioner)
-    
+
+    # Obtenir ou créer le QR code avec gestion de l'erreur de séquence PostgreSQL
+    try:
+        qr_code, created = PractitionerQRCode.objects.get_or_create(practitioner=practitioner)
+    except IntegrityError as e:
+        # Erreur de séquence PostgreSQL désynchronisée - réinitialiser la séquence
+        logger.warning(f"IntegrityError lors de get_or_create QRCode: {e}. Tentative de correction de la séquence.")
+        try:
+            # Réinitialiser la séquence PostgreSQL pour cette table
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT setval(
+                        pg_get_serial_sequence('competitions_practitionerqrcode', 'id'),
+                        COALESCE((SELECT MAX(id) FROM competitions_practitionerqrcode), 0) + 1,
+                        false
+                    )
+                """)
+            # Réessayer après correction de la séquence
+            qr_code, created = PractitionerQRCode.objects.get_or_create(practitioner=practitioner)
+        except Exception as e2:
+            logger.error(f"Erreur lors de la correction de séquence: {e2}")
+            messages.error(request, _("Erreur technique lors de la génération du QR code. Veuillez contacter l'administrateur."))
+            return redirect('competitions:club:practitioner_detail', pk=practitioner_id)
+
     # Générer le QR code si nécessaire
     if not qr_code.qr_image:
         qr_code.generate_qr_code()
         qr_code.save()
-    
+
     context = {
         'practitioner': practitioner,
         'qr_code': qr_code,
         'qr_url': reverse('competitions:qr:qr_image', kwargs={'practitioner_id': practitioner.id}),
         'title': f"QR Code - {practitioner.first_name} {practitioner.last_name}",
     }
-    
+
     return render(request, 'competitions/qr_scanner/view_qr.html', context)
 
 

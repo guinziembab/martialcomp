@@ -1,11 +1,23 @@
 from django.db import models
+from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.utils.text import slugify
 from django.utils import timezone
+from urllib.parse import quote
 
 from apps.organizations.models import Organization, OrganizationMember, OrganizationRole
 from apps.core.isolation import OrganizationSecureManager
 from .discipline import Discipline
+
+
+class StreamPlatform(models.TextChoices):
+    """Plateformes de streaming supportées"""
+    YOUTUBE = 'youtube', 'YouTube'
+    TWITCH = 'twitch', 'Twitch'
+    FACEBOOK = 'facebook', 'Facebook Live'
+    VIMEO = 'vimeo', 'Vimeo'
+    DAILYMOTION = 'dailymotion', 'Dailymotion'
+    CUSTOM = 'custom', _('URL personnalisée')
 
 class Competition(models.Model):
     title = models.CharField(_("Titre"), max_length=255)
@@ -32,16 +44,31 @@ class Competition(models.Model):
     requires_license = models.BooleanField(_("Licence requise"), default=False)
     
     # Relation avec l'organisation
-    organizing_organization = models.ForeignKey('organizations.Organization', 
+    organizing_organization = models.ForeignKey('organizations.Organization',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="organized_competitions",
         verbose_name=_("Organisation organisatrice")
     )
-    
+
+    # Créateur de la compétition
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_competitions",
+        verbose_name=_("Créé par")
+    )
+
     # Visibilité publique
     is_published = models.BooleanField(_("Publiée"), default=False, help_text=_("Indique si la compétition est visible publiquement"))
+
+    # Options de visibilité
+    allow_online_registration = models.BooleanField(_("Autoriser les inscriptions en ligne"), default=True)
+    show_participants_list = models.BooleanField(_("Afficher la liste des participants"), default=False)
+    live_results = models.BooleanField(_("Résultats en temps réel"), default=False)
     
     discipline = models.ForeignKey(
         'Discipline',
@@ -64,6 +91,97 @@ class Competition(models.Model):
         ],
         default='draft'
     )
+
+    # =========================================================================
+    # CHAMPS STREAMING
+    # =========================================================================
+
+    # Configuration du stream
+    stream_enabled = models.BooleanField(
+        default=False,
+        verbose_name=_("Streaming activé"),
+        help_text=_("Activer l'intégration du streaming pour cette compétition")
+    )
+
+    stream_platform = models.CharField(
+        max_length=20,
+        choices=StreamPlatform.choices,
+        null=True,
+        blank=True,
+        verbose_name=_("Plateforme de streaming"),
+        help_text=_("Sélectionner la plateforme utilisée pour le streaming")
+    )
+
+    stream_url = models.URLField(
+        max_length=500,
+        null=True,
+        blank=True,
+        verbose_name=_("URL du stream"),
+        help_text=_("URL complète du stream (ex: https://youtube.com/watch?v=xxxxx)")
+    )
+
+    stream_embed_url = models.URLField(
+        max_length=500,
+        null=True,
+        blank=True,
+        verbose_name=_("URL d'intégration"),
+        help_text=_("URL d'embed générée automatiquement")
+    )
+
+    stream_chat_enabled = models.BooleanField(
+        default=False,
+        verbose_name=_("Chat du stream activé"),
+        help_text=_("Afficher le chat de la plateforme à côté du stream")
+    )
+
+    stream_chat_url = models.URLField(
+        max_length=500,
+        null=True,
+        blank=True,
+        verbose_name=_("URL du chat"),
+        help_text=_("URL d'intégration du chat (optionnel)")
+    )
+
+    # État du stream
+    is_live = models.BooleanField(
+        default=False,
+        verbose_name=_("En direct"),
+        help_text=_("Indique si le stream est actuellement en direct")
+    )
+
+    stream_started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Début du stream")
+    )
+
+    stream_ended_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Fin du stream")
+    )
+
+    stream_viewer_count = models.PositiveIntegerField(
+        default=0,
+        verbose_name=_("Nombre de spectateurs")
+    )
+
+    # Archive/Replay
+    stream_replay_url = models.URLField(
+        max_length=500,
+        null=True,
+        blank=True,
+        verbose_name=_("URL du replay"),
+        help_text=_("URL de la vidéo enregistrée après la fin du stream")
+    )
+
+    stream_replay_available = models.BooleanField(
+        default=False,
+        verbose_name=_("Replay disponible")
+    )
+
+    # =========================================================================
+
     created_at = models.DateTimeField(_("Créé le"), auto_now_add=True)
     updated_at = models.DateTimeField(_("Mis à jour le"), auto_now=True)
 
@@ -74,24 +192,28 @@ class Competition(models.Model):
         if not self.slug:
             # Génère le slug de base à partir du titre
             base_slug = slugify(self.title)
-            
+
             # Vérifie si ce slug existe déjà
             slug = base_slug
             counter = 1
-            
+
             # Tant que le slug existe déjà, ajoute un compteur à la fin
             while Competition.objects.filter(slug=slug).exists():
                 slug = f"{base_slug}-{counter}"
                 counter += 1
-                
+
             self.slug = slug
-        
+
         # Synchronisation automatique entre is_published et le statut
         if self.status == 'published' or self.status == 'ongoing':
             self.is_published = True
         elif self.status in ['draft', 'cancelled']:
             self.is_published = False
-            
+
+        # Générer automatiquement l'URL d'embed si stream_url est défini
+        if self.stream_url and self.stream_enabled:
+            self.stream_embed_url = self.generate_embed_url()
+
         super().save(*args, **kwargs)
     
     @property
@@ -144,6 +266,128 @@ class Competition(models.Model):
         
         is_eligible = len(reasons) == 0
         return is_eligible, reasons
+
+    # =========================================================================
+    # MÉTHODES STREAMING
+    # =========================================================================
+
+    def generate_embed_url(self):
+        """
+        Convertit l'URL du stream en URL d'intégration iframe.
+        Supporte YouTube, Twitch, Vimeo, Facebook Live, Dailymotion.
+        """
+        if not self.stream_url:
+            return None
+
+        url = self.stream_url.strip()
+
+        # YouTube - format watch
+        if 'youtube.com/watch' in url:
+            try:
+                video_id = url.split('v=')[1].split('&')[0]
+                return f"https://www.youtube.com/embed/{video_id}?autoplay=1&rel=0"
+            except IndexError:
+                return None
+
+        # YouTube - format court youtu.be
+        if 'youtu.be/' in url:
+            try:
+                video_id = url.split('youtu.be/')[1].split('?')[0]
+                return f"https://www.youtube.com/embed/{video_id}?autoplay=1&rel=0"
+            except IndexError:
+                return None
+
+        # YouTube - format live
+        if 'youtube.com/live/' in url:
+            try:
+                video_id = url.split('/live/')[1].split('?')[0]
+                return f"https://www.youtube.com/embed/{video_id}?autoplay=1&rel=0"
+            except IndexError:
+                return None
+
+        # Twitch
+        if 'twitch.tv/' in url:
+            try:
+                channel = url.split('twitch.tv/')[1].split('/')[0].split('?')[0]
+                parent_domain = settings.ALLOWED_HOSTS[0] if settings.ALLOWED_HOSTS else 'martialcomp.com'
+                return f"https://player.twitch.tv/?channel={channel}&parent={parent_domain}&autoplay=true"
+            except IndexError:
+                return None
+
+        # Vimeo
+        if 'vimeo.com/' in url:
+            try:
+                video_id = url.split('vimeo.com/')[1].split('/')[0].split('?')[0]
+                return f"https://player.vimeo.com/video/{video_id}?autoplay=1"
+            except IndexError:
+                return None
+
+        # Facebook Live
+        if 'facebook.com/' in url and '/videos/' in url:
+            encoded_url = quote(url, safe='')
+            return f"https://www.facebook.com/plugins/video.php?href={encoded_url}&autoplay=true"
+
+        # Dailymotion
+        if 'dailymotion.com/video/' in url:
+            try:
+                video_id = url.split('/video/')[1].split('_')[0]
+                return f"https://www.dailymotion.com/embed/video/{video_id}?autoplay=1"
+            except IndexError:
+                return None
+
+        # URL personnalisée - retourner telle quelle
+        return url
+
+    def generate_chat_url(self):
+        """
+        Génère l'URL du chat pour la plateforme de streaming.
+        Actuellement supporte uniquement Twitch.
+        """
+        if not self.stream_url or not self.stream_chat_enabled:
+            return None
+
+        # YouTube Live Chat - pas d'embed simple disponible
+        if 'youtube.com' in self.stream_url or 'youtu.be' in self.stream_url:
+            return None
+
+        # Twitch Chat
+        if 'twitch.tv/' in self.stream_url:
+            try:
+                channel = self.stream_url.split('twitch.tv/')[1].split('/')[0]
+                parent_domain = settings.ALLOWED_HOSTS[0] if settings.ALLOWED_HOSTS else 'martialcomp.com'
+                return f"https://www.twitch.tv/embed/{channel}/chat?parent={parent_domain}&darkpopout"
+            except IndexError:
+                return None
+
+        return None
+
+    def start_stream(self):
+        """Marquer le stream comme démarré"""
+        self.is_live = True
+        self.stream_started_at = timezone.now()
+        self.stream_ended_at = None
+        self.save(update_fields=['is_live', 'stream_started_at', 'stream_ended_at'])
+
+    def end_stream(self):
+        """Marquer le stream comme terminé"""
+        self.is_live = False
+        self.stream_ended_at = timezone.now()
+        self.save(update_fields=['is_live', 'stream_ended_at'])
+
+    def update_viewer_count(self, count):
+        """Mettre à jour le nombre de spectateurs"""
+        self.stream_viewer_count = count
+        self.save(update_fields=['stream_viewer_count'])
+
+    @property
+    def stream_duration(self):
+        """Durée du stream en cours ou terminé"""
+        if not self.stream_started_at:
+            return None
+        end_time = self.stream_ended_at or timezone.now()
+        return end_time - self.stream_started_at
+
+    # =========================================================================
 
     # Propriété pour compatibilité avec OrganizationSecureManager
     @property

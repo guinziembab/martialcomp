@@ -17,30 +17,46 @@ from apps.grades.models import Grade
 @login_required
 def competition_categories(request, competition_id):
     """Gérer les catégories d'une compétition"""
-    competition = get_object_or_404(Competition, id=competition_id)
-    
-    # Vérifier les permissions - pour l'instant autoriser tous les utilisateurs connectés
-    # TODO: Ajouter le champ created_by au modèle Competition pour une vraie vérification
-    pass
-    
-    # Récupérer les catégories existantes
-    categories = competition.categories.all()
-    
-    # Récupérer les types de compétition pour la discipline
-    competition_types = CompetitionType.objects.filter(discipline=competition.discipline)
-    
-    # Récupérer les grades pour la discipline
-    # TODO: Implémenter la récupération des grades si nécessaire
-    grades = []  # Pour le moment, liste vide
-    
-    context = {
-        'competition': competition,
-        'categories': categories,
-        'competition_types': competition_types,
-        'grades': grades,
-    }
-    
-    return render(request, 'competitions/categories/manage.html', context)
+    try:
+        competition = get_object_or_404(Competition, id=competition_id)
+
+        # Récupérer les catégories existantes - avec fallback
+        try:
+            categories = competition.categories.all()
+        except Exception:
+            categories = CompetitionCategory.objects.filter(competition=competition)
+
+        # Récupérer les types de compétition pour la discipline
+        competition_types = []
+        if competition.discipline:
+            competition_types = CompetitionType.objects.filter(discipline=competition.discipline)
+
+        # Récupérer les grades pour la discipline
+        grades = []
+
+        context = {
+            'competition': competition,
+            'categories': categories,
+            'competition_types': competition_types,
+            'grades': grades,
+        }
+
+        return render(request, 'competitions/categories/manage.html', context)
+
+    except Exception as e:
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erreur dans competition_categories: {str(e)}")
+        logger.error(traceback.format_exc())
+
+        # Retourner une page d'erreur informative
+        from django.http import HttpResponse
+        return HttpResponse(
+            f"<h1>Erreur 500</h1><p>Erreur: {str(e)}</p><pre>{traceback.format_exc()}</pre>",
+            status=500,
+            content_type='text/html'
+        )
 
 
 @login_required

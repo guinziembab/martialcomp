@@ -272,5 +272,96 @@ def coach_clients(request):
             'pending': 2
         }
     }
-    
+
     return render_coach_page(request, 'competitions/dashboard/coach/clients.html', context)
+
+
+@login_required
+def coach_site_config(request):
+    """Configuration du site public coach"""
+    from django.contrib import messages
+    from apps.competitions.models import CoachProfile, Practitioner
+
+    # Récupérer le profil coach
+    coach_profile = None
+    practitioner = None
+    site_config = {}
+
+    try:
+        practitioner = Practitioner.objects.filter(user=request.user).first()
+        if practitioner:
+            coach_profile = CoachProfile.objects.filter(practitioner=practitioner).first()
+    except Exception as e:
+        logger.warning(f"Erreur récupération profil coach pour site config: {e}")
+
+    # Traitement du formulaire POST
+    if request.method == 'POST':
+        try:
+            # Récupérer les données du formulaire
+            site_config = {
+                'site_title': request.POST.get('site_title', ''),
+                'site_subtitle': request.POST.get('site_subtitle', ''),
+                'about_text': request.POST.get('about_text', ''),
+                'specialties': request.POST.get('specialties', ''),
+                'experience_years': request.POST.get('experience_years', ''),
+                'phone': request.POST.get('phone', ''),
+                'email': request.POST.get('email', ''),
+                'location': request.POST.get('location', ''),
+                'social_facebook': request.POST.get('social_facebook', ''),
+                'social_instagram': request.POST.get('social_instagram', ''),
+                'social_youtube': request.POST.get('social_youtube', ''),
+                # Tarifs
+                'tarif_prive': request.POST.get('tarif_prive', '50'),
+                'tarif_collectif': request.POST.get('tarif_collectif', '30'),
+                'tarif_forfait': request.POST.get('tarif_forfait', '180'),
+            }
+
+            # Sauvegarder dans la session pour l'instant (TODO: sauvegarder en BDD)
+            request.session['coach_site_config'] = site_config
+
+            messages.success(request, _('Configuration du site enregistrée avec succès !'))
+
+        except Exception as e:
+            logger.error(f"Erreur sauvegarde config site coach: {e}")
+            messages.error(request, _('Erreur lors de la sauvegarde de la configuration.'))
+
+    # Récupérer la config existante de la session
+    site_config = request.session.get('coach_site_config', {})
+
+    # Valeurs par défaut
+    default_config = {
+        'site_title': f"{request.user.first_name} {request.user.last_name}",
+        'site_subtitle': _('Coach Professionnel en Arts Martiaux'),
+        'about_text': _('Passionné par les arts martiaux depuis plus de 15 ans, je propose des cours adaptés à tous les niveaux.'),
+        'specialties': 'Karaté, Taekwondo, Self-défense',
+        'experience_years': '10',
+        'phone': '+33 6 XX XX XX XX',
+        'email': request.user.email or 'contact@coach.com',
+        'location': 'Paris, France',
+        'social_facebook': '',
+        'social_instagram': '',
+        'social_youtube': '',
+        'tarif_prive': '50',
+        'tarif_collectif': '30',
+        'tarif_forfait': '180',
+    }
+
+    # Fusionner avec les valeurs par défaut
+    for key, value in default_config.items():
+        if key not in site_config or not site_config[key]:
+            site_config[key] = value
+
+    context = {
+        'page_title': _('Configuration du site'),
+        'section': 'site_config',
+        'breadcrumbs': [
+            {'name': _('Dashboard'), 'url': 'competitions:dashboard:coach'},
+            {'name': _('Configuration du site'), 'active': True}
+        ],
+        'coach_profile': coach_profile,
+        'practitioner': practitioner,
+        'site_config': site_config,
+        'coach_slug': practitioner.club.slug if practitioner and hasattr(practitioner, 'club') and practitioner.club else 'coach',
+    }
+
+    return render_coach_page(request, 'competitions/dashboard/coach/site_config.html', context)

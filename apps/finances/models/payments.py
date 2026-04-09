@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
 from django.conf import settings
 import uuid
 
@@ -102,6 +103,18 @@ class PaymentAttempt(models.Model):
     # Information externe
     provider_reference = models.CharField(max_length=255, blank=True, verbose_name=_('Référence externe'))
     provider_response = models.JSONField(default=dict, blank=True, verbose_name=_('Réponse du fournisseur'))
+
+    # Stripe-specific tracking fields (Phase 1: Stripe Checkout)
+    stripe_session_id = models.CharField(
+        max_length=255, blank=True, null=True, db_index=True,
+        verbose_name=_('ID de session Stripe'),
+        help_text=_('Stripe Checkout Session ID (cs_...)')
+    )
+    stripe_payment_intent_id = models.CharField(
+        max_length=255, blank=True, null=True, db_index=True,
+        verbose_name=_('ID PaymentIntent Stripe'),
+        help_text=_('Stripe PaymentIntent ID (pi_...)')
+    )
     
     # Sécurité
     ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name=_('Adresse IP'))
@@ -127,7 +140,7 @@ class PaymentAttempt(models.Model):
         Marque une tentative comme réussie et met Ã  jour les informations associées.
         """
         self.status = 'succeeded'
-        self.completed_at = models.functions.Now()
+        self.completed_at = timezone.now()
         
         if provider_reference:
             self.provider_reference = provider_reference
@@ -140,7 +153,7 @@ class PaymentAttempt(models.Model):
         # Mettre Ã  jour la transaction associée
         if self.transaction and self.transaction.status == 'pending':
             self.transaction.status = 'validated'
-            self.transaction.date_validated = models.functions.Now()
+            self.transaction.date_validated = timezone.now()
             self.transaction.save()
             
         return True
@@ -150,7 +163,7 @@ class PaymentAttempt(models.Model):
         Marque une tentative comme échouée et enregistre les informations d'erreur.
         """
         self.status = 'failed'
-        self.completed_at = models.functions.Now()
+        self.completed_at = timezone.now()
         
         if error_code:
             self.error_code = error_code
