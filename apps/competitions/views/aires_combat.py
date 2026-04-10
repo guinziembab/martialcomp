@@ -393,9 +393,10 @@ def aire_kiosque_interface(request, token):
     combats_par_categorie = {}
     for cat in categories:
         cat_combats = all_combats_planifies.filter(
+            Q(poule__category=cat) |
             Q(equipe_rouge__category=cat) |
             Q(equipe_blanc__category=cat)
-        )[:20]  # Limiter à 20 par catégorie
+        ).distinct()[:20]  # Limiter à 20 par catégorie
         combats_par_categorie[cat.id] = {
             'category': cat,
             'combats': list(cat_combats),
