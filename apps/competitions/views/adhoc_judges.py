@@ -706,23 +706,21 @@ def get_category_judges(request, competition_id, category_id):
 
     judges_data = []
 
-    # 1. Juges officiels (via JudgeAssignment)
+    # 1. Juges officiels (via JudgeAssignment - même requête que le cockpit)
     try:
         official_assignments = JudgeAssignment.objects.filter(
             category=category,
-            assignment_type='technical_judge',
-        ).select_related('registration', 'registration__user')
+            user__isnull=False,
+        ).select_related('user')
 
         for assignment in official_assignments:
-            user = assignment.registration.user if assignment.registration else assignment.user
-            if user:
-                judges_data.append({
-                    'id': assignment.id,
-                    'name': user.get_full_name() or user.username,
-                    'judge_type': 'technical_judge',
-                    'judge_type_display': assignment.get_assignment_type_display(),
-                    'is_adhoc': False,
-                })
+            judges_data.append({
+                'id': assignment.id,
+                'name': assignment.user.get_full_name() or assignment.user.username,
+                'judge_type': assignment.assignment_type,
+                'judge_type_display': assignment.get_assignment_type_display(),
+                'is_adhoc': False,
+            })
     except Exception:
         pass
 
