@@ -1,0 +1,2160 @@
+{% extends "base.html" %}
+{% load static %}
+{% load i18n %}
+{% load l10n %}
+
+{% block title %}{% trans "Feuille de notation" %} - {{ category.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ===== THÈME DORÉ/SOMBRE JUGE ===== */
+    :root {
+        --judge-primary: #c9a227;
+        --judge-secondary: #d4af37;
+        --judge-accent: #b8941f;
+        --judge-light: #fdf6e3;
+        --judge-dark: #1a1a2e;
+        --judge-hover: #dbb732;
+        --judge-surface: #16213e;
+        --judge-text: #eaeaea;
+        --judge-muted: #9ca3af;
+        --judge-success: #10b981;
+        --judge-warning: #f59e0b;
+        --judge-danger: #ef4444;
+        --judge-border: rgba(201, 162, 39, 0.2);
+    }
+
+    body {
+        background-color: var(--judge-dark) !important;
+        color: var(--judge-text);
+    }
+
+    .scoring-sheet-container {
+        background: var(--judge-dark);
+        min-height: 100vh;
+        padding: 1.5rem;
+    }
+
+    /* Header Card - Thème Doré */
+    .scoring-header {
+        background: linear-gradient(135deg, var(--judge-surface) 0%, var(--judge-dark) 100%);
+        color: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 15px rgba(201, 162, 39, 0.2);
+        border: 1px solid var(--judge-border);
+    }
+
+    .scoring-header h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--judge-primary);
+    }
+
+    .scoring-header .badge-live {
+        background: var(--judge-danger);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        animation: pulse 2s infinite;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    .scoring-header .badge-live::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        background: white;
+        border-radius: 50%;
+    }
+
+    .judge-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--judge-border);
+    }
+
+    .judge-info .judge-name {
+        font-weight: 600;
+        color: var(--judge-primary);
+    }
+
+    .judge-info .judge-level {
+        opacity: 0.9;
+        font-size: 0.875rem;
+        color: var(--judge-muted);
+    }
+
+    .round-info {
+        background: rgba(201, 162, 39, 0.15);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 500;
+        color: var(--judge-primary);
+        border: 1px solid var(--judge-border);
+    }
+
+    /* Progress Bar - Thème Doré */
+    .progress-section {
+        background: var(--judge-surface);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--judge-border);
+    }
+
+    .progress-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .progress-title {
+        font-weight: 600;
+        color: var(--judge-text);
+    }
+
+    .progress-counter {
+        font-size: 0.875rem;
+        color: var(--judge-muted);
+    }
+
+    .progress-bar-container {
+        height: 12px;
+        background: rgba(201, 162, 39, 0.1);
+        border-radius: 6px;
+        overflow: hidden;
+        border: 1px solid var(--judge-border);
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--judge-primary), var(--judge-secondary));
+        border-radius: 6px;
+        transition: width 0.5s ease;
+    }
+
+    /* Action Buttons - Thème Doré */
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.25rem;
+        border-radius: 10px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        text-decoration: none;
+    }
+
+    .btn-ranking {
+        background: rgba(201, 162, 39, 0.15);
+        color: var(--judge-primary);
+        border: 1px solid var(--judge-border);
+    }
+
+    .btn-ranking:hover {
+        background: rgba(201, 162, 39, 0.25);
+        color: var(--judge-hover);
+    }
+
+    .btn-lock {
+        background: rgba(201, 162, 39, 0.15);
+        color: var(--judge-primary);
+        border: 1px solid var(--judge-border);
+    }
+
+    .btn-lock:hover {
+        background: rgba(201, 162, 39, 0.25);
+    }
+
+    .btn-lock:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Table - Thème Doré/Sombre */
+    .scoring-table-container {
+        background: var(--judge-surface);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--judge-border);
+    }
+
+    .scoring-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .scoring-table thead {
+        background: rgba(201, 162, 39, 0.1);
+    }
+
+    .scoring-table th {
+        padding: 1rem;
+        text-align: left;
+        font-weight: 600;
+        color: var(--judge-primary);
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 2px solid var(--judge-border);
+    }
+
+    .scoring-table td {
+        padding: 1rem;
+        border-bottom: 1px solid var(--judge-border);
+        vertical-align: middle;
+        color: var(--judge-text);
+    }
+
+    .scoring-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .scoring-table tr:hover {
+        background: rgba(201, 162, 39, 0.05);
+    }
+
+    .scoring-table tr.row-current {
+        background: linear-gradient(90deg, rgba(201, 162, 39, 0.2) 0%, rgba(201, 162, 39, 0.1) 100%);
+        animation: highlight-pulse 2s infinite;
+    }
+
+    @keyframes highlight-pulse {
+        0%, 100% { background-color: rgba(201, 162, 39, 0.2); }
+        50% { background-color: rgba(201, 162, 39, 0.15); }
+    }
+
+    .scoring-table tr.row-scored {
+        background: rgba(16, 185, 129, 0.1);
+    }
+
+    .scoring-table tr.row-tour2-eligible {
+        background: rgba(245, 158, 11, 0.15) !important;
+        border-left: 4px solid #f59e0b !important;
+    }
+
+    .scoring-table tr.row-tour2-blocked {
+        opacity: 0.4;
+        pointer-events: none;
+    }
+
+    @keyframes pulse-tour2 {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+
+    /* Column styles */
+    .col-order {
+        width: 50px;
+        text-align: center;
+        font-weight: 700;
+        color: var(--judge-muted);
+    }
+
+    .col-photo {
+        width: 60px;
+        text-align: center;
+    }
+
+    .practitioner-photo {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid var(--judge-primary);
+    }
+
+    .practitioner-photo-placeholder {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        background: var(--judge-dark);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid var(--judge-border);
+        color: var(--judge-muted);
+        font-size: 1rem;
+        margin: 0 auto;
+    }
+
+    /* Éléments cliquables pour notation */
+    .clickable-score {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .clickable-score:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 10px rgba(201, 162, 39, 0.5);
+    }
+    .practitioner-photo.clickable-score:hover {
+        border-color: var(--judge-primary);
+    }
+    .practitioner-photo-placeholder.clickable-score:hover {
+        border-color: var(--judge-primary);
+        background: rgba(201, 162, 39, 0.2);
+        color: var(--judge-primary);
+    }
+    .practitioner-name.clickable-score:hover {
+        color: var(--judge-primary);
+        text-decoration: underline;
+    }
+
+    .col-practitioner {
+        text-align: left;
+    }
+
+    .practitioner-info {
+        display: flex;
+        flex-direction: column;
+        text-align: left;
+    }
+
+    .practitioner-name {
+        font-weight: 600;
+        color: var(--judge-text);
+        text-align: left;
+    }
+
+    .col-grade {
+        text-align: left;
+    }
+
+    .col-age {
+        text-align: left;
+        width: 80px;
+    }
+
+    /* Grade et âge */
+    .practitioner-grade {
+        font-size: 0.8125rem;
+        color: var(--judge-primary);
+        font-weight: 500;
+        text-align: left;
+    }
+    .practitioner-age {
+        font-size: 0.8125rem;
+        color: var(--judge-muted);
+        text-align: left;
+    }
+
+    .col-score {
+        width: 90px;
+        text-align: center;
+    }
+
+    .score-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--judge-primary);
+    }
+
+    .score-empty {
+        color: var(--judge-muted);
+        font-style: italic;
+    }
+
+    .col-status {
+        width: 120px;
+        text-align: center;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.375rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .status-scored {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-in-progress {
+        background: rgba(201, 162, 39, 0.2);
+        color: var(--judge-primary);
+        border: 1px solid var(--judge-border);
+    }
+
+    .status-pending {
+        background: rgba(156, 163, 175, 0.1);
+        color: var(--judge-muted);
+        border: 1px solid rgba(156, 163, 175, 0.2);
+    }
+
+    .col-action {
+        width: 180px;
+        text-align: center;
+    }
+
+    .action-buttons-group {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .btn-score {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.4rem 0.75rem;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        text-decoration: none;
+    }
+
+    .btn-score-new {
+        background: linear-gradient(135deg, var(--judge-primary) 0%, var(--judge-accent) 100%);
+        color: var(--judge-dark);
+    }
+
+    .btn-score-new:hover {
+        background: linear-gradient(135deg, var(--judge-hover) 0%, var(--judge-primary) 100%);
+        color: var(--judge-dark);
+    }
+
+    .btn-score-edit {
+        background: rgba(201, 162, 39, 0.15);
+        color: var(--judge-primary);
+        border: 1px solid var(--judge-border);
+    }
+
+    .btn-score-edit:hover {
+        background: rgba(201, 162, 39, 0.25);
+    }
+
+    /* Statistics Footer - Thème Doré */
+    .stats-section {
+        background: var(--judge-surface);
+        border-radius: 12px;
+        padding: 1.25rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--judge-border);
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+    }
+
+    .stat-item {
+        text-align: center;
+        padding: 0.75rem;
+        background: rgba(201, 162, 39, 0.05);
+        border-radius: 8px;
+        border: 1px solid var(--judge-border);
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--judge-primary);
+    }
+
+    .stat-label {
+        font-size: 0.75rem;
+        color: var(--judge-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    /* Modal for scoring - Thème Doré */
+    .scoring-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+
+    .scoring-modal.active {
+        display: flex;
+    }
+
+    .modal-content {
+        background: var(--judge-surface);
+        border-radius: 16px;
+        width: 100%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--judge-border);
+    }
+
+    .modal-header {
+        padding: 1.25rem;
+        border-bottom: 1px solid var(--judge-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--judge-primary);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--judge-muted);
+        padding: 0.25rem;
+        line-height: 1;
+    }
+
+    .modal-close:hover {
+        color: var(--judge-primary);
+    }
+
+    .modal-body {
+        padding: 1.25rem;
+    }
+
+    .criterion-item {
+        margin-bottom: 1.5rem;
+    }
+
+    .criterion-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .criterion-name {
+        font-weight: 600;
+        color: var(--judge-text);
+    }
+
+    .criterion-weight {
+        font-size: 0.75rem;
+        color: var(--judge-muted);
+        background: rgba(201, 162, 39, 0.1);
+        padding: 0.125rem 0.5rem;
+        border-radius: 4px;
+    }
+
+    .criterion-description {
+        font-size: 0.8125rem;
+        color: var(--judge-muted);
+        margin-bottom: 0.75rem;
+    }
+
+    .score-input-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .score-input {
+        flex: 1;
+        padding: 0.75rem;
+        border: 2px solid var(--judge-border);
+        border-radius: 8px;
+        font-size: 1.25rem;
+        font-weight: 600;
+        text-align: center;
+        width: 100%;
+        background: var(--judge-dark);
+        color: var(--judge-text);
+    }
+
+    .score-input:focus {
+        outline: none;
+        border-color: var(--judge-primary);
+    }
+
+    .score-range {
+        font-size: 0.75rem;
+        color: var(--judge-muted);
+        text-align: center;
+        margin-top: 0.25rem;
+    }
+
+    .modal-footer {
+        padding: 1.25rem;
+        border-top: 1px solid var(--judge-border);
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+    }
+
+    .btn-modal {
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+    }
+
+    .btn-cancel {
+        background: rgba(156, 163, 175, 0.2);
+        color: var(--judge-muted);
+    }
+
+    .btn-cancel:hover {
+        background: rgba(156, 163, 175, 0.3);
+    }
+
+    .btn-submit {
+        background: linear-gradient(135deg, var(--judge-primary) 0%, var(--judge-accent) 100%);
+        color: var(--judge-dark);
+    }
+
+    .btn-submit:hover {
+        background: linear-gradient(135deg, var(--judge-hover) 0%, var(--judge-primary) 100%);
+    }
+
+    /* Ranking Modal */
+    .ranking-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .ranking-item {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem;
+        border-bottom: 1px solid var(--judge-border);
+    }
+
+    .ranking-item:last-child {
+        border-bottom: none;
+    }
+
+    .ranking-position {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        border-radius: 50%;
+        margin-right: 1rem;
+    }
+
+    .ranking-position.gold {
+        background: linear-gradient(135deg, var(--judge-primary) 0%, var(--judge-accent) 100%);
+        color: var(--judge-dark);
+    }
+
+    .ranking-position.silver {
+        background: rgba(156, 163, 175, 0.3);
+        color: var(--judge-text);
+    }
+
+    .ranking-position.bronze {
+        background: rgba(180, 83, 9, 0.3);
+        color: #f59e0b;
+    }
+
+    .ranking-info {
+        flex: 1;
+    }
+
+    .ranking-name {
+        font-weight: 600;
+        color: var(--judge-text);
+    }
+
+    /* PROMPT 9: Neutralité juge - grade/age au lieu de club */
+    .ranking-extra {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 0.25rem;
+    }
+    .ranking-grade {
+        font-size: 0.8125rem;
+        color: var(--judge-primary);
+        font-weight: 500;
+    }
+    .ranking-age {
+        font-size: 0.8125rem;
+        color: var(--judge-muted);
+    }
+
+    /* Photo dans le classement */
+    .ranking-photo {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-right: 0.75rem;
+        border: 2px solid var(--judge-primary);
+    }
+    .ranking-photo-placeholder {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--judge-dark);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.75rem;
+        border: 2px solid var(--judge-border);
+        color: var(--judge-muted);
+        font-size: 1rem;
+    }
+
+    .ranking-score {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--judge-primary);
+    }
+
+    /* PROMPT 10: Indicateur ex-aequo */
+    .tie-indicator {
+        font-size: 0.75rem;
+        color: var(--judge-warning);
+        font-weight: 500;
+        font-style: italic;
+    }
+
+    /* PROMPT 10: Badge notes verrouillées */
+    .locked-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: linear-gradient(135deg, var(--judge-success) 0%, #059669 100%);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 9999px;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .locked-status-badge i {
+        font-size: 0.75rem;
+    }
+
+    /* PROMPT 10: Bouton verrouillé (désactivé après lock) */
+    .btn-lock.locked {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--judge-success);
+        border-color: rgba(16, 185, 129, 0.3);
+        cursor: default;
+    }
+
+    .btn-lock.locked:hover {
+        background: rgba(16, 185, 129, 0.2);
+    }
+
+    /* Bouton retour */
+    .btn-back {
+        background: transparent;
+        color: var(--judge-text);
+        border: 1px solid var(--judge-border);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: rgba(201, 162, 39, 0.1);
+        color: var(--judge-primary);
+        border-color: var(--judge-primary);
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--judge-muted);
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: var(--judge-border);
+    }
+
+    /* Alert messages */
+    .alert {
+        border-radius: 8px;
+        border: 1px solid var(--judge-border);
+    }
+
+    .alert-info {
+        background: rgba(201, 162, 39, 0.1);
+        color: var(--judge-primary);
+        border-color: var(--judge-border);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .scoring-sheet-container {
+            padding: 1rem;
+        }
+
+        .scoring-header h1 {
+            font-size: 1.25rem;
+        }
+
+        .judge-info {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+        }
+
+        .btn-action {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .scoring-table {
+            font-size: 0.875rem;
+        }
+
+        .scoring-table th,
+        .scoring-table td {
+            padding: 0.75rem 0.5rem;
+        }
+
+        .col-dossard {
+            display: none;
+        }
+
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    /* ========== STYLES PAVÉ NUMÉRIQUE INTÉGRÉ ========== */
+    #inlineNumpadGrid .numpad-cell-inline {
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.85rem;
+        font-weight: 600;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        border: 2px solid transparent;
+    }
+    #inlineNumpadGrid .numpad-cell-inline:hover {
+        transform: scale(1.1);
+        z-index: 1;
+    }
+    #inlineNumpadGrid .numpad-cell-inline.selected {
+        transform: scale(1.15);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .numpad-cell-inline.score-red { background: rgba(220,53,69,0.15); color: #dc3545; border-color: rgba(220,53,69,0.3) !important; }
+    .numpad-cell-inline.score-red:hover, .numpad-cell-inline.score-red.selected { background: #dc3545; color: white; }
+    .numpad-cell-inline.score-orange { background: rgba(253,126,20,0.15); color: #fd7e14; border-color: rgba(253,126,20,0.3) !important; }
+    .numpad-cell-inline.score-orange:hover, .numpad-cell-inline.score-orange.selected { background: #fd7e14; color: white; }
+    .numpad-cell-inline.score-yellow { background: rgba(255,193,7,0.15); color: #ffc107; border-color: rgba(255,193,7,0.3) !important; }
+    .numpad-cell-inline.score-yellow:hover, .numpad-cell-inline.score-yellow.selected { background: #ffc107; color: #1a1a2e; }
+    .numpad-cell-inline.score-green { background: rgba(40,167,69,0.15); color: #28a745; border-color: rgba(40,167,69,0.3) !important; }
+    .numpad-cell-inline.score-green:hover, .numpad-cell-inline.score-green.selected { background: #28a745; color: white; }
+    .numpad-cell-inline.score-blue { background: rgba(0,123,255,0.15); color: #007bff; border-color: rgba(0,123,255,0.3) !important; }
+    .numpad-cell-inline.score-blue:hover, .numpad-cell-inline.score-blue.selected { background: #007bff; color: white; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="scoring-sheet-container">
+    <!-- Header -->
+    <div class="scoring-header">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+                <h1><i class="fas fa-clipboard-list me-2"></i>{{ category.name }}</h1>
+                <p class="mb-0 opacity-75">{{ competition.name }}</p>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="round-info">
+                    <i class="fas fa-sync-alt me-1"></i>
+                    {% trans "Round" %}: {{ current_round }}/{{ total_rounds }}
+                </div>
+                {% if tour2_launched %}
+                <span class="badge" style="background: #f59e0b; color: #000; font-size: 0.8rem; animation: pulse-tour2 2s infinite;">
+                    <i class="fas fa-bolt me-1"></i>{% trans "TOUR 2 EN COURS" %}
+                </span>
+                {% elif tour2_mode == 'top_n' %}
+                <span class="badge bg-info text-dark" style="font-size: 0.75rem;">{% trans "Tour 2: Top" %} {{ tour2_top_n }}</span>
+                {% elif tour2_mode == 'tiebreak' %}
+                <span class="badge bg-warning text-dark" style="font-size: 0.75rem;">{% trans "Tour 2: Ex-aequo" %}</span>
+                {% endif %}
+                {% if is_live %}
+                <span class="badge-live">{% trans "EN DIRECT" %}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="judge-info">
+            <div>
+                <div class="judge-name">
+                    <i class="fas fa-gavel me-1"></i>
+                    {{ judge.practitioner.full_name }}
+                </div>
+                <div class="judge-level">
+                    {{ judge.get_qualification_level_display }}
+                </div>
+            </div>
+            <a href="{% url 'competitions:dashboard:judge_assignments' %}" class="btn btn-sm btn-light">
+                <i class="fas fa-arrow-left me-1"></i>{% trans "Retour aux affectations" %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-section">
+        <div class="progress-header">
+            <span class="progress-title">{% trans "Progression" %}</span>
+            <span class="progress-counter">{{ stats.scored_count }}/{{ stats.total_count }} {% trans "notés" %}</span>
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar-fill" style="width: {{ stats.progress_percent }}%"></div>
+        </div>
+    </div>
+
+    <!-- Action Buttons - Verrouillage et Reset pour les juges -->
+    <div class="action-buttons">
+        <button type="button" class="btn-action btn-lock" id="btnLock" {% if not all_scored %}disabled{% endif %} onclick="lockScores()">
+            <i class="fas fa-lock"></i>
+            {% trans "Verrouiller les notations" %}
+        </button>
+        <button type="button" class="btn-action btn-ranking" id="btnReset" onclick="resetScores()" title="{% trans 'Réinitialiser mes notes (test)' %}">
+            <i class="fas fa-undo"></i>
+            {% trans "Reset (Test)" %}
+        </button>
+        {% if is_chief_judge and session %}
+        <!-- Boutons Juge en Chef -->
+        {% if session.status == 'stopped' %}
+        <button type="button" class="btn-action" style="background:#3b82f6;color:#fff;" onclick="sessionAction('validate')">
+            <i class="fas fa-check-double"></i>
+            {% trans "Valider les résultats" %}
+        </button>
+        {% elif session.status == 'validated' %}
+        <button type="button" class="btn-action" style="background:#ef4444;color:#fff;" onclick="sessionAction('close')">
+            <i class="fas fa-flag-checkered"></i>
+            {% trans "Clôturer la session" %}
+        </button>
+        {% elif session.status == 'needs_revote' %}
+        <button type="button" class="btn-action" style="background:#f59e0b;color:#000;" onclick="sessionAction('next_round')">
+            <i class="fas fa-redo"></i>
+            {% trans "Lancer le barrage" %}
+        </button>
+        {% endif %}
+        {% endif %}
+        {% if tour2_launched %}
+        <button type="button" class="btn-action" style="background: #8b5cf6; color: #fff;" onclick="checkTour2ExAequo()">
+            <i class="fas fa-balance-scale"></i>
+            {% trans "Vérifier ex-aequo T2" %}
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- Modal vérification ex-aequo Tour 2 -->
+    <div id="tour2CheckModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background: var(--judge-card-bg, #1e293b); border-radius: 12px; padding: 2rem; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; border: 2px solid #8b5cf6;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="margin:0; color: #8b5cf6;"><i class="fas fa-balance-scale me-2"></i>{% trans "Vérification Tour 2" %}</h3>
+                <button onclick="document.getElementById('tour2CheckModal').style.display='none'" style="background:none; border:none; color: var(--judge-text, #fff); font-size: 1.5rem; cursor: pointer;">&times;</button>
+            </div>
+            <div id="tour2CheckContent"></div>
+        </div>
+    </div>
+
+    <!-- Performances Table -->
+    <div class="scoring-table-container">
+        <table class="scoring-table">
+            <thead>
+                <tr>
+                    <th class="col-order">#</th>
+                    <th class="col-photo">{% trans "Photo" %}</th>
+                    {% if is_team_mode %}
+                    <th class="col-practitioner">{% trans "Équipe" %}</th>
+                    <th class="col-grade">{% trans "Membres" %}</th>
+                    <th class="col-age">{% trans "Club" %}</th>
+                    {% else %}
+                    <th class="col-practitioner">{% trans "Pratiquant" %}</th>
+                    <th class="col-grade">{% trans "Grade" %}</th>
+                    <th class="col-age">{% trans "Âge" %}</th>
+                    {% endif %}
+                    <th class="col-score">{% trans "Tour 1" %}</th>
+                    <th class="col-score">{% trans "Tour 2" %}</th>
+                    <th class="col-action">{% trans "Actions" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in performances %}
+                <tr class="{% if item.is_current %}row-current{% elif item.has_scored %}row-scored{% endif %}{% if tour2_launched and item.tour2_eligible %} row-tour2-eligible{% elif tour2_launched and not item.tour2_eligible %} row-tour2-blocked{% endif %}"
+                    data-performance-id="{{ item.performance.id }}"
+                    {% if tour2_launched and not item.tour2_eligible %}style="opacity: 0.4;"{% endif %}>
+                    <td class="col-order">{{ item.performance.order }}</td>
+                    <td class="col-photo">
+                        {% if item.is_team and item.team_members %}
+                        <div class="team-photos-stack clickable-score" onclick="openNumpad({{ item.performance.id }}, 1)" title="{% trans 'Cliquez pour noter' %}" style="display: flex; gap: 0; position: relative; width: {{ item.team_members|length|add:"0" }}px; min-width: 50px;">
+                            {% for membership in item.team_members %}
+                            {% if membership.pratiquant.photo %}
+                            <img src="{{ membership.pratiquant.photo.url }}" alt="{{ membership.pratiquant.full_name }}" class="practitioner-photo" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 2px solid var(--judge-primary, #c9a227); margin-left: {% if not forloop.first %}-8px{% else %}0{% endif %}; position: relative; z-index: {{ forloop.revcounter }};" title="{{ membership.pratiquant.full_name }}">
+                            {% else %}
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(201, 162, 39, 0.2); display: flex; align-items: center; justify-content: center; color: var(--judge-primary, #c9a227); font-size: 0.7rem; border: 2px solid var(--judge-primary, #c9a227); margin-left: {% if not forloop.first %}-8px{% else %}0{% endif %}; position: relative; z-index: {{ forloop.revcounter }};" title="{{ membership.pratiquant.full_name }}">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% elif item.photo_url %}
+                        <img src="{{ item.photo_url }}" alt="{{ item.practitioner.full_name }}" class="practitioner-photo clickable-score" onclick="openNumpad({{ item.performance.id }}, 1)" title="{% trans 'Cliquez pour noter' %}">
+                        {% else %}
+                        <div class="practitioner-photo-placeholder clickable-score" onclick="openNumpad({{ item.performance.id }}, 1)" title="{% trans 'Cliquez pour noter' %}">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        {% endif %}
+                    </td>
+                    {% if item.is_team %}
+                    <td class="col-practitioner">
+                        <div class="practitioner-info">
+                            <span class="practitioner-name clickable-score" onclick="openNumpad({{ item.performance.id }}, 1)" title="{% trans 'Cliquez pour noter' %}">
+                                <i class="fas fa-users me-1" style="color: var(--judge-primary, #c9a227);"></i>{{ item.team_name }}
+                            </span>
+                        </div>
+                    </td>
+                    <td class="col-grade">
+                        {% for membership in item.team_members %}
+                        <span class="badge me-1" style="background: rgba(201, 162, 39, 0.2); color: var(--judge-primary, #c9a227); font-size: 0.7rem;">
+                            {{ membership.pratiquant.full_name }}
+                        </span>
+                        {% endfor %}
+                    </td>
+                    <td class="col-age">
+                        <span class="practitioner-age">{{ item.team_club|default:"-" }}</span>
+                    </td>
+                    {% else %}
+                    <td class="col-practitioner">
+                        <div class="practitioner-info">
+                            <span class="practitioner-name clickable-score" onclick="openNumpad({{ item.performance.id }}, 1)" title="{% trans 'Cliquez pour noter' %}">{{ item.practitioner.full_name }}</span>
+                            {% if tour2_launched and item.tour2_eligible %}
+                            <span class="badge" style="background: #f59e0b; color: #000; font-size: 0.6rem; padding: 0.1rem 0.3rem; border-radius: 3px; margin-left: 4px; vertical-align: middle;">T2</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="col-grade">
+                        <span class="practitioner-grade">{{ item.grade|default:"-" }}</span>
+                    </td>
+                    <td class="col-age">
+                        <span class="practitioner-age">{% if item.age %}{{ item.age }} {% trans "ans" %}{% else %}-{% endif %}</span>
+                    </td>
+                    {% endif %}
+                    <td class="col-score">
+                        {% if item.score %}
+                        <span class="score-value">{{ item.score }}</span>
+                        {% else %}
+                        <span class="score-empty">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="col-score">
+                        {% if item.score_round2 %}
+                        <span class="score-value">{{ item.score_round2 }}</span>
+                        {% else %}
+                        <span class="score-empty">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="col-action">
+                        <div class="action-buttons-group">
+                            {% if not item.score %}
+                            <button type="button" class="btn-score btn-score-new" onclick="openNumpad({{ item.performance.id }}, 1)" title="{% trans 'Noter Tour 1' %}">
+                                <i class="fas fa-pen"></i> {% trans "T1" %}
+                            </button>
+                            {% else %}
+                            <button type="button" class="btn-score btn-score-edit" onclick="openNumpad({{ item.performance.id }}, 1)" title="{% trans 'Modifier Tour 1' %}">
+                                <i class="fas fa-edit"></i> {% trans "T1" %}
+                            </button>
+                            {% endif %}
+                            {% if total_rounds > 1 and item.tour2_eligible %}
+                                {% if not item.score_round2 %}
+                                <button type="button" class="btn-score btn-score-new" onclick="openNumpad({{ item.performance.id }}, 2)" title="{% trans 'Noter Tour 2' %}">
+                                    <i class="fas fa-pen"></i> {% trans "T2" %}
+                                </button>
+                                {% else %}
+                                <button type="button" class="btn-score btn-score-edit" onclick="openNumpad({{ item.performance.id }}, 2)" title="{% trans 'Modifier Tour 2' %}">
+                                    <i class="fas fa-edit"></i> {% trans "T2" %}
+                                </button>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="empty-state">
+                        <i class="fas fa-info-circle"></i>
+                        <p>{% trans "Aucune performance programmée pour cette catégorie." %}</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Statistics -->
+    <div class="stats-section">
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-value">{{ stats.scored_count }}</div>
+                <div class="stat-label">{% trans "Notés" %}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ stats.average_score }}</div>
+                <div class="stat-label">{% trans "Moyenne" %}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ stats.min_score }}</div>
+                <div class="stat-label">{% trans "Min" %}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ stats.max_score }}</div>
+                <div class="stat-label">{% trans "Max" %}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PROMPT 9: Pavé Numérique de Notation Modal - Inclus via JavaScript -->
+{% include "competitions/technical_scoring/partials/scoring_numpad_modal.html" %}
+
+<!-- PROMPT 10: Modaux de verrouillage et classement -->
+{% include "competitions/technical_scoring/partials/lock_modal.html" %}
+{% include "competitions/technical_scoring/partials/ranking_modal.html" %}
+
+<!-- Scoring Modal (Legacy - pour les critères multiples) -->
+<div class="scoring-modal" id="scoringModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <i class="fas fa-pen me-2"></i>
+                <span id="modalPractitionerName">{% trans "Notation" %}</span>
+            </h3>
+            <button type="button" class="modal-close" onclick="closeScoringModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modalBody">
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">{% trans "Chargement..." %}</span>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-modal btn-cancel" onclick="closeScoringModal()">
+                {% trans "Annuler" %}
+            </button>
+            <button type="button" class="btn-modal btn-submit" onclick="submitScores()">
+                <i class="fas fa-save me-1"></i>{% trans "Enregistrer" %}
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Ranking Modal -->
+<div class="scoring-modal" id="rankingModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <i class="fas fa-trophy me-2"></i>{% trans "Classement provisoire" %}
+            </h3>
+            <button type="button" class="modal-close" onclick="closeRankingModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="ranking-list" id="rankingList">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">{% trans "Chargement..." %}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-modal btn-cancel" onclick="closeRankingModal()">
+                {% trans "Fermer" %}
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== PAVÉ NUMÉRIQUE INTÉGRÉ ========== -->
+<div class="scoring-modal" id="inlineNumpadModal">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div id="inlineNumpadPhoto" style="width: 50px; height: 50px; border-radius: 50%; background: var(--judge-dark); display: flex; align-items: center; justify-content: center; border: 2px solid var(--judge-primary); overflow: hidden;">
+                    <i class="fas fa-user" style="color: var(--judge-muted);"></i>
+                </div>
+                <div>
+                    <h3 class="modal-title" id="inlineNumpadTitle" style="margin: 0;">{% trans "Notation" %}</h3>
+                    <div style="font-size: 0.85rem; color: var(--judge-muted);">
+                        <span id="inlineNumpadGrade"></span>
+                        <span id="inlineNumpadAge"></span>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="modal-close" onclick="closeInlineNumpad()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Affichage de la note sélectionnée -->
+            <div style="text-align: center; margin-bottom: 1.5rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 12px;">
+                <div style="font-size: 3rem; font-weight: 700; color: var(--judge-primary);" id="inlineNumpadScoreDisplay">-</div>
+                <div style="font-size: 1rem; color: var(--judge-muted);" id="inlineNumpadScoreLabel">{% trans "Sélectionnez une note" %}</div>
+            </div>
+
+            <!-- Grille du pavé numérique -->
+            <div id="inlineNumpadGrid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 1rem;">
+                <!-- Cellules générées par JavaScript -->
+            </div>
+
+            <!-- Légende -->
+            <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; font-size: 0.75rem; color: var(--judge-muted); margin-bottom: 1rem;">
+                <span style="color: #dc3545;">● 0-3.75</span>
+                <span style="color: #fd7e14;">● 4-5.75</span>
+                <span style="color: #ffc107;">● 6-6.75</span>
+                <span style="color: #28a745;">● 7-8.75</span>
+                <span style="color: #007bff;">● 9-10</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-modal btn-cancel" onclick="closeInlineNumpad()">
+                {% trans "Annuler" %}
+            </button>
+            <button type="button" class="btn-modal btn-submit" id="inlineNumpadValidateBtn" onclick="submitInlineScore()" disabled>
+                <i class="fas fa-check me-1"></i>{% trans "Valider" %}
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- Tout le JavaScript est intégré dans ce template - pas de fichiers externes requis -->
+<script>
+    // Configuration
+    const CATEGORY_ID = {{ category.id }};
+    const CSRF_TOKEN = '{{ csrf_token }}';
+    const LANGUAGE_CODE = '{{ LANGUAGE_CODE }}';
+    const SAVE_SCORE_URL = '/{{ LANGUAGE_CODE }}/competitions/technical-scoring/save-score/';
+
+    // Configuration de notation (min/max/pas)
+    const SCORING_MIN = {% if scoring_config %}{% localize off %}{{ scoring_config.min_score }}{% endlocalize %}{% else %}0{% endif %};
+    const SCORING_MAX = {% if scoring_config %}{% localize off %}{{ scoring_config.max_score }}{% endlocalize %}{% else %}10{% endif %};
+    const SCORING_STEP = {% if scoring_config %}{% localize off %}{{ scoring_config.score_step }}{% endlocalize %}{% else %}0.25{% endif %};
+
+    let currentPerformanceId = null;
+    let currentCriteria = [];
+
+    // Statut de la session (pour bloquer la notation avant démarrage)
+    {% if session %}
+    const SESSION_STATUS = '{{ session.status }}';
+    {% endif %}
+
+    // Données des performances pour le pavé numérique
+    const performancesData = {
+        {% for item in performances %}
+        {{ item.performance.id }}: {
+            practitionerName: "{% if item.is_team %}{{ item.team_name|escapejs }}{% else %}{{ item.practitioner.full_name|escapejs }}{% endif %}",
+            isTeam: {% if item.is_team %}true{% else %}false{% endif %},
+            photoUrl: "{{ item.photo_url|default:''|escapejs }}",
+            teamMemberPhotos: [{% if item.is_team and item.team_members %}{% for m in item.team_members %}{"name": "{{ m.pratiquant.full_name|escapejs }}", "photo": "{% if m.pratiquant.photo %}{{ m.pratiquant.photo.url|escapejs }}{% endif %}"}{% if not forloop.last %},{% endif %}{% endfor %}{% endif %}],
+            grade: "{{ item.grade|default:''|escapejs }}",
+            age: {% if item.age is not None %}{% localize off %}{{ item.age }}{% endlocalize %}{% else %}null{% endif %},
+            score: {% if item.score is not None %}{% localize off %}{{ item.score }}{% endlocalize %}{% else %}null{% endif %},
+            scoreRound2: {% if item.score_round2 is not None %}{% localize off %}{{ item.score_round2 }}{% endlocalize %}{% else %}null{% endif %}
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    };
+
+    // ========== PAVÉ NUMÉRIQUE INTÉGRÉ ==========
+    let inlineNumpadState = {
+        performanceId: null,
+        round: null,
+        selectedScore: null,
+        perfData: null
+    };
+
+    // Générer les cellules du pavé numérique au chargement
+    function initInlineNumpad() {
+        const grid = document.getElementById('inlineNumpadGrid');
+        if (!grid || grid.children.length > 0) return;
+
+        const step = SCORING_STEP > 0 ? SCORING_STEP : 0.25;
+        // Utiliser multiplication entière pour éviter les erreurs de flottant
+        const minInt = Math.round(SCORING_MIN / step);
+        const maxInt = Math.round(SCORING_MAX / step);
+        let cellCount = 0;
+
+        for (let i = minInt; i <= maxInt; i++) {
+            const score = Math.round(i * step * 100) / 100;
+            const cell = document.createElement('div');
+            cell.className = 'numpad-cell-inline ' + getScoreColorClass(score);
+            cell.dataset.score = score;
+            cell.textContent = formatScoreDisplay(score);
+            cell.onclick = function() { selectInlineScore(score); };
+            grid.appendChild(cell);
+            cellCount++;
+        }
+        console.log('[InlineNumpad] Grille initialisée avec ' + cellCount + ' cellules (min=' + SCORING_MIN + ', max=' + SCORING_MAX + ', pas=' + step + ')');
+    }
+
+    function getScoreColorClass(score) {
+        // Couleurs relatives à la plage configurée
+        const range = SCORING_MAX - SCORING_MIN;
+        const ratio = range > 0 ? (score - SCORING_MIN) / range : 0;
+        if (ratio <= 0.25) return 'score-red';
+        if (ratio <= 0.50) return 'score-orange';
+        if (ratio <= 0.65) return 'score-yellow';
+        if (ratio <= 0.85) return 'score-green';
+        return 'score-blue';
+    }
+
+    function formatScoreDisplay(score) {
+        if (Number.isInteger(score)) return score.toString();
+        return score.toFixed(2).replace('.', ',');
+    }
+
+    function getScoreLabel(score) {
+        if (score === null) return 'Selectionnez une note';
+        const range = SCORING_MAX - SCORING_MIN;
+        const ratio = range > 0 ? (score - SCORING_MIN) / range : 0;
+        if (ratio <= 0.25) return 'Insuffisant';
+        if (ratio <= 0.50) return 'Passable';
+        if (ratio <= 0.65) return 'Assez bien';
+        if (ratio <= 0.85) return 'Bien';
+        return 'Excellent';
+    }
+
+    // ===== Fonction principale pour ouvrir le pavé numérique =====
+    function openNumpad(performanceId, round) {
+        console.log('[openNumpad] Appelé avec performanceId:', performanceId, 'round:', round);
+
+        // Notation toujours accessible - pas de blocage par session
+
+        const perfData = performancesData[performanceId];
+        if (!perfData) {
+            console.error('[openNumpad] Performance non trouvée:', performanceId);
+            alert('Erreur: Performance non trouvée (ID: ' + performanceId + ')');
+            return;
+        }
+
+        // Stocker l'état
+        inlineNumpadState.performanceId = performanceId;
+        inlineNumpadState.round = round;
+        inlineNumpadState.perfData = perfData;
+        inlineNumpadState.selectedScore = null;
+
+        // Initialiser la grille si nécessaire
+        initInlineNumpad();
+
+        // Mettre à jour le header
+        document.getElementById('inlineNumpadTitle').textContent =
+            perfData.practitionerName + ' - Tour ' + round;
+
+        const gradeEl = document.getElementById('inlineNumpadGrade');
+        const ageEl = document.getElementById('inlineNumpadAge');
+        if (gradeEl) gradeEl.textContent = perfData.grade ? perfData.grade : '';
+        if (ageEl) ageEl.textContent = perfData.age ? ' • ' + perfData.age + ' ans' : '';
+
+        // Photo
+        const photoEl = document.getElementById('inlineNumpadPhoto');
+        if (photoEl) {
+            if (perfData.isTeam && perfData.teamMemberPhotos && perfData.teamMemberPhotos.length > 0) {
+                // Show stacked team member photos
+                var html = '<div style="display:flex;justify-content:center;align-items:center;width:100%;height:100%;gap:0;">';
+                perfData.teamMemberPhotos.forEach(function(m, idx) {
+                    var ml = idx > 0 ? 'margin-left:-8px;' : '';
+                    var z = 'z-index:' + (perfData.teamMemberPhotos.length - idx) + ';';
+                    if (m.photo) {
+                        html += '<img src="' + m.photo + '" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:2px solid var(--judge-primary,#c9a227);position:relative;' + ml + z + '" title="' + m.name + '">';
+                    } else {
+                        html += '<div style="width:28px;height:28px;border-radius:50%;background:rgba(201,162,39,0.2);display:flex;align-items:center;justify-content:center;font-size:0.6rem;color:var(--judge-primary,#c9a227);border:2px solid var(--judge-primary,#c9a227);position:relative;' + ml + z + '" title="' + m.name + '"><i class="fas fa-user"></i></div>';
+                    }
+                });
+                html += '</div>';
+                photoEl.innerHTML = html;
+            } else if (perfData.photoUrl) {
+                photoEl.innerHTML = '<img src="' + perfData.photoUrl + '" style="width:100%;height:100%;object-fit:cover;">';
+            } else {
+                var icon = perfData.isTeam ? 'fa-users' : 'fa-user';
+                photoEl.innerHTML = '<i class="fas ' + icon + '" style="color: var(--judge-muted);"></i>';
+            }
+        }
+
+        // Réinitialiser l'affichage
+        document.getElementById('inlineNumpadScoreDisplay').textContent = '-';
+        document.getElementById('inlineNumpadScoreDisplay').className = '';
+        document.getElementById('inlineNumpadScoreLabel').textContent = 'Selectionnez une note';
+        document.getElementById('inlineNumpadValidateBtn').disabled = true;
+
+        // Désélectionner toutes les cellules
+        document.querySelectorAll('#inlineNumpadGrid .numpad-cell-inline').forEach(function(c) {
+            c.classList.remove('selected');
+        });
+
+        // Pré-sélectionner la note existante
+        const existingScore = round === 1 ? perfData.score : perfData.scoreRound2;
+        if (existingScore !== null && existingScore !== undefined) {
+            selectInlineScore(existingScore);
+        }
+
+        // Ouvrir le modal
+        const modal = document.getElementById('inlineNumpadModal');
+        modal.classList.add('active');
+        console.log('[openNumpad] Modal intégré ouvert');
+    }
+
+    function selectInlineScore(score) {
+        inlineNumpadState.selectedScore = score;
+
+        // Mettre à jour l'affichage
+        const displayEl = document.getElementById('inlineNumpadScoreDisplay');
+        const labelEl = document.getElementById('inlineNumpadScoreLabel');
+
+        displayEl.textContent = formatScoreDisplay(score);
+        displayEl.className = getScoreColorClass(score);
+        labelEl.textContent = getScoreLabel(score);
+        labelEl.className = getScoreColorClass(score);
+
+        // Mettre à jour la sélection visuelle
+        document.querySelectorAll('#inlineNumpadGrid .numpad-cell-inline').forEach(function(cell) {
+            cell.classList.remove('selected');
+            if (parseFloat(cell.dataset.score) === score) {
+                cell.classList.add('selected');
+            }
+        });
+
+        // Activer le bouton de validation
+        document.getElementById('inlineNumpadValidateBtn').disabled = false;
+    }
+
+    function closeInlineNumpad() {
+        const modal = document.getElementById('inlineNumpadModal');
+        modal.classList.remove('active');
+        inlineNumpadState = { performanceId: null, round: null, selectedScore: null, perfData: null };
+    }
+
+    function submitInlineScore() {
+        if (inlineNumpadState.selectedScore === null) return;
+
+        const btn = document.getElementById('inlineNumpadValidateBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>{% trans "Enregistrement..." %}';
+
+        console.log('[submitInlineScore] Envoi:', inlineNumpadState);
+
+        fetch(SAVE_SCORE_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': CSRF_TOKEN
+            },
+            body: JSON.stringify({
+                performance_id: inlineNumpadState.performanceId,
+                criterion_id: inlineNumpadState.round,
+                score: inlineNumpadState.selectedScore,
+                comment: ''
+            })
+        })
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            console.log('[submitInlineScore] Réponse:', data);
+            if (data.success) {
+                // Mettre à jour l'interface
+                updatePerformanceRow(inlineNumpadState.performanceId, inlineNumpadState.selectedScore, inlineNumpadState.round);
+                updateProgress();
+                closeInlineNumpad();
+            } else {
+                alert('Erreur: ' + (data.message || 'Echec enregistrement'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-check me-1"></i>{% trans "Valider" %}';
+            }
+        })
+        .catch(function(error) {
+            console.error('[submitInlineScore] Erreur:', error);
+            alert('Erreur de connexion');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check me-1"></i>{% trans "Valider" %}';
+        });
+    }
+
+    // ===== Initialisation au chargement de la page =====
+    document.addEventListener('DOMContentLoaded', function() {
+        // Le pavé numérique intégré est déjà initialisé - pas besoin de scripts externes
+        console.log('[ScoringSheet] Interface de notation initialisée');
+    });
+
+    // Mettre à jour la ligne de performance après notation
+    function updatePerformanceRow(performanceId, score, round) {
+        const row = document.querySelector(`tr[data-performance-id="${performanceId}"]`);
+        if (!row) return;
+
+        // Mettre à jour les données locales
+        if (performancesData[performanceId]) {
+            if (round === 2) {
+                performancesData[performanceId].scoreRound2 = score;
+            } else {
+                performancesData[performanceId].score = score;
+            }
+        }
+
+        // Récupérer les colonnes de score (Tour 1 et Tour 2)
+        const scoreCells = row.querySelectorAll('.col-score');
+        const scoreFormatted = score.toFixed(2).replace('.', ',');
+
+        if (round === 2 && scoreCells.length >= 2) {
+            // Mettre à jour Tour 2
+            scoreCells[1].innerHTML = `<span class="score-value">${scoreFormatted}</span>`;
+        } else if (scoreCells.length >= 1) {
+            // Mettre à jour Tour 1
+            scoreCells[0].innerHTML = `<span class="score-value">${scoreFormatted}</span>`;
+        }
+
+        // Mettre à jour les boutons d'action
+        const actionCell = row.querySelector('.col-action');
+        if (actionCell) {
+            const totalRounds = {{ total_rounds|default:1 }};
+            const perfData = performancesData[performanceId] || {};
+
+            let buttonsHtml = '<div class="action-buttons-group">';
+
+            // Bouton Tour 1
+            if (perfData.score !== null && perfData.score !== undefined) {
+                buttonsHtml += `
+                    <button type="button" class="btn-score btn-score-edit" onclick="openNumpad(${performanceId}, 1)" title="{% trans 'Modifier Tour 1' %}">
+                        <i class="fas fa-edit"></i> {% trans "T1" %}
+                    </button>`;
+            } else {
+                buttonsHtml += `
+                    <button type="button" class="btn-score btn-score-new" onclick="openNumpad(${performanceId}, 1)" title="{% trans 'Noter Tour 1' %}">
+                        <i class="fas fa-pen"></i> {% trans "T1" %}
+                    </button>`;
+            }
+
+            // Bouton Tour 2 (si plusieurs tours)
+            if (totalRounds > 1) {
+                if (perfData.scoreRound2 !== null && perfData.scoreRound2 !== undefined) {
+                    buttonsHtml += `
+                        <button type="button" class="btn-score btn-score-edit" onclick="openNumpad(${performanceId}, 2)" title="{% trans 'Modifier Tour 2' %}">
+                            <i class="fas fa-edit"></i> {% trans "T2" %}
+                        </button>`;
+                } else {
+                    buttonsHtml += `
+                        <button type="button" class="btn-score btn-score-new" onclick="openNumpad(${performanceId}, 2)" title="{% trans 'Noter Tour 2' %}">
+                            <i class="fas fa-pen"></i> {% trans "T2" %}
+                        </button>`;
+                }
+            }
+
+            buttonsHtml += '</div>';
+            actionCell.innerHTML = buttonsHtml;
+        }
+
+        // Ajouter la classe de ligne notée
+        row.classList.remove('row-current');
+        row.classList.add('row-scored');
+    }
+
+    // Mettre à jour la barre de progression
+    function updateProgress() {
+        const scoredRows = document.querySelectorAll('tr.row-scored').length;
+        const totalRows = document.querySelectorAll('tbody tr[data-performance-id]').length;
+        const percent = totalRows > 0 ? (scoredRows / totalRows * 100) : 0;
+
+        // Mettre à jour le compteur
+        const counter = document.querySelector('.progress-counter');
+        if (counter) {
+            counter.textContent = `${scoredRows}/${totalRows} {% trans "notés" %}`;
+        }
+
+        // Mettre à jour la barre
+        const progressBar = document.querySelector('.progress-bar-fill');
+        if (progressBar) {
+            progressBar.style.width = `${percent}%`;
+        }
+
+        // Mettre à jour le stat
+        const statScored = document.querySelector('.stat-item .stat-value');
+        if (statScored) {
+            statScored.textContent = scoredRows;
+        }
+
+        // Activer/désactiver le bouton de verrouillage
+        const btnLock = document.getElementById('btnLock');
+        if (btnLock) {
+            btnLock.disabled = scoredRows < totalRows;
+        }
+    }
+
+    // Open scoring modal - utilise le pavé numérique PROMPT 9
+    async function openScoringModal(performanceId) {
+        currentPerformanceId = performanceId;
+
+        try {
+            const response = await fetch(`/{{ LANGUAGE_CODE }}/competitions/technical-scoring/api/performance/${performanceId}/criteria/`);
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                currentCriteria = data.criteria;
+
+                // Si un seul critère, utiliser le pavé numérique PROMPT 9
+                if (data.criteria.length === 1 && typeof ScoringNumpad !== 'undefined') {
+                    const criterion = data.criteria[0];
+                    // PROMPT 9: Passer photo/grade/age pour neutralité juge
+                    ScoringNumpad.open({
+                        performanceId: performanceId,
+                        criterionId: criterion.id,
+                        criterionName: criterion.name,
+                        practitionerName: data.performance.practitioner,
+                        categoryName: '{{ category.name }}',
+                        currentScore: criterion.current_value,
+                        comment: '',
+                        // Données neutralité juge
+                        photoUrl: data.performance.photo_url,
+                        grade: data.performance.grade,
+                        age: data.performance.age
+                    });
+                } else {
+                    // Plusieurs critères: utiliser le modal classique
+                    document.getElementById('scoringModal').classList.add('active');
+                    renderCriteriaForm(data);
+                }
+            } else {
+                showError(data.message || 'Erreur lors du chargement');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Erreur de connexion');
+        }
+    }
+
+    // Render criteria form (pour le modal classique avec plusieurs critères)
+    function renderCriteriaForm(data) {
+        const modalBody = document.getElementById('modalBody');
+        document.getElementById('modalPractitionerName').textContent = data.performance.practitioner;
+
+        let html = '';
+
+        data.criteria.forEach((criterion, index) => {
+            const currentValue = criterion.current_value || '';
+            html += `
+                <div class="criterion-item">
+                    <div class="criterion-header">
+                        <span class="criterion-name">${criterion.name}</span>
+                        <span class="criterion-weight">×${criterion.weight}</span>
+                    </div>
+                    ${criterion.description ? `<p class="criterion-description">${criterion.description}</p>` : ''}
+                    <div class="score-input-group">
+                        <button type="button" class="btn btn-sm btn-outline-primary me-2"
+                                onclick="openNumpadForCriterion(${data.performance.id}, ${criterion.id}, '${criterion.name}', '${data.performance.practitioner}', ${criterion.current_value || 'null'})">
+                            <i class="fas fa-calculator"></i>
+                        </button>
+                        <input type="number"
+                               class="score-input"
+                               id="score_${criterion.id}"
+                               data-criterion-id="${criterion.id}"
+                               value="${currentValue}"
+                               min="${criterion.min_score}"
+                               max="${criterion.max_score}"
+                               step="${criterion.step}"
+                               placeholder="${criterion.min_score}-${criterion.max_score}">
+                    </div>
+                    <div class="score-range">${criterion.min_score} - ${criterion.max_score} (pas: ${criterion.step})</div>
+                </div>
+            `;
+        });
+
+        modalBody.innerHTML = html;
+    }
+
+    // Ouvrir le pavé numérique pour un critère spécifique
+    function openNumpadForCriterion(performanceId, criterionId, criterionName, practitionerName, currentScore) {
+        if (typeof ScoringNumpad !== 'undefined') {
+            // Fermer le modal classique temporairement
+            document.getElementById('scoringModal').classList.remove('active');
+
+            ScoringNumpad.open({
+                performanceId: performanceId,
+                criterionId: criterionId,
+                criterionName: criterionName,
+                practitionerName: practitionerName,
+                categoryName: '{{ category.name }}',
+                currentScore: currentScore,
+                comment: ''
+            });
+        }
+    }
+
+    // Close scoring modal
+    function closeScoringModal() {
+        document.getElementById('scoringModal').classList.remove('active');
+        currentPerformanceId = null;
+        currentCriteria = [];
+    }
+
+    // Submit scores (modal classique pour plusieurs critères)
+    async function submitScores() {
+        if (!currentPerformanceId) return;
+
+        const scores = {};
+        let isValid = true;
+
+        currentCriteria.forEach(criterion => {
+            const input = document.getElementById(`score_${criterion.id}`);
+            const value = parseFloat(input.value);
+
+            if (isNaN(value) || value < criterion.min_score || value > criterion.max_score) {
+                input.style.borderColor = '#ef4444';
+                isValid = false;
+            } else {
+                input.style.borderColor = '#e2e8f0';
+                scores[criterion.id] = value;
+            }
+        });
+
+        if (!isValid) {
+            showError('Veuillez remplir tous les champs correctement');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/{{ LANGUAGE_CODE }}/competitions/technical-scoring/api/performance/${currentPerformanceId}/submit/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF_TOKEN
+                },
+                body: JSON.stringify({ scores })
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                closeScoringModal();
+                location.reload(); // Refresh to show updated scores
+            } else {
+                showError(data.message || 'Erreur enregistrement');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Erreur de connexion');
+        }
+    }
+
+    // ===== PROMPT 10: Show ranking modal avec gestion ex-aequo =====
+    function showRankingModal() {
+        // Utiliser le nouveau modal PROMPT 10 avec ex-aequo
+        if (typeof ScoringLockRanking !== 'undefined') {
+            ScoringLockRanking.openRankingModal();
+        } else {
+            // Fallback: ancien modal
+            document.getElementById('rankingModal').classList.add('active');
+            loadRankingLegacy();
+        }
+    }
+
+    // Legacy ranking loader (fallback si JS pas chargé)
+    async function loadRankingLegacy() {
+        try {
+            const response = await fetch(`/{{ LANGUAGE_CODE }}/competitions/technical-scoring/api/category/${CATEGORY_ID}/ranking/`);
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                renderRankingLegacy(data.ranking);
+            } else {
+                document.getElementById('rankingList').innerHTML = `
+                    <div class="text-center py-4 text-muted">
+                        {% trans "Aucun classement disponible" %}
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('rankingList').innerHTML = `
+                <div class="text-center py-4 text-danger">
+                    {% trans "Erreur de connexion" %}
+                </div>
+            `;
+        }
+    }
+
+    // Legacy render ranking (sans gestion ex-aequo avancée)
+    function renderRankingLegacy(ranking) {
+        const rankingList = document.getElementById('rankingList');
+
+        if (!ranking || ranking.length === 0) {
+            rankingList.innerHTML = `
+                <div class="text-center py-4 text-muted">
+                    {% trans "Aucun classement disponible" %}
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        ranking.forEach(item => {
+            let positionClass = '';
+            if (item.rank === 1) positionClass = 'gold';
+            else if (item.rank === 2) positionClass = 'silver';
+            else if (item.rank === 3) positionClass = 'bronze';
+
+            // Photo du pratiquant (ou icône par défaut)
+            const photoIcon = item.is_team ? 'fa-users' : 'fa-user';
+            const photoHtml = item.photo_url
+                ? `<img src="${item.photo_url}" alt="${item.practitioner_name}" class="ranking-photo">`
+                : `<div class="ranking-photo-placeholder"><i class="fas ${photoIcon}"></i></div>`;
+
+            // NEUTRALITÉ JUGE: grade/age au lieu de club
+            html += `
+                <div class="ranking-item">
+                    <div class="ranking-position ${positionClass}">${item.rank}</div>
+                    ${photoHtml}
+                    <div class="ranking-info">
+                        <div class="ranking-name">${item.practitioner_name}${item.is_tie ? ' <span class="tie-indicator">(ex-aequo)</span>' : ''}</div>
+                        <div class="ranking-extra">
+                            <span class="ranking-grade">${item.grade || '-'}</span>
+                            ${item.age ? `<span class="ranking-age">${item.age} {% trans "ans" %}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="ranking-score">${item.score.toFixed(2)}</div>
+                </div>
+            `;
+        });
+
+        rankingList.innerHTML = html;
+    }
+
+    // Close ranking modal
+    function closeRankingModal() {
+        // Fermer les deux modaux (ancien et nouveau)
+        document.getElementById('rankingModal').classList.remove('active');
+        if (typeof ScoringLockRanking !== 'undefined') {
+            ScoringLockRanking.closeRankingModal();
+        }
+    }
+
+    // ===== PROMPT 10: Lock scores avec modal de confirmation =====
+    function checkTour2ExAequo() {
+        // Collecter les scores Tour 2 des performances éligibles
+        const eligible = [];
+        document.querySelectorAll('tr.row-tour2-eligible').forEach(function(row) {
+            const perfId = row.dataset.performanceId;
+            const perfData = performancesData[perfId];
+            if (perfData) {
+                eligible.push({
+                    name: perfData.practitionerName,
+                    scoreT1: perfData.score,
+                    scoreT2: perfData.scoreRound2
+                });
+            }
+        });
+
+        let html = '';
+        if (eligible.length === 0) {
+            html = '<p style="color: var(--judge-muted);">{% trans "Aucun participant éligible au Tour 2." %}</p>';
+        } else {
+            // Vérifier les ex-aequo sur les scores T2
+            const t2Scores = eligible.filter(e => e.scoreT2 !== null && e.scoreT2 !== undefined);
+            const allScored = t2Scores.length === eligible.length;
+
+            html += '<table style="width:100%; border-collapse: collapse; margin-bottom: 1rem;">';
+            html += '<thead><tr style="border-bottom: 2px solid rgba(139,92,246,0.3);">';
+            html += '<th style="text-align:left; padding:0.5rem; color: var(--judge-muted);">{% trans "Participant" %}</th>';
+            html += '<th style="text-align:center; padding:0.5rem; color: var(--judge-muted);">{% trans "Tour 1" %}</th>';
+            html += '<th style="text-align:center; padding:0.5rem; color: var(--judge-muted);">{% trans "Tour 2" %}</th>';
+            html += '</tr></thead><tbody>';
+
+            eligible.forEach(function(e) {
+                const t2Display = e.scoreT2 !== null && e.scoreT2 !== undefined ? e.scoreT2 : '<span style="color:#ef4444;">-</span>';
+                html += '<tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">';
+                html += '<td style="padding:0.5rem; font-weight:600;">' + e.name + '</td>';
+                html += '<td style="padding:0.5rem; text-align:center;">' + (e.scoreT1 || '-') + '</td>';
+                html += '<td style="padding:0.5rem; text-align:center; font-weight:700; font-size:1.1rem;">' + t2Display + '</td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+
+            if (!allScored) {
+                html += '<div style="background:rgba(239,68,68,0.15); border:1px solid #ef4444; border-radius:8px; padding:0.75rem; margin-top:0.5rem;">';
+                html += '<i class="fas fa-exclamation-triangle me-2" style="color:#ef4444;"></i>';
+                html += '<strong style="color:#ef4444;">{% trans "Notes manquantes" %}</strong> - ';
+                html += "{% trans "Tous les participants éligibles n'ont pas encore recu leurs notes Tour 2." %}";
+                html += '</div>';
+            } else {
+                // Vérifier s'il y a des ex-aequo
+                const scores = t2Scores.map(e => e.scoreT2);
+                const hasTies = scores.length !== new Set(scores).size;
+
+                if (hasTies) {
+                    html += '<div style="background:rgba(245,158,11,0.15); border:1px solid #f59e0b; border-radius:8px; padding:0.75rem; margin-top:0.5rem;">';
+                    html += '<i class="fas fa-exclamation-circle me-2" style="color:#f59e0b;"></i>';
+                    html += '<strong style="color:#f59e0b;">{% trans "Ex-aequo détecté au Tour 2" %}</strong> - ';
+                    html += '{% trans "Un tour supplémentaire peut être nécessaire." %}';
+                    html += '</div>';
+                } else {
+                    html += '<div style="background:rgba(16,185,129,0.15); border:1px solid #10b981; border-radius:8px; padding:0.75rem; margin-top:0.5rem;">';
+                    html += '<i class="fas fa-check-circle me-2" style="color:#10b981;"></i>';
+                    html += '<strong style="color:#10b981;">{% trans "Pas de ex-aequo" %}</strong> - ';
+                    html += '{% trans "Le classement est départagé. La session peut être clôturée." %}';
+                    html += '</div>';
+                }
+            }
+        }
+
+        document.getElementById('tour2CheckContent').innerHTML = html;
+        document.getElementById('tour2CheckModal').style.display = 'flex';
+    }
+
+    function closeTour2Session() {
+        if (!confirm('{% trans "Clôturer le Tour 2 ? Les résultats devront être recalculés." %}')) return;
+
+        // Rediriger vers la page de résultats pour recalculer
+        const resultsUrl = '{% if competition %}{% url "competitions:management:category_results" competition.id category.id %}{% endif %}';
+        if (resultsUrl) {
+            window.location.href = resultsUrl;
+        } else {
+            alert('{% trans "Redirection vers les résultats..." %}');
+            window.history.back();
+        }
+    }
+
+    function lockScores() {
+        // Utiliser le nouveau modal PROMPT 10
+        if (typeof ScoringLockRanking !== 'undefined') {
+            ScoringLockRanking.openLockModal();
+        } else {
+            // Fallback: confirmation simple
+            lockScoresLegacy();
+        }
+    }
+
+    {% if is_chief_judge and session %}
+    function sessionAction(action) {
+        const labels = {
+            start: "{% trans 'Démarrer la notation' %}",
+            stop: "{% trans 'Arrêter la notation' %}",
+            validate: "{% trans 'Valider les résultats' %}",
+            close: "{% trans 'Clôturer la session' %}",
+            next_round: "{% trans 'Lancer le barrage' %}"
+        };
+        if (!confirm(labels[action] + ' ?')) return;
+        const urls = {
+            start: '{% url "competitions:technical_scoring:session_start" session.id %}',
+            stop: '{% url "competitions:technical_scoring:session_stop" session.id %}',
+            validate: '{% url "competitions:technical_scoring:session_validate" session.id %}',
+            close: '{% url "competitions:technical_scoring:session_close" session.id %}'
+        };
+        if (action === 'validate') {
+            const fd = new FormData();
+            fd.append('result', 'ok');
+            fetch(urls[action], {
+                method: 'POST',
+                headers: {'X-CSRFToken': '{{ csrf_token }}'},
+                body: fd
+            }).then(r => r.json()).then(d => {
+                if (d.success) location.reload();
+                else alert(d.error || d.message || 'Erreur');
+            }).catch(() => location.reload());
+        } else if (action === 'next_round') {
+            const fd = new FormData();
+            fd.append('result', 'tie');
+            fetch(urls['validate'], {
+                method: 'POST',
+                headers: {'X-CSRFToken': '{{ csrf_token }}'},
+                body: fd
+            }).then(r => r.json()).then(d => {
+                if (d.success) location.reload();
+                else alert(d.error || d.message || 'Erreur');
+            }).catch(() => location.reload());
+        } else {
+            fetch(urls[action], {
+                method: 'POST',
+                headers: {'X-CSRFToken': '{{ csrf_token }}'}
+            }).then(r => r.json()).then(d => {
+                if (d.success || d.status) location.reload();
+                else alert(d.error || d.message || 'Erreur');
+            }).catch(() => location.reload());
+        }
+    }
+    {% endif %}
+
+    // Legacy lock (fallback si JS pas chargé)
+    async function lockScoresLegacy() {
+        if (!confirm('Etes-vous sur de vouloir verrouiller vos notations ? Cette action est irreversible.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/{{ LANGUAGE_CODE }}/competitions/technical-scoring/api/category/${CATEGORY_ID}/lock-judge/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF_TOKEN
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                alert(data.message);
+                location.reload();
+            } else {
+                showError(data.message || 'Erreur lors du verrouillage');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Erreur de connexion');
+        }
+    }
+
+    // Show error message
+    function showError(message) {
+        alert(message);
+    }
+
+    // ===== RESET SCORES (pour les tests) =====
+    async function resetScores() {
+        if (!confirm('ATTENTION: Cette action va supprimer toutes vos notes pour cette categorie.\n\nCette action est IRREVERSIBLE.\n\nContinuer ?')) {
+            return;
+        }
+
+        // Double confirmation
+        if (!confirm('Etes-vous VRAIMENT sur de vouloir reinitialiser vos notes ?')) {
+            return;
+        }
+
+        const btn = document.getElementById('btnReset');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Reset...';
+
+        try {
+            const response = await fetch(`/{{ LANGUAGE_CODE }}/competitions/technical-scoring/api/category/${CATEGORY_ID}/reset-scores/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF_TOKEN
+                },
+                body: JSON.stringify({
+                    confirmed: true,
+                    judge_only: true  // Reset seulement mes scores
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert(data.message + '\n\nLa page va se recharger.');
+                location.reload();
+            } else {
+                showError(data.message || 'Erreur lors du reset');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-undo"></i> Reset (Test)';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Erreur de connexion');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-undo"></i> Reset (Test)';
+        }
+    }
+
+    // Close modals on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeScoringModal();
+            closeRankingModal();
+        }
+    });
+
+    // Close modals on backdrop click
+    document.querySelectorAll('.scoring-modal').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeScoringModal();
+                closeRankingModal();
+            }
+        });
+    });
+
+    // Auto-refresh for live updates (every 30 seconds)
+    {% if is_live %}
+    setInterval(function() {
+        // Only refresh if no modal is open (including PROMPT 10 modals)
+        const scoringModal = document.getElementById('scoringModal');
+        const rankingModal = document.getElementById('rankingModal');
+        const numpadModal = document.getElementById('scoringNumpadModal');
+        const lockModal = document.getElementById('lockModal');
+        const rankingTiesModal = document.getElementById('rankingTiesModal');
+
+        const anyModalOpen =
+            (scoringModal && scoringModal.classList.contains('active')) ||
+            (rankingModal && rankingModal.classList.contains('active')) ||
+            (numpadModal && numpadModal.classList.contains('show')) ||
+            (lockModal && lockModal.classList.contains('active')) ||
+            (rankingTiesModal && rankingTiesModal.classList.contains('active'));
+
+        if (!anyModalOpen) {
+            location.reload();
+        }
+    }, 30000);
+    {% endif %}
+</script>
+{% endblock %}
