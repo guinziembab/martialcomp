@@ -1111,10 +1111,16 @@ def calculate_results(request, competition_id, category_id):
                 perf_positions[perf_id].append(current_pos)
                 prev_score = score
 
-        # Calculer CCP Tour 1
+        # Calculer CCP Tour 1 (normalisé par le nombre de juges)
+        total_judges = len(judge_scores_map)
         ccp_results = []
         for perf_id, positions in perf_positions.items():
             weighted = [1.0 + (pos - 1) * ccp_coeff for pos in positions]
+            # Normaliser : si un pratiquant n'a pas été noté par tous les juges,
+            # les juges manquants comptent comme dernière position
+            while len(weighted) < total_judges:
+                last_pos = len(perf_map) + 1
+                weighted.append(1.0 + (last_pos - 1) * ccp_coeff)
             ccp_score = sum(weighted) if weighted else 999
             ccp_results.append({
                 'perf_id': perf_id,
