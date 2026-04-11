@@ -1198,6 +1198,75 @@ def calculate_results(request, competition_id, category_id):
             prev_ccp = cur_ccp
             prev_t2 = cur_t2
 
+        # En mode équipe, agréger les rankings par équipe
+        is_team_mode = False
+        try:
+            if category.competition_type and category.competition_type.team_based:
+                is_team_mode = True
+        except Exception:
+            pass
+
+        if is_team_mode:
+            from apps.competitions.models.combat import MembreEquipe
+            # Grouper les rankings par équipe
+            team_rankings = {}
+            solo_rankings = []
+            all_rankings = CompetitionRanking.objects.filter(
+                competition=competition, category=category
+            ).select_related('practitioner')
+
+            for ranking in all_rankings:
+                membership = MembreEquipe.objects.filter(
+                    pratiquant=ranking.practitioner,
+                    equipe__category=category,
+                    equipe__is_active=True,
+                ).select_related('equipe').first()
+                if membership:
+                    team_id = membership.equipe_id
+                    if team_id not in team_rankings:
+                        team_rankings[team_id] = {
+                            'rankings': [],
+                            'ccp_scores': [],
+                            'keeper': None,
+                        }
+                    team_rankings[team_id]['rankings'].append(ranking)
+                    team_rankings[team_id]['ccp_scores'].append(ranking.final_score)
+                    # Garder le premier membre comme représentant
+                    if team_rankings[team_id]['keeper'] is None:
+                        team_rankings[team_id]['keeper'] = ranking
+                else:
+                    solo_rankings.append(ranking)
+
+            # Pour chaque équipe : garder 1 ranking avec le CCP moyen, supprimer les doublons
+            for team_id, data in team_rankings.items():
+                avg_ccp = sum(data['ccp_scores']) / len(data['ccp_scores'])
+                keeper = data['keeper']
+                keeper.final_score = round(avg_ccp, 2)
+                keeper.save()
+                # Supprimer les autres rankings du même team
+                for r in data['rankings']:
+                    if r.id != keeper.id:
+                        r.delete()
+
+            # Recalculer les rangs après agrégation
+            final_rankings = list(CompetitionRanking.objects.filter(
+                competition=competition, category=category
+            ).order_by('final_score'))
+            prev_score = None
+            current_rank = 1
+            for i, ranking in enumerate(final_rankings):
+                if i > 0 and ranking.final_score == prev_score:
+                    ranking.rank = current_rank
+                    ranking.is_tie = True
+                    final_rankings[i-1].is_tie = True
+                    final_rankings[i-1].save()
+                else:
+                    current_rank = i + 1
+                    ranking.rank = current_rank
+                    ranking.is_tie = False
+                ranking.save()
+                prev_score = ranking.final_score
+
         messages.success(request, _("Les resultats CCP ont ete calcules avec succes."))
         return redirect('competitions:management:category_results',
                        competition_id=competition_id,
