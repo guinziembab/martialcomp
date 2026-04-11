@@ -1468,7 +1468,10 @@ def scoring_sheet(request, category_id):
         'tour2_launched': tour2_launched,
     }
 
-    return render(request, 'competitions/technical_scoring/scoring_sheet.html', context)
+    response = render(request, 'competitions/technical_scoring/scoring_sheet.html', context)
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Pragma'] = 'no-cache'
+    return response
 
 
 @login_required
