@@ -2178,6 +2178,20 @@ def category_results(request, competition_id, category_id):
                 ranking.is_team = False
                 ranking.team_members = []
 
+    # En mode équipe, dédupliquer : garder 1 seule ligne par équipe
+    if is_team_mode:
+        seen_teams = set()
+        deduplicated = []
+        for ranking in rankings_list:
+            team_name = getattr(ranking, 'team_name', None)
+            if team_name:
+                if team_name not in seen_teams:
+                    seen_teams.add(team_name)
+                    deduplicated.append(ranking)
+            else:
+                deduplicated.append(ranking)
+        rankings_list = deduplicated
+
     # Marquer les rankings éligibles au Tour 2 et ajouter les scores par tour
     for ranking in rankings_list:
         ranking.tour2_eligible = ranking.practitioner_id in tour2_eligible_ids
