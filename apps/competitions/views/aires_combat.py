@@ -403,8 +403,8 @@ def aire_kiosque_interface(request, token):
             'count': cat_combats.count() if hasattr(cat_combats, 'count') else len(cat_combats)
         }
 
-    # Limiter à 20 combats pour l'affichage global
-    combats_planifies = all_combats_planifies[:20]
+    # Afficher tous les combats planifiés (pas de limite)
+    combats_planifies = all_combats_planifies
 
     return render(request, 'competitions/combat/kiosque/interface.html', {
         'aire': aire,
