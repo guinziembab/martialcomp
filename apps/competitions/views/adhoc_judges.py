@@ -697,19 +697,42 @@ def remove_judge_from_category(request, competition_id):
 @manager_required
 def get_category_judges(request, competition_id, category_id):
     """
-    API pour récupérer les juges assignés à une catégorie.
+    API pour récupérer les juges assignés à une catégorie (officiels + ad-hoc).
     """
+    from apps.competitions.models.judges import JudgeAssignment
+
     competition = get_object_or_404(Competition, id=competition_id)
     category = get_object_or_404(CompetitionCategory, id=category_id, competition=competition)
 
-    # Récupérer les juges ad-hoc assignés à cette catégorie
+    judges_data = []
+
+    # 1. Juges officiels (via JudgeAssignment)
+    try:
+        official_assignments = JudgeAssignment.objects.filter(
+            category=category,
+            assignment_type='technical_judge',
+        ).select_related('registration', 'registration__user')
+
+        for assignment in official_assignments:
+            user = assignment.registration.user if assignment.registration else assignment.user
+            if user:
+                judges_data.append({
+                    'id': assignment.id,
+                    'name': user.get_full_name() or user.username,
+                    'judge_type': 'technical_judge',
+                    'judge_type_display': assignment.get_assignment_type_display(),
+                    'is_adhoc': False,
+                })
+    except Exception:
+        pass
+
+    # 2. Juges ad-hoc
     adhoc_judges = AdHocJudge.objects.filter(
         competition=competition,
         assigned_categories=category,
         status='active'
     ).select_related('practitioner', 'practitioner__organization')
 
-    judges_data = []
     for adhoc in adhoc_judges:
         judges_data.append({
             'id': adhoc.id,
@@ -719,7 +742,7 @@ def get_category_judges(request, competition_id, category_id):
             'judge_type_display': adhoc.get_judge_type_display(),
             'experience_level': adhoc.experience_level,
             'experience_level_display': adhoc.get_experience_level_display(),
-            'is_adhoc': True
+            'is_adhoc': True,
         })
 
     return JsonResponse({
