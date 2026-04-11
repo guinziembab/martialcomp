@@ -15,7 +15,8 @@ from apps.competitions.models import (
 )
 from apps.competitions.models.technical_scoring import (
     ScoringCriterion, JudgeSubmissionStatus, ScoringConfiguration,
-    CompetitionRanking, TechnicalPerformance, TechnicalScore, ScoringPreset
+    CompetitionRanking, TechnicalPerformance, TechnicalScore, ScoringPreset,
+    Performance, Score
 )
 from apps.competitions.utils.decorators import competition_management_permission_required
 from apps.competitions.forms.scoring import (
@@ -54,18 +55,16 @@ def scoring_dashboard(request, competition_id):
             category=category
         ).count()
         
-        # Nombre de pratiquants inscrits dans cette catégorie
-        category.performances_count = CompetitionRegistration.objects.filter(
-            competition=competition,
-            categories=category
-        ).count()
-        
-        # Nombre de performances terminées
-        category.completed_performances_count = TechnicalPerformance.objects.filter(
-            category=category,
-            status='completed'
-        ).count()
-        
+        # Nombre total de performances (modèle Performance utilisé par la feuille de notation)
+        total_perfs = Performance.objects.filter(category=category)
+        category.performances_count = total_perfs.count()
+
+        # Performances notées : celles qui ont au moins un score enregistré
+        scored_count = Score.objects.filter(
+            performance__category=category
+        ).values('performance').distinct().count()
+        category.completed_performances_count = scored_count
+
         # Progression
         if category.performances_count > 0:
             category.scoring_progress = int((category.completed_performances_count / category.performances_count) * 100)
