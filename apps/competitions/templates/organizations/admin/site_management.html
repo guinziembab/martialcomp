@@ -1271,10 +1271,48 @@
                     <div class="mb-3">
                         <label for="newsContent" class="form-label text-light">{% trans "Contenu" %} <span class="text-danger">*</span></label>
                         <textarea class="form-control" id="newsContent" rows="8" required
-                                  placeholder="{% trans 'Rédigez le contenu de votre actualité...' %}"
                                   style="background: var(--bg-tertiary); border-color: var(--border-color); color: var(--text-primary);"></textarea>
-                        <small class="text-muted">{% trans "Vous pouvez utiliser du HTML basique pour la mise en forme" %}</small>
                     </div>
+                    <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js"></script>
+                    <script>
+                    let tinyInitialized = false;
+                    document.getElementById('newsFormModal').addEventListener('shown.bs.modal', function() {
+                        if (tinyInitialized) { tinymce.get('newsContent') && tinymce.get('newsContent').destroy(); }
+                        tinymce.init({
+                            selector: '#newsContent',
+                            height: 400,
+                            skin: 'oxide-dark',
+                            content_css: 'dark',
+                            menubar: false,
+                            plugins: 'lists link image table code fullscreen',
+                            toolbar: 'undo redo | blocks bold italic underline | forecolor backcolor | alignleft aligncenter alignright | bullist numlist | image link table | code fullscreen',
+                            images_upload_handler: function(blobInfo) {
+                                return new Promise(function(resolve, reject) {
+                                    var fd = new FormData();
+                                    fd.append('image', blobInfo.blob(), blobInfo.filename());
+                                    fetch('/org/{{ organization.slug }}/api/gallery/upload/', {
+                                        method: 'POST',
+                                        headers: { 'X-CSRFToken': getCSRFToken() },
+                                        body: fd
+                                    })
+                                    .then(function(r) { return r.json(); })
+                                    .then(function(data) {
+                                        if (data.success) resolve(data.image_url || data.url);
+                                        else reject('Upload failed');
+                                    })
+                                    .catch(function() { reject('Upload error'); });
+                                });
+                            },
+                            setup: function(editor) {
+                                editor.on('init', function() {
+                                    var el = document.getElementById('newsContent');
+                                    if (el && el.value) editor.setContent(el.value);
+                                });
+                            }
+                        });
+                        tinyInitialized = true;
+                    });
+                    </script>
 
                     <div class="mb-3">
                         <label for="newsImage" class="form-label text-light">{% trans "Image principale" %}</label>
@@ -2228,6 +2266,7 @@ function editNews(newsId) {
             document.getElementById('newsTitle').value = news.title;
             document.getElementById('newsExcerpt').value = news.excerpt || '';
             document.getElementById('newsContent').value = news.content;
+            // TinyMCE sera initialisé au shown.bs.modal et chargera le contenu
             document.getElementById('newsIsPublished').checked = news.is_published;
             document.getElementById('newsIsFeatured').checked = news.is_featured;
 
@@ -2260,7 +2299,8 @@ function editNews(newsId) {
 function saveNews() {
     const newsId = document.getElementById('newsId').value;
     const title = document.getElementById('newsTitle').value.trim();
-    const content = document.getElementById('newsContent').value.trim();
+    const editor = tinymce.get('newsContent');
+    const content = editor ? editor.getContent().trim() : document.getElementById('newsContent').value.trim();
 
     if (!title) {
         showToast("{% trans 'Le titre est obligatoire' %}", 'error');
