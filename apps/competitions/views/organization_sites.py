@@ -1071,7 +1071,10 @@ def api_upload_gallery_image(request, slug):
         organization = get_object_or_404(Organization, slug=slug)
 
         # Vérifier les permissions
-        if not request.user.is_staff and not hasattr(request.user, 'managed_organizations'):
+        # Vérifier les permissions : staff, propriétaire du club, ou admin de l'organisation
+        from apps.competitions.models import Club
+        is_club_owner = Club.objects.filter(organization=organization, owner=request.user).exists()
+        if not request.user.is_staff and not is_club_owner:
             return JsonResponse({'success': False, 'error': 'Permission refusée'}, status=403)
 
         # Vérifier la limite de 10 images
@@ -1138,7 +1141,10 @@ def api_delete_gallery_image(request, slug, image_id):
         organization = get_object_or_404(Organization, slug=slug)
 
         # Vérifier les permissions
-        if not request.user.is_staff and not hasattr(request.user, 'managed_organizations'):
+        # Vérifier les permissions : staff, propriétaire du club, ou admin de l'organisation
+        from apps.competitions.models import Club
+        is_club_owner = Club.objects.filter(organization=organization, owner=request.user).exists()
+        if not request.user.is_staff and not is_club_owner:
             return JsonResponse({'success': False, 'error': 'Permission refusée'}, status=403)
 
         # Récupérer et supprimer l'image
@@ -1178,7 +1184,10 @@ def api_update_gallery_description(request, slug, image_id):
         organization = get_object_or_404(Organization, slug=slug)
 
         # Vérifier les permissions
-        if not request.user.is_staff and not hasattr(request.user, 'managed_organizations'):
+        # Vérifier les permissions : staff, propriétaire du club, ou admin de l'organisation
+        from apps.competitions.models import Club
+        is_club_owner = Club.objects.filter(organization=organization, owner=request.user).exists()
+        if not request.user.is_staff and not is_club_owner:
             return JsonResponse({'success': False, 'error': 'Permission refusée'}, status=403)
 
         # Récupérer l'image
@@ -1219,7 +1228,10 @@ def api_upload_banner(request, slug):
         organization = get_object_or_404(Organization, slug=slug)
 
         # Vérifier les permissions
-        if not request.user.is_staff and not hasattr(request.user, 'managed_organizations'):
+        # Vérifier les permissions : staff, propriétaire du club, ou admin de l'organisation
+        from apps.competitions.models import Club
+        is_club_owner = Club.objects.filter(organization=organization, owner=request.user).exists()
+        if not request.user.is_staff and not is_club_owner:
             return JsonResponse({'success': False, 'error': 'Permission refusée'}, status=403)
 
         # Récupérer le fichier
@@ -1267,7 +1279,10 @@ def api_delete_banner(request, slug):
         organization = get_object_or_404(Organization, slug=slug)
 
         # Vérifier les permissions
-        if not request.user.is_staff and not hasattr(request.user, 'managed_organizations'):
+        # Vérifier les permissions : staff, propriétaire du club, ou admin de l'organisation
+        from apps.competitions.models import Club
+        is_club_owner = Club.objects.filter(organization=organization, owner=request.user).exists()
+        if not request.user.is_staff and not is_club_owner:
             return JsonResponse({'success': False, 'error': 'Permission refusée'}, status=403)
 
         # Supprimer la bannière
@@ -1301,7 +1316,10 @@ def api_customize_organization(request, organization_id):
         organization = get_object_or_404(Organization, id=organization_id)
 
         # Vérifier les permissions
-        if not request.user.is_staff and not hasattr(request.user, 'managed_organizations'):
+        # Vérifier les permissions : staff, propriétaire du club, ou admin de l'organisation
+        from apps.competitions.models import Club
+        is_club_owner = Club.objects.filter(organization=organization, owner=request.user).exists()
+        if not request.user.is_staff and not is_club_owner:
             return JsonResponse({'success': False, 'error': 'Permission refusée'}, status=403)
 
         # Récupérer les données du formulaire
