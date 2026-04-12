@@ -2199,6 +2199,18 @@ def club_results(request):
             'score_display': f"{s['v']}V / {s['d']}D / {s['n']}N",
         })())
 
+    # Filtrer les résultats combat par pratiquant et recherche
+    if practitioner_id:
+        combat_results = [r for r in combat_results if str(r.practitioner.id) == str(practitioner_id)]
+    if search_query:
+        sq = search_query.lower()
+        combat_results = [r for r in combat_results if
+            sq in r.practitioner.first_name.lower() or
+            sq in r.practitioner.last_name.lower() or
+            sq in r.competition.title.lower() or
+            sq in r.category.name.lower()
+        ]
+
     # Calculer les statistiques de médailles
     gold_medals = rankings.filter(rank=1).count()
     silver_medals = rankings.filter(rank=2).count()
