@@ -1765,6 +1765,15 @@ def _check_news_permission(request, organization):
     except Exception as e:
         logger.error(f"[NEWS_PERM] Error checking OrganizationMember: {e}")
 
+    # 1b. Vérifier si propriétaire du club lié à l'organisation
+    try:
+        from apps.competitions.models import Club
+        if Club.objects.filter(organization=organization, owner=user).exists():
+            logger.info(f"[NEWS_PERM] User {user.id} is club owner - AUTHORIZED")
+            return True
+    except Exception as e:
+        logger.error(f"[NEWS_PERM] Error checking club owner: {e}")
+
     # 2. Vérifier si créateur de l'organisation
     if organization.created_by_id and organization.created_by_id == user.id:
         logger.info(f"[NEWS_PERM] User {user.id} is organization creator - AUTHORIZED")
