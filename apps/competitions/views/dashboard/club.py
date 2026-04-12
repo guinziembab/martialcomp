@@ -2240,36 +2240,34 @@ def club_results(request):
         cat = (c.poule.category if c.poule and c.poule.category else None) or (c.equipe_rouge.category if c.equipe_rouge else None)
         if not cat:
             continue
-        # Trouver un membre du club dans cette équipe pour l'affichage
-        membre = MembreEquipe.objects.filter(equipe=c.equipe_rouge, pratiquant__in=practitioners).select_related('pratiquant').first()
-        if not membre:
-            continue
-        key = (membre.pratiquant.id, cat.id, c.competition_id)
-        s = combat_stats_map[key]
-        s['comp'], s['cat'], s['prat'] = c.competition, cat, membre.pratiquant
-        s['team_name'] = c.equipe_rouge.nom
-        s['pts_for'] += float(c.score_rouge or 0)
-        s['pts_against'] += float(c.score_blanc or 0)
-        if c.est_nul: s['n'] += 1
-        elif c.vainqueur == 'rouge': s['v'] += 1
-        else: s['d'] += 1
+        # Créer un résultat pour CHAQUE membre du club dans cette équipe
+        membres = MembreEquipe.objects.filter(equipe=c.equipe_rouge, pratiquant__in=practitioners).select_related('pratiquant')
+        for membre in membres:
+            key = (membre.pratiquant.id, cat.id, c.competition_id)
+            s = combat_stats_map[key]
+            s['comp'], s['cat'], s['prat'] = c.competition, cat, membre.pratiquant
+            s['team_name'] = c.equipe_rouge.nom
+            s['pts_for'] += float(c.score_rouge or 0)
+            s['pts_against'] += float(c.score_blanc or 0)
+            if c.est_nul: s['n'] += 1
+            elif c.vainqueur == 'rouge': s['v'] += 1
+            else: s['d'] += 1
 
     for c in Combat.objects.filter(equipe_blanc_id__in=club_equipe_ids, **combat_filter_q).select_related('competition', 'equipe_blanc', 'equipe_blanc__category', 'poule__category'):
         cat = (c.poule.category if c.poule and c.poule.category else None) or (c.equipe_blanc.category if c.equipe_blanc else None)
         if not cat:
             continue
-        membre = MembreEquipe.objects.filter(equipe=c.equipe_blanc, pratiquant__in=practitioners).select_related('pratiquant').first()
-        if not membre:
-            continue
-        key = (membre.pratiquant.id, cat.id, c.competition_id)
-        s = combat_stats_map[key]
-        s['comp'], s['cat'], s['prat'] = c.competition, cat, membre.pratiquant
-        s['team_name'] = c.equipe_blanc.nom
-        s['pts_for'] += float(c.score_blanc or 0)
-        s['pts_against'] += float(c.score_rouge or 0)
-        if c.est_nul: s['n'] += 1
-        elif c.vainqueur == 'blanc': s['v'] += 1
-        else: s['d'] += 1
+        membres = MembreEquipe.objects.filter(equipe=c.equipe_blanc, pratiquant__in=practitioners).select_related('pratiquant')
+        for membre in membres:
+            key = (membre.pratiquant.id, cat.id, c.competition_id)
+            s = combat_stats_map[key]
+            s['comp'], s['cat'], s['prat'] = c.competition, cat, membre.pratiquant
+            s['team_name'] = c.equipe_blanc.nom
+            s['pts_for'] += float(c.score_blanc or 0)
+            s['pts_against'] += float(c.score_rouge or 0)
+            if c.est_nul: s['n'] += 1
+            elif c.vainqueur == 'blanc': s['v'] += 1
+            else: s['d'] += 1
 
     # Calculer le rang combat par catégorie (classement global comme le classement live)
     # Pour chaque catégorie combat, calculer le classement de TOUS les participants
