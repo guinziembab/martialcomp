@@ -2176,24 +2176,36 @@ def club_results(request):
             Q(category_id__in=prat_team_cats)
         )
 
-    # Recherche par nom
+    # Recherche par nom — chercher aussi dans les membres d'équipes
     search_query = request.GET.get('q', '').strip()
     if search_query:
+        # Trouver les catégories d'équipes dont un membre matche la recherche
+        matching_prats = Practitioner.objects.filter(
+            Q(first_name__icontains=search_query) | Q(last_name__icontains=search_query)
+        )
+        team_cat_ids = MembreEquipe.objects.filter(
+            pratiquant__in=matching_prats,
+            equipe__is_active=True,
+            equipe__category__isnull=False,
+        ).values_list('equipe__category_id', flat=True)
+
         rankings = rankings.filter(
             Q(practitioner__first_name__icontains=search_query) |
             Q(practitioner__last_name__icontains=search_query) |
             Q(competition__title__icontains=search_query) |
-            Q(category__name__icontains=search_query)
+            Q(category__name__icontains=search_query) |
+            Q(category_id__in=team_cat_ids)
         )
 
-    # ===== RÉSULTATS COMBAT (poules) par pratiquant =====
+    # ===== RÉSULTATS COMBAT (poules + équipes) par pratiquant =====
     combat_filter_q = {'status': 'termine'}
     if competition_id:
         combat_filter_q['competition_id'] = competition_id
 
     from collections import defaultdict
-    combat_stats_map = defaultdict(lambda: {'v': 0, 'd': 0, 'n': 0, 'pts_for': 0, 'pts_against': 0, 'comp': None, 'cat': None, 'prat': None})
+    combat_stats_map = defaultdict(lambda: {'v': 0, 'd': 0, 'n': 0, 'pts_for': 0, 'pts_against': 0, 'comp': None, 'cat': None, 'prat': None, 'team_name': None})
 
+    # Combats individuels (pratiquant_rouge/blanc)
     for c in Combat.objects.filter(pratiquant_rouge__in=practitioners, **combat_filter_q).select_related('competition', 'pratiquant_rouge', 'poule__category', 'equipe_rouge__category'):
         cat = (c.poule.category if c.poule and c.poule.category else None) or (c.equipe_rouge.category if c.equipe_rouge and hasattr(c.equipe_rouge, 'category') else None)
         if not cat:
@@ -2212,6 +2224,47 @@ def club_results(request):
             continue
         s = combat_stats_map[(c.pratiquant_blanc_id, cat.id, c.competition_id)]
         s['comp'], s['cat'], s['prat'] = c.competition, cat, c.pratiquant_blanc
+        s['pts_for'] += float(c.score_blanc or 0)
+        s['pts_against'] += float(c.score_rouge or 0)
+        if c.est_nul: s['n'] += 1
+        elif c.vainqueur == 'blanc': s['v'] += 1
+        else: s['d'] += 1
+
+    # Combats par équipe (equipe_rouge/blanc contenant des membres du club)
+    club_equipe_ids = MembreEquipe.objects.filter(
+        pratiquant__in=practitioners,
+        equipe__is_active=True,
+    ).values_list('equipe_id', flat=True).distinct()
+
+    for c in Combat.objects.filter(equipe_rouge_id__in=club_equipe_ids, **combat_filter_q).select_related('competition', 'equipe_rouge', 'equipe_rouge__category', 'poule__category'):
+        cat = (c.poule.category if c.poule and c.poule.category else None) or (c.equipe_rouge.category if c.equipe_rouge else None)
+        if not cat:
+            continue
+        # Trouver un membre du club dans cette équipe pour l'affichage
+        membre = MembreEquipe.objects.filter(equipe=c.equipe_rouge, pratiquant__in=practitioners).select_related('pratiquant').first()
+        if not membre:
+            continue
+        key = (membre.pratiquant.id, cat.id, c.competition_id)
+        s = combat_stats_map[key]
+        s['comp'], s['cat'], s['prat'] = c.competition, cat, membre.pratiquant
+        s['team_name'] = c.equipe_rouge.nom
+        s['pts_for'] += float(c.score_rouge or 0)
+        s['pts_against'] += float(c.score_blanc or 0)
+        if c.est_nul: s['n'] += 1
+        elif c.vainqueur == 'rouge': s['v'] += 1
+        else: s['d'] += 1
+
+    for c in Combat.objects.filter(equipe_blanc_id__in=club_equipe_ids, **combat_filter_q).select_related('competition', 'equipe_blanc', 'equipe_blanc__category', 'poule__category'):
+        cat = (c.poule.category if c.poule and c.poule.category else None) or (c.equipe_blanc.category if c.equipe_blanc else None)
+        if not cat:
+            continue
+        membre = MembreEquipe.objects.filter(equipe=c.equipe_blanc, pratiquant__in=practitioners).select_related('pratiquant').first()
+        if not membre:
+            continue
+        key = (membre.pratiquant.id, cat.id, c.competition_id)
+        s = combat_stats_map[key]
+        s['comp'], s['cat'], s['prat'] = c.competition, cat, membre.pratiquant
+        s['team_name'] = c.equipe_blanc.nom
         s['pts_for'] += float(c.score_blanc or 0)
         s['pts_against'] += float(c.score_rouge or 0)
         if c.est_nul: s['n'] += 1
