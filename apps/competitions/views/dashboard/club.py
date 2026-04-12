@@ -2236,38 +2236,52 @@ def club_results(request):
         equipe__is_active=True,
     ).values_list('equipe_id', flat=True).distinct()
 
+    # Pré-charger les membres par équipe pour éviter les requêtes N+1
+    equipe_members_cache = {}
+    for eid in club_equipe_ids:
+        members = list(MembreEquipe.objects.filter(
+            equipe_id=eid, est_remplacant=False
+        ).select_related('pratiquant').order_by('ordre'))
+        equipe_members_cache[eid] = members
+
     for c in Combat.objects.filter(equipe_rouge_id__in=club_equipe_ids, **combat_filter_q).select_related('competition', 'equipe_rouge', 'equipe_rouge__category', 'poule__category'):
         cat = (c.poule.category if c.poule and c.poule.category else None) or (c.equipe_rouge.category if c.equipe_rouge else None)
         if not cat:
             continue
-        # Créer un résultat pour CHAQUE membre du club dans cette équipe
-        membres = MembreEquipe.objects.filter(equipe=c.equipe_rouge, pratiquant__in=practitioners).select_related('pratiquant')
-        for membre in membres:
-            key = (membre.pratiquant.id, cat.id, c.competition_id)
-            s = combat_stats_map[key]
-            s['comp'], s['cat'], s['prat'] = c.competition, cat, membre.pratiquant
-            s['team_name'] = c.equipe_rouge.nom
-            s['pts_for'] += float(c.score_rouge or 0)
-            s['pts_against'] += float(c.score_blanc or 0)
-            if c.est_nul: s['n'] += 1
-            elif c.vainqueur == 'rouge': s['v'] += 1
-            else: s['d'] += 1
+        # Une seule entrée par équipe (clé = equipe_id, pas pratiquant_id)
+        key = (c.equipe_rouge_id, cat.id, c.competition_id)
+        s = combat_stats_map[key]
+        members = equipe_members_cache.get(c.equipe_rouge_id, [])
+        first_prat = members[0].pratiquant if members else None
+        s['comp'], s['cat'] = c.competition, cat
+        s['prat'] = first_prat
+        s['team_name'] = c.equipe_rouge.nom
+        s['members_names'] = ', '.join([m.pratiquant.full_name for m in members])
+        s['equipe_id'] = c.equipe_rouge_id
+        s['pts_for'] += float(c.score_rouge or 0)
+        s['pts_against'] += float(c.score_blanc or 0)
+        if c.est_nul: s['n'] += 1
+        elif c.vainqueur == 'rouge': s['v'] += 1
+        else: s['d'] += 1
 
     for c in Combat.objects.filter(equipe_blanc_id__in=club_equipe_ids, **combat_filter_q).select_related('competition', 'equipe_blanc', 'equipe_blanc__category', 'poule__category'):
         cat = (c.poule.category if c.poule and c.poule.category else None) or (c.equipe_blanc.category if c.equipe_blanc else None)
         if not cat:
             continue
-        membres = MembreEquipe.objects.filter(equipe=c.equipe_blanc, pratiquant__in=practitioners).select_related('pratiquant')
-        for membre in membres:
-            key = (membre.pratiquant.id, cat.id, c.competition_id)
-            s = combat_stats_map[key]
-            s['comp'], s['cat'], s['prat'] = c.competition, cat, membre.pratiquant
-            s['team_name'] = c.equipe_blanc.nom
-            s['pts_for'] += float(c.score_blanc or 0)
-            s['pts_against'] += float(c.score_rouge or 0)
-            if c.est_nul: s['n'] += 1
-            elif c.vainqueur == 'blanc': s['v'] += 1
-            else: s['d'] += 1
+        key = (c.equipe_blanc_id, cat.id, c.competition_id)
+        s = combat_stats_map[key]
+        members = equipe_members_cache.get(c.equipe_blanc_id, [])
+        first_prat = members[0].pratiquant if members else None
+        s['comp'], s['cat'] = c.competition, cat
+        s['prat'] = first_prat
+        s['team_name'] = c.equipe_blanc.nom
+        s['members_names'] = ', '.join([m.pratiquant.full_name for m in members])
+        s['equipe_id'] = c.equipe_blanc_id
+        s['pts_for'] += float(c.score_blanc or 0)
+        s['pts_against'] += float(c.score_rouge or 0)
+        if c.est_nul: s['n'] += 1
+        elif c.vainqueur == 'blanc': s['v'] += 1
+        else: s['d'] += 1
 
     # Calculer le rang combat par catégorie (classement global comme le classement live)
     # Pour chaque catégorie combat, calculer le classement de TOUS les participants
@@ -2322,30 +2336,38 @@ def club_results(request):
     # Construire les résultats combat avec le rang global
     combat_results = []
     for key, s in combat_stats_map.items():
-        prat_id, cat_id, comp_id = key
+        entity_id, cat_id, comp_id = key
         rank_map = global_rankings.get((cat_id, comp_id), {})
-        # Chercher le rang via equipe ou pratiquant
-        rank = None
-        if s['team_name']:
-            # Chercher par equipe_id
-            for eq_key, pos in rank_map.items():
-                if eq_key.startswith('eq_'):
-                    eq_id = int(eq_key[3:])
-                    if MembreEquipe.objects.filter(equipe_id=eq_id, pratiquant_id=prat_id).exists():
-                        rank = pos
-                        break
+
+        # Chercher le rang via equipe_id ou pratiquant_id
+        equipe_id = s.get('equipe_id')
+        rank = rank_map.get(f'eq_{equipe_id}') if equipe_id else None
         if rank is None:
-            rank = rank_map.get(f'pr_{prat_id}', rank_map.get(f'eq_{prat_id}', 0))
+            rank = rank_map.get(f'pr_{entity_id}', rank_map.get(f'eq_{entity_id}', 0))
+
+        # Pour les équipes : afficher le nom d'équipe comme nom principal
+        if s['team_name'] and s['prat']:
+            display_prat = type('TeamPractitioner', (), {
+                'id': s['prat'].id,
+                'full_name': s['team_name'],
+                'first_name': s['prat'].first_name,
+                'last_name': s['prat'].last_name,
+                'organization': s['prat'].organization,
+            })()
+            team_display = s.get('members_names', '')
+        else:
+            display_prat = s['prat']
+            team_display = s['team_name']
 
         combat_results.append(type('CombatResult', (), {
-            'practitioner': s['prat'],
+            'practitioner': display_prat,
             'competition': s['comp'],
             'category': s['cat'],
             'rank': rank or 0,
             'final_score': None,
             'is_combat': True,
             'is_tie': False,
-            'team_name': s['team_name'],
+            'team_name': team_display,
             'victories': s['v'],
             'defeats': s['d'],
             'draws': s['n'],
@@ -2451,26 +2473,34 @@ def club_results(request):
                     team = ms.equipe
 
             if team:
-                # Créer une entrée pour chaque membre du club dans cette équipe
-                club_members = MembreEquipe.objects.filter(
-                    equipe=team,
-                    pratiquant__in=practitioners,
-                ).select_related('pratiquant')
-                for cm in club_members:
-                    key = (cm.pratiquant.id, r.category.id, r.competition.id)
-                    if key not in seen_keys:
-                        seen_keys.add(key)
-                        entry = type('TeamRanking', (), {
-                            'practitioner': cm.pratiquant,
-                            'competition': r.competition,
-                            'category': r.category,
-                            'rank': r.rank,
-                            'final_score': r.final_score,
-                            'is_combat': False,
-                            'is_tie': getattr(r, 'is_tie', False),
-                            'team_name': team.nom,
-                        })()
-                        rankings_list.append(entry)
+                # Une seule entrée par équipe avec les noms des membres
+                key = (team.id, r.category.id, r.competition.id)
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    # Lister les membres de l'équipe
+                    all_members = list(team.memberships.filter(
+                        est_remplacant=False
+                    ).select_related('pratiquant').order_by('ordre'))
+                    # Utiliser le premier membre comme practitioner pour l'avatar
+                    display_prat = all_members[0].pratiquant if all_members else r.practitioner
+                    members_names = ', '.join([m.pratiquant.full_name for m in all_members])
+                    entry = type('TeamRanking', (), {
+                        'practitioner': type('TeamPractitioner', (), {
+                            'id': display_prat.id,
+                            'full_name': team.nom,
+                            'first_name': display_prat.first_name,
+                            'last_name': display_prat.last_name,
+                            'organization': display_prat.organization,
+                        })(),
+                        'competition': r.competition,
+                        'category': r.category,
+                        'rank': r.rank,
+                        'final_score': r.final_score,
+                        'is_combat': False,
+                        'is_tie': getattr(r, 'is_tie', False),
+                        'team_name': members_names,
+                    })()
+                    rankings_list.append(entry)
             else:
                 rankings_list.append(r)
         else:
