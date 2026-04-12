@@ -2309,6 +2309,7 @@ def api_generate_competition_article(request, slug):
         medalists_html = ''
         if rankings.filter(rank__lte=3).exists():
             current_cat = None
+            seen_teams = set()
             for ranking in rankings.filter(rank__lte=3).order_by('category__name', 'rank'):
                 cat_name = ranking.category.name if ranking.category else '-'
                 if cat_name != current_cat:
@@ -2316,9 +2317,41 @@ def api_generate_competition_article(request, slug):
                         medalists_html += '</div>'
                     medalists_html += f'<div style="margin-bottom: 16px;"><h4 style="color: #a78bfa; font-size: 0.95em; margin: 0 0 8px 0;">{cat_name}</h4>'
                     current_cat = cat_name
+                    seen_teams = set()
                 medal = {1: '🥇', 2: '🥈', 3: '🥉'}.get(ranking.rank, '')
                 name = ranking.practitioner.full_name if ranking.practitioner else '-'
-                medalists_html += f'<div style="padding: 4px 0; color: #e0e0e0;">{medal} {name}</div>'
+
+                # Pour les catégories équipe, afficher tous les membres
+                is_team = False
+                try:
+                    if ranking.category.competition_type and ranking.category.competition_type.team_based:
+                        is_team = True
+                except Exception:
+                    pass
+
+                if is_team:
+                    # Trouver l'équipe via le membership
+                    membership = MembreEquipe.objects.filter(
+                        equipe__category=ranking.category,
+                        equipe__is_active=True,
+                        pratiquant=ranking.practitioner,
+                    ).select_related('equipe').first()
+                    if not membership:
+                        membership = MembreEquipe.objects.filter(
+                            equipe__category=ranking.category,
+                            equipe__is_active=True,
+                            equipe__memberships__pratiquant=ranking.practitioner,
+                        ).select_related('equipe').first()
+                    if membership and membership.equipe.id not in seen_teams:
+                        seen_teams.add(membership.equipe.id)
+                        team = membership.equipe
+                        members = list(team.memberships.filter(est_remplacant=False).select_related('pratiquant').order_by('ordre'))
+                        members_str = ', '.join([m.pratiquant.full_name for m in members])
+                        medalists_html += f'<div style="padding: 4px 0; color: #e0e0e0;">{medal} <strong>{team.nom}</strong> <span style="color: #a0a0a0; font-size: 0.9em;">({members_str})</span></div>'
+                    elif not membership:
+                        medalists_html += f'<div style="padding: 4px 0; color: #e0e0e0;">{medal} {name}</div>'
+                else:
+                    medalists_html += f'<div style="padding: 4px 0; color: #e0e0e0;">{medal} {name}</div>'
             if current_cat is not None:
                 medalists_html += '</div>'
 
