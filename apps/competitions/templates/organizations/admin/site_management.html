@@ -2253,7 +2253,7 @@ function resetNewsForm() {
 }
 
 function editNews(newsId) {
-    showLoading("{% trans 'Chargement...' %}");
+    console.log('[editNews] Loading article ID:', newsId);
 
     fetch(`/org/{{ organization.slug }}/api/news/${newsId}/`, {
         method: 'GET',
@@ -2261,9 +2261,12 @@ function editNews(newsId) {
             'X-CSRFToken': getCSRFToken()
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('[editNews] Response status:', response.status);
+        return response.json();
+    })
     .then(data => {
-        hideLoading();
+        console.log('[editNews] Data:', data.success, data.error);
         if (data.success) {
             const news = data.news;
             document.getElementById('newsId').value = news.id;
@@ -2274,11 +2277,9 @@ function editNews(newsId) {
             document.getElementById('newsIsPublished').checked = news.is_published;
             document.getElementById('newsIsFeatured').checked = news.is_featured;
 
-            // Update modal title and button
             document.getElementById('newsFormModalTitle').innerHTML = '<i class="fas fa-edit me-2 text-warning"></i>' + "{% trans 'Modifier actualite' %}";
             document.getElementById('newsSubmitText').textContent = "{% trans 'Enregistrer' %}";
 
-            // Show existing image if any
             if (news.image_url) {
                 const preview = document.getElementById('newsImagePreview');
                 preview.querySelector('img').src = news.image_url;
@@ -2287,16 +2288,14 @@ function editNews(newsId) {
                 document.getElementById('newsImagePreview').style.display = 'none';
             }
 
-            // Open modal
             new bootstrap.Modal(document.getElementById('newsFormModal')).show();
         } else {
-            showToast(data.error || "{% trans 'Erreur de chargement' %}", 'error');
+            alert("Erreur: " + (data.error || "Impossible de charger l'article. Vérifiez vos permissions."));
         }
     })
     .catch(error => {
-        hideLoading();
-        showToast("{% trans 'Erreur de communication' %}", 'error');
-        console.error('Load news error:', error);
+        console.error('[editNews] Error:', error);
+        alert("Erreur de communication avec le serveur. Voir la console.");
     });
 }
 
