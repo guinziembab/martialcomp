@@ -2151,6 +2151,54 @@ def club_results(request):
             Q(category__name__icontains=search_query)
         )
 
+    # ===== RÉSULTATS COMBAT (poules) par pratiquant =====
+    combat_filter_q = {'status': 'termine'}
+    if competition_id:
+        combat_filter_q['competition_id'] = competition_id
+
+    from collections import defaultdict
+    combat_stats_map = defaultdict(lambda: {'v': 0, 'd': 0, 'n': 0, 'pts_for': 0, 'pts_against': 0, 'comp': None, 'cat': None, 'prat': None})
+
+    for c in Combat.objects.filter(pratiquant_rouge__in=practitioners, **combat_filter_q).select_related('competition', 'pratiquant_rouge', 'poule__category', 'equipe_rouge__category'):
+        cat = (c.poule.category if c.poule and c.poule.category else None) or (c.equipe_rouge.category if c.equipe_rouge and hasattr(c.equipe_rouge, 'category') else None)
+        if not cat:
+            continue
+        s = combat_stats_map[(c.pratiquant_rouge_id, cat.id, c.competition_id)]
+        s['comp'], s['cat'], s['prat'] = c.competition, cat, c.pratiquant_rouge
+        s['pts_for'] += float(c.score_rouge or 0)
+        s['pts_against'] += float(c.score_blanc or 0)
+        if c.est_nul: s['n'] += 1
+        elif c.vainqueur == 'rouge': s['v'] += 1
+        else: s['d'] += 1
+
+    for c in Combat.objects.filter(pratiquant_blanc__in=practitioners, **combat_filter_q).select_related('competition', 'pratiquant_blanc', 'poule__category', 'equipe_blanc__category'):
+        cat = (c.poule.category if c.poule and c.poule.category else None) or (c.equipe_blanc.category if c.equipe_blanc and hasattr(c.equipe_blanc, 'category') else None)
+        if not cat:
+            continue
+        s = combat_stats_map[(c.pratiquant_blanc_id, cat.id, c.competition_id)]
+        s['comp'], s['cat'], s['prat'] = c.competition, cat, c.pratiquant_blanc
+        s['pts_for'] += float(c.score_blanc or 0)
+        s['pts_against'] += float(c.score_rouge or 0)
+        if c.est_nul: s['n'] += 1
+        elif c.vainqueur == 'blanc': s['v'] += 1
+        else: s['d'] += 1
+
+    combat_results = []
+    for key, s in combat_stats_map.items():
+        combat_results.append(type('CombatResult', (), {
+            'practitioner': s['prat'],
+            'competition': s['comp'],
+            'category': s['cat'],
+            'rank': None,
+            'final_score': None,
+            'is_combat': True,
+            'is_tie': False,
+            'victories': s['v'],
+            'defeats': s['d'],
+            'draws': s['n'],
+            'score_display': f"{s['v']}V / {s['d']}D / {s['n']}N",
+        })())
+
     # Calculer les statistiques de médailles
     gold_medals = rankings.filter(rank=1).count()
     silver_medals = rankings.filter(rank=2).count()
@@ -2203,8 +2251,16 @@ def club_results(request):
     # Taux de victoire
     taux_victoire = (total_victoires / total_combats * 100) if total_combats > 0 else 0
 
+    # Combiner résultats techniques + combat
+    all_results = list(rankings) + combat_results
+    # Trier par compétition (date desc), puis rang
+    all_results.sort(key=lambda r: (
+        -(r.competition.start_date.toordinal() if r.competition and r.competition.start_date else 0),
+        r.rank or 999
+    ))
+
     # Pagination
-    paginator = Paginator(rankings, 20)
+    paginator = Paginator(all_results, 20)
     page_number = request.GET.get('page')
     results_page = paginator.get_page(page_number)
 
