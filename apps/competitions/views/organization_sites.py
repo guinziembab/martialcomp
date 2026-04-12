@@ -2411,21 +2411,44 @@ def api_generate_competition_article(request, slug):
             if not poules.exists():
                 continue
 
-            all_stats = dd(lambda: {'v': 0, 'pts_for': 0, 'pts_against': 0, 'nom': '', 'equipe': None})
+            all_stats = dd(lambda: {'v': 0, 'pts_for': 0, 'pts_against': 0, 'nom': '', 'equipe': None, 'prat': None, 'is_individual': False})
             for poule in poules:
-                cat_combats = Combat.objects.filter(poule=poule, status='termine')
+                cat_combats = Combat.objects.filter(poule=poule, status='termine').select_related(
+                    'equipe_rouge', 'equipe_blanc', 'pratiquant_rouge', 'pratiquant_blanc',
+                    'pratiquant_rouge__organization', 'pratiquant_blanc__organization',
+                    'pratiquant_rouge__grade', 'pratiquant_blanc__grade'
+                )
                 for c in cat_combats:
+                    # Mode equipe
                     if c.equipe_rouge_id:
-                        s = all_stats[c.equipe_rouge_id]
+                        s = all_stats[f'eq_{c.equipe_rouge_id}']
                         s['nom'] = c.equipe_rouge.nom
                         s['equipe'] = c.equipe_rouge
                         s['pts_for'] += float(c.score_rouge or 0)
                         s['pts_against'] += float(c.score_blanc or 0)
                         if c.vainqueur == 'rouge': s['v'] += 1
+                    elif c.pratiquant_rouge_id:
+                        # Mode individuel
+                        s = all_stats[f'pr_{c.pratiquant_rouge_id}']
+                        s['nom'] = c.pratiquant_rouge.full_name
+                        s['prat'] = c.pratiquant_rouge
+                        s['is_individual'] = True
+                        s['pts_for'] += float(c.score_rouge or 0)
+                        s['pts_against'] += float(c.score_blanc or 0)
+                        if c.vainqueur == 'rouge': s['v'] += 1
+
                     if c.equipe_blanc_id:
-                        s = all_stats[c.equipe_blanc_id]
+                        s = all_stats[f'eq_{c.equipe_blanc_id}']
                         s['nom'] = c.equipe_blanc.nom
                         s['equipe'] = c.equipe_blanc
+                        s['pts_for'] += float(c.score_blanc or 0)
+                        s['pts_against'] += float(c.score_rouge or 0)
+                        if c.vainqueur == 'blanc': s['v'] += 1
+                    elif c.pratiquant_blanc_id:
+                        s = all_stats[f'pr_{c.pratiquant_blanc_id}']
+                        s['nom'] = c.pratiquant_blanc.full_name
+                        s['prat'] = c.pratiquant_blanc
+                        s['is_individual'] = True
                         s['pts_for'] += float(c.score_blanc or 0)
                         s['pts_against'] += float(c.score_rouge or 0)
                         if c.vainqueur == 'blanc': s['v'] += 1
@@ -2437,28 +2460,36 @@ def api_generate_competition_article(request, slug):
                 -x[1]['v'], -(x[1]['pts_for'] - x[1]['pts_against']), -x[1]['pts_for']
             ))
 
-            # Trouver les pratiquants du club dans le classement
+            # Trouver les pratiquants/equipes du club dans le classement
             club_entries = []
-            for pos, (eid, s) in enumerate(sorted_stats, 1):
-                # Vérifier si cette équipe appartient au club
-                equipe = s.get('equipe')
-                if equipe and equipe.club and equipe.club.organization == organization:
-                    members = list(equipe.memberships.filter(est_remplacant=False).select_related('pratiquant', 'pratiquant__grade').order_by('ordre'))
-                    club_entries.append({'pos': pos, 'nom': s['nom'], 'v': s['v'], 'members': members, 'equipe': equipe})
+            for pos, (sid, s) in enumerate(sorted_stats, 1):
+                if s['is_individual']:
+                    # Combat individuel : verifier si le pratiquant est du club
+                    prat = s.get('prat')
+                    if prat and prat.organization == organization:
+                        grade = get_grade_str(prat)
+                        grade_html = f' <em style="color:#888; font-size:0.85em;">- {grade}</em>' if grade else ''
+                        club_entries.append({'pos': pos, 'html': f'{s["nom"]}{grade_html}', 'v': s['v'], 'is_team': False})
+                else:
+                    # Combat equipe
+                    equipe = s.get('equipe')
+                    if equipe and equipe.club and equipe.club.organization == organization:
+                        members = list(equipe.memberships.filter(est_remplacant=False).select_related('pratiquant', 'pratiquant__grade').order_by('ordre'))
+                        members_parts = []
+                        for m in members:
+                            grade = get_grade_str(m.pratiquant)
+                            if grade:
+                                members_parts.append(f'{m.pratiquant.full_name} <em style="color:#888; font-size:0.85em;">({grade})</em>')
+                            else:
+                                members_parts.append(m.pratiquant.full_name)
+                        members_str = ', '.join(members_parts)
+                        club_entries.append({'pos': pos, 'html': f'<strong>{s["nom"]}</strong><br/><span style="color: #666; font-size: 0.9em; padding-left: 24px;">{members_str}</span>', 'v': s['v'], 'is_team': True})
 
             if club_entries:
                 combat_medalists_html += f'<div style="margin-bottom: 16px;"><h4 style="color: #5b21b6; font-size: 0.95em; margin: 0 0 8px 0;">🥊 {cat.name}</h4>'
                 for entry in club_entries:
                     medal = {1: '🥇', 2: '🥈', 3: '🥉'}.get(entry['pos'], f'{entry["pos"]}.')
-                    members_parts = []
-                    for m in entry['members']:
-                        grade = get_grade_str(m.pratiquant)
-                        if grade:
-                            members_parts.append(f'{m.pratiquant.full_name} <em style="color:#888; font-size:0.85em;">({grade})</em>')
-                        else:
-                            members_parts.append(m.pratiquant.full_name)
-                    members_str = ', '.join(members_parts)
-                    combat_medalists_html += f'<div style="padding: 6px 0; color: #222;">{medal} <strong>{entry["nom"]}</strong> ({entry["v"]}V)<br/><span style="color: #666; font-size: 0.9em; padding-left: 24px;">{members_str}</span></div>'
+                    combat_medalists_html += f'<div style="padding: 6px 0; color: #222;">{medal} {entry["html"]} ({entry["v"]}V)</div>'
                 combat_medalists_html += '</div>'
 
         if combat_medalists_html:
