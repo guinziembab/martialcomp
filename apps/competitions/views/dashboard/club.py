@@ -2271,21 +2271,36 @@ def club_results(request):
         elif c.vainqueur == 'blanc': s['v'] += 1
         else: s['d'] += 1
 
-    combat_results = []
+    # Calculer le rang combat par catégorie (basé sur victoires)
+    # Regrouper par (cat_id, comp_id) pour classer
+    from itertools import groupby
+    cat_comp_groups = defaultdict(list)
     for key, s in combat_stats_map.items():
-        combat_results.append(type('CombatResult', (), {
-            'practitioner': s['prat'],
-            'competition': s['comp'],
-            'category': s['cat'],
-            'rank': None,
-            'final_score': None,
-            'is_combat': True,
-            'is_tie': False,
-            'victories': s['v'],
-            'defeats': s['d'],
-            'draws': s['n'],
-            'score_display': f"{s['v']}V / {s['d']}D / {s['n']}N",
-        })())
+        cat_comp_groups[(s['cat'].id if s['cat'] else 0, s['comp'].id if s['comp'] else 0)].append((key, s))
+
+    combat_results = []
+    for group_key, entries in cat_comp_groups.items():
+        # Trier par victoires desc, puis défaites asc
+        entries.sort(key=lambda x: (-x[1]['v'], x[1]['d']))
+        prev_v, prev_d, current_rank = None, None, 0
+        for idx, (key, s) in enumerate(entries):
+            if s['v'] != prev_v or s['d'] != prev_d:
+                current_rank = idx + 1
+            prev_v, prev_d = s['v'], s['d']
+            combat_results.append(type('CombatResult', (), {
+                'practitioner': s['prat'],
+                'competition': s['comp'],
+                'category': s['cat'],
+                'rank': current_rank,
+                'final_score': None,
+                'is_combat': True,
+                'is_tie': False,
+                'team_name': s['team_name'],
+                'victories': s['v'],
+                'defeats': s['d'],
+                'draws': s['n'],
+                'score_display': f"{s['v']}V / {s['d']}D / {s['n']}N",
+            })())
 
     # Filtrer les résultats combat par pratiquant et recherche
     if practitioner_id:
