@@ -2103,3 +2103,410 @@ def api_toggle_news_publish(request, slug, news_id):
         logger.error(f"Erreur toggle publish news: {e}")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+
+@require_POST
+@csrf_protect
+def api_generate_competition_article(request, slug):
+    """Génère automatiquement un article de résultats de compétition."""
+    if not request.user.is_authenticated:
+        return JsonResponse({
+            'success': False,
+            'error': 'Authentification requise'
+        }, status=401)
+
+    try:
+        from apps.organizations.models import Organization, OrganizationNews
+        from apps.competitions.models import Club, Competition, Practitioner
+        from apps.competitions.models.technical_scoring import CompetitionRanking
+        from apps.competitions.models.combat import Combat, Equipe, MembreEquipe
+        from django.utils import timezone
+        from django.utils.text import slugify
+        import json as json_module
+
+        organization = get_object_or_404(Organization, slug=slug)
+
+        # Vérifier les permissions
+        if not _check_news_permission(request, organization):
+            return JsonResponse({
+                'success': False,
+                'error': 'Permission refusée'
+            }, status=403)
+
+        # Si c'est une demande de liste de compétitions
+        if request.POST.get('list_competitions'):
+            club = Club.objects.filter(organization=organization).first()
+            if not club:
+                return JsonResponse({'competitions': []})
+
+            practitioners = Practitioner.objects.filter(organization=organization)
+            competition_ids = CompetitionRanking.objects.filter(
+                practitioner__in=practitioners
+            ).values_list('competition_id', flat=True).distinct()
+
+            # Aussi inclure les compétitions avec combats
+            from django.db.models import Q
+            combat_comp_ids = Combat.objects.filter(
+                Q(pratiquant_rouge__in=practitioners) |
+                Q(pratiquant_blanc__in=practitioners)
+            ).values_list('competition_id', flat=True).distinct()
+
+            all_comp_ids = set(list(competition_ids) + list(combat_comp_ids))
+            competitions = Competition.objects.filter(
+                id__in=all_comp_ids
+            ).order_by('-start_date')
+
+            return JsonResponse({
+                'competitions': [
+                    {
+                        'id': c.id,
+                        'title': c.title,
+                        'date': c.start_date.strftime('%d/%m/%Y') if c.start_date else '',
+                    }
+                    for c in competitions
+                ]
+            })
+
+        # Récupérer l'ID de la compétition
+        competition_id = request.POST.get('competition_id')
+        if not competition_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'ID de compétition requis'
+            }, status=400)
+
+        competition = get_object_or_404(Competition, id=competition_id)
+
+        # Récupérer le club et les pratiquants de l'organisation
+        club = Club.objects.filter(organization=organization).first()
+        if not club:
+            return JsonResponse({
+                'success': False,
+                'error': 'Aucun club associé à cette organisation'
+            }, status=404)
+
+        practitioners = Practitioner.objects.filter(organization=organization)
+
+        # Récupérer les classements techniques
+        rankings = CompetitionRanking.objects.filter(
+            competition_id=competition_id,
+            practitioner__in=practitioners
+        ).select_related('competition', 'category', 'practitioner').order_by('category__name', 'rank')
+
+        # Récupérer les résultats de combat
+        from django.db.models import Q
+        combats = Combat.objects.filter(
+            competition_id=competition_id,
+            status='termine'
+        ).filter(
+            Q(pratiquant_rouge__in=practitioners) |
+            Q(pratiquant_blanc__in=practitioners)
+        ).select_related(
+            'pratiquant_rouge', 'pratiquant_blanc',
+            'equipe_rouge', 'equipe_blanc'
+        )
+
+        # Récupérer les combats par équipe du club
+        equipes_club = Equipe.objects.filter(
+            competition_id=competition_id,
+            club=club
+        )
+        combats_equipe = Combat.objects.filter(
+            competition_id=competition_id,
+            status='termine'
+        ).filter(
+            Q(equipe_rouge__in=equipes_club) |
+            Q(equipe_blanc__in=equipes_club)
+        ).select_related('equipe_rouge', 'equipe_blanc')
+
+        # Calculer les médailles
+        gold = rankings.filter(rank=1).count()
+        silver = rankings.filter(rank=2).count()
+        bronze = rankings.filter(rank=3).count()
+        total_participants = rankings.values('practitioner').distinct().count()
+
+        # Calculer les résultats combat individuels
+        combat_results = []
+        for combat in combats:
+            if combat.pratiquant_rouge and combat.pratiquant_rouge in practitioners:
+                practitioner = combat.pratiquant_rouge
+                if combat.vainqueur == 'rouge':
+                    result = 'V'
+                elif combat.est_nul:
+                    result = 'N'
+                else:
+                    result = 'D'
+                combat_results.append({
+                    'name': practitioner.full_name,
+                    'result': result,
+                })
+            if combat.pratiquant_blanc and combat.pratiquant_blanc in practitioners:
+                practitioner = combat.pratiquant_blanc
+                if combat.vainqueur == 'blanc':
+                    result = 'V'
+                elif combat.est_nul:
+                    result = 'N'
+                else:
+                    result = 'D'
+                combat_results.append({
+                    'name': practitioner.full_name,
+                    'result': result,
+                })
+
+        # Calculer résultats par équipe
+        equipe_results = []
+        for combat in combats_equipe:
+            if combat.equipe_rouge and combat.equipe_rouge in equipes_club:
+                equipe = combat.equipe_rouge
+                if combat.vainqueur == 'rouge':
+                    result = 'V'
+                elif combat.est_nul:
+                    result = 'N'
+                else:
+                    result = 'D'
+                equipe_results.append({
+                    'name': equipe.nom,
+                    'result': result,
+                })
+            if combat.equipe_blanc and combat.equipe_blanc in equipes_club:
+                equipe = combat.equipe_blanc
+                if combat.vainqueur == 'blanc':
+                    result = 'V'
+                elif combat.est_nul:
+                    result = 'N'
+                else:
+                    result = 'D'
+                equipe_results.append({
+                    'name': equipe.nom,
+                    'result': result,
+                })
+
+        # Compter victoires/défaites/nuls combat
+        combat_wins = sum(1 for r in combat_results if r['result'] == 'V')
+        combat_losses = sum(1 for r in combat_results if r['result'] == 'D')
+        combat_draws = sum(1 for r in combat_results if r['result'] == 'N')
+
+        # Générer le contenu HTML
+        date_str = competition.start_date.strftime('%d/%m/%Y') if competition.start_date else ''
+        lieu = competition.venue_name or competition.city or ''
+
+        html_content = f'''
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto;">
+    <!-- Header Banner -->
+    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 12px; padding: 30px; margin-bottom: 24px; text-align: center;">
+        <h2 style="color: #ffd700; margin: 0 0 8px 0; font-size: 1.5em;">🏆 Résultats de compétition</h2>
+        <h3 style="color: #ffffff; margin: 0 0 12px 0; font-size: 1.3em;">{competition.title}</h3>
+        <p style="color: #b0b0b0; margin: 0; font-size: 0.95em;">
+            📅 {date_str}{f" | 📍 {lieu}" if lieu else ""}
+        </p>
+    </div>
+
+    <!-- Medal Summary -->
+    <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
+        <div style="background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%); border-radius: 10px; padding: 16px 24px; text-align: center; min-width: 100px;">
+            <div style="font-size: 2em;">🥇</div>
+            <div style="font-size: 1.5em; font-weight: bold; color: #1a1a2e;">{gold}</div>
+            <div style="font-size: 0.8em; color: #333;">Or</div>
+        </div>
+        <div style="background: linear-gradient(135deg, #c0c0c0 0%, #a0a0a0 100%); border-radius: 10px; padding: 16px 24px; text-align: center; min-width: 100px;">
+            <div style="font-size: 2em;">🥈</div>
+            <div style="font-size: 1.5em; font-weight: bold; color: #1a1a2e;">{silver}</div>
+            <div style="font-size: 0.8em; color: #333;">Argent</div>
+        </div>
+        <div style="background: linear-gradient(135deg, #cd7f32 0%, #a0522d 100%); border-radius: 10px; padding: 16px 24px; text-align: center; min-width: 100px;">
+            <div style="font-size: 2em;">🥉</div>
+            <div style="font-size: 1.5em; font-weight: bold; color: #1a1a2e;">{bronze}</div>
+            <div style="font-size: 0.8em; color: #333;">Bronze</div>
+        </div>
+    </div>
+
+    <!-- Stats Summary -->
+    <div style="background: #1e1e2e; border-radius: 10px; padding: 16px; margin-bottom: 24px; text-align: center; border: 1px solid #333;">
+        <span style="color: #b0b0b0; margin: 0 12px;">👥 {total_participants} participant(s)</span>
+        <span style="color: #b0b0b0; margin: 0 12px;">🏅 {gold + silver + bronze} médaille(s)</span>
+        {f'<span style="color: #b0b0b0; margin: 0 12px;">🥊 {len(combat_results)} combat(s)</span>' if combat_results else ''}
+    </div>
+'''
+
+        # Section des résultats techniques par catégorie
+        if rankings.exists():
+            html_content += '''
+    <!-- Technical Results -->
+    <h3 style="color: #ffd700; margin: 24px 0 16px 0; font-size: 1.2em; border-bottom: 2px solid #ffd700; padding-bottom: 8px;">
+        📋 Résultats Techniques (CCP)
+    </h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+        <thead>
+            <tr style="background: #2a2a3e;">
+                <th style="padding: 10px; text-align: left; color: #ffd700; border-bottom: 2px solid #444;">Rang</th>
+                <th style="padding: 10px; text-align: left; color: #ffd700; border-bottom: 2px solid #444;">Pratiquant</th>
+                <th style="padding: 10px; text-align: left; color: #ffd700; border-bottom: 2px solid #444;">Catégorie</th>
+                <th style="padding: 10px; text-align: right; color: #ffd700; border-bottom: 2px solid #444;">Score</th>
+            </tr>
+        </thead>
+        <tbody>
+'''
+            for i, ranking in enumerate(rankings):
+                rank_display = ranking.rank
+                if rank_display == 1:
+                    rank_emoji = '🥇'
+                elif rank_display == 2:
+                    rank_emoji = '🥈'
+                elif rank_display == 3:
+                    rank_emoji = '🥉'
+                else:
+                    rank_emoji = f'{rank_display}.'
+
+                bg_color = '#1e1e2e' if i % 2 == 0 else '#252535'
+                category_name = ranking.category.name if ranking.category else '-'
+                practitioner_name = ranking.practitioner.full_name if ranking.practitioner else '-'
+
+                html_content += f'''
+            <tr style="background: {bg_color};">
+                <td style="padding: 10px; color: #e0e0e0; border-bottom: 1px solid #333;">{rank_emoji}</td>
+                <td style="padding: 10px; color: #ffffff; font-weight: 500; border-bottom: 1px solid #333;">{practitioner_name}</td>
+                <td style="padding: 10px; color: #b0b0b0; border-bottom: 1px solid #333;">{category_name}</td>
+                <td style="padding: 10px; color: #4fc3f7; text-align: right; font-weight: bold; border-bottom: 1px solid #333;">{ranking.final_score}</td>
+            </tr>
+'''
+
+            html_content += '''
+        </tbody>
+    </table>
+'''
+
+        # Section des résultats de combat
+        if combat_results:
+            html_content += f'''
+    <!-- Combat Results -->
+    <h3 style="color: #ff6b6b; margin: 24px 0 16px 0; font-size: 1.2em; border-bottom: 2px solid #ff6b6b; padding-bottom: 8px;">
+        🥊 Résultats Combat ({combat_wins}V / {combat_losses}D / {combat_draws}N)
+    </h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+        <thead>
+            <tr style="background: #2a2a3e;">
+                <th style="padding: 10px; text-align: left; color: #ff6b6b; border-bottom: 2px solid #444;">Pratiquant</th>
+                <th style="padding: 10px; text-align: center; color: #ff6b6b; border-bottom: 2px solid #444;">Résultat</th>
+            </tr>
+        </thead>
+        <tbody>
+'''
+            for i, result in enumerate(combat_results):
+                bg_color = '#1e1e2e' if i % 2 == 0 else '#252535'
+                if result['result'] == 'V':
+                    result_color = '#4caf50'
+                    result_text = '✅ Victoire'
+                elif result['result'] == 'D':
+                    result_color = '#f44336'
+                    result_text = '❌ Défaite'
+                else:
+                    result_color = '#ff9800'
+                    result_text = '➖ Nul'
+
+                html_content += f'''
+            <tr style="background: {bg_color};">
+                <td style="padding: 10px; color: #ffffff; font-weight: 500; border-bottom: 1px solid #333;">{result['name']}</td>
+                <td style="padding: 10px; text-align: center; color: {result_color}; font-weight: bold; border-bottom: 1px solid #333;">{result_text}</td>
+            </tr>
+'''
+
+            html_content += '''
+        </tbody>
+    </table>
+'''
+
+        # Section des résultats par équipe
+        if equipe_results:
+            equipe_wins = sum(1 for r in equipe_results if r['result'] == 'V')
+            equipe_losses = sum(1 for r in equipe_results if r['result'] == 'D')
+            equipe_draws = sum(1 for r in equipe_results if r['result'] == 'N')
+
+            html_content += f'''
+    <!-- Team Results -->
+    <h3 style="color: #ab47bc; margin: 24px 0 16px 0; font-size: 1.2em; border-bottom: 2px solid #ab47bc; padding-bottom: 8px;">
+        👥 Résultats par Équipe ({equipe_wins}V / {equipe_losses}D / {equipe_draws}N)
+    </h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+        <thead>
+            <tr style="background: #2a2a3e;">
+                <th style="padding: 10px; text-align: left; color: #ab47bc; border-bottom: 2px solid #444;">Équipe</th>
+                <th style="padding: 10px; text-align: center; color: #ab47bc; border-bottom: 2px solid #444;">Résultat</th>
+            </tr>
+        </thead>
+        <tbody>
+'''
+            for i, result in enumerate(equipe_results):
+                bg_color = '#1e1e2e' if i % 2 == 0 else '#252535'
+                if result['result'] == 'V':
+                    result_color = '#4caf50'
+                    result_text = '✅ Victoire'
+                elif result['result'] == 'D':
+                    result_color = '#f44336'
+                    result_text = '❌ Défaite'
+                else:
+                    result_color = '#ff9800'
+                    result_text = '➖ Nul'
+
+                html_content += f'''
+            <tr style="background: {bg_color};">
+                <td style="padding: 10px; color: #ffffff; font-weight: 500; border-bottom: 1px solid #333;">{result['name']}</td>
+                <td style="padding: 10px; text-align: center; color: {result_color}; font-weight: bold; border-bottom: 1px solid #333;">{result_text}</td>
+            </tr>
+'''
+
+            html_content += '''
+        </tbody>
+    </table>
+'''
+
+        # Footer
+        html_content += '''
+    <!-- Footer -->
+    <div style="background: #1a1a2e; border-radius: 8px; padding: 12px; text-align: center; margin-top: 24px; border: 1px solid #333;">
+        <p style="color: #666; margin: 0; font-size: 0.8em;">
+            Publié automatiquement par MartialComp
+        </p>
+    </div>
+</div>
+'''
+
+        # Créer l'article
+        title = f"Résultats - {competition.title}"
+        base_slug = slugify(title)
+        article_slug = base_slug
+        counter = 1
+        while OrganizationNews.objects.filter(organization=organization, slug=article_slug).exists():
+            article_slug = f"{base_slug}-{counter}"
+            counter += 1
+
+        excerpt = f"{gold} or, {silver} argent, {bronze} bronze - {total_participants} participant(s) au {competition.title}"
+        if combat_results:
+            excerpt += f" | Combat: {combat_wins}V/{combat_losses}D/{combat_draws}N"
+
+        news = OrganizationNews.objects.create(
+            organization=organization,
+            title=title,
+            slug=article_slug,
+            excerpt=excerpt,
+            content=html_content,
+            is_published=True,
+            is_featured=True,
+            published_at=timezone.now(),
+            author=request.user,
+        )
+
+        return JsonResponse({
+            'success': True,
+            'article_id': news.id,
+            'article_title': news.title,
+            'article_url': f'/org/{slug}/news/{news.slug}/',
+        })
+
+    except Competition.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Compétition non trouvée'
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Erreur génération article compétition: {e}", exc_info=True)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+

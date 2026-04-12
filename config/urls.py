@@ -57,6 +57,7 @@ from apps.competitions.views.organization_sites import (
     api_update_news,
     api_delete_news,
     api_toggle_news_publish,
+    api_generate_competition_article,
 )
 
 
@@ -115,6 +116,7 @@ urlpatterns = [
     path('org/<slug:slug>/api/news/<int:news_id>/update/', api_update_news, name='api_org_news_update'),
     path('org/<slug:slug>/api/news/<int:news_id>/delete/', api_delete_news, name='api_org_news_delete'),
     path('org/<slug:slug>/api/news/<int:news_id>/toggle-publish/', api_toggle_news_publish, name='api_org_news_toggle'),
+    path('org/<slug:slug>/api/news/generate-competition/', api_generate_competition_article, name='api_org_generate_competition_article'),
 
     # API endpoint pour personnalisation complète (couleurs, description, modules)
     path('api/organizations/<int:organization_id>/customize/', api_customize_organization, name='api_org_customize'),
