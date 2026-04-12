@@ -2281,14 +2281,12 @@ def club_results(request):
     # Calculer le classement global pour chaque catégorie combat
     global_rankings = {}  # {(cat_id, comp_id): {identifiant: position}}
     for cat_id, comp_id in combat_cats:
-        # Récupérer TOUS les combats terminés de cette catégorie (pas juste le club)
+        # Récupérer les combats terminés EN POULE de cette catégorie (comme le classement live)
         cat_combats = Combat.objects.filter(
-            competition_id=comp_id, status='termine'
-        ).filter(
-            Q(poule__category_id=cat_id) |
-            Q(equipe_rouge__category_id=cat_id) |
-            Q(equipe_blanc__category_id=cat_id)
-        ).distinct()
+            competition_id=comp_id, status='termine',
+            poule__category_id=cat_id,
+            poule__isnull=False,
+        )
 
         # Agréger les stats pour chaque participant/équipe
         all_stats = defaultdict(lambda: {'v': 0, 'd': 0, 'pts_for': 0, 'pts_against': 0, 'id': None})
