@@ -2297,27 +2297,49 @@ def api_generate_competition_article(request, slug):
                     'result': result,
                 })
 
-        # Compter victoires/défaites/nuls combat
-        combat_wins = sum(1 for r in combat_results if r['result'] == 'V')
-        combat_losses = sum(1 for r in combat_results if r['result'] == 'D')
-        combat_draws = sum(1 for r in combat_results if r['result'] == 'N')
+        # Texte personnalisé de l'utilisateur
+        custom_text = request.POST.get('custom_text', '').strip()
 
-        # Générer le contenu HTML
+        # Générer le contenu HTML simplifié : médailles uniquement
         date_str = competition.start_date.strftime('%d/%m/%Y') if competition.start_date else ''
         lieu = competition.venue_name or competition.city or ''
+        total_medals = gold + silver + bronze
+
+        # Construire la liste des médaillés groupés par catégorie
+        medalists_html = ''
+        if rankings.filter(rank__lte=3).exists():
+            current_cat = None
+            for ranking in rankings.filter(rank__lte=3).order_by('category__name', 'rank'):
+                cat_name = ranking.category.name if ranking.category else '-'
+                if cat_name != current_cat:
+                    if current_cat is not None:
+                        medalists_html += '</div>'
+                    medalists_html += f'<div style="margin-bottom: 16px;"><h4 style="color: #a78bfa; font-size: 0.95em; margin: 0 0 8px 0;">{cat_name}</h4>'
+                    current_cat = cat_name
+                medal = {1: '🥇', 2: '🥈', 3: '🥉'}.get(ranking.rank, '')
+                name = ranking.practitioner.full_name if ranking.practitioner else '-'
+                medalists_html += f'<div style="padding: 4px 0; color: #e0e0e0;">{medal} {name}</div>'
+            if current_cat is not None:
+                medalists_html += '</div>'
+
+        # Texte personnalisé formaté
+        custom_html = ''
+        if custom_text:
+            paragraphs = custom_text.split('\n')
+            custom_html = '<div style="margin: 24px 0; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 10px; border-left: 3px solid #8b5cf6;">'
+            for p in paragraphs:
+                p = p.strip()
+                if p:
+                    custom_html += f'<p style="color: #e0e0e0; margin: 0 0 8px 0; line-height: 1.6;">{p}</p>'
+            custom_html += '</div>'
 
         html_content = f'''
 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto;">
-    <!-- Header Banner -->
     <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 12px; padding: 30px; margin-bottom: 24px; text-align: center;">
-        <h2 style="color: #ffd700; margin: 0 0 8px 0; font-size: 1.5em;">🏆 Résultats de compétition</h2>
+        <h2 style="color: #ffd700; margin: 0 0 8px 0; font-size: 1.5em;">🏆 Resultats de competition</h2>
         <h3 style="color: #ffffff; margin: 0 0 12px 0; font-size: 1.3em;">{competition.title}</h3>
-        <p style="color: #b0b0b0; margin: 0; font-size: 0.95em;">
-            📅 {date_str}{f" | 📍 {lieu}" if lieu else ""}
-        </p>
+        <p style="color: #b0b0b0; margin: 0; font-size: 0.95em;">📅 {date_str}{f" | 📍 {lieu}" if lieu else ""}</p>
     </div>
-
-    <!-- Medal Summary -->
     <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
         <div style="background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%); border-radius: 10px; padding: 16px 24px; text-align: center; min-width: 100px;">
             <div style="font-size: 2em;">🥇</div>
@@ -2335,159 +2357,20 @@ def api_generate_competition_article(request, slug):
             <div style="font-size: 0.8em; color: #333;">Bronze</div>
         </div>
     </div>
-
-    <!-- Stats Summary -->
     <div style="background: #1e1e2e; border-radius: 10px; padding: 16px; margin-bottom: 24px; text-align: center; border: 1px solid #333;">
         <span style="color: #b0b0b0; margin: 0 12px;">👥 {total_participants} participant(s)</span>
-        <span style="color: #b0b0b0; margin: 0 12px;">🏅 {gold + silver + bronze} médaille(s)</span>
-        {f'<span style="color: #b0b0b0; margin: 0 12px;">🥊 {len(combat_results)} combat(s)</span>' if combat_results else ''}
+        <span style="color: #b0b0b0; margin: 0 12px;">🏅 {total_medals} medaille(s)</span>
     </div>
-'''
-
-        # Section des résultats techniques par catégorie
-        if rankings.exists():
-            html_content += '''
-    <!-- Technical Results -->
-    <h3 style="color: #ffd700; margin: 24px 0 16px 0; font-size: 1.2em; border-bottom: 2px solid #ffd700; padding-bottom: 8px;">
-        📋 Résultats Techniques (CCP)
-    </h3>
-    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-        <thead>
-            <tr style="background: #2a2a3e;">
-                <th style="padding: 10px; text-align: left; color: #ffd700; border-bottom: 2px solid #444;">Rang</th>
-                <th style="padding: 10px; text-align: left; color: #ffd700; border-bottom: 2px solid #444;">Pratiquant</th>
-                <th style="padding: 10px; text-align: left; color: #ffd700; border-bottom: 2px solid #444;">Catégorie</th>
-                <th style="padding: 10px; text-align: right; color: #ffd700; border-bottom: 2px solid #444;">Score</th>
-            </tr>
-        </thead>
-        <tbody>
-'''
-            for i, ranking in enumerate(rankings):
-                rank_display = ranking.rank
-                if rank_display == 1:
-                    rank_emoji = '🥇'
-                elif rank_display == 2:
-                    rank_emoji = '🥈'
-                elif rank_display == 3:
-                    rank_emoji = '🥉'
-                else:
-                    rank_emoji = f'{rank_display}.'
-
-                bg_color = '#1e1e2e' if i % 2 == 0 else '#252535'
-                category_name = ranking.category.name if ranking.category else '-'
-                practitioner_name = ranking.practitioner.full_name if ranking.practitioner else '-'
-
-                html_content += f'''
-            <tr style="background: {bg_color};">
-                <td style="padding: 10px; color: #e0e0e0; border-bottom: 1px solid #333;">{rank_emoji}</td>
-                <td style="padding: 10px; color: #ffffff; font-weight: 500; border-bottom: 1px solid #333;">{practitioner_name}</td>
-                <td style="padding: 10px; color: #b0b0b0; border-bottom: 1px solid #333;">{category_name}</td>
-                <td style="padding: 10px; color: #4fc3f7; text-align: right; font-weight: bold; border-bottom: 1px solid #333;">{ranking.final_score}</td>
-            </tr>
-'''
-
-            html_content += '''
-        </tbody>
-    </table>
-'''
-
-        # Section des résultats de combat
-        if combat_results:
-            html_content += f'''
-    <!-- Combat Results -->
-    <h3 style="color: #ff6b6b; margin: 24px 0 16px 0; font-size: 1.2em; border-bottom: 2px solid #ff6b6b; padding-bottom: 8px;">
-        🥊 Résultats Combat ({combat_wins}V / {combat_losses}D / {combat_draws}N)
-    </h3>
-    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-        <thead>
-            <tr style="background: #2a2a3e;">
-                <th style="padding: 10px; text-align: left; color: #ff6b6b; border-bottom: 2px solid #444;">Pratiquant</th>
-                <th style="padding: 10px; text-align: center; color: #ff6b6b; border-bottom: 2px solid #444;">Résultat</th>
-            </tr>
-        </thead>
-        <tbody>
-'''
-            for i, result in enumerate(combat_results):
-                bg_color = '#1e1e2e' if i % 2 == 0 else '#252535'
-                if result['result'] == 'V':
-                    result_color = '#4caf50'
-                    result_text = '✅ Victoire'
-                elif result['result'] == 'D':
-                    result_color = '#f44336'
-                    result_text = '❌ Défaite'
-                else:
-                    result_color = '#ff9800'
-                    result_text = '➖ Nul'
-
-                html_content += f'''
-            <tr style="background: {bg_color};">
-                <td style="padding: 10px; color: #ffffff; font-weight: 500; border-bottom: 1px solid #333;">{result['name']}</td>
-                <td style="padding: 10px; text-align: center; color: {result_color}; font-weight: bold; border-bottom: 1px solid #333;">{result_text}</td>
-            </tr>
-'''
-
-            html_content += '''
-        </tbody>
-    </table>
-'''
-
-        # Section des résultats par équipe
-        if equipe_results:
-            equipe_wins = sum(1 for r in equipe_results if r['result'] == 'V')
-            equipe_losses = sum(1 for r in equipe_results if r['result'] == 'D')
-            equipe_draws = sum(1 for r in equipe_results if r['result'] == 'N')
-
-            html_content += f'''
-    <!-- Team Results -->
-    <h3 style="color: #ab47bc; margin: 24px 0 16px 0; font-size: 1.2em; border-bottom: 2px solid #ab47bc; padding-bottom: 8px;">
-        👥 Résultats par Équipe ({equipe_wins}V / {equipe_losses}D / {equipe_draws}N)
-    </h3>
-    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-        <thead>
-            <tr style="background: #2a2a3e;">
-                <th style="padding: 10px; text-align: left; color: #ab47bc; border-bottom: 2px solid #444;">Équipe</th>
-                <th style="padding: 10px; text-align: center; color: #ab47bc; border-bottom: 2px solid #444;">Résultat</th>
-            </tr>
-        </thead>
-        <tbody>
-'''
-            for i, result in enumerate(equipe_results):
-                bg_color = '#1e1e2e' if i % 2 == 0 else '#252535'
-                if result['result'] == 'V':
-                    result_color = '#4caf50'
-                    result_text = '✅ Victoire'
-                elif result['result'] == 'D':
-                    result_color = '#f44336'
-                    result_text = '❌ Défaite'
-                else:
-                    result_color = '#ff9800'
-                    result_text = '➖ Nul'
-
-                html_content += f'''
-            <tr style="background: {bg_color};">
-                <td style="padding: 10px; color: #ffffff; font-weight: 500; border-bottom: 1px solid #333;">{result['name']}</td>
-                <td style="padding: 10px; text-align: center; color: {result_color}; font-weight: bold; border-bottom: 1px solid #333;">{result_text}</td>
-            </tr>
-'''
-
-            html_content += '''
-        </tbody>
-    </table>
-'''
-
-        # Footer
-        html_content += '''
-    <!-- Footer -->
+    {custom_html}
+    <h3 style="color: #ffd700; margin: 24px 0 16px 0; font-size: 1.2em; border-bottom: 2px solid #ffd700; padding-bottom: 8px;">🏅 Nos medailles</h3>
+    {medalists_html}
     <div style="background: #1a1a2e; border-radius: 8px; padding: 12px; text-align: center; margin-top: 24px; border: 1px solid #333;">
-        <p style="color: #666; margin: 0; font-size: 0.8em;">
-            Publié automatiquement par MartialComp
-        </p>
+        <p style="color: #666; margin: 0; font-size: 0.8em;">Publie automatiquement par MartialComp</p>
     </div>
-</div>
-'''
+</div>'''
 
-        # Créer l'article
-        title = f"Résultats - {competition.title}"
+        # Creer l'article
+        title = f"Resultats - {competition.title}"
         base_slug = slugify(title)
         article_slug = base_slug
         counter = 1
@@ -2496,8 +2379,6 @@ def api_generate_competition_article(request, slug):
             counter += 1
 
         excerpt = f"{gold} or, {silver} argent, {bronze} bronze - {total_participants} participant(s) au {competition.title}"
-        if combat_results:
-            excerpt += f" | Combat: {combat_wins}V/{combat_losses}D/{combat_draws}N"
 
         news = OrganizationNews.objects.create(
             organization=organization,
