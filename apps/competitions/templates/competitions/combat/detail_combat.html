@@ -1,0 +1,409 @@
+{% extends "competitions/combat/base.html" %}
+{% load i18n %}
+{% load widget_tweaks %}
+
+{% block page_title %}
+{% translate "Combat" %} #{{ combat.id }}
+{% endblock %}
+
+{% block combat_content %}
+<div class="row">
+  <div class="col-md-8">
+    <!-- Informations du combat -->
+    <div class="card mb-4 bg-dark text-light border-secondary">
+      <div class="card-header {% if combat.status == 'en_cours' %}bg-primary text-white{% else %}bg-dark text-light border-secondary{% endif %}">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            {% if combat.poule %}
+            {{ combat.poule.nom }} - 
+            {% endif %}
+            {{ combat.get_type_combat_display }}
+          </h5>
+          <span class="badge {% if combat.status == 'planifie' %}bg-info{% elif combat.status == 'en_cours' %}bg-primary{% elif combat.status == 'termine' %}bg-success{% else %}bg-secondary{% endif %}">
+            {{ combat.get_status_display }}
+          </span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row mb-4">
+          <!-- Équipe/Compétiteur Rouge -->
+          <div class="col-5 text-center border-end">
+            <h5 class="text-danger">{% translate "ROUGE" %}</h5>
+            {% if combat.type_combat == 'individuel' %}
+              {% if combat.pratiquant_rouge %}
+              <div class="mb-2">
+                {% if combat.pratiquant_rouge.photo %}
+                <img src="{{ combat.pratiquant_rouge.photo.url }}" alt="{{ combat.pratiquant_rouge.full_name }}" 
+                     class="img-fluid rounded-circle" style="width: 80px; height: 80px; object-fit: cover;">
+                {% else %}
+                <div class="bg-danger text-white rounded-circle d-inline-flex align-items-center justify-content-center" 
+                     style="width: 80px; height: 80px;">
+                  <i class="fas fa-user fa-2x"></i>
+                </div>
+                {% endif %}
+              </div>
+              <div>
+                <strong>{{ combat.pratiquant_rouge.full_name }}</strong>
+              </div>
+              <div class="small text-muted">
+                {{ combat.pratiquant_rouge.organization.name|default:"" }}
+              </div>
+              {% else %}
+              <div class="text-muted">{% translate "Non défini" %}</div>
+              {% endif %}
+            {% else %}
+              {% if combat.equipe_rouge %}
+              <div>
+                <strong>{{ combat.equipe_rouge.nom }}</strong>
+              </div>
+              <div class="small text-muted">
+                {{ combat.equipe_rouge.club.name|default:"" }}
+              </div>
+              {% else %}
+              <div class="text-muted">{% translate "Non définie" %}</div>
+              {% endif %}
+            {% endif %}
+          </div>
+          
+          <!-- Score central -->
+          <div class="col-2 text-center d-flex flex-column justify-content-center">
+            <div class="display-4 fw-bold text-danger">
+              {{ combat.score_rouge }}
+            </div>
+            <div class="display-6 text-muted">-</div>
+            <div class="display-4 fw-bold text-info">
+              {{ combat.score_blanc }}
+            </div>
+          </div>
+          
+          <!-- Équipe/Compétiteur Blanc -->
+          <div class="col-5 text-center">
+            <h5 class="text-light">{% translate "BLANC" %}</h5>
+            {% if combat.type_combat == 'individuel' %}
+              {% if combat.pratiquant_blanc %}
+              <div class="mb-2">
+                {% if combat.pratiquant_blanc.photo %}
+                <img src="{{ combat.pratiquant_blanc.photo.url }}" alt="{{ combat.pratiquant_blanc.full_name }}" 
+                     class="img-fluid rounded-circle" style="width: 80px; height: 80px; object-fit: cover;">
+                {% else %}
+                <div class="bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center" 
+                     style="width: 80px; height: 80px;">
+                  <i class="fas fa-user fa-2x"></i>
+                </div>
+                {% endif %}
+              </div>
+              <div>
+                <strong>{{ combat.pratiquant_blanc.full_name }}</strong>
+              </div>
+              <div class="small text-muted">
+                {{ combat.pratiquant_blanc.organization.name|default:"" }}
+              </div>
+              {% else %}
+              <div class="text-muted">{% translate "Non défini" %}</div>
+              {% endif %}
+            {% else %}
+              {% if combat.equipe_blanc %}
+              <div>
+                <strong>{{ combat.equipe_blanc.nom }}</strong>
+              </div>
+              <div class="small text-muted">
+                {{ combat.equipe_blanc.club.name|default:"" }}
+              </div>
+              {% else %}
+              <div class="text-muted">{% translate "Non définie" %}</div>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+        
+        {% if combat.status == 'termine' %}
+        <div class="alert {% if combat.est_nul %}alert-secondary{% elif combat.vainqueur == 'rouge' %}alert-danger{% elif combat.vainqueur == 'blanc' %}alert-info{% endif %} text-center">
+          {% if combat.est_nul %}
+          <strong>{% translate "Match nul" %}</strong>
+          {% elif combat.vainqueur == 'rouge' %}
+          <strong>{% translate "Victoire de l'équipe/compétiteur ROUGE" %}</strong>
+          {% elif combat.vainqueur == 'blanc' %}
+          <strong>{% translate "Victoire de l'équipe/compétiteur BLANC" %}</strong>
+          {% endif %}
+        </div>
+        {% endif %}
+        
+        <div class="row mt-4">
+          <div class="col-md-6">
+            <table class="table table-sm table-dark">
+              <tbody>
+                <tr>
+                  <th>{% translate "Date planifiée" %}</th>
+                  <td>{{ combat.date_planifiee|default:"-" }}</td>
+                </tr>
+                <tr>
+                  <th>{% translate "Durée" %}</th>
+                  <td>{{ combat.duree_combat }} {% translate "secondes" %}</td>
+                </tr>
+                {% if combat.debut_combat %}
+                <tr>
+                  <th>{% translate "Début effectif" %}</th>
+                  <td>{{ combat.debut_combat }}</td>
+                </tr>
+                {% endif %}
+                {% if combat.fin_combat %}
+                <tr>
+                  <th>{% translate "Fin effective" %}</th>
+                  <td>{{ combat.fin_combat }}</td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <table class="table table-sm table-dark">
+              <tbody>
+                <tr>
+                  <th>{% translate "Configuration" %}</th>
+                  <td>{{ combat.configuration.nom|default:"-" }}</td>
+                </tr>
+                <tr>
+                  <th>{% translate "Arbitre central" %}</th>
+                  <td>{{ combat.arbitre_central|default:"-" }}</td>
+                </tr>
+                <tr>
+                  <th>{% translate "Compétition" %}</th>
+                  <td>{{ combat.competition.title }}</td>
+                </tr>
+                {% if combat.status == 'annule' %}
+                <tr>
+                  <th>{% translate "Motif d'annulation" %}</th>
+                  <td>{{ combat.motif_annulation }}</td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div class="mt-4 d-flex justify-content-between">
+          <div>
+            <a href="{% if combat.poule %}{% url 'competitions:combat:detail_poule' poule_id=combat.poule.id %}{% elif combat.competition %}{% url 'competitions:combat:liste_combats_competition' competition_id=combat.competition.id %}{% else %}{% url 'competitions:combat:liste_combats' %}{% endif %}" class="btn btn-outline-secondary">
+              <i class="fas fa-arrow-left"></i> {% translate "Retour à la liste" %}
+            </a>
+            {% if combat.status == 'planifie' %}
+            <a href="{% url 'competitions:combat:modifier_combat' combat_id=combat.id %}" class="btn btn-outline-primary">
+              <i class="fas fa-edit"></i> {% translate "Modifier" %}
+            </a>
+            {% endif %}
+          </div>
+          
+          <div>
+            {% if can_start %}
+            <a href="{% url 'competitions:combat:demarrer_combat' combat_id=combat.id %}" class="btn btn-success">
+              <i class="fas fa-play"></i> {% translate "Démarrer le combat" %}
+            </a>
+            {% endif %}
+            
+            {% if can_end %}
+            <a href="{% url 'competitions:combat:terminer_combat' combat_id=combat.id %}" class="btn btn-primary">
+              <i class="fas fa-flag-checkered"></i> {% translate "Terminer le combat" %}
+            </a>
+            {% endif %}
+            
+            {% if combat.status == 'en_cours' %}
+            <a href="{% url 'competitions:combat:interface_combat' combat_id=combat.id %}" class="btn btn-warning">
+              <i class="fas fa-gamepad"></i> {% translate "Interface d'arbitrage" %}
+            </a>
+            {% endif %}
+            
+            {% if combat.status != 'termine' and combat.status != 'annule' %}
+            <a href="{% url 'competitions:combat:annuler_combat' combat_id=combat.id %}" class="btn btn-outline-danger">
+              <i class="fas fa-ban"></i> {% translate "Annuler" %}
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Formulaire d'actions (uniquement en cours de combat) -->
+    {% if point_form %}
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">{% translate "Attribuer des points/pénalités" %}</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'competitions:combat:ajouter_action' combat_id=combat.id %}" class="row g-3">
+          {% csrf_token %}
+          {{ point_form.combat }}
+          
+          <div class="col-md-12 mb-3">
+            <label class="form-label">{% translate "Équipe/compétiteur" %}</label>
+            <div class="d-flex">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="couleur" id="couleur_rouge" value="rouge" checked>
+                <label class="form-check-label text-danger" for="couleur_rouge">{% translate "ROUGE" %}</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="couleur" id="couleur_blanc" value="blanc">
+                <label class="form-check-label" for="couleur_blanc">{% translate "BLANC" %}</label>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-12 mb-3">
+            <label class="form-label">{% translate "Type d'action" %}</label>
+            <div class="d-flex">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="type_action" id="type_point" value="point" checked>
+                <label class="form-check-label text-success" for="type_point">{% translate "Point" %}</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="type_action" id="type_penalite" value="penalite">
+                <label class="form-check-label text-danger" for="type_penalite">{% translate "Pénalité" %}</label>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-6 valeurs-container" id="valeurs_point_container">
+            <label for="valeur_point" class="form-label">{% translate "Valeur du point" %}</label>
+            {{ point_form.valeur_point|add_class:"form-select" }}
+          </div>
+          
+          <div class="col-md-6 valeurs-container" id="valeurs_penalite_container" style="display:none;">
+            <label for="valeur_penalite" class="form-label">{% translate "Type de pénalité" %}</label>
+            {{ point_form.valeur_penalite|add_class:"form-select" }}
+          </div>
+          
+          <div class="col-md-12 text-end">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save"></i> {% translate "Enregistrer l'action" %}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  
+  <div class="col-md-4">
+    <!-- Historique des actions -->
+    <div class="card mb-4">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">{% translate "Historique des actions" %}</h5>
+      </div>
+      <div class="list-group list-group-flush" id="actions-list">
+        {% for action in actions %}
+        <div class="list-group-item">
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="badge {% if action.couleur == 'rouge' %}bg-danger{% elif action.couleur == 'blanc' %}bg-light text-dark border{% else %}bg-secondary{% endif %}">
+              {{ action.get_couleur_display }}
+            </span>
+            <span class="badge {% if action.type_action == 'point' %}bg-success{% elif action.type_action == 'penalite' %}bg-danger{% else %}bg-warning{% endif %}">
+              {{ action.get_type_action_display }}
+              {% if action.type_action in 'point,penalite' %}
+              ({{ action.valeur }})
+              {% endif %}
+            </span>
+            <small class="text-muted">{{ action.temps|time:"H:i:s" }}</small>
+          </div>
+          
+          {% if action.description %}
+          <div class="small text-muted mt-1">
+            {{ action.description }}
+          </div>
+          {% endif %}
+          
+          {% if combat.status == 'en_cours' %}
+          <div class="mt-2 text-end">
+            <a href="{% url 'competitions:combat:annuler_action' action_id=action.id %}" class="btn btn-sm btn-outline-danger">
+              <i class="fas fa-undo"></i> {% translate "Annuler" %}
+            </a>
+          </div>
+          {% endif %}
+        </div>
+        {% empty %}
+        <div class="list-group-item text-center text-muted">
+          {% translate "Aucune action enregistrée" %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    
+    <!-- Informations sur la configuration -->
+    {% if configuration %}
+    <div class="card mb-4">
+      <div class="card-header bg-light">
+        <h5 class="mb-0">{% translate "Configuration des règles" %}</h5>
+      </div>
+      <div class="card-body">
+        <h6>{{ configuration.nom }}</h6>
+        <div class="small text-muted mb-3">{{ configuration.discipline.name }}</div>
+        
+        <div class="row mb-2">
+          <div class="col-6">
+            <div class="fw-bold">{% translate "Points" %}</div>
+            <div>
+              {% for point in configuration.valeurs_points %}
+              <span class="badge bg-success">{{ point }}</span>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="fw-bold">{% translate "Pénalités" %}</div>
+            <div>
+              {% for penalite in configuration.valeurs_penalites %}
+              <span class="badge bg-danger">{{ penalite }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        
+        <div class="row mb-2">
+          <div class="col-6">
+            <div class="fw-bold">{% translate "Sorties" %}</div>
+            <div class="small">
+              {{ configuration.nb_sorties_avertissement }} {% translate "avant pénalité" %}<br>
+              {{ configuration.nb_sorties_disqualification }} {% translate "avant disqualification" %}
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="fw-bold">{% translate "Avertissements" %}</div>
+            <div class="small">
+              {{ configuration.nb_avertissements_sanction }} {% translate "avant sanction" %}<br>
+              {% translate "Sanction" %}: {{ configuration.valeur_sanction }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block combat_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  {% if point_form %}
+  // Gestion de l'affichage des valeurs en fonction du type d'action
+  const typePoint = document.getElementById('type_point');
+  const typePenalite = document.getElementById('type_penalite');
+  const valeursPointContainer = document.getElementById('valeurs_point_container');
+  const valeursPenaliteContainer = document.getElementById('valeurs_penalite_container');
+  
+  function updateValeurContainers() {
+    if (typePoint.checked) {
+      valeursPointContainer.style.display = 'block';
+      valeursPenaliteContainer.style.display = 'none';
+    } else {
+      valeursPointContainer.style.display = 'none';
+      valeursPenaliteContainer.style.display = 'block';
+    }
+  }
+  
+  typePoint.addEventListener('change', updateValeurContainers);
+  typePenalite.addEventListener('change', updateValeurContainers);
+  
+  // Initialisation
+  updateValeurContainers();
+  {% endif %}
+});
+</script>
+{% endblock %}
