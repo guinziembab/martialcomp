@@ -1654,9 +1654,24 @@ def detail_combat(request, combat_id):
     combat = get_object_or_404(Combat, id=combat_id)
     actions = ActionCombat.objects.filter(combat=combat).order_by('temps')
     
+    # Membres des équipes pour affichage
+    membres_rouge = []
+    membres_blanc = []
+    if combat.type_combat == 'equipe':
+        if combat.equipe_rouge:
+            membres_rouge = list(combat.equipe_rouge.memberships.filter(
+                est_remplacant=False
+            ).select_related('pratiquant').order_by('ordre'))
+        if combat.equipe_blanc:
+            membres_blanc = list(combat.equipe_blanc.memberships.filter(
+                est_remplacant=False
+            ).select_related('pratiquant').order_by('ordre'))
+
     context = {
         'combat': combat,
         'actions': actions,
+        'membres_rouge': membres_rouge,
+        'membres_blanc': membres_blanc,
         'can_start': combat.status == 'planifie',
         'can_end': combat.status == 'en_cours',
         'configuration': combat.configuration,
