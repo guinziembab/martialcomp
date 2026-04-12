@@ -2376,12 +2376,17 @@ def club_results(request):
 
     # Filtrer les résultats combat par pratiquant et recherche
     if practitioner_id:
-        combat_results = [r for r in combat_results if str(r.practitioner.id) == str(practitioner_id)]
+        prat_filter = Practitioner.objects.filter(id=practitioner_id).first()
+        prat_name = prat_filter.full_name.lower() if prat_filter else ''
+        combat_results = [r for r in combat_results if
+            str(r.practitioner.id) == str(practitioner_id) or
+            (prat_name and prat_name in (r.team_name or '').lower())
+        ]
     if search_query:
         sq = search_query.lower()
         combat_results = [r for r in combat_results if
-            sq in r.practitioner.first_name.lower() or
-            sq in r.practitioner.last_name.lower() or
+            sq in r.practitioner.full_name.lower() or
+            sq in (r.team_name or '').lower() or
             sq in r.competition.title.lower() or
             sq in r.category.name.lower()
         ]
