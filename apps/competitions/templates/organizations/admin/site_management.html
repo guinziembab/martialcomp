@@ -1299,7 +1299,8 @@
 
                         function insertImageInEditor() {
                             var editor = document.getElementById('newsContentEditor');
-                            var currentCount = editor ? editor.querySelectorAll('img').length : 0;
+                            var existingCarousel = editor.querySelector('.article-carousel');
+                            var currentCount = existingCarousel ? existingCarousel.querySelectorAll('img').length : 0;
                             if (currentCount >= 3) {
                                 alert('Maximum 3 photos par article.');
                                 return;
@@ -1307,9 +1308,11 @@
                             var input = document.createElement('input');
                             input.type = 'file';
                             input.accept = 'image/*';
-                            input.multiple = (3 - currentCount) > 1;
+                            input.multiple = true;
                             input.onchange = function() {
                                 var files = Array.from(input.files).slice(0, 3 - currentCount);
+                                var uploadedUrls = [];
+                                var pending = files.length;
                                 files.forEach(function(file) {
                                     var fd = new FormData();
                                     fd.append('image', file);
@@ -1322,22 +1325,64 @@
                                     .then(function(data) {
                                         if (data.success) {
                                             var url = data.image_url || data.url || (data.images && data.images[0] && data.images[0].url);
-                                            if (url) {
-                                                var imgHtml = '<div style="text-align:center; margin:16px 0;">' +
-                                                    '<img src="' + url + '" style="max-width:100%; max-height:400px; border-radius:8px; object-fit:cover;" />' +
-                                                    '</div>';
-                                                editor.focus();
-                                                document.execCommand('insertHTML', false, imgHtml);
-                                                updateImgCount();
-                                            }
-                                        } else {
-                                            alert('Erreur upload: ' + (data.error || 'inconnu'));
+                                            if (url) uploadedUrls.push(url);
                                         }
+                                        pending--;
+                                        if (pending <= 0) buildCarousel(uploadedUrls);
                                     })
-                                    .catch(function(e) { alert('Erreur: ' + e); });
+                                    .catch(function(e) { pending--; alert('Erreur: ' + e); });
                                 });
                             };
                             input.click();
+                        }
+
+                        function buildCarousel(newUrls) {
+                            var editor = document.getElementById('newsContentEditor');
+                            var existingCarousel = editor.querySelector('.article-carousel');
+                            var allUrls = [];
+
+                            // Récupérer les images existantes du carousel
+                            if (existingCarousel) {
+                                existingCarousel.querySelectorAll('img').forEach(function(img) {
+                                    allUrls.push(img.src);
+                                });
+                                existingCarousel.remove();
+                            }
+
+                            // Ajouter les nouvelles
+                            allUrls = allUrls.concat(newUrls).slice(0, 3);
+                            if (allUrls.length === 0) return;
+
+                            var cid = 'carousel-' + Date.now();
+                            var slides = '';
+                            var indicators = '';
+                            allUrls.forEach(function(url, i) {
+                                var active = i === 0 ? ' active' : '';
+                                indicators += '<button type="button" data-bs-target="#' + cid + '" data-bs-slide-to="' + i + '" class="' + (active ? 'active' : '') + '"></button>';
+                                slides += '<div class="carousel-item' + active + '">' +
+                                    '<img src="' + url + '" style="width:100%; max-height:450px; object-fit:contain; border-radius:8px;" />' +
+                                    '</div>';
+                            });
+
+                            var carouselHtml = '<div class="article-carousel" style="margin:20px 0;">' +
+                                '<div id="' + cid + '" class="carousel slide" data-bs-ride="carousel">' +
+                                (allUrls.length > 1 ? '<div class="carousel-indicators">' + indicators + '</div>' : '') +
+                                '<div class="carousel-inner" style="border-radius:8px; overflow:hidden;">' + slides + '</div>' +
+                                (allUrls.length > 1 ? '<button class="carousel-control-prev" type="button" data-bs-target="#' + cid + '" data-bs-slide="prev"><span class="carousel-control-prev-icon"></span></button>' +
+                                '<button class="carousel-control-next" type="button" data-bs-target="#' + cid + '" data-bs-slide="next"><span class="carousel-control-next-icon"></span></button>' : '') +
+                                '</div>' +
+                                '<p style="text-align:center; color:#888; font-size:12px; margin-top:4px;">' + allUrls.length + '/3 photo(s)</p>' +
+                                '</div>';
+
+                            editor.focus();
+                            document.execCommand('insertHTML', false, carouselHtml);
+                            updateImgCount();
+
+                            // Initialiser le carousel Bootstrap
+                            setTimeout(function() {
+                                var el = document.getElementById(cid);
+                                if (el && typeof bootstrap !== 'undefined') new bootstrap.Carousel(el);
+                            }, 200);
                         }
 
                         // Mettre à jour le compteur quand l'éditeur change
