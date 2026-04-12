@@ -2157,7 +2157,7 @@ def club_results(request):
     bronze_medals = rankings.filter(rank=3).count()
 
     # ===== STATISTIQUES DE COMBAT DU CLUB =====
-    # Récupérer tous les combats des pratiquants du club
+    # Filtrées par compétition si un filtre est actif
     combats_rouge = Combat.objects.filter(
         pratiquant_rouge__in=practitioners,
         status='termine'
@@ -2166,6 +2166,9 @@ def club_results(request):
         pratiquant_blanc__in=practitioners,
         status='termine'
     )
+    if competition_id:
+        combats_rouge = combats_rouge.filter(competition_id=competition_id)
+        combats_blanc = combats_blanc.filter(competition_id=competition_id)
 
     # Statistiques globales de combat du club
     total_combats = combats_rouge.count() + combats_blanc.count()
@@ -2205,13 +2208,14 @@ def club_results(request):
     page_number = request.GET.get('page')
     results_page = paginator.get_page(page_number)
 
-    # Récupérer les compétitions distinctes pour le filtre
-    competition_ids = rankings.values_list('competition_id', flat=True).distinct()
-    competitions = Competition.objects.filter(id__in=competition_ids).order_by('-start_date')
+    # Récupérer les compétitions distinctes pour le filtre (toutes, pas filtrées)
+    all_competition_ids = CompetitionRanking.objects.filter(
+        practitioner__in=practitioners
+    ).values_list('competition_id', flat=True).distinct()
+    competitions = Competition.objects.filter(id__in=all_competition_ids).order_by('-start_date')
 
-    # Médailles par saison sportive (sept-août) pour le graphe cumulé
-    all_rankings_for_chart = CompetitionRanking.objects.filter(
-        practitioner__in=practitioners,
+    # Médailles par saison sportive (sept-août) — suit les filtres actifs
+    all_rankings_for_chart = rankings.filter(
         competition__start_date__isnull=False,
     ).select_related('competition')
 
