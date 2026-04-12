@@ -2209,6 +2209,20 @@ def club_results(request):
     competition_ids = rankings.values_list('competition_id', flat=True).distinct()
     competitions = Competition.objects.filter(id__in=competition_ids).order_by('-start_date')
 
+    # Médailles par compétition pour le graphe comparatif
+    medals_by_competition = []
+    all_rankings = CompetitionRanking.objects.filter(
+        practitioner__in=practitioners
+    ).select_related('competition')
+    for comp_obj in competitions:
+        comp_rankings = all_rankings.filter(competition=comp_obj)
+        medals_by_competition.append({
+            'name': comp_obj.title[:30],
+            'gold': comp_rankings.filter(rank=1).count(),
+            'silver': comp_rankings.filter(rank=2).count(),
+            'bronze': comp_rankings.filter(rank=3).count(),
+        })
+
     context = {
         'club': club,
         'club_organization': club_organization,
@@ -2222,6 +2236,7 @@ def club_results(request):
         'search_query': search_query,
         'selected_competition': competition_id,
         'selected_practitioner': practitioner_id,
+        'medals_by_competition': medals_by_competition,
         'page_title': _("Résultats du club"),
         # Statistiques globales de combat du club
         'combat_stats': {
