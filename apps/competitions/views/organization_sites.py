@@ -2396,6 +2396,76 @@ def api_generate_competition_article(request, slug):
             if current_cat is not None:
                 medalists_html += '</div>'
 
+        # Résultats combat : classement des poules pour les pratiquants du club
+        combat_medalists_html = ''
+        combat_cats = CompetitionCategory.objects.filter(
+            competition=competition
+        ).exclude(competition_type__isnull=True)
+        combat_cats = [c for c in combat_cats if 'combat' in (c.competition_type.name.lower() if c.competition_type else '')]
+
+        from apps.competitions.models.combat import Poule
+        from collections import defaultdict as dd
+
+        for cat in combat_cats:
+            # Calculer le classement global de la catégorie
+            poules = Poule.objects.filter(competition=competition, category=cat)
+            if not poules.exists():
+                continue
+
+            all_stats = dd(lambda: {'v': 0, 'pts_for': 0, 'pts_against': 0, 'nom': '', 'equipe': None})
+            for poule in poules:
+                cat_combats = Combat.objects.filter(poule=poule, status='termine')
+                for c in cat_combats:
+                    if c.equipe_rouge_id:
+                        s = all_stats[c.equipe_rouge_id]
+                        s['nom'] = c.equipe_rouge.nom
+                        s['equipe'] = c.equipe_rouge
+                        s['pts_for'] += float(c.score_rouge or 0)
+                        s['pts_against'] += float(c.score_blanc or 0)
+                        if c.vainqueur == 'rouge': s['v'] += 1
+                    if c.equipe_blanc_id:
+                        s = all_stats[c.equipe_blanc_id]
+                        s['nom'] = c.equipe_blanc.nom
+                        s['equipe'] = c.equipe_blanc
+                        s['pts_for'] += float(c.score_blanc or 0)
+                        s['pts_against'] += float(c.score_rouge or 0)
+                        if c.vainqueur == 'blanc': s['v'] += 1
+
+            if not all_stats:
+                continue
+
+            sorted_stats = sorted(all_stats.items(), key=lambda x: (
+                -x[1]['v'], -(x[1]['pts_for'] - x[1]['pts_against']), -x[1]['pts_for']
+            ))
+
+            # Trouver les pratiquants du club dans le classement
+            club_entries = []
+            for pos, (eid, s) in enumerate(sorted_stats, 1):
+                # Vérifier si cette équipe appartient au club
+                equipe = s.get('equipe')
+                if equipe and equipe.club and equipe.club.organization == organization:
+                    members = list(equipe.memberships.filter(est_remplacant=False).select_related('pratiquant', 'pratiquant__grade').order_by('ordre'))
+                    club_entries.append({'pos': pos, 'nom': s['nom'], 'v': s['v'], 'members': members, 'equipe': equipe})
+
+            if club_entries:
+                combat_medalists_html += f'<div style="margin-bottom: 16px;"><h4 style="color: #5b21b6; font-size: 0.95em; margin: 0 0 8px 0;">🥊 {cat.name}</h4>'
+                for entry in club_entries:
+                    medal = {1: '🥇', 2: '🥈', 3: '🥉'}.get(entry['pos'], f'{entry["pos"]}.')
+                    members_parts = []
+                    for m in entry['members']:
+                        grade = get_grade_str(m.pratiquant)
+                        if grade:
+                            members_parts.append(f'{m.pratiquant.full_name} <em style="color:#888; font-size:0.85em;">({grade})</em>')
+                        else:
+                            members_parts.append(m.pratiquant.full_name)
+                    members_str = ', '.join(members_parts)
+                    combat_medalists_html += f'<div style="padding: 6px 0; color: #222;">{medal} <strong>{entry["nom"]}</strong> ({entry["v"]}V)<br/><span style="color: #666; font-size: 0.9em; padding-left: 24px;">{members_str}</span></div>'
+                combat_medalists_html += '</div>'
+
+        if combat_medalists_html:
+            medalists_html += '<h3 style="color: #222; margin: 24px 0 16px 0; font-size: 1.1em; border-bottom: 2px solid #ef4444; padding-bottom: 8px;">🥊 Resultats Combat</h3>'
+            medalists_html += combat_medalists_html
+
         # Texte personnalisé formaté
         custom_html = ''
         if custom_text:
