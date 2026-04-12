@@ -2271,36 +2271,90 @@ def club_results(request):
         elif c.vainqueur == 'blanc': s['v'] += 1
         else: s['d'] += 1
 
-    # Calculer le rang combat par catégorie (basé sur victoires)
-    # Regrouper par (cat_id, comp_id) pour classer
-    from itertools import groupby
-    cat_comp_groups = defaultdict(list)
+    # Calculer le rang combat par catégorie (classement global comme le classement live)
+    # Pour chaque catégorie combat, calculer le classement de TOUS les participants
+    combat_cats = set()
     for key, s in combat_stats_map.items():
-        cat_comp_groups[(s['cat'].id if s['cat'] else 0, s['comp'].id if s['comp'] else 0)].append((key, s))
+        if s['cat'] and s['comp']:
+            combat_cats.add((s['cat'].id, s['comp'].id))
 
+    # Calculer le classement global pour chaque catégorie combat
+    global_rankings = {}  # {(cat_id, comp_id): {identifiant: position}}
+    for cat_id, comp_id in combat_cats:
+        # Récupérer TOUS les combats terminés de cette catégorie (pas juste le club)
+        cat_combats = Combat.objects.filter(
+            competition_id=comp_id, status='termine'
+        ).filter(
+            Q(poule__category_id=cat_id) |
+            Q(equipe_rouge__category_id=cat_id) |
+            Q(equipe_blanc__category_id=cat_id)
+        ).distinct()
+
+        # Agréger les stats pour chaque participant/équipe
+        all_stats = defaultdict(lambda: {'v': 0, 'd': 0, 'pts_for': 0, 'pts_against': 0, 'id': None})
+        for c in cat_combats:
+            # Côté rouge
+            rid = c.equipe_rouge_id if c.equipe_rouge_id else c.pratiquant_rouge_id
+            rkey = f'eq_{rid}' if c.equipe_rouge_id else f'pr_{rid}'
+            if rid:
+                all_stats[rkey]['id'] = rid
+                all_stats[rkey]['pts_for'] += float(c.score_rouge or 0)
+                all_stats[rkey]['pts_against'] += float(c.score_blanc or 0)
+                if c.vainqueur == 'rouge': all_stats[rkey]['v'] += 1
+                elif not c.est_nul: all_stats[rkey]['d'] += 1
+            # Côté blanc
+            bid = c.equipe_blanc_id if c.equipe_blanc_id else c.pratiquant_blanc_id
+            bkey = f'eq_{bid}' if c.equipe_blanc_id else f'pr_{bid}'
+            if bid:
+                all_stats[bkey]['id'] = bid
+                all_stats[bkey]['pts_for'] += float(c.score_blanc or 0)
+                all_stats[bkey]['pts_against'] += float(c.score_rouge or 0)
+                if c.vainqueur == 'blanc': all_stats[bkey]['v'] += 1
+                elif not c.est_nul: all_stats[bkey]['d'] += 1
+
+        # Trier comme le classement live : victoires desc, différentiel desc, pts marqués desc
+        sorted_stats = sorted(all_stats.items(), key=lambda x: (
+            -x[1]['v'],
+            -(x[1]['pts_for'] - x[1]['pts_against']),
+            -x[1]['pts_for']
+        ))
+        rank_map = {}
+        for pos, (skey, _) in enumerate(sorted_stats, 1):
+            rank_map[skey] = pos
+        global_rankings[(cat_id, comp_id)] = rank_map
+
+    # Construire les résultats combat avec le rang global
     combat_results = []
-    for group_key, entries in cat_comp_groups.items():
-        # Trier par victoires desc, puis défaites asc
-        entries.sort(key=lambda x: (-x[1]['v'], x[1]['d']))
-        prev_v, prev_d, current_rank = None, None, 0
-        for idx, (key, s) in enumerate(entries):
-            if s['v'] != prev_v or s['d'] != prev_d:
-                current_rank = idx + 1
-            prev_v, prev_d = s['v'], s['d']
-            combat_results.append(type('CombatResult', (), {
-                'practitioner': s['prat'],
-                'competition': s['comp'],
-                'category': s['cat'],
-                'rank': current_rank,
-                'final_score': None,
-                'is_combat': True,
-                'is_tie': False,
-                'team_name': s['team_name'],
-                'victories': s['v'],
-                'defeats': s['d'],
-                'draws': s['n'],
-                'score_display': f"{s['v']}V / {s['d']}D / {s['n']}N",
-            })())
+    for key, s in combat_stats_map.items():
+        prat_id, cat_id, comp_id = key
+        rank_map = global_rankings.get((cat_id, comp_id), {})
+        # Chercher le rang via equipe ou pratiquant
+        rank = None
+        if s['team_name']:
+            # Chercher par equipe_id
+            for eq_key, pos in rank_map.items():
+                if eq_key.startswith('eq_'):
+                    eq_id = int(eq_key[3:])
+                    if MembreEquipe.objects.filter(equipe_id=eq_id, pratiquant_id=prat_id).exists():
+                        rank = pos
+                        break
+        if rank is None:
+            rank = rank_map.get(f'pr_{prat_id}', rank_map.get(f'eq_{prat_id}', 0))
+
+        combat_results.append(type('CombatResult', (), {
+            'practitioner': s['prat'],
+            'competition': s['comp'],
+            'category': s['cat'],
+            'rank': rank or 0,
+            'final_score': None,
+            'is_combat': True,
+            'is_tie': False,
+            'team_name': s['team_name'],
+            'victories': s['v'],
+            'defeats': s['d'],
+            'draws': s['n'],
+            'score_display': f"{s['v']}V / {s['d']}D / {s['n']}N",
+        })())
 
     # Filtrer les résultats combat par pratiquant et recherche
     if practitioner_id:
