@@ -2351,8 +2351,70 @@ def club_results(request):
     # Taux de victoire
     taux_victoire = (total_victoires / total_combats * 100) if total_combats > 0 else 0
 
+    # Post-traiter les rankings équipe : remplacer le practitioner ancre
+    # par chaque membre du club, et ajouter le nom d'équipe
+    rankings_list = []
+    seen_keys = set()
+    for r in rankings:
+        # Vérifier si c'est un ranking d'une catégorie team_based
+        is_team = False
+        try:
+            if r.category.competition_type and r.category.competition_type.team_based:
+                is_team = True
+        except Exception:
+            pass
+
+        if is_team:
+            # Trouver l'équipe et ses membres du club
+            membership = MembreEquipe.objects.filter(
+                equipe__category=r.category,
+                equipe__is_active=True,
+                pratiquant=r.practitioner,
+            ).select_related('equipe').first()
+
+            if membership:
+                team = membership.equipe
+            else:
+                # L'ancre n'est peut-être pas le practitioner du ranking
+                team = None
+                ms = MembreEquipe.objects.filter(
+                    equipe__category=r.category,
+                    equipe__is_active=True,
+                    equipe__memberships__pratiquant=r.practitioner,
+                ).select_related('equipe').first()
+                if ms:
+                    team = ms.equipe
+
+            if team:
+                # Créer une entrée pour chaque membre du club dans cette équipe
+                club_members = MembreEquipe.objects.filter(
+                    equipe=team,
+                    pratiquant__in=practitioners,
+                ).select_related('pratiquant')
+                for cm in club_members:
+                    key = (cm.pratiquant.id, r.category.id, r.competition.id)
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        entry = type('TeamRanking', (), {
+                            'practitioner': cm.pratiquant,
+                            'competition': r.competition,
+                            'category': r.category,
+                            'rank': r.rank,
+                            'final_score': r.final_score,
+                            'is_combat': False,
+                            'is_tie': getattr(r, 'is_tie', False),
+                            'team_name': team.nom,
+                        })()
+                        rankings_list.append(entry)
+            else:
+                rankings_list.append(r)
+        else:
+            r.team_name = None
+            r.is_combat = False
+            rankings_list.append(r)
+
     # Combiner résultats techniques + combat
-    all_results = list(rankings) + combat_results
+    all_results = rankings_list + combat_results
     # Trier par compétition (date desc), puis rang
     all_results.sort(key=lambda r: (
         -(r.competition.start_date.toordinal() if r.competition and r.competition.start_date else 0),
