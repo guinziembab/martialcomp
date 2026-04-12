@@ -2209,19 +2209,30 @@ def club_results(request):
     competition_ids = rankings.values_list('competition_id', flat=True).distinct()
     competitions = Competition.objects.filter(id__in=competition_ids).order_by('-start_date')
 
-    # Médailles par compétition pour le graphe comparatif
-    medals_by_competition = []
-    all_rankings = CompetitionRanking.objects.filter(
-        practitioner__in=practitioners
+    # Médailles par saison sportive (sept-août) pour le graphe cumulé
+    all_rankings_for_chart = CompetitionRanking.objects.filter(
+        practitioner__in=practitioners,
+        competition__start_date__isnull=False,
     ).select_related('competition')
-    for comp_obj in competitions:
-        comp_rankings = all_rankings.filter(competition=comp_obj)
-        medals_by_competition.append({
-            'name': comp_obj.title[:30],
-            'gold': comp_rankings.filter(rank=1).count(),
-            'silver': comp_rankings.filter(rank=2).count(),
-            'bronze': comp_rankings.filter(rank=3).count(),
-        })
+
+    # Regrouper par saison sportive
+    from collections import OrderedDict
+    seasons = OrderedDict()
+    for r in all_rankings_for_chart.order_by('competition__start_date'):
+        d = r.competition.start_date
+        # Saison = année de début en septembre (ex: compétition en mars 2026 -> saison 2025-2026)
+        season_year = d.year if d.month >= 9 else d.year - 1
+        season_key = f'{season_year}-{season_year + 1}'
+        if season_key not in seasons:
+            seasons[season_key] = {'name': season_key, 'gold': 0, 'silver': 0, 'bronze': 0}
+        if r.rank == 1:
+            seasons[season_key]['gold'] += 1
+        elif r.rank == 2:
+            seasons[season_key]['silver'] += 1
+        elif r.rank == 3:
+            seasons[season_key]['bronze'] += 1
+
+    medals_by_competition = list(seasons.values())
 
     context = {
         'club': club,
