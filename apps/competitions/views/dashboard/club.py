@@ -2319,7 +2319,7 @@ def club_results(request):
             -x[1]['pts_for']
         ))
         rank_map = {}
-        for pos, (skey, _) in enumerate(sorted_stats, 1):
+        for pos, (skey, _stat) in enumerate(sorted_stats, 1):
             rank_map[skey] = pos
         global_rankings[(cat_id, comp_id)] = rank_map
 
