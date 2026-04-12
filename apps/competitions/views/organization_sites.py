@@ -2022,6 +2022,12 @@ def api_update_news(request, slug, news_id):
         if is_published and not was_published:
             news.published_at = timezone.now()
 
+        # Supprimer l'image si demandé
+        remove_image = request.POST.get('remove_image', '').lower() in ('true', '1')
+        if remove_image and news.image:
+            news.image.delete(save=False)
+            news.image = None
+
         if image:
             if image.size > 5 * 1024 * 1024:
                 return JsonResponse({
