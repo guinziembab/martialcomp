@@ -1634,11 +1634,16 @@ def liste_combats(request, competition_id=None, poule_id=None):
             'title': _("Tous les combats")
         }
     
+    # Stats par statut
+    context['combats_en_cours'] = combats.filter(status='en_cours').count()
+    context['combats_termines'] = combats.filter(status='termine').count()
+    context['combats_planifies'] = combats.filter(status='planifie').count()
+
     # Pagination
     paginator = Paginator(combats.order_by('-date_planifiee', 'status'), 20)
     page_number = request.GET.get('page')
     context['page_obj'] = paginator.get_page(page_number)
-    
+
     return render(request, 'competitions/combat/liste_combats.html', context)
 
 @login_required
