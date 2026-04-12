@@ -2319,7 +2319,21 @@ def api_generate_competition_article(request, slug):
                     current_cat = cat_name
                     seen_teams = set()
                 medal = {1: '🥇', 2: '🥈', 3: '🥉'}.get(ranking.rank, '')
-                name = ranking.practitioner.full_name if ranking.practitioner else '-'
+                prat = ranking.practitioner
+                name = prat.full_name if prat else '-'
+
+                # Récupérer le grade du pratiquant
+                def get_grade_str(p):
+                    try:
+                        if p and p.grade:
+                            g = str(p.grade)
+                            # Retirer la partie "(discipline)" si présente
+                            if '(' in g:
+                                g = g[:g.index('(')].strip()
+                            return g
+                    except Exception:
+                        pass
+                    return ''
 
                 # Pour les catégories équipe, afficher tous les membres
                 is_team = False
@@ -2330,28 +2344,38 @@ def api_generate_competition_article(request, slug):
                     pass
 
                 if is_team:
-                    # Trouver l'équipe via le membership
                     membership = MembreEquipe.objects.filter(
                         equipe__category=ranking.category,
                         equipe__is_active=True,
-                        pratiquant=ranking.practitioner,
+                        pratiquant=prat,
                     ).select_related('equipe').first()
                     if not membership:
                         membership = MembreEquipe.objects.filter(
                             equipe__category=ranking.category,
                             equipe__is_active=True,
-                            equipe__memberships__pratiquant=ranking.practitioner,
+                            equipe__memberships__pratiquant=prat,
                         ).select_related('equipe').first()
                     if membership and membership.equipe.id not in seen_teams:
                         seen_teams.add(membership.equipe.id)
                         team = membership.equipe
-                        members = list(team.memberships.filter(est_remplacant=False).select_related('pratiquant').order_by('ordre'))
-                        members_str = ', '.join([m.pratiquant.full_name for m in members])
-                        medalists_html += f'<div style="padding: 4px 0; color: #e0e0e0;">{medal} <strong>{team.nom}</strong> <span style="color: #a0a0a0; font-size: 0.9em;">({members_str})</span></div>'
+                        members = list(team.memberships.filter(est_remplacant=False).select_related('pratiquant', 'pratiquant__grade').order_by('ordre'))
+                        members_parts = []
+                        for m in members:
+                            grade = get_grade_str(m.pratiquant)
+                            if grade:
+                                members_parts.append(f'{m.pratiquant.full_name} <em style="color:#888; font-size:0.85em;">({grade})</em>')
+                            else:
+                                members_parts.append(m.pratiquant.full_name)
+                        members_str = ', '.join(members_parts)
+                        medalists_html += f'<div style="padding: 6px 0; color: #e0e0e0;">{medal} <strong>{team.nom}</strong><br/><span style="color: #a0a0a0; font-size: 0.9em; padding-left: 24px;">{members_str}</span></div>'
                     elif not membership:
-                        medalists_html += f'<div style="padding: 4px 0; color: #e0e0e0;">{medal} {name}</div>'
+                        grade = get_grade_str(prat)
+                        grade_html = f' <em style="color:#888; font-size:0.85em;">- {grade}</em>' if grade else ''
+                        medalists_html += f'<div style="padding: 4px 0; color: #e0e0e0;">{medal} {name}{grade_html}</div>'
                 else:
-                    medalists_html += f'<div style="padding: 4px 0; color: #e0e0e0;">{medal} {name}</div>'
+                    grade = get_grade_str(prat)
+                    grade_html = f' <em style="color:#888; font-size:0.85em;">- {grade}</em>' if grade else ''
+                    medalists_html += f'<div style="padding: 4px 0; color: #e0e0e0;">{medal} {name}{grade_html}</div>'
             if current_cat is not None:
                 medalists_html += '</div>'
 
