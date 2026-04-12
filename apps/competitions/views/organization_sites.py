@@ -2366,41 +2366,74 @@ def api_generate_competition_article(request, slug):
                     custom_html += f'<p style="color: #e0e0e0; margin: 0 0 8px 0; line-height: 1.6;">{p}</p>'
             custom_html += '</div>'
 
+        club_name = organization.name or ''
         html_content = f'''
-<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto;">
-    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 12px; padding: 30px; margin-bottom: 24px; text-align: center;">
-        <h2 style="color: #ffd700; margin: 0 0 8px 0; font-size: 1.5em;">🏆 Resultats de competition</h2>
-        <h3 style="color: #ffffff; margin: 0 0 12px 0; font-size: 1.3em;">{competition.title}</h3>
-        <p style="color: #b0b0b0; margin: 0; font-size: 0.95em;">📅 {date_str}{f" | 📍 {lieu}" if lieu else ""}</p>
-    </div>
-    <div style="display: flex; justify-content: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;">
-        <div style="background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%); border-radius: 10px; padding: 16px 24px; text-align: center; min-width: 100px;">
-            <div style="font-size: 2em;">🥇</div>
-            <div style="font-size: 1.5em; font-weight: bold; color: #1a1a2e;">{gold}</div>
-            <div style="font-size: 0.8em; color: #333;">Or</div>
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:680px; margin:0 auto; font-family:Georgia, 'Times New Roman', serif; color:#222; background:#fff;">
+    <tr><td style="background:#1a1a2e; padding:32px 24px; text-align:center;">
+        <p style="margin:0 0 4px; font-size:13px; letter-spacing:3px; text-transform:uppercase; color:#a0a0c0;">{club_name}</p>
+        <h1 style="margin:0 0 6px; font-size:28px; color:#ffd700; font-weight:700;">COMMUNIQUE OFFICIEL</h1>
+        <h2 style="margin:0 0 10px; font-size:20px; color:#fff; font-weight:400;">{competition.title}</h2>
+        <p style="margin:0; font-size:14px; color:#8888aa;">{date_str}{f" &mdash; {lieu}" if lieu else ""}</p>
+    </td></tr>
+    <tr><td style="padding:28px 32px 0;">
+        <p style="font-size:15px; line-height:1.7; color:#333; margin:0 0 20px;">
+            Notre club a participe au <strong>{competition.title}</strong> et nos pratiquants se sont illustres
+            avec un total de <strong>{total_medals} medaille(s)</strong> &mdash;
+            <span style="color:#b8860b;">{gold} or</span>,
+            <span style="color:#808080;">{silver} argent</span> et
+            <span style="color:#a0522d;">{bronze} bronze</span>
+            pour {total_participants} participant(s) engages.
+        </p>
+    </td></tr>
+    <tr><td style="padding:0 32px;">
+        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 auto 24px; text-align:center;">
+            <tr>
+                <td style="padding:12px; width:33%;">
+                    <div style="background:#fffbe6; border:2px solid #ffd700; border-radius:10px; padding:16px 8px;">
+                        <div style="font-size:28px;">🥇</div>
+                        <div style="font-size:32px; font-weight:bold; color:#b8860b;">{gold}</div>
+                        <div style="font-size:12px; color:#666; text-transform:uppercase; letter-spacing:1px;">Or</div>
+                    </div>
+                </td>
+                <td style="padding:12px; width:33%;">
+                    <div style="background:#f5f5f5; border:2px solid #c0c0c0; border-radius:10px; padding:16px 8px;">
+                        <div style="font-size:28px;">🥈</div>
+                        <div style="font-size:32px; font-weight:bold; color:#808080;">{silver}</div>
+                        <div style="font-size:12px; color:#666; text-transform:uppercase; letter-spacing:1px;">Argent</div>
+                    </div>
+                </td>
+                <td style="padding:12px; width:33%;">
+                    <div style="background:#fdf0e2; border:2px solid #cd7f32; border-radius:10px; padding:16px 8px;">
+                        <div style="font-size:28px;">🥉</div>
+                        <div style="font-size:32px; font-weight:bold; color:#a0522d;">{bronze}</div>
+                        <div style="font-size:12px; color:#666; text-transform:uppercase; letter-spacing:1px;">Bronze</div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </td></tr>
+    {f"""<tr><td style="padding:0 32px 20px;">
+        <div style="border-left:4px solid #1a1a2e; padding:16px 20px; background:#f8f8fc; margin:0 0 8px;">
+            {''.join(f'<p style="margin:0 0 8px; font-size:15px; line-height:1.7; color:#333;">{p.strip()}</p>' for p in custom_text.split(chr(10)) if p.strip())}
         </div>
-        <div style="background: linear-gradient(135deg, #c0c0c0 0%, #a0a0a0 100%); border-radius: 10px; padding: 16px 24px; text-align: center; min-width: 100px;">
-            <div style="font-size: 2em;">🥈</div>
-            <div style="font-size: 1.5em; font-weight: bold; color: #1a1a2e;">{silver}</div>
-            <div style="font-size: 0.8em; color: #333;">Argent</div>
-        </div>
-        <div style="background: linear-gradient(135deg, #cd7f32 0%, #a0522d 100%); border-radius: 10px; padding: 16px 24px; text-align: center; min-width: 100px;">
-            <div style="font-size: 2em;">🥉</div>
-            <div style="font-size: 1.5em; font-weight: bold; color: #1a1a2e;">{bronze}</div>
-            <div style="font-size: 0.8em; color: #333;">Bronze</div>
-        </div>
-    </div>
-    <div style="background: #1e1e2e; border-radius: 10px; padding: 16px; margin-bottom: 24px; text-align: center; border: 1px solid #333;">
-        <span style="color: #b0b0b0; margin: 0 12px;">👥 {total_participants} participant(s)</span>
-        <span style="color: #b0b0b0; margin: 0 12px;">🏅 {total_medals} medaille(s)</span>
-    </div>
-    {custom_html}
-    <h3 style="color: #ffd700; margin: 24px 0 16px 0; font-size: 1.2em; border-bottom: 2px solid #ffd700; padding-bottom: 8px;">🏅 Nos medailles</h3>
-    {medalists_html}
-    <div style="background: #1a1a2e; border-radius: 8px; padding: 12px; text-align: center; margin-top: 24px; border: 1px solid #333;">
-        <p style="color: #666; margin: 0; font-size: 0.8em;">Publie automatiquement par MartialComp</p>
-    </div>
-</div>'''
+    </td></tr>""" if custom_text else ""}
+    <tr><td style="padding:0 32px 8px;">
+        <h3 style="font-size:18px; color:#1a1a2e; margin:0 0 16px; padding-bottom:10px; border-bottom:2px solid #ffd700;">
+            🏅 Palmares detaille
+        </h3>
+    </td></tr>
+    <tr><td style="padding:0 32px 24px;">
+        {medalists_html}
+    </td></tr>
+    <tr><td style="background:#1a1a2e; padding:20px 32px; text-align:center;">
+        <p style="margin:0 0 4px; font-size:12px; color:#8888aa;">{club_name} &mdash; Saison {date_str[-4:] if len(date_str) >= 4 else ""}</p>
+        <p style="margin:0; font-size:11px; color:#555;">Genere par <strong style="color:#8b5cf6;">MartialComp</strong> &mdash; Plateforme de gestion des competitions d&apos;arts martiaux</p>
+    </td></tr>
+</table>'''
+
+        # Adapter les couleurs des medaillés pour le format newsletter (fond blanc)
+        medalists_html_light = medalists_html.replace('color: #e0e0e0;', 'color: #222;').replace('color: #a0a0a0;', 'color: #666;').replace('color: #a78bfa;', 'color: #5b21b6;')
+        html_content = html_content.replace(medalists_html, medalists_html_light)
 
         # Creer l'article
         title = f"Resultats - {competition.title}"
