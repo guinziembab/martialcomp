@@ -561,6 +561,23 @@ def _get_org_by_slug(slug: str):
         logger.error(f"Erreur _get_org_by_slug: {e}")
         return None
 
+def public_news_detail(request, slug, news_slug):
+    """Affiche le détail d'un article d'actualité."""
+    from apps.organizations.models import Organization, OrganizationNews
+    organization = get_object_or_404(Organization, slug=slug)
+    article = get_object_or_404(
+        OrganizationNews,
+        organization=organization,
+        slug=news_slug,
+        is_published=True,
+    )
+    context = {
+        'organization': organization,
+        'article': article,
+    }
+    return render(request, 'organizations/sites/news_detail.html', context)
+
+
 def public_organization_site(request, slug: str, section: str = None):
     """Public site rendering without tenant, resolved by slug."""
     from django.views.decorators.clickjacking import xframe_options_sameorigin

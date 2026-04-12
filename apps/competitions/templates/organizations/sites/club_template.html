@@ -1,0 +1,2456 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'fr' }}" data-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ organization.name }} - {% trans "Martial Arts Club" %}</title>
+
+    <!-- Restore theme before render to prevent flash -->
+    <script>
+        (function() {
+            var t = localStorage.getItem('club-site-theme');
+            if (t && ['dark','light','night'].indexOf(t) !== -1) {
+                document.documentElement.setAttribute('data-theme', t);
+            }
+        })();
+    </script>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --bg-card: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            /* Couleurs dynamiques de l'organisation */
+            --accent-purple: {{ organization.primary_color|default:'#8b5cf6' }};
+            --accent-purple-light: {{ organization.secondary_color|default:'#a78bfa' }};
+            --accent-gold: {{ organization.accent_color|default:'#d4af37' }};
+            --primary-color: {{ organization.primary_color|default:'#8b5cf6' }};
+            --secondary-color: {{ organization.secondary_color|default:'#a78bfa' }};
+            --accent-color: {{ organization.accent_color|default:'#d4af37' }};
+            --accent-blue: #3b82f6;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        /* ===== Theme Jour (clair) ===== */
+        [data-theme="light"] {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #e2e8f0;
+            --bg-tertiary: #cbd5e1;
+            --bg-card: #ffffff;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        /* ===== Theme Nuit (AMOLED noir profond) ===== */
+        [data-theme="night"] {
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-tertiary: #1a1a1a;
+            --bg-card: #0d0d0d;
+            --text-primary: #e4e4e7;
+            --text-secondary: #71717a;
+            --text-muted: #52525b;
+            --border-color: rgba(255, 255, 255, 0.06);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background-color: var(--bg-primary);
+        }
+
+        /* Navigation */
+        .navbar {
+            background: rgba(15, 23, 42, 0.95) !important;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 0;
+            transition: all 0.3s ease;
+        }
+
+        .navbar.scrolled {
+            background: rgba(15, 23, 42, 0.98) !important;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.4rem;
+            color: var(--text-primary) !important;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .navbar-brand i {
+            color: var(--accent-purple);
+        }
+
+        .nav-link {
+            font-weight: 500;
+            color: var(--text-secondary) !important;
+            transition: all 0.3s ease;
+            padding: 0.5rem 1rem !important;
+            border-radius: 8px;
+        }
+
+        .nav-link:hover {
+            color: var(--text-primary) !important;
+            background: var(--bg-tertiary);
+        }
+
+        .navbar-toggler {
+            border-color: var(--border-color);
+        }
+
+        .navbar-toggler-icon {
+            filter: invert(1);
+        }
+
+        /* Scroll offset for sticky navbar */
+        section[id] {
+            scroll-margin-top: 80px;
+        }
+
+        /* Hero Section — Immersif plein ecran */
+        .hero-section {
+            background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-purple-light) 100%);
+            color: white;
+            min-height: 85vh;
+            display: flex;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            scroll-margin-top: 0;
+        }
+
+        .hero-section.has-banner::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                to bottom,
+                rgba(15, 23, 42, 0.3) 0%,
+                rgba(15, 23, 42, 0.45) 50%,
+                rgba(15, 23, 42, 0.85) 100%
+            );
+            z-index: 1;
+        }
+
+        .hero-section .container {
+            position: relative;
+            z-index: 2;
+            padding: 6rem 0 4rem;
+        }
+
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 120px;
+            background: linear-gradient(to top, var(--bg-primary), transparent);
+            z-index: 2;
+        }
+
+        .hero-logo {
+            max-width: 200px;
+            max-height: 200px;
+            object-fit: contain;
+            background: rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.3));
+        }
+
+        /* Gallery Section */
+        .gallery-section {
+            padding: 6rem 0;
+            background: var(--bg-secondary);
+        }
+
+        .gallery-carousel {
+            position: relative;
+            overflow: hidden;
+            border-radius: 20px;
+        }
+
+        .gallery-track {
+            display: flex;
+            transition: transform 0.5s ease;
+        }
+
+        .gallery-slide {
+            min-width: 100%;
+            position: relative;
+            background: var(--bg-tertiary);
+            border-radius: 16px;
+        }
+
+        .gallery-slide img {
+            width: 100%;
+            height: 480px;
+            object-fit: contain;
+            border-radius: 16px;
+        }
+
+        .gallery-caption {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            color: white;
+            padding: 40px 20px 20px;
+            border-radius: 0 0 16px 16px;
+        }
+
+        .gallery-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.9);
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-purple);
+            font-size: 1.2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+
+        .gallery-nav:hover {
+            background: var(--accent-purple);
+            color: white;
+        }
+
+        .gallery-nav.prev { left: 20px; }
+        .gallery-nav.next { right: 20px; }
+
+        .gallery-dots {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .gallery-dots .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .gallery-dots .dot.active {
+            background: var(--accent-purple);
+            transform: scale(1.2);
+        }
+
+        /* Calendar Section */
+        .calendar-section {
+            padding: 6rem 0;
+            background: var(--bg-primary);
+        }
+
+        .events-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .event-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+
+        .event-card:hover {
+            transform: translateX(10px);
+            border-color: var(--accent-purple);
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.15);
+        }
+
+        .event-date {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border-radius: 12px;
+            padding: 15px 20px;
+            text-align: center;
+            min-width: 80px;
+        }
+
+        .event-date .day {
+            display: block;
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: white;
+            line-height: 1;
+        }
+
+        .event-date .month {
+            display: block;
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.8);
+            text-transform: uppercase;
+            margin-top: 5px;
+        }
+
+        .event-details {
+            flex: 1;
+        }
+
+        .event-details h4 {
+            color: var(--text-primary);
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .event-details p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 8px;
+        }
+
+        .badge-discipline {
+            background: var(--bg-tertiary);
+            color: var(--accent-purple);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .btn-event {
+            width: 50px;
+            height: 50px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .btn-event:hover {
+            background: var(--accent-purple);
+            color: white;
+            border-color: var(--accent-purple);
+        }
+
+        .no-events {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+        }
+
+        .hero-badge i {
+            font-size: 0.75rem;
+            color: var(--success);
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            letter-spacing: -1px;
+        }
+
+        .hero-subtitle {
+            font-size: 1.25rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* Buttons */
+        .btn-hero-primary {
+            background: white;
+            color: var(--accent-purple);
+            border: none;
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-hero-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            color: var(--accent-purple);
+        }
+
+        .btn-hero-outline {
+            background: transparent;
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-hero-outline:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: white;
+            color: white;
+            transform: translateY(-3px);
+        }
+
+        /* Section Titles */
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-tertiary);
+            color: var(--accent-purple);
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .section-subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Services Section */
+        .services-section {
+            padding: 6rem 0;
+            background: var(--bg-primary);
+        }
+
+        .feature-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            padding: 2.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.4s ease;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-purple), var(--accent-purple-light));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            border-color: var(--accent-purple);
+            box-shadow: 0 20px 40px rgba(139, 92, 246, 0.15);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            color: white;
+            font-size: 1.75rem;
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.3);
+        }
+
+        .feature-card h4 {
+            color: var(--text-primary);
+            font-weight: 700;
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        /* QR Codes Section */
+        .qr-section {
+            padding: 6rem 0;
+            background: var(--bg-secondary);
+            position: relative;
+        }
+
+        .qr-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-purple), transparent);
+        }
+
+        .qr-card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 2rem;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            transition: all 0.4s ease;
+            height: 100%;
+        }
+
+        .qr-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-purple);
+            box-shadow: 0 15px 35px rgba(139, 92, 246, 0.15);
+        }
+
+        .qr-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            color: white;
+            font-size: 1.5rem;
+            box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3);
+        }
+
+        .qr-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .qr-description {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .qr-image {
+            max-width: 140px;
+            height: 140px;
+            object-fit: contain;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            background: white;
+            padding: 10px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .qr-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .btn-qr {
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-qr-primary {
+            background: var(--accent-purple);
+            color: white;
+            border: none;
+        }
+
+        .btn-qr-primary:hover {
+            background: var(--accent-purple-light);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .btn-qr-outline {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-qr-outline:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-color: var(--accent-purple);
+        }
+
+        /* Contact Section */
+        .contact-section {
+            padding: 6rem 0;
+            background: var(--bg-primary);
+        }
+
+        .contact-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+
+        .contact-card:hover {
+            border-color: var(--accent-purple);
+            transform: translateY(-3px);
+        }
+
+        .contact-icon {
+            width: 55px;
+            height: 55px;
+            background: var(--bg-tertiary);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            color: var(--accent-purple);
+            font-size: 1.3rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .contact-card h6 {
+            color: var(--text-primary);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .contact-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        .btn-contact {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 1rem 2.5rem;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-contact:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.4);
+            color: white;
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            padding: 4rem 0 2rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .footer-brand {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .footer-brand i {
+            color: var(--accent-purple);
+        }
+
+        .footer-description {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.7;
+            margin-bottom: 1.5rem;
+        }
+
+        .footer-title {
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+            font-size: 1rem;
+        }
+
+        .footer-links {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .footer-links li {
+            margin-bottom: 0.75rem;
+        }
+
+        .footer-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+
+        .footer-link:hover {
+            color: var(--accent-purple);
+            padding-left: 5px;
+        }
+
+        .social-links {
+            display: flex;
+            gap: 12px;
+        }
+
+        .social-link {
+            width: 42px;
+            height: 42px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: 1px solid var(--border-color);
+        }
+
+        .social-link:hover {
+            background: var(--accent-purple);
+            color: white;
+            transform: translateY(-3px);
+            border-color: var(--accent-purple);
+        }
+
+        .footer-bottom {
+            border-top: 1px solid var(--border-color);
+            margin-top: 3rem;
+            padding-top: 2rem;
+            text-align: center;
+        }
+
+        .footer-bottom p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin: 0;
+        }
+
+        .footer-bottom strong {
+            color: var(--accent-purple);
+        }
+
+        /* Toast Notification */
+        .toast-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            background: var(--bg-card);
+            border: 1px solid var(--success);
+            border-left: 4px solid var(--success);
+            border-radius: 12px;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast-notification i {
+            color: var(--success);
+            font-size: 1.2rem;
+        }
+
+        .toast-notification span {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* ===== Theme-specific overrides ===== */
+
+        /* --- Light theme overrides --- */
+        [data-theme="light"] .navbar {
+            background: rgba(248, 250, 252, 0.95) !important;
+        }
+        [data-theme="light"] .navbar.scrolled {
+            background: rgba(248, 250, 252, 0.98) !important;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
+        }
+        [data-theme="light"] .navbar-toggler-icon {
+            filter: none;
+        }
+        [data-theme="light"] .navbar-brand {
+            color: var(--text-primary) !important;
+        }
+        [data-theme="light"] .nav-link {
+            color: #334155 !important;
+        }
+        [data-theme="light"] .nav-link:hover {
+            color: var(--text-primary) !important;
+        }
+        [data-theme="light"] .hero-section.has-banner::after {
+            background: linear-gradient(
+                to bottom,
+                rgba(248, 250, 252, 0.15) 0%,
+                rgba(248, 250, 252, 0.4) 50%,
+                rgba(248, 250, 252, 0.9) 100%
+            );
+        }
+        [data-theme="light"] .hero-section::before {
+            background: linear-gradient(to top, var(--bg-primary), transparent);
+        }
+        [data-theme="light"] .feature-card {
+            background: rgba(255, 255, 255, 0.7);
+            border-color: rgba(0, 0, 0, 0.08);
+        }
+        [data-theme="light"] .feature-card:hover {
+            border-color: var(--accent-purple);
+            box-shadow: 0 20px 40px rgba(139, 92, 246, 0.1);
+        }
+        [data-theme="light"] .hero-logo {
+            background: rgba(255, 255, 255, 0.5);
+            border-color: rgba(0, 0, 0, 0.1);
+        }
+        [data-theme="light"] .language-dropdown {
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+        }
+        [data-theme="light"] .btn-outline-light {
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+        [data-theme="light"] .btn-outline-light:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        /* --- Night theme overrides --- */
+        [data-theme="night"] .navbar {
+            background: rgba(0, 0, 0, 0.95) !important;
+        }
+        [data-theme="night"] .navbar.scrolled {
+            background: rgba(0, 0, 0, 0.98) !important;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        [data-theme="night"] .hero-section.has-banner::after {
+            background: linear-gradient(
+                to bottom,
+                rgba(0, 0, 0, 0.4) 0%,
+                rgba(0, 0, 0, 0.6) 50%,
+                rgba(0, 0, 0, 0.92) 100%
+            );
+        }
+        [data-theme="night"] .feature-card {
+            background: rgba(13, 13, 13, 0.8);
+            border-color: rgba(255, 255, 255, 0.04);
+        }
+        [data-theme="night"] .feature-card:hover {
+            border-color: var(--accent-purple);
+            box-shadow: 0 20px 40px rgba(139, 92, 246, 0.08);
+        }
+        [data-theme="night"] .hero-logo {
+            background: rgba(255, 255, 255, 0.08);
+        }
+        [data-theme="night"] .event-card:hover {
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.1);
+        }
+        [data-theme="night"] .language-dropdown {
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        /* --- Theme toggle button --- */
+        .theme-toggle-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-left: 0.5rem;
+            font-size: 1rem;
+            position: relative;
+        }
+        .theme-toggle-btn:hover {
+            background: var(--accent-purple);
+            color: white;
+            border-color: var(--accent-purple);
+        }
+        .theme-toggle-btn .theme-label {
+            display: none;
+            position: absolute;
+            bottom: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.65rem;
+            white-space: nowrap;
+            color: var(--text-muted);
+            background: var(--bg-card);
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+        .theme-toggle-btn:hover .theme-label {
+            display: block;
+        }
+        @media (max-width: 991px) {
+            .d-flex.align-items-center {
+                flex-direction: column;
+                width: 100%;
+            }
+            .theme-toggle-btn {
+                width: 100%;
+                height: auto;
+                padding: 10px;
+                margin: 0.5rem 0;
+                border-radius: 10px;
+                gap: 8px;
+            }
+            .theme-toggle-btn .theme-label {
+                display: inline !important;
+                position: static;
+                transform: none;
+                font-size: 0.85rem;
+                background: none;
+                border: none;
+                padding: 0;
+                color: var(--text-secondary);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 992px) {
+            .hero-section {
+                min-height: 70vh;
+                background-attachment: scroll;
+            }
+
+            .hero-title {
+                font-size: 2.5rem;
+            }
+
+            .section-title {
+                font-size: 2rem;
+            }
+
+            .gallery-slide img {
+                height: 380px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .hero-section {
+                min-height: 60vh;
+                background-attachment: scroll;
+            }
+
+            .hero-section .container {
+                padding: 4rem 0 3rem;
+            }
+
+            .hero-title {
+                font-size: 2rem;
+            }
+
+            .hero-subtitle {
+                font-size: 1rem;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .feature-card, .qr-card {
+                margin-bottom: 1.5rem;
+            }
+
+            .section-title {
+                font-size: 1.75rem;
+            }
+
+            .services-section, .qr-section, .contact-section, .gallery-section, .news-section {
+                padding: 4rem 0;
+            }
+
+            .gallery-slide img {
+                height: 260px;
+            }
+
+            .gallery-nav {
+                width: 40px;
+                height: 40px;
+                font-size: 1rem;
+            }
+
+            .news-image, .news-image-placeholder {
+                height: 180px;
+            }
+
+            .qr-image {
+                max-width: 120px;
+                height: 120px;
+            }
+
+            .event-card {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .event-date {
+                min-width: auto;
+                width: 100%;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(40px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-on-scroll {
+            animation: fadeInUp 0.8s ease-out forwards;
+        }
+
+        .delay-100 { animation-delay: 0.1s; }
+        .delay-200 { animation-delay: 0.2s; }
+        .delay-300 { animation-delay: 0.3s; }
+
+        /* Language Selector */
+        .language-selector {
+            position: relative;
+            margin-left: 1rem;
+        }
+
+        .language-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .language-btn:hover {
+            background: var(--bg-secondary);
+            border-color: var(--accent-purple);
+        }
+
+        .language-btn .flag-icon {
+            width: 20px;
+            height: 15px;
+            border-radius: 3px;
+            object-fit: cover;
+        }
+
+        .language-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 8px;
+            min-width: 180px;
+            max-height: 400px;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .language-dropdown::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .language-dropdown::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+        }
+
+        .language-dropdown::-webkit-scrollbar-thumb {
+            background: var(--accent-purple);
+            border-radius: 3px;
+        }
+
+        .language-selector:hover .language-dropdown,
+        .language-dropdown.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .language-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .language-option:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .language-option.active {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-purple-light));
+            color: white;
+        }
+
+        .language-option .flag-icon {
+            width: 24px;
+            height: 18px;
+            border-radius: 4px;
+            object-fit: cover;
+        }
+
+        .language-option .lang-name {
+            flex: 1;
+        }
+
+        .language-option .lang-code {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .language-option.active .lang-code {
+            color: rgba(255,255,255,0.7);
+        }
+
+        @media (max-width: 991px) {
+            .language-selector {
+                margin: 1rem 0;
+                width: 100%;
+            }
+
+            .language-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .language-dropdown {
+                position: static;
+                margin-top: 8px;
+                transform: none;
+                opacity: 1;
+                visibility: visible;
+                display: none;
+            }
+
+            .language-dropdown.show {
+                display: block;
+            }
+        }
+
+        /* News Section */
+        .news-section {
+            padding: 6rem 0;
+            background: var(--bg-secondary);
+        }
+
+        .news-card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .news-card:hover {
+            transform: translateY(-10px);
+            border-color: var(--accent-purple);
+            box-shadow: 0 20px 40px rgba(139, 92, 246, 0.2);
+        }
+
+        .news-image {
+            width: 100%;
+            height: 220px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .news-image::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            background: linear-gradient(to top, rgba(0,0,0,0.4), transparent);
+            pointer-events: none;
+        }
+
+        .news-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.4s ease;
+        }
+
+        .news-card:hover .news-image img {
+            transform: scale(1.1);
+        }
+
+        .news-image-placeholder {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-purple-light) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .news-image-placeholder i {
+            font-size: 4rem;
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .news-content {
+            padding: 1.5rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .news-date {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent-purple);
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 0.75rem;
+        }
+
+        .news-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+            line-height: 1.4;
+        }
+
+        .news-excerpt {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            flex: 1;
+            margin-bottom: 1rem;
+        }
+
+        .news-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent-purple);
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .news-link:hover {
+            color: var(--accent-purple-light);
+            gap: 12px;
+        }
+
+        .news-link i {
+            transition: transform 0.3s ease;
+        }
+
+        .news-link:hover i {
+            transform: translateX(4px);
+        }
+
+        .no-news {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-muted);
+        }
+
+        .no-news i {
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .news-section {
+                padding: 4rem 0;
+            }
+
+            .news-image {
+                height: 180px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg sticky-top" id="mainNav">
+        <div class="container">
+            <a href="javascript:history.back()" class="btn btn-outline-light btn-sm me-3" title="{% trans 'Retour' %}">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <a class="navbar-brand" href="{% url 'competitions:dashboard:club' %}">
+                <i class="fas fa-fist-raised"></i>
+                {{ organization.name }}
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'competitions:dashboard:club' %}">{% trans "Accueil" %}</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#services" onclick="scrollToSection('services'); return false;">{% trans "Services" %}</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#news" onclick="scrollToSection('news'); return false;">{% trans "Actualites" %}</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#acces" onclick="scrollToSection('acces'); return false;">{% trans "Quick Access" %}</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#contact" onclick="scrollToSection('contact'); return false;">{% trans "Contact" %}</a>
+                    </li>
+                </ul>
+
+                <!-- Theme Toggle + Language Selector -->
+                <div class="d-flex align-items-center">
+                <button class="theme-toggle-btn" onclick="toggleTheme()" id="themeToggleBtn" title="{% trans 'Change theme' %}">
+                    <i class="fas fa-moon" id="themeIcon"></i>
+                    <span class="theme-label" id="themeLabel">{% trans "Sombre" %}</span>
+                </button>
+                <div class="language-selector">
+                    <button class="language-btn" onclick="toggleLanguageDropdown()" id="langBtn">
+                        <span class="flag-icon" id="currentFlag">🇫🇷</span>
+                        <span id="currentLang">FR</span>
+                        <i class="fas fa-chevron-down" style="font-size: 0.7rem;"></i>
+                    </button>
+                    <div class="language-dropdown" id="langDropdown">
+                        <a href="#" class="language-option active" data-lang="fr" onclick="changeLanguage('fr', event)">
+                            <span class="flag-icon">🇫🇷</span>
+                            <span class="lang-name">Français</span>
+                            <span class="lang-code">FR</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="en" onclick="changeLanguage('en', event)">
+                            <span class="flag-icon">🇬🇧</span>
+                            <span class="lang-name">English</span>
+                            <span class="lang-code">EN</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="es" onclick="changeLanguage('es', event)">
+                            <span class="flag-icon">🇪🇸</span>
+                            <span class="lang-name">Español</span>
+                            <span class="lang-code">ES</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="de" onclick="changeLanguage('de', event)">
+                            <span class="flag-icon">🇩🇪</span>
+                            <span class="lang-name">Deutsch</span>
+                            <span class="lang-code">DE</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="it" onclick="changeLanguage('it', event)">
+                            <span class="flag-icon">🇮🇹</span>
+                            <span class="lang-name">Italiano</span>
+                            <span class="lang-code">IT</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="pt" onclick="changeLanguage('pt', event)">
+                            <span class="flag-icon">🇵🇹</span>
+                            <span class="lang-name">Português</span>
+                            <span class="lang-code">PT</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="ru" onclick="changeLanguage('ru', event)">
+                            <span class="flag-icon">🇷🇺</span>
+                            <span class="lang-name">Русский</span>
+                            <span class="lang-code">RU</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="vi" onclick="changeLanguage('vi', event)">
+                            <span class="flag-icon">🇻🇳</span>
+                            <span class="lang-name">Tiếng Việt</span>
+                            <span class="lang-code">VI</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="no" onclick="changeLanguage('no', event)">
+                            <span class="flag-icon">🇳🇴</span>
+                            <span class="lang-name">Norsk</span>
+                            <span class="lang-code">NO</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="ja" onclick="changeLanguage('ja', event)">
+                            <span class="flag-icon">🇯🇵</span>
+                            <span class="lang-name">日本語</span>
+                            <span class="lang-code">JA</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="zh-hans" onclick="changeLanguage('zh-hans', event)">
+                            <span class="flag-icon">🇨🇳</span>
+                            <span class="lang-name">中文</span>
+                            <span class="lang-code">ZH</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="ko" onclick="changeLanguage('ko', event)">
+                            <span class="flag-icon">🇰🇷</span>
+                            <span class="lang-name">한국어</span>
+                            <span class="lang-code">KO</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="ar" onclick="changeLanguage('ar', event)">
+                            <span class="flag-icon">🇸🇦</span>
+                            <span class="lang-name">العربية</span>
+                            <span class="lang-code">AR</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="hi" onclick="changeLanguage('hi', event)">
+                            <span class="flag-icon">🇮🇳</span>
+                            <span class="lang-name">हिन्दी</span>
+                            <span class="lang-code">HI</span>
+                        </a>
+                        <a href="#" class="language-option" data-lang="sw" onclick="changeLanguage('sw', event)">
+                            <span class="flag-icon">🇰🇪</span>
+                            <span class="lang-name">Kiswahili</span>
+                            <span class="lang-code">SW</span>
+                        </a>
+                    </div>
+                </div>
+                </div><!-- /d-flex theme+lang -->
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section avec bannière -->
+    <section id="accueil" class="hero-section {% if organization.banner %}has-banner{% endif %}"
+        {% if organization.banner %}
+        style="background-image: url('{{ organization.banner.url }}');"
+        {% endif %}>
+        <div class="container">
+            <div class="hero-content">
+                <div class="row align-items-center">
+                    <!-- Contenu principal à gauche -->
+                    <div class="col-lg-8 text-center text-lg-start">
+                        <div class="hero-badge">
+                            <i class="fas fa-circle"></i>
+                            {% trans "MartialComp Certified Club" %}
+                        </div>
+                        <h1 class="hero-title">
+                            {% if organization.metadata.content.welcome_title %}
+                                {{ organization.metadata.content.welcome_title }}
+                            {% else %}
+                                {{ organization.name }}
+                            {% endif %}
+                        </h1>
+                        <p class="hero-subtitle">
+                            {% if organization.metadata.content.welcome_text %}
+                                {{ organization.metadata.content.welcome_text }}
+                            {% elif organization.description %}
+                                {{ organization.description }}
+                            {% else %}
+                                {% trans "Excellence, Discipline, Tradition - Your journey in martial arts begins here" %}
+                            {% endif %}
+                        </p>
+                        <div class="hero-buttons">
+                            <a href="#services" class="btn-hero-primary">
+                                <i class="fas fa-star"></i>
+                                {% trans "Discover our classes" %}
+                            </a>
+                            <a href="#acces" class="btn-hero-outline">
+                                <i class="fas fa-qrcode"></i>
+                                {% trans "Quick Access" %}
+                            </a>
+                        </div>
+                    </div>
+                    <!-- Logo à droite -->
+                    <div class="col-lg-4 text-center d-none d-lg-block">
+                        {% if organization.logo %}
+                            <img src="{{ organization.logo.url }}" alt="{{ organization.name }} Logo" class="hero-logo">
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section id="services" class="services-section">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-badge">
+                    <i class="fas fa-medal"></i>
+                    {% trans "Our Services" %}
+                </div>
+                <h2 class="section-title">{% trans "What we offer" %}</h2>
+                <p class="section-subtitle">
+                    {% trans "Discover comprehensive martial arts training with qualified instructors" %}
+                </p>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-graduation-cap"></i>
+                        </div>
+                        <h4>{% trans "Classes & Training" %}</h4>
+                        <p>
+                            {% trans "Classes adapted to all levels, from beginner to expert. In-depth technical training with certified and passionate instructors." %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <h4>{% trans "Competitions" %}</h4>
+                        <p>
+                            {% trans "Participate in local, national and international competitions. Develop your skills in a stimulating competitive environment." %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <h4>{% trans "Community" %}</h4>
+                        <p>
+                            {% trans "Join a passionate and caring community. Exchanges, events and lasting friendships in a spirit of mutual respect." %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Galerie Section -->
+    {% if gallery_images %}
+    <section id="galerie" class="gallery-section">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-badge">
+                    <i class="fas fa-images"></i>
+                    {% trans "Our Gallery" %}
+                </div>
+                <h2 class="section-title">{% trans "Discover our club in pictures" %}</h2>
+                <p class="section-subtitle">
+                    {% trans "Highlights, training sessions and events that make our community" %}
+                </p>
+            </div>
+
+            <div class="gallery-carousel">
+                <div class="gallery-track" id="galleryTrack">
+                    {% for img in gallery_images %}
+                    <div class="gallery-slide">
+                        <img src="{{ img.image.url }}" alt="{{ img.description|default:img.alt_text|default:'Image galerie' }}">
+                        {% if img.description %}
+                        <div class="gallery-caption">
+                            <p class="mb-0">{{ img.description }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if gallery_images|length > 1 %}
+                <button class="gallery-nav prev" onclick="moveGallery(-1)">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button class="gallery-nav next" onclick="moveGallery(1)">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+
+                <div class="gallery-dots">
+                    {% for img in gallery_images %}
+                    <span class="dot {% if forloop.first %}active{% endif %}"
+                          onclick="goToSlide({{ forloop.counter0 }})"></span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Calendrier des événements -->
+    <section id="calendrier" class="calendar-section">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-badge">
+                    <i class="fas fa-calendar-alt"></i>
+                    {% trans "Calendar" %}
+                </div>
+                <h2 class="section-title">{% trans "Our upcoming events" %}</h2>
+                <p class="section-subtitle">
+                    {% trans "Stay informed about upcoming competitions and events" %}
+                </p>
+            </div>
+
+            <div class="events-timeline">
+                {% for event in upcoming_competitions %}
+                <div class="event-card">
+                    <div class="event-date">
+                        <span class="day">{{ event.start_date|date:"d" }}</span>
+                        <span class="month">{{ event.start_date|date:"M" }}</span>
+                    </div>
+                    <div class="event-details">
+                        <h4>{{ event.title }}</h4>
+                        <p><i class="fas fa-map-marker-alt me-2"></i>{{ event.venue_name }}{% if event.city %}, {{ event.city }}{% endif %}</p>
+                        {% if event.discipline %}
+                        <span class="badge-discipline">{{ event.discipline.name }}</span>
+                        {% elif event.event_type %}
+                        <span class="badge-discipline badge-event-type">
+                            {% if event.event_type == 'training' %}{% trans "Training" %}{% elif event.event_type == 'seminar' %}{% trans "Seminar" %}{% elif event.event_type == 'exam' %}{% trans "Exam" %}{% elif event.event_type == 'meeting' %}{% trans "Meeting" %}{% else %}{% trans "Event" %}{% endif %}
+                        </span>
+                        {% elif event.type == 'competition' %}
+                        <span class="badge-discipline">{% trans "Competition" %}</span>
+                        {% endif %}
+                    </div>
+                    {% if event.type == 'event' %}
+                    <a href="{% url 'competitions:events:event_detail' event_id=event.obj.id %}" class="btn-event" title="{% trans "View details" %}">
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                    {% elif event.type == 'competition' %}
+                    <a href="{% url 'competitions:competitions:detail' pk=event.obj.id %}" class="btn-event" title="{% trans "View details" %}">
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                    {% else %}
+                    <a href="#" class="btn-event" title="{% trans "View details" %}">
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <div class="no-events">
+                    <i class="fas fa-calendar-check fa-3x mb-3"></i>
+                    <p class="mb-0">{% trans "No events scheduled at this time" %}</p>
+                    <small class="text-muted">{% trans "Come back soon to discover our upcoming competitions" %}</small>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <!-- News Section -->
+    <section id="news" class="news-section">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-badge">
+                    <i class="fas fa-newspaper"></i>
+                    {% trans "Actualites" %}
+                </div>
+                <h2 class="section-title">{% trans "Les dernieres nouvelles" %}</h2>
+                <p class="section-subtitle">
+                    {% trans "Restez informe des actualites de notre club" %}
+                </p>
+            </div>
+
+            <div class="row g-4">
+                {% if recent_news %}
+                    {% for news in recent_news %}
+                    <div class="col-md-6 col-lg-4">
+                        <div class="news-card">
+                            {% if news.image %}
+                            <div class="news-image">
+                                <img src="{{ news.image.url }}" alt="{{ news.title }}">
+                            </div>
+                            {% else %}
+                            <div class="news-image-placeholder">
+                                <i class="fas fa-newspaper"></i>
+                            </div>
+                            {% endif %}
+                            <div class="news-content">
+                                <span class="news-date">
+                                    <i class="far fa-calendar"></i>
+                                    {{ news.created_at|date:"d M Y" }}
+                                </span>
+                                <h3 class="news-title">{{ news.title }}</h3>
+                                <p class="news-excerpt">{{ news.excerpt|default:news.content|truncatewords:25 }}</p>
+                                <a href="/org/{{ organization.slug }}/news/{{ news.slug }}/" class="news-link">
+                                    {% trans "Lire la suite" %} <i class="fas fa-arrow-right"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="col-12">
+                        <div class="no-news">
+                            <i class="fas fa-newspaper fa-3x"></i>
+                            <p class="mb-0 mt-3">{% trans "Aucune actualite pour le moment" %}</p>
+                            <small class="text-muted">{% trans "Revenez bientot pour decouvrir nos dernieres nouvelles" %}</small>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <!-- QR Codes Section -->
+    <section id="acces" class="qr-section">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-badge">
+                    <i class="fas fa-qrcode"></i>
+                    {% trans "Quick Access" %}
+                </div>
+                <h2 class="section-title">{% trans "Scan to access" %}</h2>
+                <p class="section-subtitle">
+                    {% trans "Use our QR codes for instant access to all our services" %}
+                </p>
+            </div>
+
+            <div class="row g-4">
+                {% for qr_type, qr_data in qr_codes.items %}
+                <div class="col-md-6 col-lg-3">
+                    <div class="qr-card">
+                        {% if qr_type == "home" %}
+                            <div class="qr-icon">
+                                <i class="fas fa-home"></i>
+                            </div>
+                            <h5 class="qr-title">{% trans "Home" %}</h5>
+                            <p class="qr-description">{% trans "Access our home page directly" %}</p>
+                        {% elif qr_type == "register" %}
+                            <div class="qr-icon">
+                                <i class="fas fa-user-plus"></i>
+                            </div>
+                            <h5 class="qr-title">{% trans "Registration" %}</h5>
+                            <p class="qr-description">{% trans "Easily register for our classes" %}</p>
+                        {% elif qr_type == "payment" %}
+                            <div class="qr-icon">
+                                <i class="fas fa-credit-card"></i>
+                            </div>
+                            <h5 class="qr-title">{% trans "Payment" %}</h5>
+                            <p class="qr-description">{% trans "Pay your membership fees online" %}</p>
+                        {% elif qr_type == "referral" %}
+                            <div class="qr-icon">
+                                <i class="fas fa-gift"></i>
+                            </div>
+                            <h5 class="qr-title">{% trans "Referral" %}</h5>
+                            <p class="qr-description">{% trans "Refer your friends and get benefits" %}</p>
+                        {% elif qr_type == "shop" or qr_type == "boutique" %}
+                            <div class="qr-icon">
+                                <i class="fas fa-shopping-bag"></i>
+                            </div>
+                            <h5 class="qr-title">{% trans "Shop" %}</h5>
+                            <p class="qr-description">{% trans "Equipment, uniforms and club accessories" %}</p>
+                        {% else %}
+                            <div class="qr-icon">
+                                <i class="fas fa-qrcode"></i>
+                            </div>
+                            <h5 class="qr-title">{{ qr_type|title }}</h5>
+                            <p class="qr-description">{% trans "Quick access via QR code" %}</p>
+                        {% endif %}
+
+                        {% if qr_data.1 %}
+                            <img src="{{ MEDIA_URL }}{{ qr_data.1 }}" alt="QR {{ qr_type }}" class="qr-image">
+                        {% else %}
+                            <div class="qr-image d-flex align-items-center justify-content-center" style="background: var(--bg-tertiary);">
+                                <i class="fas fa-qrcode fa-3x" style="color: var(--text-muted);"></i>
+                            </div>
+                        {% endif %}
+
+                        <div class="qr-buttons">
+                            <a href="{{ qr_data.0 }}" class="btn btn-qr btn-qr-primary" target="_blank">
+                                <i class="fas fa-external-link-alt"></i>
+                                {% trans "Access" %}
+                            </a>
+                            <button class="btn btn-qr btn-qr-outline" onclick="copyToClipboard('{{ qr_data.0 }}')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12 text-center py-5">
+                    <div class="qr-icon mx-auto mb-3" style="width: 80px; height: 80px; font-size: 2rem;">
+                        <i class="fas fa-qrcode"></i>
+                    </div>
+                    <p class="text-muted">{% trans "QR codes are being generated..." %}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="contact-section">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-badge">
+                    <i class="fas fa-envelope"></i>
+                    {% trans "Contact" %}
+                </div>
+                <h2 class="section-title">{% trans "Contact us" %}</h2>
+                <p class="section-subtitle">
+                    {% trans "Ready to start your journey? We are here to support you" %}
+                </p>
+            </div>
+
+            <div class="row g-4 mb-5">
+                <div class="col-md-4">
+                    <div class="contact-card">
+                        <div class="contact-icon">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </div>
+                        <h6>{% trans "Address" %}</h6>
+                        <p>
+                            {% if organization.address %}
+                                {{ organization.address }}
+                            {% else %}
+                                {% trans "To be defined" %}
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="contact-card">
+                        <div class="contact-icon">
+                            <i class="fas fa-phone"></i>
+                        </div>
+                        <h6>{% trans "Phone" %}</h6>
+                        <p>
+                            {% if organization.phone %}
+                                {{ organization.phone }}
+                            {% else %}
+                                {% trans "To be defined" %}
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="contact-card">
+                        <div class="contact-icon">
+                            <i class="fas fa-envelope"></i>
+                        </div>
+                        <h6>{% trans "Email" %}</h6>
+                        <p>
+                            {% if organization.email %}
+                                {{ organization.email }}
+                            {% else %}
+                                contact@{{ organization.name|lower|slugify }}.fr
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center">
+                <a href="mailto:{% if organization.email %}{{ organization.email }}{% else %}contact@{{ organization.name|lower|slugify }}.fr{% endif %}"
+                   class="btn-contact">
+                    <i class="fas fa-paper-plane"></i>
+                    {% trans "Write to us" %}
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-5 mb-4 mb-lg-0">
+                    <div class="footer-brand">
+                        <i class="fas fa-fist-raised"></i>
+                        {{ organization.name }}
+                    </div>
+                    <p class="footer-description">
+                        {% trans "Your reference martial arts club. Excellence, discipline and tradition at the service of your personal and athletic development." %}
+                    </p>
+                    <div class="social-links">
+                        <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+                        <a href="#" class="social-link"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="social-link"><i class="fab fa-youtube"></i></a>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-4 mb-md-0">
+                    <h6 class="footer-title">{% trans "Navigation" %}</h6>
+                    <ul class="footer-links">
+                        <li><a href="#accueil" class="footer-link">{% trans "Home" %}</a></li>
+                        <li><a href="#services" class="footer-link">{% trans "Services" %}</a></li>
+                        <li><a href="#acces" class="footer-link">{% trans "Quick Access" %}</a></li>
+                        <li><a href="#contact" class="footer-link">{% trans "Contact" %}</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <h6 class="footer-title">{% trans "About MartialComp" %}</h6>
+                    <p class="footer-description">
+                        {% trans "Complete management platform for martial arts clubs and federations. Simplify your management, focus on practice." %}
+                    </p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>
+                    © {% now "Y" %} {{ organization.name }}. {% trans "All rights reserved." %}
+                    {% trans "Powered by" %} <strong>MartialComp</strong>
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Function to scroll to a section - called directly from onclick
+        function scrollToSection(sectionId) {
+            if (sectionId === 'accueil') {
+                // Scroll to top for home
+                window.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            } else {
+                const target = document.getElementById(sectionId);
+                if (target) {
+                    const navHeight = document.querySelector('.navbar').offsetHeight || 70;
+                    const targetPosition = target.getBoundingClientRect().top + window.pageYOffset - navHeight;
+                    window.scrollTo({
+                        top: targetPosition,
+                        behavior: 'smooth'
+                    });
+                }
+            }
+
+            // Close mobile menu if open
+            const navbarCollapse = document.querySelector('.navbar-collapse');
+            if (navbarCollapse && navbarCollapse.classList.contains('show')) {
+                const bsCollapse = bootstrap.Collapse.getInstance(navbarCollapse);
+                if (bsCollapse) bsCollapse.hide();
+            }
+        }
+
+        // Navbar scroll effect
+        window.addEventListener('scroll', function() {
+            const navbar = document.getElementById('mainNav');
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                const href = this.getAttribute('href');
+                // Skip if it's just "#" or empty
+                if (!href || href === '#') return;
+
+                e.preventDefault();
+                const targetId = href.substring(1); // Remove the #
+                const target = document.getElementById(targetId);
+
+                if (target) {
+                    // For hero section, scroll to top
+                    if (targetId === 'accueil') {
+                        window.scrollTo({
+                            top: 0,
+                            behavior: 'smooth'
+                        });
+                    } else {
+                        // For other sections, account for navbar height
+                        const navHeight = document.querySelector('.navbar').offsetHeight;
+                        const targetPosition = target.getBoundingClientRect().top + window.pageYOffset - navHeight;
+                        window.scrollTo({
+                            top: targetPosition,
+                            behavior: 'smooth'
+                        });
+                    }
+
+                    // Close mobile menu if open
+                    const navbarCollapse = document.querySelector('.navbar-collapse');
+                    if (navbarCollapse && navbarCollapse.classList.contains('show')) {
+                        const bsCollapse = bootstrap.Collapse.getInstance(navbarCollapse);
+                        if (bsCollapse) bsCollapse.hide();
+                    }
+                }
+            });
+        });
+
+        // Copy to clipboard function
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                showToast('Lien copié dans le presse-papier !');
+            }, function(err) {
+                console.error('Erreur lors de la copie: ', err);
+            });
+        }
+
+        // Toast notification
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            toast.innerHTML = `
+                <i class="fas fa-check-circle"></i>
+                <span>${message}</span>
+            `;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Intersection Observer for animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('animate-on-scroll');
+                }
+            });
+        }, observerOptions);
+
+        // Observe elements for animation
+        document.querySelectorAll('.feature-card, .qr-card, .contact-card').forEach(el => {
+            observer.observe(el);
+        });
+
+        // ============================================
+        // Gallery Carousel Functions
+        // ============================================
+        let currentSlide = 0;
+        const galleryTrack = document.getElementById('galleryTrack');
+        const gallerySlides = document.querySelectorAll('.gallery-slide');
+        const galleryDots = document.querySelectorAll('.gallery-dots .dot');
+        const totalSlides = gallerySlides.length;
+
+        function moveGallery(direction) {
+            if (totalSlides === 0) return;
+
+            currentSlide += direction;
+
+            // Loop around
+            if (currentSlide >= totalSlides) {
+                currentSlide = 0;
+            } else if (currentSlide < 0) {
+                currentSlide = totalSlides - 1;
+            }
+
+            updateGalleryPosition();
+        }
+
+        function goToSlide(index) {
+            if (index >= 0 && index < totalSlides) {
+                currentSlide = index;
+                updateGalleryPosition();
+            }
+        }
+
+        function updateGalleryPosition() {
+            if (!galleryTrack) return;
+
+            // Move track
+            const slideWidth = gallerySlides[0]?.offsetWidth || 0;
+            galleryTrack.style.transform = `translateX(-${currentSlide * slideWidth}px)`;
+
+            // Update dots
+            galleryDots.forEach((dot, index) => {
+                dot.classList.toggle('active', index === currentSlide);
+            });
+        }
+
+        // Auto-slide every 5 seconds
+        let galleryAutoPlay = null;
+        function startGalleryAutoPlay() {
+            if (totalSlides > 1) {
+                galleryAutoPlay = setInterval(() => moveGallery(1), 5000);
+            }
+        }
+
+        function stopGalleryAutoPlay() {
+            if (galleryAutoPlay) {
+                clearInterval(galleryAutoPlay);
+                galleryAutoPlay = null;
+            }
+        }
+
+        // Start auto-play when gallery is in view
+        const gallerySection = document.getElementById('galerie');
+        if (gallerySection) {
+            const galleryObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        startGalleryAutoPlay();
+                    } else {
+                        stopGalleryAutoPlay();
+                    }
+                });
+            }, { threshold: 0.3 });
+
+            galleryObserver.observe(gallerySection);
+        }
+
+        // Pause auto-play on hover
+        if (galleryTrack) {
+            galleryTrack.parentElement?.addEventListener('mouseenter', stopGalleryAutoPlay);
+            galleryTrack.parentElement?.addEventListener('mouseleave', startGalleryAutoPlay);
+        }
+
+        // Handle window resize for gallery
+        window.addEventListener('resize', () => {
+            updateGalleryPosition();
+        });
+
+        // Touch/swipe support for mobile
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        if (galleryTrack) {
+            galleryTrack.addEventListener('touchstart', (e) => {
+                touchStartX = e.changedTouches[0].screenX;
+                stopGalleryAutoPlay();
+            }, { passive: true });
+
+            galleryTrack.addEventListener('touchend', (e) => {
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipe();
+                startGalleryAutoPlay();
+            }, { passive: true });
+        }
+
+        function handleSwipe() {
+            const swipeThreshold = 50;
+            const diff = touchStartX - touchEndX;
+
+            if (Math.abs(diff) > swipeThreshold) {
+                if (diff > 0) {
+                    moveGallery(1); // Swipe left, go next
+                } else {
+                    moveGallery(-1); // Swipe right, go prev
+                }
+            }
+        }
+
+        // ============================================
+        // Theme Toggle Functions
+        // ============================================
+        const themeConfig = {
+            dark:  { icon: 'fas fa-moon',  label: 'Sombre' },
+            light: { icon: 'fas fa-sun',   label: 'Jour' },
+            night: { icon: 'fas fa-star',  label: 'Nuit' }
+        };
+        const themeCycle = ['dark', 'light', 'night'];
+
+        function getCurrentTheme() {
+            return document.documentElement.getAttribute('data-theme') || 'dark';
+        }
+
+        function toggleTheme() {
+            var current = getCurrentTheme();
+            var idx = themeCycle.indexOf(current);
+            var next = themeCycle[(idx + 1) % themeCycle.length];
+            applyTheme(next);
+        }
+
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('club-site-theme', theme);
+            updateThemeUI(theme);
+        }
+
+        function updateThemeUI(theme) {
+            var cfg = themeConfig[theme] || themeConfig.dark;
+            var icon = document.getElementById('themeIcon');
+            var label = document.getElementById('themeLabel');
+            if (icon) icon.className = cfg.icon;
+            if (label) label.textContent = cfg.label;
+        }
+
+        // Initialize theme UI on load
+        updateThemeUI(getCurrentTheme());
+
+        // Language Selector Functions - All 15 supported languages
+        const languageData = {
+            'fr': { flag: '🇫🇷', name: 'Français', code: 'FR' },
+            'en': { flag: '🇬🇧', name: 'English', code: 'EN' },
+            'es': { flag: '🇪🇸', name: 'Español', code: 'ES' },
+            'de': { flag: '🇩🇪', name: 'Deutsch', code: 'DE' },
+            'it': { flag: '🇮🇹', name: 'Italiano', code: 'IT' },
+            'pt': { flag: '🇵🇹', name: 'Português', code: 'PT' },
+            'ru': { flag: '🇷🇺', name: 'Русский', code: 'RU' },
+            'vi': { flag: '🇻🇳', name: 'Tiếng Việt', code: 'VI' },
+            'no': { flag: '🇳🇴', name: 'Norsk', code: 'NO' },
+            'ja': { flag: '🇯🇵', name: '日本語', code: 'JA' },
+            'zh-hans': { flag: '🇨🇳', name: '中文', code: 'ZH' },
+            'ko': { flag: '🇰🇷', name: '한국어', code: 'KO' },
+            'ar': { flag: '🇸🇦', name: 'العربية', code: 'AR' },
+            'hi': { flag: '🇮🇳', name: 'हिन्दी', code: 'HI' },
+            'sw': { flag: '🇰🇪', name: 'Kiswahili', code: 'SW' }
+        };
+
+        function toggleLanguageDropdown() {
+            const dropdown = document.getElementById('langDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        // Set cookie helper
+        function setCookie(name, value, days) {
+            let expires = "";
+            if (days) {
+                const date = new Date();
+                date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+                expires = "; expires=" + date.toUTCString();
+            }
+            document.cookie = name + "=" + (value || "") + expires + "; path=/; SameSite=Lax";
+        }
+
+        // Get cookie helper
+        function getCookie(name) {
+            const nameEQ = name + "=";
+            const ca = document.cookie.split(';');
+            for (let i = 0; i < ca.length; i++) {
+                let c = ca[i];
+                while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+            }
+            return null;
+        }
+
+        function changeLanguage(lang, event) {
+            event.preventDefault();
+
+            // Update current language display
+            const langInfo = languageData[lang];
+            if (langInfo) {
+                document.getElementById('currentFlag').textContent = langInfo.flag;
+                document.getElementById('currentLang').textContent = langInfo.code;
+            }
+
+            // Update active state in dropdown
+            document.querySelectorAll('.language-option').forEach(opt => {
+                opt.classList.remove('active');
+                if (opt.dataset.lang === lang) {
+                    opt.classList.add('active');
+                }
+            });
+
+            // Close dropdown
+            document.getElementById('langDropdown').classList.remove('show');
+
+            // Save preference to localStorage and cookie
+            localStorage.setItem('preferredLanguage', lang);
+            setCookie('django_language', lang, 365);
+            setCookie('selected_language', lang, 365);
+
+            // Show loading feedback
+            const btn = document.getElementById('langBtn');
+            btn.style.opacity = '0.7';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+            // Reload the page to apply language change
+            setTimeout(() => {
+                window.location.reload();
+            }, 300);
+        }
+
+        // Close language dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const selector = document.querySelector('.language-selector');
+            const dropdown = document.getElementById('langDropdown');
+            if (selector && !selector.contains(event.target)) {
+                dropdown.classList.remove('show');
+            }
+        });
+
+        // Initialize language from cookie or localStorage on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Try to detect current language
+            let currentLang = 'fr'; // Default
+
+            // Check Django language cookie first (highest priority)
+            const djangoLang = getCookie('django_language');
+            if (djangoLang && languageData[djangoLang]) {
+                currentLang = djangoLang;
+            } else {
+                // Check localStorage preference
+                const savedLang = localStorage.getItem('preferredLanguage');
+                if (savedLang && languageData[savedLang]) {
+                    currentLang = savedLang;
+                }
+            }
+
+            // Update UI
+            const langInfo = languageData[currentLang];
+            if (langInfo) {
+                document.getElementById('currentFlag').textContent = langInfo.flag;
+                document.getElementById('currentLang').textContent = langInfo.code;
+
+                // Update active state
+                document.querySelectorAll('.language-option').forEach(opt => {
+                    opt.classList.remove('active');
+                    if (opt.dataset.lang === currentLang) {
+                        opt.classList.add('active');
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

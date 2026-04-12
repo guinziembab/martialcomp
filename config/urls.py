@@ -33,6 +33,7 @@ from config.views import debug_host
 from apps.finances.views.stripe_views import stripe_webhook
 from apps.competitions.views.organization_sites import (
     public_organization_site,
+    public_news_detail,
     public_organization_register_view,
     public_organization_referral_view,
     public_organization_qr_code_view,
@@ -97,6 +98,7 @@ urlpatterns = [
     path('org/<slug:slug>/payment/', public_organization_payment_view, name='public_org_payment'),
     path('org/<slug:slug>/shop/', public_organization_shop_view, name='public_org_shop'),
     path('org/<slug:slug>/referral/', public_organization_referral_view, name='public_org_referral'),
+    path('org/<slug:slug>/news/<slug:news_slug>/', public_news_detail, name='public_org_news_detail'),
 
     # API endpoints pour galerie et bannière (sans préfixe de langue)
     path('org/<slug:slug>/api/gallery/upload/', api_upload_gallery_image, name='api_org_gallery_upload'),
