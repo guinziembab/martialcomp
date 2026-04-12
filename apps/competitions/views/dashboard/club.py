@@ -2125,8 +2125,34 @@ def club_results(request):
         practitioners = Practitioner.objects.none()
 
     # Récupérer les résultats des pratiquants du club
-    rankings = CompetitionRanking.objects.filter(
+    # Inclure les rankings directs ET les rankings via équipes (Song Luyen, Synchro, etc.)
+    from apps.competitions.models.combat import MembreEquipe
+
+    # Rankings directs
+    direct_ranking_ids = set(CompetitionRanking.objects.filter(
         practitioner__in=practitioners
+    ).values_list('id', flat=True))
+
+    # Rankings via équipes : trouver les rankings dont le practitioner ancre
+    # est dans une équipe avec un membre du club
+    team_memberships = MembreEquipe.objects.filter(
+        pratiquant__in=practitioners,
+        equipe__is_active=True,
+    ).select_related('equipe', 'equipe__category')
+
+    team_ranking_ids = set()
+    for m in team_memberships:
+        if m.equipe.category:
+            # Trouver le ranking de l'ancre de cette équipe
+            team_ranks = CompetitionRanking.objects.filter(
+                category=m.equipe.category,
+                practitioner__in=m.equipe.memberships.values_list('pratiquant', flat=True)
+            ).values_list('id', flat=True)
+            team_ranking_ids.update(team_ranks)
+
+    all_ranking_ids = direct_ranking_ids | team_ranking_ids
+    rankings = CompetitionRanking.objects.filter(
+        id__in=all_ranking_ids
     ).select_related(
         'competition', 'category', 'practitioner', 'practitioner__organization'
     ).order_by('-competition__start_date', 'rank')
@@ -2139,7 +2165,16 @@ def club_results(request):
     # Filtrer par pratiquant si paramètre fourni
     practitioner_id = request.GET.get('practitioner')
     if practitioner_id:
-        rankings = rankings.filter(practitioner_id=practitioner_id)
+        # Inclure les rankings directs du pratiquant ET ses rankings équipe
+        prat_team_cats = MembreEquipe.objects.filter(
+            pratiquant_id=practitioner_id,
+            equipe__is_active=True,
+            equipe__category__isnull=False,
+        ).values_list('equipe__category_id', flat=True)
+        rankings = rankings.filter(
+            Q(practitioner_id=practitioner_id) |
+            Q(category_id__in=prat_team_cats)
+        )
 
     # Recherche par nom
     search_query = request.GET.get('q', '').strip()
