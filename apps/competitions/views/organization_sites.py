@@ -1102,8 +1102,10 @@ def api_upload_gallery_image(request, slug):
                 'error': 'Limite de 10 images atteinte. Supprimez une image avant d\'en ajouter une nouvelle.'
             }, status=400)
 
-        # Récupérer les fichiers
+        # Récupérer les fichiers (supporte 'images' et 'image')
         files = request.FILES.getlist('images')
+        if not files:
+            files = request.FILES.getlist('image')
         if not files:
             return JsonResponse({'success': False, 'error': 'Aucun fichier fourni'}, status=400)
 
