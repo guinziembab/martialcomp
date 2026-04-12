@@ -2150,9 +2150,9 @@ def api_generate_competition_article(request, slug):
 
     try:
         from apps.organizations.models import Organization, OrganizationNews
-        from apps.competitions.models import Club, Competition, Practitioner
+        from apps.competitions.models import Club, Competition, Practitioner, CompetitionCategory
         from apps.competitions.models.technical_scoring import CompetitionRanking
-        from apps.competitions.models.combat import Combat, Equipe, MembreEquipe
+        from apps.competitions.models.combat import Combat, Equipe, MembreEquipe, Poule
         from django.utils import timezone
         from django.utils.text import slugify
         import json as json_module
@@ -2403,7 +2403,6 @@ def api_generate_competition_article(request, slug):
         ).exclude(competition_type__isnull=True)
         combat_cats = [c for c in combat_cats if 'combat' in (c.competition_type.name.lower() if c.competition_type else '')]
 
-        from apps.competitions.models.combat import Poule
         from collections import defaultdict as dd
 
         for cat in combat_cats:
